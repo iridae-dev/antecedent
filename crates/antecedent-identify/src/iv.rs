@@ -242,6 +242,40 @@ pub(crate) fn instrument_assumptions(
     ]
 }
 
+/// Check a supplied instrument against the graph criterion of
+/// [`InstrumentalVariableIdentifier`]: not a treatment descendant, relevant to the
+/// treatment, and d-separated from the outcome once the treatment's out-edges are cut.
+///
+/// # Errors
+///
+/// [`IdentificationError::InvalidQuery`] for variables outside the graph or colliding roles.
+pub fn check_instrument(
+    graph: &Dag,
+    instrument: antecedent_core::VariableId,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<bool, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            let valid = |id: antecedent_core::VariableId| (id.raw() as usize) < graph.node_count();
+            if !valid(instrument) || !valid(treatment) || !valid(outcome) || treatment == outcome {
+                return Err(IdentificationError::InvalidQuery {
+                    message: "invalid instrument roles".into(),
+                });
+            }
+            is_valid_instrument(
+                graph,
+                DenseNodeId::from_raw(instrument.raw()),
+                DenseNodeId::from_raw(treatment.raw()),
+                DenseNodeId::from_raw(outcome.raw()),
+                &mut GraphWorkspace::default(),
+                &mut DSeparationWorkspace::default(),
+            )
+        },
+    )
+}
+
 /// Whether `z` is a valid instrument for `t` -> `y`.
 pub(crate) fn is_valid_instrument(
     dag: &Dag,

@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for multi-source limited-experiment transport.
 //!
-//! Format version 1. A consumer trusts nothing in the artifact. It re-runs the
+//! Format version 2. A consumer trusts nothing in the artifact. It re-runs the
 //! bounded `TR^mz` decision on the stored graph, query and catalog under the
 //! search limits the proof stores (which must lie within its own maxima) and
 //! accepts only the identical derivation, including the search receipt: limits
@@ -46,9 +46,9 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 
 /// The artifact format this reader writes and accepts.
-pub const MZ_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const MZ_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v1";
+pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v2";
 /// Uncertainty status: exact laws, no sampling uncertainty.
 pub const MZ_POINT_ONLY: &str = "point_only";
 /// Uncertainty status: no interval, for the stated reason.
@@ -342,6 +342,10 @@ pub struct MzTransportArtifactWire {
     /// Digest of the data identity: catalog snapshot and dataset ids and every
     /// law's snapshot (refresh-replaceable).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// requests, the limits, the reported points, contrasts and interval bookkeeping that the
+    /// other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// Everything a replay reconstructed and recomputed.
@@ -541,8 +545,10 @@ impl MzTransportArtifactWire {
             contrasts: mz_point_contrasts(input.results)?,
             uncertainty: input.uncertainty,
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = wire.expected_premises_digest()?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         let problem = IntervalProblem {
             functional: input.functional,
@@ -561,6 +567,16 @@ impl MzTransportArtifactWire {
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
         crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("mz_transport_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -792,6 +808,12 @@ impl MzTransportArtifactWire {
             limits: producer_limits,
         };
         check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || MzTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedMzTransport { functional, data, requests, distributions, contrasts, wire })
     }
 

@@ -239,6 +239,90 @@ pub(super) fn linear_fit_moments_wire(
     }))
 }
 
+/// Cross-product moments of the complete-case columns `columns` (each `(id, values)`, the
+/// outcome last), or `None` when a value is not finite or the table is empty.
+fn cross_product_moments(
+    columns: &[(u32, &[f64])],
+    rows: usize,
+) -> Option<antecedent_io::CrossProductMomentsWire> {
+    let width = columns.len();
+    if rows == 0 || width < 2 || columns.iter().any(|(_, values)| values.len() != rows) {
+        return None;
+    }
+    let mut gram = vec![0.0; width * width];
+    for left in 0..width {
+        for right in left..width {
+            let sum: f64 = columns[left].1.iter().zip(columns[right].1).map(|(a, b)| a * b).sum();
+            gram[left * width + right] = sum;
+            gram[right * width + left] = sum;
+        }
+    }
+    gram.iter().all(|value| value.is_finite()).then(|| antecedent_io::CrossProductMomentsWire {
+        format: 1,
+        complete_case_rows: u64::try_from(rows).unwrap_or(u64::MAX),
+        columns: columns.iter().map(|(id, _)| *id).collect(),
+        gram,
+    })
+}
+
+/// Moments that replay the point estimate of the checked IV or linear front-door fit this
+/// execution runs, rebound to `data`; `None` for every other route.
+///
+/// IV carries `[1, adjustment..., instruments..., treatment, outcome]` and front-door
+/// `[1, treatment, mediators..., outcome]`, each over the rows the fit used.
+pub(super) fn cross_product_moments_wire(
+    data: &antecedent_data::TabularData,
+    execution: &crate::analysis::prepared::PreparedExecution,
+) -> Result<Option<antecedent_io::CrossProductMomentsWire>, CausalError> {
+    use antecedent_io::CROSS_PRODUCT_INTERCEPT as ONE;
+    if let Some(operation) = execution.iv() {
+        let prepared = match operation {
+            crate::analysis::prepared::CheckedIvOperation::Wald { fitter, preparation } => {
+                fitter.rebind_checked(preparation, data)
+            }
+            crate::analysis::prepared::CheckedIvOperation::TwoSls { fitter, preparation } => {
+                fitter.rebind_checked(preparation, data)
+            }
+        }
+        .map_err(CausalError::from)?;
+        let problem = prepared.problem();
+        let lowering = prepared.lowering();
+        let rows = problem.nrows;
+        let column = |matrix: &'_ [f64], index: usize| -> Vec<f64> {
+            matrix[index * rows..(index + 1) * rows].to_vec()
+        };
+        let mut owned: Vec<(u32, Vec<f64>)> = vec![(ONE, column(&problem.exogenous_matrix, 0))];
+        for (index, variable) in problem.adjustment_set.iter().enumerate() {
+            owned.push((variable.raw(), column(&problem.exogenous_matrix, index + 1)));
+        }
+        for (index, variable) in problem.instruments.iter().enumerate() {
+            owned.push((variable.raw(), column(&problem.instruments_matrix, index + 1)));
+        }
+        owned.push((lowering.treatment.raw(), problem.treatment.to_vec()));
+        owned.push((lowering.outcome.raw(), problem.outcome.to_vec()));
+        let borrowed: Vec<(u32, &[f64])> =
+            owned.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        return Ok(cross_product_moments(&borrowed, rows));
+    }
+    if let Some(operation) = execution.frontdoor_linear() {
+        let prepared = operation
+            .fitter
+            .rebind_checked(&operation.preparation, data)
+            .map_err(CausalError::from)?;
+        let problem = prepared.problem();
+        let lowering = prepared.lowering();
+        let ones = vec![1.0; problem.nrows];
+        let mut columns: Vec<(u32, &[f64])> =
+            vec![(ONE, ones.as_slice()), (lowering.treatment.raw(), &problem.treatment)];
+        for (id, values) in problem.mediator_ids.iter().zip(problem.mediators.iter()) {
+            columns.push((id.raw(), values));
+        }
+        columns.push((lowering.outcome.raw(), &problem.outcome));
+        return Ok(cross_product_moments(&columns, problem.nrows));
+    }
+    Ok(None)
+}
+
 /// Add `study`'s data snapshot to program payloads already compiled for it.
 pub(super) fn contract_payloads(
     program: Arc<ProgramPayloads>,
@@ -278,6 +362,8 @@ pub(super) fn contract_payloads(
         if let Some(operation) = prepared.execution().linear_operation() {
             data_snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
         }
+        data_snapshot.cross_product_moments =
+            cross_product_moments_wire(tabular, prepared.execution())?;
     }
     if let DataInput::Temporal(series) | DataInput::Event(series) = &study.data {
         if let CausalQuery::NestedCounterfactual(query) = &study.query {
@@ -710,6 +796,7 @@ pub(super) fn data_snapshot_wire(
         distribution_factor_laws: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
+        cross_product_moments: None,
         participants: participants.cloned(),
         missing,
         sampling_design,

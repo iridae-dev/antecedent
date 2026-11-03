@@ -797,6 +797,8 @@ impl PreparedStudy {
             if let Some(operation) = self.execution().linear_operation() {
                 snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
             }
+            snapshot.cross_product_moments =
+                compile::cross_product_moments_wire(tabular, self.execution())?;
         }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         Ok(crate::result::ExecutedContract {
@@ -1823,14 +1825,9 @@ mod frontdoor_artifact_tests {
             prepared.execution_record_with_quantity_labels(&result, &context, None).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
         let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
-        // The checked lowering binds the program, but the artifact does not carry
-        // a portable replay of the fitted operation. It remains readable and
-        // unresolved even when its procedure is internally consistent.
-        assert!(!intact.acceptance.accepts_as_verified_program());
-        assert_eq!(
-            intact.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
-            ["dependencies.checked_estimator_operation"]
-        );
+        // The checked lowering binds the program and the carried cross-product moments replay
+        // the fitted point estimate, so the intact artifact verifies.
+        assert!(intact.acceptance.accepts_as_verified_program());
 
         let (artifact, _header, body) =
             antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -2029,14 +2026,9 @@ mod checked_iv_artifact_tests {
             let result = prepared.estimate(&data, &context).unwrap();
             let bytes = prepared.encode_contracted_result(&result, "iv", &context).unwrap();
             let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
-            // The checked IV lowering proves its binding, not a replay of the
-            // published estimate. The intact artifact is readable but unresolved.
-            assert!(!intact.acceptance.accepts_as_verified_program());
-            assert_eq!(
-                intact.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
-                ["dependencies.checked_estimator_operation"],
-                "{expected}"
-            );
+            // The checked IV lowering binds the route and the carried cross-product moments
+            // replay the published point estimate.
+            assert!(intact.acceptance.accepts_as_verified_program(), "{expected}");
             let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
             let contract =
                 antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();

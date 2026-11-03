@@ -1,12 +1,14 @@
 //! Independent point-result artifacts for single-source z transport.
 //!
-//! Format version 3. A consumer trusts nothing in the artifact: the proof is
+//! Format version 4. A consumer trusts nothing in the artifact: the proof is
 //! re-verified, the catalog re-bound, the laws re-validated and re-counted, the
 //! program re-checked and the point recomputed, all under the consumer's own
 //! limits. The limits an artifact records are provenance; a stored limit larger
 //! than the consumer's refuses. Version 1 artifacts carried an optional program
 //! and a `Debug`-rendered graph signature and are refused as unsupported. Version 2 artifacts carried no
-//! variable-name mapping and are refused too: the digest now binds the names.
+//! variable-name mapping and are refused too: the digest now binds the names. Version 3
+//! artifacts carried no evidence digest, so their laws, request, program and result were bound
+//! by no digest, and are refused as well.
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
@@ -33,9 +35,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const Z_TRANSPORT_ARTIFACT_VERSION: u32 = 3;
+pub const Z_TRANSPORT_ARTIFACT_VERSION: u32 = 4;
 /// The feature marker of the accepted format.
-pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v3";
+pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v4";
 /// The one interval status this point format reports.
 pub const Z_TRANSPORT_NO_INTERVAL: &str = "no_interval_reported";
 
@@ -87,6 +89,10 @@ pub struct ZTransportArtifactWire {
     /// query, proof record, expression and variable names. Stable across re-encodings of the
     /// same premises, unlike a digest of the artifact bytes.
     pub premises_digest: String,
+    /// Digest of the whole stored artifact but this field: the request, catalog, program,
+    /// laws (probabilities included), limits and reported point that the premises digest
+    /// leaves out.
+    pub evidence_digest: String,
 }
 
 /// Complete point distribution in canonical atom order.
@@ -210,7 +216,7 @@ impl ZTransportArtifactWire {
         let expression = expr_arena_to_wire(functional.derivation().arena())?;
         let premises_digest =
             premises_digest(&graph, &selections, &query, &proof, &expression, variable_names)?;
-        let wire = Self {
+        let mut wire = Self {
             version: Z_TRANSPORT_ARTIFACT_VERSION,
             required_features: vec![Z_TRANSPORT_ARTIFACT_FEATURE.into()],
             graph,
@@ -233,10 +239,22 @@ impl ZTransportArtifactWire {
             interval_status: Z_TRANSPORT_NO_INTERVAL.into(),
             variable_names: variable_names.to_vec(),
             premises_digest,
+            evidence_digest: String::new(),
         };
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         validate_functional_program(program, functional)?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("z_transport_evidence_v4", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     fn validate_shape(&self) -> Result<(), ZTransportArtifactError> {
@@ -432,6 +450,12 @@ impl ZTransportArtifactWire {
         if !wire.result.replays(&ZTransportPointWire::from_distribution(&distribution)) {
             return Err(ZTransportArtifactError::PointMismatch.into());
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || ZTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedZTransport {
             diagram,
             functional,

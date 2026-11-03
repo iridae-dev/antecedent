@@ -112,11 +112,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     let first_bytes =
         prepared.encode_contracted_result(&first, "checked-frontdoor", &context).unwrap();
     let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
-    assert!(!first_consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        first_consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
-        ["dependencies.checked_estimator_operation"]
-    );
+    assert!(first_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(first_consumed.body.estimate, Some(first.effect()));
 
     let refreshed =
@@ -138,11 +134,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
         .encode_contracted_result(&refreshed, "checked-frontdoor-refresh", &context)
         .unwrap();
     let refreshed_consumed = antecedent_io::consume_analysis_result(&refreshed_bytes).unwrap();
-    assert!(!refreshed_consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        refreshed_consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
-        ["dependencies.checked_estimator_operation"]
-    );
+    assert!(refreshed_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(refreshed_consumed.body.estimate, Some(refreshed.effect()));
 
     let treatment = prepared.schema.id_of("t").unwrap();
@@ -154,7 +146,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
 }
 
 #[test]
-fn default_frontdoor_id_exports_a_bound_but_unreplayed_checked_result() {
+fn default_frontdoor_id_exports_a_replayed_checked_result() {
     let data = data(0.0);
     let graph = Dag::from_named_edges(data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
     let treatment = data.schema().id_of("t").unwrap();
@@ -175,9 +167,5 @@ fn default_frontdoor_id_exports_a_bound_but_unreplayed_checked_result() {
     let result = prepared.estimate(&data, &context).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "default-frontdoor", &context).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
-        ["dependencies.checked_estimator_operation"]
-    );
+    assert!(consumed.acceptance.accepts_as_verified_program());
 }

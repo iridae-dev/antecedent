@@ -9,12 +9,12 @@ use super::consume::{
     support_empirical, validate_mixture_masses, weight_basis_name,
 };
 use super::replay::{
-    contract_uses_estimator, is_aipw_contract, is_functional_distribution_contract,
-    is_response_functional_effect_contract, is_scalar_functional_effect_contract,
-    replay_functional_response_grid, verify_checked_aipw, verify_checked_aipw_rows,
-    verify_checked_iv, verify_checked_linear_adjustment, verify_frontdoor_lowering,
-    verify_layer_links, verify_linear_fit_moments, verify_nested_counterfactual_result,
-    verify_temporal_nested_point,
+    close_replay_value, contract_uses_estimator, is_aipw_contract,
+    is_functional_distribution_contract, is_response_functional_effect_contract,
+    is_scalar_functional_effect_contract, replay_functional_response_grid, verify_checked_aipw,
+    verify_checked_aipw_rows, verify_checked_iv, verify_checked_linear_adjustment,
+    verify_frontdoor_lowering, verify_layer_links, verify_linear_fit_moments,
+    verify_nested_counterfactual_result, verify_temporal_nested_point,
 };
 
 use std::sync::Arc;
@@ -132,6 +132,7 @@ pub(in crate::contract_section) fn contract_unresolved_with_source(
         unresolved.push(ContractReason::DependenciesScopedRefutationReplay);
     }
     note_linear_fit_replay(contract, body, &mut unresolved);
+    note_cross_product_replay(contract, body, &mut unresolved);
     // This artifact seals one member's recorded family evidence, but does not carry
     // every other query and aligned score table needed to replay family inference.
     // A covariance alone is the estimator's own summary covariance (an ordinary AIPW
@@ -236,6 +237,20 @@ fn note_checked_estimator_operation(
                         .as_ref()
                         .is_some_and(|snapshot| snapshot.linear_fit_moments.is_some())
             }
+            (Some("iv.wald" | "iv.2sls"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_iv_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.cross_product_moments.is_some())
+            }
+            (Some("frontdoor.linear_two_stage"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_frontdoor_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.cross_product_moments.is_some())
+            }
             (Some("aipw"), CausalQueryWire::AverageEffect { .. }) => {
                 program.checked_aipw_lowering.is_some() && contract.checked_aipw_rows.is_some()
             }
@@ -293,6 +308,33 @@ fn note_checked_estimator_operation(
     });
     if !supported && !operation_already_missing {
         unresolved.push(ContractReason::DependenciesCheckedEstimatorOperation);
+    }
+}
+
+/// Replay the point estimate of a checked IV or linear front-door lowering from the carried
+/// cross-product moments. Absent moments are not a replay failure here: the route then
+/// stays under the missing-estimator-operation obligation.
+pub(in crate::contract_section) fn note_cross_product_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    let Some(program) = contract.program.as_ref() else { return };
+    let Some(snapshot) = super::cross_moments::Snapshot::of(contract) else { return };
+    if snapshot.moments.is_none() {
+        return;
+    }
+    let verdict = match (&program.checked_iv_lowering, &program.checked_frontdoor_lowering) {
+        (Some(lowering), None) => {
+            super::cross_moments::verify_iv_moments(&snapshot, body.estimate, lowering)
+        }
+        (None, Some(lowering)) => {
+            super::cross_moments::verify_frontdoor_moments(&snapshot, body.estimate, lowering)
+        }
+        _ => return,
+    };
+    if let Err(reason) = verdict {
+        unresolved.push(reason);
     }
 }
 
@@ -1181,6 +1223,9 @@ pub(in crate::contract_section) fn note_published_claim(
         if !identification_product_matches_body(product, body) {
             unresolved.push(ContractReason::BodyIdentificationProduct);
         }
+        if let Err(reason) = super::replay::verify_carried_estimands(contract) {
+            unresolved.push(reason);
+        }
     } else if contract.identities.identification_product.is_some() {
         unresolved.push(ContractReason::IdentitiesIdentificationProduct);
     }
@@ -1898,7 +1943,30 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
         }
     }
     consistent &= mixture.unidentified_mass + SUMMED_MASS_TOLERANCE >= uncovered;
+    consistent &= mixture_recomputes(mixture);
     if !consistent {
         unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
     }
+}
+
+/// Recompute the identified-mass-conditional scalar from the published atoms: the
+/// weight-averaged value over the finite scalar atoms. Mixtures that carry no scalar
+/// conditional, or whose atoms are not all scalar, are left to the structural checks.
+fn mixture_recomputes(mixture: &crate::StructuralResponseMixtureWire) -> bool {
+    let Some(crate::ResponseValueWire::Scalar(stored)) = mixture.conditional_on_identified.as_ref()
+    else {
+        return true;
+    };
+    let (mut weight, mut weighted) = (0.0_f64, 0.0_f64);
+    for atom in &mixture.atoms {
+        match atom.value.as_ref() {
+            Some(crate::ResponseValueWire::Scalar(value)) if value.is_finite() => {
+                weight += atom.weight;
+                weighted += atom.weight * value;
+            }
+            Some(crate::ResponseValueWire::Scalar(_)) | None => {}
+            Some(_) => return true,
+        }
+    }
+    weight > 0.0 && close_replay_value(*stored, weighted / weight)
 }

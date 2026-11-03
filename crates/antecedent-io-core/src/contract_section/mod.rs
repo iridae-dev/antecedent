@@ -444,6 +444,7 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 }
 
 mod consume;
+mod cross_moments;
 pub mod cyclic;
 mod dr_replay;
 mod replay;

@@ -236,6 +236,48 @@ impl FrontDoorIdentifier {
     }
 }
 
+/// Check a supplied mediator set against the front-door criterion.
+///
+/// Evaluates the complete set (no candidate search, so no search budget). `Ok(false)` when
+/// the set is empty or any criterion fails; an error for variables outside the graph or
+/// roles that collide.
+///
+/// # Errors
+///
+/// [`IdentificationError::InvalidQuery`] for out-of-graph or colliding roles.
+pub fn check_frontdoor_set(
+    graph: &Dag,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediators: &[VariableId],
+) -> Result<bool, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            let valid = |id: VariableId| (id.raw() as usize) < graph.node_count();
+            let unique: std::collections::BTreeSet<_> = mediators.iter().copied().collect();
+            if !valid(treatment)
+                || !valid(outcome)
+                || treatment == outcome
+                || unique.len() != mediators.len()
+                || mediators.iter().any(|id| !valid(*id) || *id == treatment || *id == outcome)
+            {
+                return Err(IdentificationError::InvalidQuery {
+                    message: "invalid front-door roles".into(),
+                });
+            }
+            let m: Vec<_> = mediators.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            is_frontdoor_set(
+                graph,
+                DenseNodeId::from_raw(treatment.raw()),
+                DenseNodeId::from_raw(outcome.raw()),
+                &m,
+                &mut DSeparationWorkspace::default(),
+            )
+        },
+    )
+}
+
 /// Whether `m` satisfies the front-door criterion relative to `t` and `y`.
 fn is_frontdoor_set(
     dag: &Dag,

@@ -285,10 +285,10 @@ fn initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
 fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert_ne!(TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE);
     let bytes = artifact().export().unwrap();
-    // The specified-initial-state sequence artifact decoder refuses these bytes outright.
+    // The specified-initial-state sequence artifact decoder refuses these bytes outright (by container version, which the evidence digest bumped).
     assert_eq!(
         TemporalSequenceArtifactWire::decode(&bytes).unwrap_err().to_string(),
-        "cbor error: Custom(\"unknown field `kind`, expected one of `version`, `required_features`, `horizon`, `graph`, `selections`, `slots`, `coordinates`, `source`, `target`, `sequence`, `search_operations`, `search_depth`, `search_memory_bytes`, `catalog`, `provider`, `laws`, `max_support_rows`, `operation_limit`, `depth_limit`, `report`, `premises_digest`, `data_digest`\")"
+        "unsupported container version 1"
     );
     // A foreign feature marker or kind is refused by this decoder.
     let mut foreign = artifact();

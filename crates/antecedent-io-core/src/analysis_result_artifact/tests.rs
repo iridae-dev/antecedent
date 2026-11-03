@@ -826,6 +826,7 @@ mod source_witness_cases {
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
+            cross_product_moments: None,
             participants: None,
             missing: None,
             sampling_design: None,

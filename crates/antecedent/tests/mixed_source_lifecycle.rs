@@ -213,6 +213,14 @@ fn a_mutated_artifact_fails_independent_consumption() {
         original.check_variable_names(&relabelled),
         Err(MixedSourceArtifactError::NamesMismatch)
     );
+    // A resealed premise edit that still replays leaves the evidence digest stale.
+    refuse(
+        mutate(&|w| {
+            w.operation_limit -= 1;
+            w.premises_digest = w.expected_premises_digest().unwrap();
+        }),
+        &|e| matches!(e, MixedSourceArtifactError::EvidenceMismatch),
+    );
     // A consistent rewrite of the premises must still reproduce the decision.
     for edit in [
         (&|w: &mut MixedSourceArtifactWire| w.proof.stages.push(("rule_search".into(), "x".into())))
@@ -262,14 +270,14 @@ fn a_mutated_artifact_fails_independent_consumption() {
     ));
     // Another version is refused before the payload is read.
     let mut versioned = original.clone();
-    versioned.version = 2;
+    versioned.version = 1;
     assert!(matches!(
         consume_mixed_source_artifact(
             &versioned.export().unwrap(),
             MixedSourceConsumeLimits::default(),
             &ctx
         ),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        Err(IoError::UnsupportedVersion { version: 1 })
     ));
 }
 

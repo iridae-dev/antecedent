@@ -39,6 +39,9 @@ pub enum ZTransportArtifactError {
     /// The premises digest does not match the stored premises.
     #[error("premises digest mismatch")]
     PremisesMismatch,
+    /// The evidence digest does not match the stored laws, request, program and result.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the names the artifact was built under.
     #[error("variable names do not match the verified name mapping")]
     NamesMismatch,
@@ -58,6 +61,7 @@ impl ZTransportArtifactError {
             | Self::ProgramMismatch(_)
             | Self::PointMismatch
             | Self::PremisesMismatch
+            | Self::EvidenceMismatch
             | Self::NamesMismatch => TransportOutcomeKind::InvalidInput,
         }
     }
@@ -101,6 +105,9 @@ pub enum MzTransportArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the names the artifact was built under.
     #[error("variable names do not match the verified name mapping")]
     NamesMismatch,
@@ -153,6 +160,9 @@ pub enum MixedSourceArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the names the artifact was built under.
     #[error("variable names do not match the verified name mapping")]
     NamesMismatch,
@@ -193,6 +203,9 @@ pub enum AdmgConditionalArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("admg_transport.data_identity_mismatch: data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("admg_transport.evidence_mismatch: evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the verified name mapping.
     #[error("admg_transport.invalid_artifact: variable names do not match the verified mapping")]
     NamesMismatch,
@@ -228,6 +241,9 @@ impl AdmgConditionalArtifactError {
             }
             Self::DataIdentityMismatch => {
                 (reason_code!("transport_not_certified"), "admg_transport.data_identity_mismatch")
+            }
+            Self::EvidenceMismatch => {
+                (reason_code!("transport_not_certified"), "admg_transport.evidence_mismatch")
             }
         }
     }
@@ -281,6 +297,9 @@ pub enum TemporalTransportArtifactError {
     /// The stored catalog or laws disagree with the recorded data digest.
     #[error("temporal sequence data identity mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, sequence and report.
+    #[error("temporal sequence evidence digest mismatch")]
+    EvidenceMismatch,
     /// The report was not produced by the prepared sequence it is exported with.
     #[error("the report was not produced by this prepared sequence")]
     ForeignReport,

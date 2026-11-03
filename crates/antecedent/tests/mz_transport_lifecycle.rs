@@ -209,6 +209,13 @@ fn a_mutated_artifact_fails_independent_consumption() {
         w.premises_digest = w.expected_premises_digest().unwrap();
     });
     assert!(matches!(refused(&forged), MzTransportArtifactError::ProofMismatch(_)));
+    // Evidence the premises and data digests do not bind is sealed by its own digest: a
+    // resealed premise edit that still replays leaves the evidence digest stale.
+    let resealed = mutate(&|w| {
+        w.operation_limit -= 1;
+        w.premises_digest = w.expected_premises_digest().unwrap();
+    });
+    assert!(matches!(refused(&resealed), MzTransportArtifactError::EvidenceMismatch));
     // Source-specific bindings.
     let bindings = mutate(&|w| w.bindings.reverse());
     assert!(matches!(refused(&bindings), MzTransportArtifactError::BindingMismatch));
@@ -786,11 +793,11 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
     assert!(
         consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).is_ok()
     );
-    // Cross-format: the mz artifact (version 1) is refused by the
-    // z-transport reader (version 2) by version, before its payload is read.
+    // Cross-format: the mz artifact (version 2) is refused by the
+    // z-transport reader (version 4) by version, before its payload is read.
     assert!(matches!(
         antecedent_io::z_transport_artifact::ZTransportArtifactWire::decode(&bytes),
-        Err(IoError::UnsupportedVersion { version: 1 })
+        Err(IoError::UnsupportedVersion { version: 2 })
     ));
     assert!(antecedent::consume_z_transport_artifact(&bytes, &ctx).is_err());
 }

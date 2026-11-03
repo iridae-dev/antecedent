@@ -2020,6 +2020,11 @@ pub struct DataSnapshotIdentityWire {
     /// fit and uncertainty contract is inside the supported replay subset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linear_fit_moments: Option<LinearFitMomentsWire>,
+    /// Portable cross-product moments for replaying the point estimate of a checked
+    /// instrumental-variable or front-door linear fit. Absent on older artifacts and on
+    /// routes that do not replay from moments, whose digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross_product_moments: Option<CrossProductMomentsWire>,
     /// Participant labels bound to the rows, when the study declares them. Absent on older
     /// artifacts and on studies without participants, whose digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2051,6 +2056,28 @@ pub struct LinearFitMomentsWire {
     pub outcome_cross: Vec<f64>,
     /// `Y'Y`.
     pub outcome_square: f64,
+}
+
+/// Column marker of the constant column in [`CrossProductMomentsWire::columns`].
+pub const CROSS_PRODUCT_INTERCEPT: u32 = u32::MAX;
+
+/// Cross-product moments `V'V` of the complete-case columns a checked IV or front-door fit
+/// reads, the outcome last.
+///
+/// Every column is a variable id, or [`CROSS_PRODUCT_INTERCEPT`] for the constant. IV carries
+/// `[1, adjustment..., instrument..., treatment, outcome]`; front-door carries
+/// `[1, treatment, mediators..., outcome]`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CrossProductMomentsWire {
+    /// Wire format.
+    pub format: u16,
+    /// Number of complete-case rows.
+    pub complete_case_rows: u64,
+    /// Column identities, in order; the last column is the outcome.
+    pub columns: Vec<u32>,
+    /// Row-major `V'V`, `columns.len()` squared entries.
+    pub gram: Vec<f64>,
 }
 
 /// Sufficient statistics for the ordered design `[intercept, treatment, mediator]`.
@@ -3869,6 +3896,7 @@ mod tests {
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
+            cross_product_moments: None,
             participants: None,
             missing: None,
             sampling_design: None,

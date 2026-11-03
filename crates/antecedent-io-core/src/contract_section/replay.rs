@@ -449,6 +449,85 @@ pub(in crate::contract_section) fn carried_adjustment_is_backdoor(
     )
 }
 
+/// Re-derive the graph-criterion estimands of the carried identification product from the
+/// carried DAG and the marginal average-effect target.
+///
+/// The product is a resealable payload, so its estimands are checked rather than trusted: a
+/// back-door estimand must satisfy the joint back-door criterion, an instrument the graph
+/// instrument criterion, and a front-door estimand the front-door criterion. Each check
+/// evaluates the carried set directly, with no candidate search. A set the criterion rejects
+/// is [`ContractReason::IdentificationProductEstimands`]; a check that could not finish
+/// (budget, cancellation, internal error) is the distinct
+/// [`ContractReason::DependenciesIdentificationReplayBudget`], never a statement that the
+/// estimand is wrong. Estimands of other methods, conditional targets and other graph
+/// classes are certified by other criteria and are not refused here.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the verdict is consumed once, as the identifier returned it"
+)]
+pub(in crate::contract_section) fn estimand_verdict(
+    verdict: Result<bool, antecedent_identify::IdentificationError>,
+) -> Result<(), ContractReason> {
+    use antecedent_identify::IdentificationError;
+    match verdict {
+        Ok(true) => Ok(()),
+        Ok(false)
+        | Err(
+            IdentificationError::InvalidQuery { .. } | IdentificationError::UnknownVariable { .. },
+        ) => Err(ContractReason::IdentificationProductEstimands),
+        Err(_) => Err(ContractReason::DependenciesIdentificationReplayBudget),
+    }
+}
+
+pub(in crate::contract_section) fn verify_carried_estimands(
+    contract: &AnalysisResultContractWire,
+) -> Result<(), ContractReason> {
+    use antecedent_core::VariableId;
+    use antecedent_identify::{backdoor::check_joint_adjustment, frontdoor, iv};
+
+    let (Some(product), Some(identification)) =
+        (contract.identification_product.as_ref(), contract.identification.as_ref())
+    else {
+        return Ok(());
+    };
+    let crate::identity::GraphIdentityWire::Dag(graph) = &identification.graph else {
+        return Ok(());
+    };
+    let crate::CausalQueryWire::AverageEffect { treatment, outcome, effect_modifiers, .. } =
+        &contract.target.query
+    else {
+        return Ok(());
+    };
+    if !effect_modifiers.is_empty() {
+        return Ok(());
+    }
+    let Ok(dag) = crate::dag_from_wire(graph) else {
+        return Err(ContractReason::IdentificationProductEstimands);
+    };
+    let (treatment, outcome) = (VariableId::from_raw(*treatment), VariableId::from_raw(*outcome));
+    let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+    for estimand in &product.estimands {
+        let verdict = match estimand.method.as_str() {
+            "backdoor.adjustment" | "backdoor.efficient"
+                if estimand.instruments.is_empty() && estimand.mediators.is_empty() =>
+            {
+                check_joint_adjustment(&dag, &[treatment], outcome, &ids(&estimand.adjustment_set))
+                    .map(|checked| checked.is_some())
+            }
+            "iv" if estimand.adjustment_set.is_empty() => match ids(&estimand.instruments)[..] {
+                [instrument] => iv::check_instrument(&dag, instrument, treatment, outcome),
+                _ => Ok(false),
+            },
+            "frontdoor" => {
+                frontdoor::check_frontdoor_set(&dag, treatment, outcome, &ids(&estimand.mediators))
+            }
+            _ => continue,
+        };
+        estimand_verdict(verdict)?;
+    }
+    Ok(())
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "The lowering verifier compares one complete checked product across its target, design, and evidence."

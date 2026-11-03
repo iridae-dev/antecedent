@@ -423,6 +423,7 @@ fn contract_for_dag(
         sampling_design: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
+        cross_product_moments: None,
     };
     let snapshot_digest = data_snapshot_digest(&data_snapshot).unwrap();
     let execution =
@@ -2398,6 +2399,54 @@ mod dr_replay {
 
     fn bump(value: f64) -> f64 {
         f64::from_bits(value.to_bits() + 1)
+    }
+
+    #[test]
+    fn carried_estimands_are_rederived_from_the_carried_graph() {
+        const ESTIMANDS: &str = "identification_product.estimands";
+        let case = standard();
+        assert!(!reasons(&case, Some(&case.witness)).contains(ESTIMANDS));
+        assert_eq!(
+            case.contract.identification_product.as_ref().unwrap().estimands[0].method,
+            "backdoor.adjustment"
+        );
+        // A resealed product that names a confounder-free empty set for a confounded graph.
+        let mut empty = case.clone();
+        empty.contract.identification_product.as_mut().unwrap().estimands[0].adjustment_set =
+            Vec::new();
+        assert!(reasons(&empty, Some(&empty.witness)).contains(ESTIMANDS));
+        // The confounder is not an instrument (it reaches the outcome) nor a front-door mediator.
+        for (method, instruments, mediators) in
+            [("iv", vec![2], Vec::new()), ("frontdoor", Vec::new(), vec![2])]
+        {
+            let mut forged = case.clone();
+            let slot = &mut forged.contract.identification_product.as_mut().unwrap().estimands[0];
+            slot.method = method.into();
+            slot.adjustment_set = Vec::new();
+            slot.instruments = instruments;
+            slot.mediators = mediators;
+            assert!(reasons(&forged, Some(&forged.witness)).contains(ESTIMANDS), "{method}");
+        }
+    }
+
+    #[test]
+    fn a_budget_failure_is_not_a_wrong_estimand() {
+        use antecedent_core::VariableId;
+        use antecedent_identify::{IdentificationBudget, IdentificationError};
+        let wrong = Err(crate::ContractReason::IdentificationProductEstimands);
+        let unfinished = Err(crate::ContractReason::DependenciesIdentificationReplayBudget);
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Ok(true)), Ok(()));
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Ok(false)), wrong);
+        let unknown = IdentificationError::UnknownVariable { id: VariableId::from_raw(9) };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(unknown)), wrong);
+        let invalid = IdentificationError::InvalidQuery { message: String::new() };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(invalid)), wrong);
+        let budget = IdentificationError::Budget { budget: IdentificationBudget::Steps };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(budget)), unfinished);
+        assert_eq!(
+            crate::contract_section::replay::estimand_verdict(Err(IdentificationError::Cancelled)),
+            unfinished
+        );
     }
 
     #[test]

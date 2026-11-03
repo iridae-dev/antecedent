@@ -48,6 +48,10 @@ pub enum ContractReason {
     ClaimValue,
     /// `contract.seal`.
     ContractSeal,
+    /// `data_snapshot.cross_product_moments`.
+    DataSnapshotCrossProductMoments,
+    /// `data_snapshot.cross_product_moments_rank`.
+    DataSnapshotCrossProductMomentsRank,
     /// `data_snapshot.linear_fit_moments`.
     DataSnapshotLinearFitMoments,
     /// `data_snapshot.linear_fit_moments_rank`.
@@ -177,6 +181,8 @@ pub enum ContractReason {
     DependenciesFunctionalEffectResponseFactorLaws,
     /// `dependencies.functional_effect_response_posterior_draws`.
     DependenciesFunctionalEffectResponsePosteriorDraws,
+    /// `dependencies.identification_replay_budget`.
+    DependenciesIdentificationReplayBudget,
     /// `dependencies.linear_fit_sufficient_statistics`.
     DependenciesLinearFitSufficientStatistics,
     /// `dependencies.nested_counterfactual_fit_moments`.
@@ -299,6 +305,8 @@ pub enum ContractReason {
     IdentificationStructureSource,
     /// `identification.target_question`.
     IdentificationTargetQuestion,
+    /// `identification_product.estimands`.
+    IdentificationProductEstimands,
     /// `identities.data_snapshot`.
     IdentitiesDataSnapshot,
     /// `identities.execution`.
@@ -475,6 +483,8 @@ impl ContractReason {
             Self::ClaimKind => "claim.kind",
             Self::ClaimValue => "claim.value",
             Self::ContractSeal => "contract.seal",
+            Self::DataSnapshotCrossProductMoments => "data_snapshot.cross_product_moments",
+            Self::DataSnapshotCrossProductMomentsRank => "data_snapshot.cross_product_moments_rank",
             Self::DataSnapshotLinearFitMoments => "data_snapshot.linear_fit_moments",
             Self::DataSnapshotLinearFitMomentsRank => "data_snapshot.linear_fit_moments_rank",
             Self::DataSnapshotObservation => "data_snapshot.observation",
@@ -639,6 +649,9 @@ impl ContractReason {
             Self::DependenciesFunctionalEffectResponsePosteriorDraws => {
                 "dependencies.functional_effect_response_posterior_draws"
             }
+            Self::DependenciesIdentificationReplayBudget => {
+                "dependencies.identification_replay_budget"
+            }
             Self::DependenciesLinearFitSufficientStatistics => {
                 "dependencies.linear_fit_sufficient_statistics"
             }
@@ -720,6 +733,7 @@ impl ContractReason {
             Self::IdentificationStatus => "identification.status",
             Self::IdentificationStructureSource => "identification.structure_source",
             Self::IdentificationTargetQuestion => "identification.target_question",
+            Self::IdentificationProductEstimands => "identification_product.estimands",
             Self::IdentitiesDataSnapshot => "identities.data_snapshot",
             Self::IdentitiesExecution => "identities.execution",
             Self::IdentitiesIdentification => "identities.identification",
@@ -950,6 +964,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::ClaimKind,
     ContractReason::ClaimValue,
     ContractReason::ContractSeal,
+    ContractReason::DataSnapshotCrossProductMoments,
+    ContractReason::DataSnapshotCrossProductMomentsRank,
     ContractReason::DataSnapshotLinearFitMoments,
     ContractReason::DataSnapshotLinearFitMomentsRank,
     ContractReason::DataSnapshotObservation,
@@ -1012,6 +1028,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesFunctionalEffectPosteriorDraws,
     ContractReason::DependenciesFunctionalEffectResponseFactorLaws,
     ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws,
+    ContractReason::DependenciesIdentificationReplayBudget,
     ContractReason::DependenciesLinearFitSufficientStatistics,
     ContractReason::DependenciesNestedCounterfactualFitMoments,
     ContractReason::DependenciesNestedCounterfactualFitRank,
@@ -1073,6 +1090,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::IdentificationStatus,
     ContractReason::IdentificationStructureSource,
     ContractReason::IdentificationTargetQuestion,
+    ContractReason::IdentificationProductEstimands,
     ContractReason::IdentitiesDataSnapshot,
     ContractReason::IdentitiesExecution,
     ContractReason::IdentitiesIdentification,
@@ -1169,6 +1187,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "claim.kind",
     "claim.value",
     "contract.seal",
+    "data_snapshot.cross_product_moments",
+    "data_snapshot.cross_product_moments_rank",
     "data_snapshot.linear_fit_moments",
     "data_snapshot.linear_fit_moments_rank",
     "data_snapshot.observation",
@@ -1229,6 +1249,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.functional_effect_posterior_draws",
     "dependencies.functional_effect_response_factor_laws",
     "dependencies.functional_effect_response_posterior_draws",
+    "dependencies.identification_replay_budget",
     "dependencies.linear_fit_sufficient_statistics",
     "dependencies.nested_counterfactual_fit_moments",
     "dependencies.nested_counterfactual_fit_rank",
@@ -1292,6 +1313,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "identification.status",
     "identification.structure_source",
     "identification.target_question",
+    "identification_product.estimands",
     "identities.data_snapshot",
     "identities.execution",
     "identities.identification",

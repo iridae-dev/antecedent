@@ -43,13 +43,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v1";
+pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v2";
 /// The artifact format of a sequence with any other number of steps.
-pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION: u32 = 2;
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION: u32 = 3;
 /// The feature marker of that format.
-pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v2";
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v3";
 
 /// The format version and feature marker of a sequence with `horizon` steps.
 fn layout(horizon: usize) -> (u32, &'static str) {
@@ -314,6 +314,9 @@ pub struct TemporalSequenceArtifactWire {
     /// Digest of the data identity: every catalog binding's snapshot and dataset
     /// ids and every law's snapshot (refresh-replaceable, outside the premises).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// limits and the full report that the other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// `(regime, snapshot, dataset)` of every catalog binding and
@@ -480,9 +483,21 @@ impl TemporalSequenceArtifactWire {
             depth_limit: limits.depth,
             report: TemporalReportWire::from_report(prepared, report)?,
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = temporal_sequence_identity_impl(&wire)?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("temporal_transport_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     /// The data-identity digest these stored catalog bindings and law
@@ -646,6 +661,12 @@ impl TemporalSequenceArtifactWire {
         if crate::to_cbor(&replayed)? != crate::to_cbor(&wire.report)? {
             return Err(TemporalTransportArtifactError::ReportMismatch.into());
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || TemporalTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok((wire, report))
     }
 }

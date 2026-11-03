@@ -696,6 +696,7 @@ refusals = [
   { code = "route_not_supported", detail = "admg_transport.consumer_limits", when = "A limit or collection an artifact stores exceeds the consumer's maxima, or its graph or query exceeds the route's size bounds; refused before any work, before either digest is hashed." },
   { code = "transport_not_certified", detail = "admg_transport.premises_mismatch", when = "The premises digest does not match the stored premises." },
   { code = "transport_not_certified", detail = "admg_transport.data_identity_mismatch", when = "The data-identity digest does not match the stored catalog bindings and law snapshots." },
+  { code = "transport_not_certified", detail = "admg_transport.evidence_mismatch", when = "The evidence digest does not match the stored laws, requests and points." },
   { code = "transport_not_certified", detail = "admg_transport.replay_mismatch", when = "The re-decided derivation, the re-bound leaves or a recomputed point differ from the stored ones." },
 ]
 routes = [

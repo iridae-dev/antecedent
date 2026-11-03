@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for ADMG conditional transport .
 //!
-//! Format version 1 (`checked_admg_conditional_point_v1`). A consumer trusts
+//! Format version 2 (`checked_admg_conditional_point_v2`). A consumer trusts
 //! nothing in the artifact. Before any work (before either digest is hashed) it
 //! refuses stored limits above its own maxima and a graph or query above the
 //! route's size bounds. It then checks the premises digest (graph, selections, query,
@@ -60,9 +60,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const ADMG_CONDITIONAL_ARTIFACT_VERSION: u32 = 1;
+pub const ADMG_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const ADMG_CONDITIONAL_ARTIFACT_FEATURE: &str = "checked_admg_conditional_point_v1";
+pub const ADMG_CONDITIONAL_ARTIFACT_FEATURE: &str = "checked_admg_conditional_point_v2";
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const ADMG_CONDITIONAL_POINT_ONLY: &str = "point_only";
 
@@ -267,6 +267,9 @@ pub struct AdmgConditionalArtifactWire {
     pub premises_digest: String,
     /// Digest of the data identity (refresh-replaceable snapshot ids).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// requests, the limits and the reported points that the other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// Everything a replay reconstructed and recomputed.
@@ -441,10 +444,22 @@ impl AdmgConditionalArtifactWire {
                 .collect(),
             uncertainty: ADMG_CONDITIONAL_POINT_ONLY.into(),
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = wire.expected_premises_digest()?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("admg_conditional_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new()
+        })
     }
 
     fn premises_view(&self) -> PremisesView<'_> {
@@ -677,6 +692,12 @@ impl AdmgConditionalArtifactWire {
             }
             distributions.push(distribution);
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || AdmgConditionalArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedAdmgConditional { functional, diagram, data, requests, distributions, wire })
     }
 }

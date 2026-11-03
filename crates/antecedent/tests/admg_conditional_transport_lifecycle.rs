@@ -378,7 +378,7 @@ fn a_mutated_artifact_fails_consumption() {
     assert!(AdmgConditionalArtifactWire::decode(&antecedent_io::to_cbor(&value).unwrap()).is_err());
     // (j) Another version is refused before the payload is interpreted.
     let mut wire = original.clone();
-    wire.version = 2;
+    wire.version = 1;
     assert!(matches!(
         AdmgConditionalArtifactWire::decode(&wire.export().unwrap()),
         Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion { .. }))

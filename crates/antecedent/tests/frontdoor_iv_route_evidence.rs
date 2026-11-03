@@ -134,7 +134,6 @@ fn expected_unresolved(validation: &str) -> Vec<&'static str> {
     if validation != "none" {
         expected.push("dependencies.refutation_replay");
     }
-    expected.push("dependencies.checked_estimator_operation");
     expected
 }
 
@@ -206,10 +205,14 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
         )
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    // The checked lowering binds the route; portable replay of the fitted
-    // estimator operation remains unresolved. A refutation suite adds only the
-    // refutation replay obligation, which a compact artifact cannot discharge.
-    assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    // The checked lowering binds the route and the carried cross-product moments replay the
+    // fitted point estimate. A refutation suite adds only the refutation replay obligation,
+    // which a compact artifact cannot discharge.
+    assert_eq!(
+        consumed.acceptance.accepts_as_verified_program(),
+        validation == "none",
+        "{coordinate}"
+    );
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
         expected_unresolved(validation),
@@ -298,10 +301,14 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         )
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    // The checked lowering binds the route; portable replay of the fitted
-    // estimator operation remains unresolved. A refutation suite adds only the
-    // refutation replay obligation, which a compact artifact cannot discharge.
-    assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    // The checked lowering binds the route and the carried cross-product moments replay the
+    // fitted point estimate. A refutation suite adds only the refutation replay obligation,
+    // which a compact artifact cannot discharge.
+    assert_eq!(
+        consumed.acceptance.accepts_as_verified_program(),
+        validation == "none",
+        "{coordinate}"
+    );
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
         expected_unresolved(validation),

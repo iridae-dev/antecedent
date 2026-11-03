@@ -19,7 +19,7 @@
 use antecedent::consume_mixed_source_artifact;
 use antecedent::design::{StudyPlanArtifactWire, StudyPlanConsumeLimits};
 use antecedent_core::ExecutionContext;
-use antecedent_io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits;
 use antecedent_io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
 use antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire;
 use antecedent_io::sampled_recovery_artifact::{
@@ -95,16 +95,15 @@ fn an_earlier_recovery_chain_artifact_is_inspectable_and_refused() {
 
 #[test]
 fn an_earlier_mixed_source_artifact_is_inspectable_and_refused() {
-    let wire =
-        MixedSourceArtifactWire::decode(MIXED_SOURCE).expect("the stored wire is still readable");
-    assert_eq!(wire.proof.rule_set, "x9.rules.v1");
+    // The artifact predates the evidence digest, so its format version is no longer current:
+    // it is refused by version before its payload is read.
     let outcome = consume_mixed_source_artifact(
         MIXED_SOURCE,
         MixedSourceConsumeLimits::default(),
         &ExecutionContext::for_tests(3),
     );
-    let error = format!("{:?}", outcome.expect_err("the earlier rule spelling is not accepted"));
-    assert!(error.contains("mixed_search.invalid_derivation"), "{error}");
+    let error = format!("{:?}", outcome.expect_err("the earlier format is not accepted"));
+    assert!(error.contains("UnsupportedVersion"), "{error}");
 }
 
 #[test]

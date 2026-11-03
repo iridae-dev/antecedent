@@ -278,23 +278,22 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         let (consumed, solves) =
             count_least_squares_solves(|| antecedent_io::consume_analysis_result(&bytes).unwrap());
         assert_eq!(solves, 0);
-        // A checked lowering is not an independent numerical replay. These
-        // artifacts remain readable while the missing operation is explicit.
-        assert!(!consumed.acceptance.accepts_as_verified_program());
-        let missing_operation = if matches!(r.model, DesignModel::Rd { .. }) {
-            "dependencies.checked_rd_operation"
+        // IV and front-door replay their point estimate from carried moments; the RD
+        // operation has no portable replay and stays explicitly unresolved.
+        if matches!(r.model, DesignModel::Rd { .. }) {
+            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(
+                consumed
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation"),
+                "{:?}",
+                consumed.acceptance.unresolved
+            );
         } else {
-            "dependencies.checked_estimator_operation"
-        };
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|reason| reason.as_ref() == missing_operation),
-            "{:?}",
-            consumed.acceptance.unresolved
-        );
+            assert!(consumed.acceptance.accepts_as_verified_program());
+        }
         close(consumed.body.estimate.unwrap(), first.law.ate);
         assert!(antecedent_io::consume_analysis_result(&bytes[..bytes.len() / 2]).is_err());
         assert_source_backed_replay(&bytes, &r, &first, consumed.artifact_digest);
