@@ -68,13 +68,15 @@ def test_compiled_candidate_requires_distinct_subjects_and_explicit_design():
         PreparedCategoricalPosteriorCandidate(**request)
 
 
-@pytest.mark.parametrize(
-    "counts",
-    [(14, 15), (29, 1), (30,), (4,) * 9, (4_095, 2)],
-)
-def test_compiled_candidate_refuses_out_of_bound_shapes(counts):
+@pytest.mark.parametrize("counts", [(1, 29), (29, 1), (30,)])
+def test_compiled_candidate_refuses_designs_the_estimator_cannot_define(counts):
     with pytest.raises(ValueError, match="categorical_posterior"):
         PreparedCategoricalPosteriorCandidate(**_request(counts))
+
+
+@pytest.mark.parametrize("counts", [(14, 15), (2, 2), (4,) * 9, (4_095, 2)])
+def test_compiled_candidate_has_no_row_or_level_cap(counts):
+    assert PreparedCategoricalPosteriorCandidate(**_request(counts)) is not None
 
 
 def test_compiled_candidate_refuses_nonfinite_outcomes_and_undeclared_levels():

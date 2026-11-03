@@ -299,7 +299,6 @@ struct Execution {
 )]
 fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
-    let n = parts.names.len();
     let (treatment, outcome) =
         (VariableId::from_raw(parts.treatment), VariableId::from_raw(parts.outcome));
     let program = SemanticDigest::from_bytes(rec.source.program());
@@ -311,7 +310,7 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
         .ok_or_else(|| invalid("posterior admission overflow"))?;
     let lease = scoped.acquire_admission(0, quote).map_err(admission)?;
     let operations = (parts.imputations as usize)
-        .checked_mul(1usize << (n * (n - 1)))
+        .checked_mul(rec.atoms.len().saturating_add(1))
         .and_then(|v| v.checked_add(64))
         .ok_or_else(|| invalid("search size overflow"))?;
     let mut budget =

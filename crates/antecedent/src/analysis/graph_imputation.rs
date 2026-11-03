@@ -282,13 +282,9 @@ impl CompiledGraphImputation {
         let config = BayesianConfig::conjugate()
             .n_draws(spec.posterior_draws as usize)
             .prior_scale(spec.prior_scale);
-        let masks = 1usize << (n * (n - 1));
         let most_atoms = usize::try_from(labeled_dag_count(n)).unwrap_or(usize::MAX);
         let mut budget = SearchBudget::with_memory(
-            SearchLimits {
-                operations: masks.saturating_add(most_atoms).saturating_add(64),
-                depth: 1,
-            },
+            SearchLimits { operations: most_atoms.saturating_add(64), depth: 1 },
             25 * 1024 * 1024,
             ctx,
         )
@@ -297,25 +293,17 @@ impl CompiledGraphImputation {
         let retained = retained_support(n, spec.treatment.raw(), spec.outcome.raw(), spec.support)
             .map_err(CausalError::from)?;
         let mut atoms = Vec::new();
-        for mask in 0..(1u64 << (n * (n - 1))) {
+        let total = retained.operations.len();
+        for (done, operation) in retained.operations.iter().enumerate() {
+            let mask = operation.mask;
             if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
                 return Err(GraphImputationError::SearchStopped(budget.receipt(
                     stop,
-                    vec![format!("compiled:0..{mask}")],
-                    vec![format!("remaining:{mask}..{}", 1u64 << (n * (n - 1)))],
+                    vec![format!("compiled:0..{done}")],
+                    vec![format!("remaining:{done}..{total}")],
                 )));
             }
             let adjacency = AdjacencyMask::from_word(mask);
-            if !antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_mask(
-                &adjacency,
-                n,
-                spec.treatment.raw() as usize,
-                spec.outcome.raw() as usize,
-                spec.support,
-            ) || !retained.operations.iter().any(|operation| operation.mask == mask)
-            {
-                continue;
-            }
             let Ok(graph) = dag_from_adjacency_mask(adjacency, n) else {
                 continue;
             };

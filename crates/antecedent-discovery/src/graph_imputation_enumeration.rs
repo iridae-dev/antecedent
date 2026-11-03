@@ -12,7 +12,7 @@ use crate::adjacency_mask::AdjacencyMask;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals, analytic_graph_diagnostics,
-    normalize_log_weights,
+    edge_bit, normalize_log_weights,
 };
 use crate::graph_score::{DagScorer, tabular_score_data};
 
@@ -58,6 +58,81 @@ pub fn graph_imputation_supported_mask(
         }
 }
 
+/// Every labeled DAG on `n` nodes as an adjacency word, in increasing order, generated directly.
+///
+/// Each DAG is built once from its unique decomposition: the set `S` of its sources, a DAG on
+/// the remaining nodes, and a parent subset of `S` for every remaining node, nonempty for
+/// the remaining DAG's own sources (otherwise they would be sources of the whole). The work is
+/// proportional to the number of DAGs produced, not to the `2^(n(n-1))` edge sets.
+fn all_dag_masks(n: usize) -> Vec<u64> {
+    let full = (1usize << n) - 1;
+    let mut incoming = vec![0u64; n];
+    for (to, bits) in incoming.iter_mut().enumerate() {
+        for from in (0..n).filter(|&from| from != to) {
+            *bits |= 1u64 << edge_bit(n, from, to);
+        }
+    }
+    let mut by_subset: Vec<Vec<u64>> = vec![Vec::new(); full + 1];
+    by_subset[0].push(0);
+    let mut subsets: Vec<usize> = (1..=full).collect();
+    subsets.sort_by_key(|subset| subset.count_ones());
+    for &subset in &subsets {
+        let mut produced = Vec::new();
+        let mut sources_set = subset;
+        while sources_set != 0 {
+            let rest = subset & !sources_set;
+            let nodes: Vec<usize> = (0..n).filter(|&node| (rest >> node) & 1 == 1).collect();
+            let parents: Vec<usize> =
+                (0..n).filter(|&node| (sources_set >> node) & 1 == 1).collect();
+            for &dag in &by_subset[rest] {
+                let must_have_parent: Vec<bool> =
+                    nodes.iter().map(|&node| dag & incoming[node] == 0).collect();
+                extend_with_source_parents(
+                    n,
+                    &nodes,
+                    &parents,
+                    &must_have_parent,
+                    0,
+                    dag,
+                    &mut produced,
+                );
+            }
+            sources_set = (sources_set - 1) & subset;
+        }
+        by_subset[subset] = produced;
+    }
+    let mut masks = std::mem::take(&mut by_subset[full]);
+    masks.sort_unstable();
+    masks
+}
+
+fn extend_with_source_parents(
+    n: usize,
+    nodes: &[usize],
+    parents: &[usize],
+    must_have_parent: &[bool],
+    index: usize,
+    accumulated: u64,
+    out: &mut Vec<u64>,
+) {
+    let Some(&node) = nodes.get(index) else {
+        out.push(accumulated);
+        return;
+    };
+    for choice in 0..1u32 << parents.len() {
+        if choice == 0 && must_have_parent[index] {
+            continue;
+        }
+        let mut edges = accumulated;
+        for (position, &parent) in parents.iter().enumerate() {
+            if (choice >> position) & 1 == 1 {
+                edges |= 1u64 << edge_bit(n, parent, node);
+            }
+        }
+        extend_with_source_parents(n, nodes, parents, must_have_parent, index + 1, edges, out);
+    }
+}
+
 /// Every DAG mask inside the declared support, in increasing mask order. Compiler and consumer
 /// both enumerate through this, so they agree on the atoms without exchanging a list.
 #[must_use]
@@ -67,15 +142,19 @@ pub fn graph_imputation_supported_masks(
     outcome: usize,
     support: GraphSupport,
 ) -> Vec<u64> {
-    use crate::adjacency_mask::dag_from_adjacency_mask;
     if !(2..=MAX_VARIABLES).contains(&n) {
         return Vec::new();
     }
-    (0..1u64 << (n * (n - 1)))
+    all_dag_masks(n)
+        .into_iter()
         .filter(|&word| {
-            let mask = AdjacencyMask::from_word(word);
-            graph_imputation_supported_mask(&mask, n, treatment, outcome, support)
-                && dag_from_adjacency_mask(&mask, n).is_ok()
+            graph_imputation_supported_mask(
+                &AdjacencyMask::from_word(word),
+                n,
+                treatment,
+                outcome,
+                support,
+            )
         })
         .collect()
 }
@@ -118,19 +197,16 @@ pub fn graph_imputation_exact_dags(
     let mut masks = Vec::new();
     let mut log_weights = Vec::new();
     let mut rejected = 0u64;
-    let end = 1u64 << (n * (n - 1));
-    for mask in 0..end {
+    let end = retained.len();
+    for (done, &word) in retained.iter().enumerate() {
         if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
             return Err(BoundedExactDagError::Search(budget.receipt(
                 stop,
-                vec![format!("masks:0..{mask}")],
-                vec![format!("masks:{mask}..{end}")],
+                vec![format!("retained:0..{done}")],
+                vec![format!("retained:{done}..{end}")],
             )));
         }
-        if retained.binary_search(&mask).is_err() {
-            continue;
-        }
-        let mask = AdjacencyMask::from_word(mask);
+        let mask = AdjacencyMask::from_word(word);
         if !graph_imputation_supported_mask(
             &mask,
             n,
@@ -151,7 +227,7 @@ pub fn graph_imputation_exact_dags(
     if let Err(stop) = budget.admits(1, 25 * 1024 * 1024, 0) {
         return Err(BoundedExactDagError::Search(budget.receipt(
             stop,
-            vec![format!("masks:0..{end}")],
+            vec![format!("retained:0..{end}")],
             vec!["finalization".into()],
         )));
     }
@@ -209,6 +285,28 @@ mod graph_imputation_budget_tests {
         assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1, direct));
         mask.set_edge(3, 0, 1, true);
         assert!(graph_imputation_supported_mask(&mask, 3, 0, 1, direct));
+    }
+
+    #[test]
+    fn direct_generation_matches_the_labeled_dag_count_and_the_brute_force_set() {
+        use antecedent_core::graph_imputation_contract::labeled_dag_count;
+        for n in 2..=6 {
+            let generated = all_dag_masks(n);
+            assert_eq!(generated.len() as u64, labeled_dag_count(n), "n = {n}");
+            assert!(generated.windows(2).all(|pair| pair[0] < pair[1]));
+        }
+        for n in 2..=4 {
+            let brute: Vec<u64> = (0..1u64 << (n * (n - 1)))
+                .filter(|&word| {
+                    crate::adjacency_mask::dag_from_adjacency_mask(
+                        AdjacencyMask::from_word(word),
+                        n,
+                    )
+                    .is_ok()
+                })
+                .collect();
+            assert_eq!(all_dag_masks(n), brute, "n = {n}");
+        }
     }
 
     #[test]
@@ -282,17 +380,22 @@ mod graph_imputation_budget_tests {
     fn bounded_search_returns_precise_operation_stop_receipt() {
         let t = [0., 1., 0., 1., 0., 1.];
         let y = [0.1, 1.1, -0.2, 0.8, 0.3, 1.4];
-        let data =
-            TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())]).unwrap();
+        let x = [0.5, -0.3, 0.9, 0.1, -0.7, 0.2];
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
         let ctx = ExecutionContext::for_tests(8);
         let mut budget = SearchBudget::new(SearchLimits { operations: 1, depth: 1 }, &ctx).unwrap();
         let error = graph_imputation_exact_dags(
             &data,
-            &[VariableId::from_raw(0), VariableId::from_raw(1)],
+            &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
             VariableId::from_raw(0),
             VariableId::from_raw(1),
             GraphSupport::TreatmentRootDirectEffect,
-            &graph_imputation_supported_masks(2, 0, 1, GraphSupport::TreatmentRootDirectEffect),
+            &graph_imputation_supported_masks(3, 0, 1, GraphSupport::TreatmentRootDirectEffect),
             &mut budget,
         )
         .unwrap_err();
