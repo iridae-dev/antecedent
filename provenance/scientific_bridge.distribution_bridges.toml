@@ -1,0 +1,38 @@
+# Algorithm provenance for scientific_bridge.distribution_bridges.
+
+feature_id = "scientific_bridge.distribution_bridges"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
+ "Delta-method agreement is exact only to first order for a nonlinear map.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-io-core/src/bridge_distribution_tests.rs",
+ "crates/antecedent-contract/src/bridge/draws_tests.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Row-wise image of an aligned joint draw table under a declared mapping with draws of the mapping's own uncertainty."
+no_independent_algorithm = "The mapping arithmetic is the covered typed-bridge propagation; this record owns row pairing, alignment identity and draw generation from the declared law."
+covered_by = ["scientific_bridge.typed_bridges"]
+record_sha256 = "e310bcf2af1cd6e25c891df683e65f68e10831798461f3bb1849b683a68db2cf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/bridge/draws.rs"
+sha256 = "5e5675992b9592e9d08a0de44668bd78b78a0382045ea56501bb14be553dc14a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/bridge_distribution_tests.rs"
+sha256 = "c8791a8c1eb175de35f4528d834057663bcdf1a1242ebfcaa55a3dcd9de98231"

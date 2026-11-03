@@ -111,3 +111,55 @@ path = "tests/certified_program_search_reference.rs"
 [[test]]
 name = "cells_01_finite_program_search"
 path = "tests/cells_01_finite_program_search.rs"
+
+[[test]]
+name = "decision_exact"
+path = "tests/decision_exact.rs"
+
+[[test]]
+name = "composition_exact"
+path = "tests/composition_exact.rs"
+
+[[test]]
+name = "obligations_exact"
+path = "tests/obligations_exact.rs"
+
+[[test]]
+name = "design_ranking_exact"
+path = "tests/design_ranking_exact.rs"
+
+[[test]]
+name = "signal_provider_bayes_exact"
+path = "tests/signal_provider_bayes_exact.rs"
+
+[[test]]
+name = "structured_refusals_exact"
+path = "tests/structured_refusals_exact.rs"
+
+[[test]]
+name = "proposal_receipt_exact"
+path = "tests/proposal_receipt_exact.rs"
+
+[[test]]
+name = "composition_bundle_exact"
+path = "tests/composition_bundle_exact.rs"
+
+[[test]]
+name = "study_candidate_exact"
+path = "tests/study_candidate_exact.rs"
+
+[[test]]
+name = "repair_search_exact"
+path = "tests/repair_search_exact.rs"
+
+[[test]]
+name = "native_authority_exact"
+path = "tests/native_authority_exact.rs"
+
+[[test]]
+name = "transported_decision_artifact_exact"
+path = "tests/transported_decision_artifact_exact.rs"
+
+[[test]]
+name = "external_provider_exact"
+path = "tests/external_provider_exact.rs"

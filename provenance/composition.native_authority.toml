@@ -1,0 +1,40 @@
+# Algorithm provenance for composition.native_authority.
+
+feature_id = "composition.native_authority"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Native execution authority is minted only by a native producer; generic constructors and metadata-only artifacts are stored unverified and refuse native use.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "python/tests/test_composition.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Authority boundary on typed distribution artifacts: which constructors may mark a distribution as natively executed."
+no_independent_algorithm = "Trust labelling and refusal checks over supplied identities; no numerical method."
+record_sha256 = "58f0a156718152af1e61c96ebe2d3ea3d42d95650987d09145ca1d02ada2dd78"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/quantity.rs"
+sha256 = "be4c0e3fbbf28dfb0ccbacda87831069cf8df105ad7121ea223a22efae8ea6b5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "python/tests/test_composition.py"
+sha256 = "3c04bf805d994e967e4cac21d3d481053916fcf80b5b4122ba345444bcd0e681"

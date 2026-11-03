@@ -1,0 +1,36 @@
+# Algorithm provenance for decision.transported_decision_artifact.
+
+feature_id = "decision.transported_decision_artifact"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Point-only export: the consumer re-evaluates the decision and compares identity and action values; a law is not exportable.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-design/tests/decision_transported_source.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Sealed re-evaluable decision over a transported response."
+no_independent_algorithm = "Seals and replays the covered transported-source decision evaluation."
+covered_by = ["decision.transported_source"]
+record_sha256 = "c86a5d6ce2a1129df29e669f783f74142c67f8d16d6b47ff51eddbc25cc91ae6"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_transported_source.rs"
+sha256 = "ce885bf0908d777bc50d2ec80ee0dd322aeb8dded4464c3e5a55bbba5c5e1fa6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_transported_source.rs"
+sha256 = "4fbf2b86da04488884bcd6cf699f0cb47b6a3a0d0c9d7c2675409b70479315c0"

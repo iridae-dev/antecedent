@@ -1,0 +1,37 @@
+# Algorithm provenance for joint_law.composed_spread_transported.
+
+feature_id = "joint_law.composed_spread_transported"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "First-order spread only; all three pieces (source sampling, target sampling, transport functional) and a supported dependence are required, otherwise the request is refused.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent/tests/composed_uncertainty_facade.rs",
+ "python/tests/test_composed_uncertainty.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Spread of a transported composition built from its three named pieces."
+no_independent_algorithm = "Delegates the variance arithmetic to the linear and aligned propagation records; owns the three-piece completeness requirement."
+covered_by = ["joint_law.transported_composition", "joint_law.linear_moment_propagation"]
+record_sha256 = "9ed4f8d44b88896cbd62dda2c19ff3938039670b2a5d1eadaccda75a84010e40"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+sha256 = "822d3cbe40a2762ce3ca5046691c4be9c6599fb428a9ebe91f4d0b4c814b58d3"

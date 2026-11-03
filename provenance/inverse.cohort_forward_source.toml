@@ -1,0 +1,19 @@
+feature_id = "inverse.cohort_forward_source"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Contract and routing record, no estimator or published procedure: a cohort-mean contrast tau_bar as a point source of the action response; a quantile or probability constraint is refused point_only_law_requested, and a cohort of another population is accepted only as a receipted transported input (docs/guides/inverse-outcome.md).",
+ "Every number is supplied by the upstream cohort, composition or transport route, whose own provenance records govern it; the source adds no standard error and no calibration.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/tests/inverse_forward_source.rs",
+]

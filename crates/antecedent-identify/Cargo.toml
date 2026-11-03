@@ -119,3 +119,7 @@ path = "tests/identify_fixture_cases_fixtures_01.rs"
 [[test]]
 name = "panel_unrolled_exact_scm"
 path = "tests/panel_unrolled_exact_scm.rs"
+
+[[test]]
+name = "scenario_invariance_numeric"
+path = "tests/scenario_invariance_numeric.rs"

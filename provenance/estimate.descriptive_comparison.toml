@@ -1,0 +1,20 @@
+feature_id = "estimate.descriptive_comparison"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Derived in-repo (docs/guides/descriptive-comparison.md): arm means with the unpooled two-sample (Welch-type) variance s1^2/n1 + s0^2/n0 for disjoint arms, and the first-order delta-method covariance J Sigma J' of a family of transforms with closed-form gradients. No published procedure is reproduced.",
+ "The raw-minus-adjusted gap is a difference of two numbers on the same rows and carries no interval and no causal reading; the descriptive contrast is not an identified effect.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/descriptive_comparison.rs",
+ "python/tests/test_descriptive_comparison.py",
+]

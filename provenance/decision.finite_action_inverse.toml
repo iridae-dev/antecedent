@@ -1,0 +1,38 @@
+# Algorithm provenance for decision.finite_action_inverse.
+
+feature_id = "decision.finite_action_inverse"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Point-only: classification compares the forward response's published point with the threshold within a declared tolerance; an interval adds only a robustly-feasible flag and never a probability or quantile claim.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent/src/analysis/inverse_outcome.rs",
+ "python/tests/test_inverse_outcome.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Exact enumeration of a caller-supplied action list against an already-published forward mean response."
+no_independent_algorithm = "No estimator: each action is classified by the sign of m(a) - t (within tol) after budget and constraint filtering, which is the definition of the superlevel set restricted to the enumerated actions."
+derivation = "For enumerated action a with forward mean m(a)=E[Y^do(a)] and threshold t, a is feasible for the at-least goal iff m(a) - t >= -tol (for at-most iff m(a) - t <= tol); constraints and budget exclude actions before the estimate is read. The set is relative to the enumerated actions, never interpolated."
+inline_tests = true
+record_sha256 = "4591f593fcae6be62cc6d1dc4d85798b4000ab9caac2dfaaa6488f5d04947e73"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/inverse_outcome.rs"
+sha256 = "7d28b49c1a2fc22bc1df7588b98e171bb69a872f6537e70730593f7edae7bcfb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "python/tests/test_inverse_outcome.py"
+sha256 = "f17d6a6860a1a0e9c74c558bb257b3604052b2989f2900ee3790090cbc05899d"

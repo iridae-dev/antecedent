@@ -1,0 +1,23 @@
+feature_id = "transport.synthesis_borrowing"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl, Bareinboim, 2014)", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+
+implementation_deviations = [
+ "Each transported summary's variance is inflated by its declared transport variance and then follows the hierarchical normal-normal borrowing update under a declared heterogeneity prior; inflating a summary by a declared transport variance is an original construction of this repository.",
+ "One transport serving several claims needs a covariance and is refused on this route rather than counted per claim; the claim is a posterior mean and variance under the declared prior, nothing more.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/synthesis_transport.rs",
+ "crates/antecedent-design/tests/transported_synthesis.rs",
+]

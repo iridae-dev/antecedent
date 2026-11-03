@@ -331,7 +331,13 @@ def evaluate() -> dict:
     aliased: list[tuple[str, int, int]] = []
     capabilities: list[Unit] = []
     closed = 0
+    engineering: list[str] = []
     for rec in records:
+        if rec.get("support_unit") is False:
+            # Infrastructure that computes no scientific quantity: covered by
+            # software tests and never counted as a support unit.
+            engineering.append(rec["id"])
+            continue
         if rec.get("status") != "supported":
             closed += 1
             continue
@@ -357,6 +363,7 @@ def evaluate() -> dict:
         "capabilities": capabilities,
         "closed_records": closed,
         "aliased": aliased,
+        "engineering": engineering,
         "structural": structural,
     }
 
@@ -421,6 +428,11 @@ def main(argv: list[str]) -> int:
     if result["aliased"]:
         names = ", ".join(f"{i} ({m} cells, {g} rows)" for i, m, g in result["aliased"])
         print(f"Aliases of matrix or graphless units, not counted again: {names}")
+    if result["engineering"]:
+        print(
+            "Engineering capabilities (no scientific claim, not support units): "
+            + ", ".join(sorted(result["engineering"]))
+        )
     reasons: Counter[tuple[str, str]] = Counter()
     only_stale: Counter[str] = Counter()
     for unit in failing:

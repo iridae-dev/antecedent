@@ -1,0 +1,38 @@
+# Algorithm provenance for joint_law.composed_spread_aligned_functional.
+
+feature_id = "joint_law.composed_spread_aligned_functional"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Uncalibrated spread with a Monte Carlo standard error; interval candidates carry no coverage claim.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+ "crates/antecedent/tests/composed_uncertainty_facade.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Mean, spread and Monte Carlo standard error of a nonlinear functional g of aligned draws."
+no_independent_algorithm = "Row-wise evaluation of g on aligned draws and sample moments of the resulting rows."
+covered_by = ["joint_law.aligned_nonlinear_functional"]
+derivation = "Rows g(theta_i) are formed from one alignment; the mean is their average, the spread the n-1 divisor sample variance, and the Monte Carlo standard error sqrt(var/n)."
+record_sha256 = "c854b75181cf2b001d9b02a1ccaeb2bbea3955be549fc3f03ec3a252cf72252a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs"
+sha256 = "6c9e98c93d27af4e15cf154356852c0abc7b3c8e2cecc969e23d848b379e6dc4"

@@ -1,0 +1,44 @@
+# Algorithm provenance for decision_reliability.selection_corrected_interval.
+
+feature_id = "decision_reliability.selection_corrected_interval"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Bonferroni over the considered candidates is conservative; the winner's-curse bound is a derived bound, not a measured one.",
+ "Derived and unmeasured.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-design/tests/decision_reliability_intervals.rs",
+ "python/tests/test_decision_reliability_derived.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Interval for the selected candidate's value after a search over n_considered candidates: two-sided Bonferroni critical value over n_considered, with the extra width reported separately, beside a held-out Wald interval from an independent stream."
+no_independent_algorithm = "Textbook Bonferroni adjustment and Wald arithmetic."
+covered_by = ["decision_reliability.derived_uncertainty"]
+derivation = "Selected value u* with standard error se: numerical half-width z_{1-alpha/2} se; selection-corrected half-width z_{1-alpha/(2 n_considered)} se; the difference is the reported selection extra. The held-out interval is the Wald interval of the independent held-out stream."
+record_sha256 = "fb44d46f69bbc232805b8d09f63943c30dba99a147999971eedda70d2fa2c6d4"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/interval.rs"
+sha256 = "fc8556d61a4d33d95360a19cd353a7640a675ead61f9fe6282e07b37f537f96e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/selection.rs"
+sha256 = "61c97f1e08fe9325b0ebe63991de47b3616c41aa93605fe003acf4e08f809bdc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
+sha256 = "31fa57507362154a8eb838daa69a900a8611d5f89d999231dca76853adb29fb8"

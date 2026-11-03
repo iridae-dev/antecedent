@@ -1,0 +1,39 @@
+# Algorithm provenance for decision_reliability.derived_numerical_interval.
+
+feature_id = "decision_reliability.derived_numerical_interval"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Derived and unmeasured: normal Monte Carlo error at the effective sample size; never summed with source-evidence spread.",
+ "Wald intervals are derived only at n_eff >= 30.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-design/tests/decision_reliability_intervals.rs",
+ "crates/antecedent/tests/decision_reliability_derived_facade.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Numerical Monte Carlo interval of a utility estimate: Wald interval for a mean, Wilson (1927) score interval for a probability at the effective sample size, Bonferroni widening for simultaneous requests."
+no_independent_algorithm = "Closed-form textbook arithmetic: estimate +/- z*se, the Wilson score interval for a binomial proportion at n_eff, and the Bonferroni critical value z_{1-alpha/(2m)}."
+covered_by = ["decision_reliability.derived_uncertainty"]
+derivation = "Wald: estimate +/- z_{1-alpha/2} se with n_eff >= 30. Wilson (1927): centre (p + z^2/(2n))/(1 + z^2/n), half-width z sqrt(p(1-p)/n + z^2/(4n^2))/(1 + z^2/n) at n = n_eff. Simultaneity over m intervals replaces alpha by alpha/m (Bonferroni)."
+record_sha256 = "cc7b8dfa8d28bc8fd721b39f1d6c0c735ea2235b21e09365b6a6ad6fdd69afae"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/interval.rs"
+sha256 = "fc8556d61a4d33d95360a19cd353a7640a675ead61f9fe6282e07b37f537f96e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
+sha256 = "31fa57507362154a8eb838daa69a900a8611d5f89d999231dca76853adb29fb8"

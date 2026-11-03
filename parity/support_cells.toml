@@ -327,9 +327,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -344,9 +345,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -379,9 +381,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -396,9 +399,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -436,9 +440,10 @@ estimators = ["temporal.linear.adjustment"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -455,9 +460,10 @@ estimators = ["temporal.linear.adjustment"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -494,9 +500,10 @@ estimators = ["bayesian.temporal.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -513,9 +520,10 @@ estimators = ["bayesian.temporal.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -549,9 +557,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -566,9 +575,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -601,9 +611,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -618,9 +629,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -657,9 +669,10 @@ estimators = ["temporal.linear.adjustment"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -676,9 +689,10 @@ estimators = ["temporal.linear.adjustment"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -715,9 +729,10 @@ estimators = ["bayesian.temporal.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -734,9 +749,10 @@ estimators = ["bayesian.temporal.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
 calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
 checked_execution = [
   { estimator = "bayesian.temporal.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" },
 ]
@@ -1077,9 +1093,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.response.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
-evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_dag_graph_posterior_intervention_response_matches_the_structural_level"
 checked_execution = [
   { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs", assertion = "all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms" },
 ]
@@ -1094,9 +1111,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.response.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
-evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_dag_graph_posterior_intervention_response_matches_the_structural_level"
 checked_execution = [
   { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs", assertion = "all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms" },
 ]
@@ -1129,9 +1147,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["response.temporal.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
-evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_dag_graph_posterior_intervention_response_matches_the_structural_level"
 checked_execution = [
   { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs", assertion = "all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms" },
 ]
@@ -1146,9 +1165,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["response.temporal.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
-evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_dag_graph_posterior_intervention_response_matches_the_structural_level"
 checked_execution = [
   { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs", assertion = "all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms" },
 ]
@@ -1487,9 +1507,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/response_facade.rs"
-evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "dag_graph_posterior_intervention_response_matches_the_closed_form_levels_under_refuters"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -1504,9 +1525,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/response_facade.rs"
-evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "dag_graph_posterior_intervention_response_matches_the_closed_form_levels_under_refuters"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -1855,9 +1877,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/admg_conditional_effect.rs"
-evidence_assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_conditional_strata"
+evidence_test = "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs"
+evidence_assertion = "conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_conditional_effect.rs", assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan" },
 ]
@@ -1872,9 +1895,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/admg_conditional_effect.rs"
-evidence_assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_conditional_strata"
+evidence_test = "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs"
+evidence_assertion = "conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_conditional_effect.rs", assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan" },
 ]
@@ -1889,9 +1913,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/admg_conditional_effect.rs"
-evidence_assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_conditional_strata"
+evidence_test = "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs"
+evidence_assertion = "conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_conditional_effect.rs", assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan" },
 ]
@@ -1906,9 +1931,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/admg_conditional_effect.rs"
-evidence_assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_conditional_strata"
+evidence_test = "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs"
+evidence_assertion = "conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_conditional_effect.rs", assertion = "admg_conditional_effect_coordinates_execute_from_the_retained_plan" },
 ]
@@ -2124,9 +2150,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.intervention_gcomp", "cell.aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/numeric_pins.rs"
-evidence_assertion = "dag_intervention_response_cheap_runs_overlap_and_evalue"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+evidence_test = "crates/antecedent/tests/dag_response_validation_known_truth.rs"
+evidence_assertion = "dag_intervention_response_matches_the_closed_forms_under_cheap_and_full"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs", assertion = "intervention_gcomp_explicit_and_accepted_cover_each_validation_suite" },
   { estimator = "cell.aipw", test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs", assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh" },
@@ -2146,9 +2173,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.intervention_gcomp", "cell.aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/numeric_pins.rs"
-evidence_assertion = "dag_intervention_response_cheap_runs_overlap_and_evalue"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+evidence_test = "crates/antecedent/tests/dag_response_validation_known_truth.rs"
+evidence_assertion = "dag_intervention_response_matches_the_closed_forms_under_cheap_and_full"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs", assertion = "intervention_gcomp_explicit_and_accepted_cover_each_validation_suite" },
   { estimator = "cell.aipw", test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs", assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh" },
@@ -2168,9 +2196,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["response.intervention_gcomp", "cell.aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/numeric_pins.rs"
-evidence_assertion = "dag_intervention_response_full_runs_effect_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+evidence_test = "crates/antecedent/tests/dag_response_validation_known_truth.rs"
+evidence_assertion = "dag_intervention_response_matches_the_closed_forms_under_cheap_and_full"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs", assertion = "intervention_gcomp_explicit_and_accepted_cover_each_validation_suite" },
   { estimator = "cell.aipw", test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs", assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh" },
@@ -2190,9 +2219,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["response.intervention_gcomp", "cell.aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/numeric_pins.rs"
-evidence_assertion = "dag_intervention_response_full_runs_effect_refuters"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+evidence_test = "crates/antecedent/tests/dag_response_validation_known_truth.rs"
+evidence_assertion = "dag_intervention_response_matches_the_closed_forms_under_cheap_and_full"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs", assertion = "intervention_gcomp_explicit_and_accepted_cover_each_validation_suite" },
   { estimator = "cell.aipw", test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs", assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh" },
@@ -3019,9 +3049,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3039,9 +3070,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3059,9 +3091,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3079,9 +3112,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3099,9 +3133,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3119,9 +3154,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_average_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3284,9 +3320,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3304,9 +3341,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3324,9 +3362,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3344,9 +3383,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3364,9 +3404,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3384,9 +3425,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
-evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_average_effect_matches_the_closed_forms_explicit_and_accepted"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs", assertion = "bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped" },
 ]
@@ -3404,9 +3446,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_curve_regression_pins_on_continuous_t"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3425,9 +3468,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_curve_regression_pins_on_continuous_t"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3442,9 +3486,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_response_curve_pins_structural_contrast"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3463,9 +3508,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_response_curve_pins_structural_contrast"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3480,9 +3526,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_intervention_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3501,9 +3548,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_intervention_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3558,9 +3606,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_bayesian_curve_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3574,9 +3623,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_bayesian_curve_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3591,9 +3641,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_response_curve_pins_structural_contrast"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3607,9 +3658,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_response_curve_pins_structural_contrast"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3624,9 +3676,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_bayesian_intervention_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3641,9 +3694,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_response_numeric_pins.rs"
-evidence_assertion = "class_aware_bayesian_intervention_pins_against_ate_envelope"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3658,9 +3712,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_intervention_response_matches_completion_effects"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -3675,9 +3730,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_intervention_response_matches_completion_effects"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_responses_match_the_closed_form_curve_explicit_and_accepted"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_static_class_response_route_evidence.rs", assertion = "static_class_responses_are_sealed_for_both_classes_and_inferences" },
 ]
@@ -4382,9 +4438,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
@@ -4399,9 +4456,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4416,9 +4474,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4433,9 +4492,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_cpdag_graph_posterior_effect_is_sealed_and_preserves_completion_mass" },
 ]
@@ -4450,9 +4510,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_cpdag_graph_posterior_effect_is_sealed_and_preserves_completion_mass" },
 ]
@@ -4467,9 +4528,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
@@ -4484,9 +4546,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
@@ -4501,9 +4564,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4518,9 +4582,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4535,9 +4600,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4552,9 +4618,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
@@ -4605,9 +4672,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
-evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
@@ -4622,9 +4690,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
-evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
@@ -4639,9 +4708,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
-evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
@@ -4656,9 +4726,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
-evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
@@ -4692,9 +4763,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
@@ -4709,9 +4781,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
@@ -4744,9 +4817,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
@@ -4761,9 +4835,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
@@ -5312,9 +5387,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5332,9 +5408,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5352,9 +5429,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5435,9 +5513,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5455,9 +5534,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5475,9 +5555,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
-evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5559,9 +5640,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5579,9 +5661,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5599,9 +5682,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5682,9 +5766,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5702,9 +5787,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -5722,9 +5808,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "regression_pin"
-evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
-evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_explicit_known_truth.rs"
+evidence_assertion = "class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_bayesian_class_conditional_route_evidence.rs", assertion = "bayesian_class_conditional_effect_is_sealed_across_lifecycle" },
 ]
@@ -6639,9 +6726,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["gcm.fit"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/staged_static_kinds.rs"
-evidence_assertion = "accepted_counterfactual_matches_explicit"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+evidence_test = "crates/antecedent/tests/counterfactual_accepted_known_truth.rs"
+evidence_assertion = "accepted_counterfactual_matches_the_closed_form_mean_effect"
 checked_execution = [
   { estimator = "gcm.fit", test = "crates/antecedent/tests/checked_counterfactual_route_evidence.rs", assertion = "checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay" },
 ]
@@ -6656,9 +6744,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["cell.aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/numeric_pins.rs"
-evidence_assertion = "codetermined_same_tier_joint_cell_aipw_matches_closure_admg"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/codetermined_joint_level"
+evidence_test = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+evidence_assertion = "codetermined_joint_cell_aipw_matches_the_closed_form_additive_level"
 checked_execution = [
   { estimator = "cell.aipw", test = "crates/antecedent/tests/checked_codetermined_cell_aipw_response_route_evidence.rs", assertion = "codetermined_joint_cell_aipw_response_is_sealed_and_refreshes" },
 ]
@@ -6673,9 +6762,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["aipw"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/tiered_known_truth.rs"
-evidence_assertion = "codetermined_average_effect_known_truth"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/tiered_average_effect_truth"
+evidence_test = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+evidence_assertion = "codetermined_average_effect_matches_the_closure_functional"
 checked_execution = [
   { estimator = "aipw", test = "crates/antecedent/tests/tiered_known_truth.rs", assertion = "codetermined_average_effect_known_truth" },
 ]
@@ -6693,9 +6783,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/tiered_bayesian.rs"
-evidence_assertion = "codetermined_bayesian_posterior_covers_the_closure_functional"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/tiered_average_effect_truth"
+evidence_test = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+evidence_assertion = "codetermined_average_effect_matches_the_closure_functional"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/tiered_bayesian.rs", assertion = "tiered_bayesian_average_effects_execute_from_the_retained_plan" },
 ]
@@ -6710,9 +6801,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/tiered_known_truth.rs"
-evidence_assertion = "unknown_scenarios_known_truth"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/tiered_average_effect_truth"
+evidence_test = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+evidence_assertion = "unknown_tier_order_average_effects_match_the_scenario_functionals"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_unknown_tiered_average_lifecycle.rs", assertion = "unknown_tiered_average_executes_from_retained_plan_refreshes_and_refuses_unreplayable_artifact" },
 ]
@@ -6728,9 +6820,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.gcomp"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/tiered_bayesian.rs"
-evidence_assertion = "unknown_bayesian_keeps_one_posterior_per_scenario_and_no_scalar"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/tiered_average_effect_truth"
+evidence_test = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+evidence_assertion = "unknown_tier_order_average_effects_match_the_scenario_functionals"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/tiered_bayesian.rs", assertion = "tiered_bayesian_average_effects_execute_from_the_retained_plan" },
 ]
@@ -8034,9 +8127,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["gcm.fit"]
 staged = true
-evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/bayesian_functional_routes.rs"
-evidence_assertion = "accepted_counterfactual_matches_explicit_bayesian"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+evidence_test = "crates/antecedent/tests/counterfactual_accepted_known_truth.rs"
+evidence_assertion = "accepted_counterfactual_matches_the_closed_form_mean_effect"
 checked_execution = [
   { estimator = "gcm.fit", test = "crates/antecedent/tests/checked_bayesian_counterfactual_route_evidence.rs", assertion = "bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_boundary" },
 ]
@@ -8609,9 +8703,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8626,9 +8721,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8643,9 +8739,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8660,9 +8757,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8677,9 +8775,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8694,9 +8793,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8711,9 +8811,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8728,9 +8829,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.effect"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
-evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+evidence_assertion = "admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters" },
 ]
@@ -8817,9 +8919,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.mediation"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.mediation", test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs", assertion = "checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates" },
 ]
@@ -8834,9 +8937,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.mediation"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.mediation", test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs", assertion = "checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates" },
 ]
@@ -8869,9 +8973,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["temporal.mediation.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.mediation.bayesian", test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs", assertion = "checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates" },
 ]
@@ -8886,9 +8991,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["temporal.mediation.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
-evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+evidence_assertion = "temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
 checked_execution = [
   { estimator = "temporal.mediation.bayesian", test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs", assertion = "checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates" },
 ]
@@ -12418,9 +12524,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12435,9 +12542,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12452,9 +12560,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12469,9 +12578,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12486,9 +12596,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12503,9 +12614,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12520,9 +12632,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12537,9 +12650,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12554,9 +12668,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12571,9 +12686,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12588,9 +12704,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12605,9 +12722,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12622,9 +12740,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12639,9 +12758,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12656,9 +12776,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12673,9 +12794,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12690,9 +12812,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["conditional.linear.adjustment"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12707,9 +12830,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12724,9 +12848,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12741,9 +12866,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["conditional.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
@@ -12758,9 +12884,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.kennedy_dr"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12775,9 +12902,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12792,9 +12920,10 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12809,9 +12938,10 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12826,9 +12956,10 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["response.intervention_gcomp"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12843,9 +12974,10 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_response_runs"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12860,9 +12992,10 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
@@ -12877,9 +13010,10 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["response.bayesian"]
 staged = true
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
-evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_known_truth.rs"
+evidence_assertion = "class_graph_posterior_responses_match_the_closed_form_curves"
 checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]

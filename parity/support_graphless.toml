@@ -10,7 +10,7 @@ assignment_unit = "cluster"
 min_assignment_units_per_arm = 8
 min_reported_intervals = 1
 known_truth_test = "crates/antecedent-estimate/src/interference.rs::cluster_total_interval_covers_known_truth"
-independent_check = "crates/antecedent-estimate/src/interference.rs::cluster_neyman_enumeration_is_unbiased_and_conservative_by_effect_heterogeneity"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::cluster_total_welch_interval_matches_the_hand_computed_construction"
 retained_route_test = "crates/antecedent/tests/interference_interval_route.rs::supported_cluster_total_interval_round_trips_and_refuses_forgery"
 limitations = "Complete cluster randomization on a fixed partial-interference network with within-cluster-only edges and one cluster per unit, the (0,0)-to-(1,1) total-effect contrast under NeighborFraction exposure, at least eight independently randomized clusters in each assignment arm, positive between-cluster Neyman variation, and a published pointwise 95% Welch cluster interval. One 2,000-replication known-truth coverage check re-randomizes the cluster allocation at eight clusters per arm. The interval is pointwise for the total effect only; no direct/spillover decomposition, simultaneous band, or Bernoulli/observational design inherits this row, and partial interference and the exposure mapping are declared, not tested."
 
@@ -40,7 +40,7 @@ min_blocks = 30
 min_reported_intervals = 1
 requires_known_density = true
 known_truth_test = "crates/antecedent-estimate/src/interference_observational.rs::observational_known_exposure_interval_covers_known_truth"
-independent_check = "crates/antecedent-estimate/src/interference_observational.rs::supplied_propensities_recover_known_network_contrast_and_cluster_variance"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::observational_known_propensity_cluster_t_interval_matches_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/interference_interval_route.rs::supported_observational_known_interval_round_trips_and_refuses_forgery"
 limitations = "Observational network-exposure contrast with caller-supplied KNOWN, fixed marginal exposure probabilities and an explicit, caller-declared network-exchangeability (no-unmeasured-network-confounding) assumption that the library cannot verify. Requires a fixed network with within-cluster-only edges, at least 30 independent partial-interference clusters, at least eight clusters exposed at each requested level, positive between-cluster CR1 variation, and a published pointwise 95% cluster-t interval. One 2,000-replication known-truth coverage check re-randomizes per-unit exposure with the supplied probabilities. Externally fitted probabilities carry unknown fitting uncertainty and stay point-only with a descriptive CR1 variance; the network-confounding assumption is a declared, documented limitation, never a supported claim, and no simultaneous band inherits this row."
 
@@ -166,7 +166,7 @@ min_probability = 0.2
 min_reported_intervals = 1
 requires_balanced_sequences = true
 known_truth_test = "crates/antecedent-estimate/tests/switchback_calibration.rs::switchback_student_interval_covers_known_truth"
-independent_check = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs::switchback_itt_matches_every_realization_including_unequal_sequences"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::switchback_student_interval_matches_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/switchback_interval_route.rs::supported_switchback_interval_round_trips_and_rejects_forgery"
 limitations = "Switchback unit-period HT ITT with at least 30 independent assignment sequences of equal observed period count, at least 30 realized periods in each arm globally, known marginal probabilities at least 0.2 for each arm on every row, positive independent-sequence sandwich variance, and a published pointwise 95% Student interval. No carryover and no between-sequence interference are declared, untestable identification assumptions. Six unconditional 2,000-allocation known-truth fixtures include probability boundaries, varying probabilities, and serial assignment within sequences. Unequal schedules and sparse or weak arm support remain point-only."
 
@@ -212,7 +212,7 @@ min_expected_arm_units = 40.0
 min_probability = 0.2
 min_reported_intervals = 1
 known_truth_test = "crates/antecedent-estimate/src/randomized_scores.rs::fixed_preassignment_cuped_score_covers_original_itt"
-independent_check = "crates/antecedent-estimate/tests/graphless_randomized_cuped_known_truth.rs::cuped_ht_contrast_slope_and_standard_error_match_the_closed_form"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::fixed_coefficient_cuped_is_unbiased_over_every_assignment_and_publishes_the_hand_interval"
 retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs::supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery"
 limitations = "Independent Bernoulli binary ITT adjusted by one pre-assignment covariate with a coefficient fixed outside these outcomes, known probabilities from 0.2 through 0.8 on every row, 30 observed assignments per arm, at least 40 expected assignments per arm, and a published positive-independent-unit score variance pointwise 95% interval. No row-count threshold applies. Twelve 2,000-allocation fixtures cover both probability boundaries, the midpoint, and varying probabilities at 200, 300 and 400 rows."
 
@@ -351,7 +351,7 @@ all_reported_intervals = true
 requires_uncoupled_constraints = true
 requires_rank_ownership = true
 known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_uplift_bin_intervals_cover_fixed_rank_truth"
-independent_check = "crates/antecedent-estimate/tests/policy_value_reference.rs::uplift_bins_match_the_exact_scores_and_a_singleton_bin_is_handled_as_documented"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::ipw_uplift_bins_and_policy_intervals_match_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds"
 limitations = "Fixed binary IPW policy plus frozen ranked uplift bins, known 0.5 Bernoulli assignment, declared ranking training IDs disjoint from evaluation IDs, at least 300 independent subjects and 50 observed subjects per arm in every bin, and all scalar and bin pointwise 95% intervals published. No simultaneous top-k band or ranking-model guarantee."
 
@@ -373,7 +373,7 @@ requires_uncoupled_constraints = true
 requires_disjoint_nuisance_training = true
 requires_rank_ownership = true
 known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_aipw_and_constrained_multi_action_intervals_cover_known_values"
-independent_check = "crates/antecedent-estimate/tests/policy_value_reference.rs::uplift_bins_match_the_exact_scores_and_a_singleton_bin_is_handled_as_documented"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::aipw_uplift_bins_and_policy_intervals_match_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds"
 limitations = "Fixed binary AIPW policy with disjoint nuisance training and frozen ranked uplift bins with separate declared ranking training IDs, known 0.5 Bernoulli assignment, at least 300 independent subjects and 50 observed subjects per arm in every bin, and all scalar and bin pointwise 95% intervals published. No cross-fitted or simultaneous guarantee."
 
@@ -413,7 +413,7 @@ min_reported_intervals = 3
 all_reported_intervals = true
 requires_uncoupled_constraints = true
 known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::boundary_probability_multi_action_cate_intervals_cover_known_truth"
-independent_check = "crates/antecedent-estimate/tests/policy_value_reference.rs::multi_action_scores_point_values_and_stratum_effects_match_the_exact_scores"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::multi_action_cate_group_intervals_match_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"
 limitations = "Fixed multi-action policy plus pre-treatment baseline groups declared before outcomes, known action probabilities at least 0.2, at least 300 independent subjects and 50 observed subjects in each compared arm per group, uncoupled constraints, and all scalar and group/action pointwise 95% intervals published. No fitted CATE model or simultaneous group coverage."
 
@@ -542,7 +542,7 @@ min_assignment_units_per_arm = 30
 min_probability = 0.2
 min_reported_intervals = 1
 known_truth_test = "crates/antecedent-estimate/src/randomized_scores.rs::complier_wald_influence_interval_covers_known_truth"
-independent_check = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs::wald_ratio_components_are_unbiased_and_the_variance_is_the_delta_method"
+independent_check = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs::wald_ratio_with_control_arm_receipt_matches_the_delta_method_over_every_assignment"
 retained_route_test = "crates/antecedent/tests/complier_effect_route.rs::supported_complier_and_tot_intervals_round_trip_and_refuse_forgery"
 limitations = "Wald CACE/LATE from independent Bernoulli encouragement and observed treatment receipt, with known assignment probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, a finite positive receipt first stage, positive independent-unit influence-function variance, and a published pointwise 95% normal interval. Exclusion and monotonicity are declared, untestable identifying assumptions. A 2,000-replication known-truth fixture at 1,200 rows and a 0.5 complier share confirms coverage. Weak first stages, sparse or low-probability arms, and adjusted or ITT contrasts do not inherit this row."
 
@@ -597,7 +597,7 @@ min_rows = 300
 min_reported_intervals = 1
 min_probability = 0.2
 known_truth_test = "crates/antecedent-stats/src/longitudinal_regime.rs::fixed_known_q_g_formula_interval_covers_regime_truth"
-independent_check = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs::regime_values_match_the_exact_rational_references"
+independent_check = "crates/antecedent-stats/tests/graphless_g_formula_interval_known_truth.rs::fixed_known_q_g_formula_value_standard_error_and_interval_match_the_hand_computation"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::fixed_known_q_g_formula_graphless_support_round_trips_and_refuses_forgery"
 limitations = "Two-period g-formula value under known sequential randomization from a caller-declared fixed and known conditional period-reward (Q) law, with one outcome row per independent subject. Requires at least 300 subjects, per-period action probability at least 0.2, conditional censoring survival at least 0.8, a finite positive independent-subject score variance, and an actually published pointwise 95% normal interval. A 2,000-replication known-truth coverage test at 400 subjects confirms nominal coverage of the population regime value. The single normal interval is conditional on the declared fixed Q law and excludes all fitted-, selected-, or cross-fitted-Q uncertainty; the caller separately attests the law is fixed and known. Longer horizons, any fitted-Q uncertainty, the sequential doubly robust route, and MSM coefficient intervals are not supported by this row."
 

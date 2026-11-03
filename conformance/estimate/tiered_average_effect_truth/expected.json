@@ -1,0 +1,63 @@
+{
+  "codetermined": {
+    "law": "y = 2 t + z - 0.5 u + e; closure {z, u}",
+    "closure_effect": 2.0
+  },
+  "unknown": {
+    "law": "era -> t -> m -> y: t = 0.8 era + e, m = t + 0.2 era + 0.5 e, y = -t + 2 m + 0.2 era + e",
+    "scenario_effects": [
+      1.0,
+      -1.0
+    ],
+    "scenarios": [
+      "treatment precedes its peer: adjust {era}, total effect",
+      "treatment follows its peer: adjust {era, m}, direct effect"
+    ]
+  },
+  "notes": "Truths of the tiered AverageEffect cells derived from the stated linear laws.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "exact path algebra over the stated linear laws: the closure functional of a law linear in (t, z, u) is the coefficient of t; the scenario effects are the total (beta_t + beta_m gamma_mt) and direct (beta_t) effects",
+    "generator": "conformance/estimate/tiered_average_effect_truth/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/tiered_average_effect_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/tiered_average_effect_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "codetermined.closure_effect",
+      "unknown.scenario_effects"
+    ],
+    "context_only_outputs": [
+      "law descriptions",
+      "scenario descriptions",
+      "notes text"
+    ],
+    "independence_basis": "The generator derives each truth from the stated structural coefficients with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated data-generating law, which the test's generators also encode, so this checks that the product recovers the law's functional, not that the law is the right model.",
+    "historical_exposure": "The constants were first written as test-source literals beside the generators; this reference was written afterwards from the law descriptions alone with no product implementation source consulted.",
+    "reference_review": {
+      "scope": "Closure and scenario adjustment functionals of two linear-Gaussian laws.",
+      "independence_basis": "The generator derives each truth from the stated structural coefficients with rational arithmetic; it imports no Antecedent code and no statistics package.",
+      "historical_exposure": "The constants were first written as test-source literals beside the generators; this reference was written afterwards from the law descriptions alone with no product implementation source consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The data are generated from the stated law, so the check is a recovery test of the functional, not evidence of identification or calibration. No uncertainty claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/tiered_average_effect_truth/reference.py",
+          "sha256": "feb0d382e7c1631d266562739ef2b52fc804a2d857439f9870dbaf4356883ff6"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/tiered_average_effect_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/tiered_average_effect_closed_form.rs",
+          "sha256": "09bc24f468a6b8dfdb0013281a3fc9857e4b72cd5de2df1d3f6f1b3206596987"
+        }
+      ],
+      "fixture_payload_sha256": "6386214df18133dd12d808ffc9372f9e1d6c0e5baf2214ad98875544b0267322"
+    }
+  }
+}

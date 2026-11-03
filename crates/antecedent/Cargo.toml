@@ -1273,3 +1273,91 @@ path = "tests/checked_claim_synthesis.rs"
 [[test]]
 name = "graphless_did_known_truth"
 path = "tests/graphless_did_known_truth.rs"
+
+[[test]]
+name = "class_posterior_known_truth"
+path = "tests/class_posterior_known_truth.rs"
+
+[[test]]
+name = "temporal_class_posterior_known_truth"
+path = "tests/temporal_class_posterior_known_truth.rs"
+
+[[test]]
+name = "class_explicit_known_truth"
+path = "tests/class_explicit_known_truth.rs"
+
+[[test]]
+name = "admg_frontdoor_validation_known_truth"
+path = "tests/admg_frontdoor_validation_known_truth.rs"
+
+[[test]]
+name = "dag_response_validation_known_truth"
+path = "tests/dag_response_validation_known_truth.rs"
+
+[[test]]
+name = "counterfactual_accepted_known_truth"
+path = "tests/counterfactual_accepted_known_truth.rs"
+
+[[test]]
+name = "tiered_average_effect_closed_form"
+path = "tests/tiered_average_effect_closed_form.rs"
+
+[[test]]
+name = "dirichlet_update_exact"
+path = "tests/dirichlet_update_exact.rs"
+
+[[test]]
+name = "learned_continuous_posterior_exact"
+path = "tests/learned_continuous_posterior_exact.rs"
+
+[[test]]
+name = "smoothed_dose_posterior_exact"
+path = "tests/smoothed_dose_posterior_exact.rs"
+
+[[test]]
+name = "recalc_exact_effect"
+path = "tests/recalc_exact_effect.rs"
+
+[[test]]
+name = "scenario_claims_exact"
+path = "tests/scenario_claims_exact.rs"
+
+[[test]]
+name = "native_response_claims_exact"
+path = "tests/native_response_claims_exact.rs"
+
+[[test]]
+name = "recalc_cell_exact_effect"
+path = "tests/recalc_cell_exact_effect.rs"
+
+[[test]]
+name = "recalc_attempt_exact_effect"
+path = "tests/recalc_attempt_exact_effect.rs"
+
+[[test]]
+name = "source_evidence_exact"
+path = "tests/source_evidence_exact.rs"
+
+[[test]]
+name = "callback_downstream_exact"
+path = "tests/callback_downstream_exact.rs"
+
+[[test]]
+name = "joint_sensitivity_source_exact"
+path = "tests/joint_sensitivity_source_exact.rs"
+
+[[test]]
+name = "recalc_composite_hand_utilities"
+path = "tests/recalc_composite_hand_utilities.rs"
+
+[[test]]
+name = "proposal_arrival_exact"
+path = "tests/proposal_arrival_exact.rs"
+
+[[test]]
+name = "conditional_study_ranking_exact"
+path = "tests/conditional_study_ranking_exact.rs"
+
+[[test]]
+name = "tier_diagnostics_exact"
+path = "tests/tier_diagnostics_exact.rs"

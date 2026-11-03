@@ -1,0 +1,22 @@
+feature_id = "estimate.batch_retarget_covariance"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Derived in-repo (docs/guides/batch-retarget.md): a fixed-weight (Hajek) mean of a cross-fitted score column per claim with the Gram matrix of weighted influence values as the family covariance. No published procedure is reproduced and no external theorem is inherited.",
+ "The covariance is a sampling covariance of independent rows on one shared row snapshot; for cluster-DML tables it is the cluster-summed analogue. The cross-fitted scores are produced by the covered estimator and consumed unchanged; coverage of any interval built from it is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/batch_retarget.rs",
+ "crates/antecedent/src/analysis/batch_retarget.rs",
+ "crates/antecedent/tests/batch_retarget_known_truth.rs",
+ "crates/antecedent/tests/cost_expansion_cells.rs",
+]

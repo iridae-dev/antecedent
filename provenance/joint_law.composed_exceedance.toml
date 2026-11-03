@@ -1,0 +1,43 @@
+# Algorithm provenance for joint_law.composed_exceedance.
+
+feature_id = "joint_law.composed_exceedance"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Uncalibrated posterior reading is closed; the verdict is a Monte Carlo band, not a coverage statement.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+ "crates/antecedent/tests/composed_uncertainty_facade.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Exceedance probability of a composed quantity with its Monte Carlo band and verdict."
+no_independent_algorithm = "Weighted sum of component exceedances and the binomial Monte Carlo standard error."
+covered_by = ["joint_law.known_weight_mixture", "joint_law.composed_spread_and_exceedance"]
+derivation = "For a known-weight mixture, P(X > c) = sum_i w_i p_i with standard error sqrt(sum_i w_i^2 var_i); for aligned rows it is the fraction of rows exceeding c with standard error sqrt(p(1-p)/n)."
+record_sha256 = "cd2c087885e28271ed5146e3bb4d772165b23ab9a7c38abf481f658c5f96b58f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/joint_law_rule.rs"
+sha256 = "6741631ee5e53fe5934a4c91052f84e96e5732ff3b3ed7b994ea0c16e2a91ebe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs"
+sha256 = "6c9e98c93d27af4e15cf154356852c0abc7b3c8e2cecc969e23d848b379e6dc4"

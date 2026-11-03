@@ -12,7 +12,8 @@
 //! * the source and snapshot lineage (evidence lineage and provider snapshot of the
 //!   signal request, the source distribution digests);
 //! * the ranking entry (signal request fingerprint, signal identity, EVSI and net
-//!   value bits, rank) and a decision receipt (decision contract identity, utility
+//!   value bits, rank: verified-sufficient studies first, then the ranking's net-value order)
+//!   and a decision receipt (decision contract identity, utility
 //!   unit, action set digest, ranking identity).
 //!
 //! A [`ProposalBundle`] holds every proposal in the canonical order of semantic id;
@@ -411,6 +412,29 @@ fn snapshots_of(scored: &EvsiCandidateWire) -> Vec<String> {
     snapshots
 }
 
+/// The proposal rank of `id`: verified-sufficient studies come first, then the ranking's own
+/// order (net value and its tie-breakers) within each group, so an insufficient study never
+/// outranks a sufficient one. The count of strictly better candidates, as the ranking's own
+/// rank is.
+fn proposal_rank(
+    repair: &RepairReportArtifact,
+    ranking: &DesignRankingArtifactWire,
+    id: &str,
+) -> Result<u64> {
+    let key = |candidate: &str, rank: u64| -> Result<(bool, u64)> {
+        let outcome = singleton_outcome(repair, candidate)?;
+        Ok((outcome.classification != "verified_sufficient", rank))
+    };
+    let own = key(id, find_scored(ranking, id)?.rank)?;
+    let mut better = 0_u64;
+    for candidate in &ranking.candidates {
+        if key(&candidate.semantic_id, candidate.rank)? < own {
+            better += 1;
+        }
+    }
+    Ok(better)
+}
+
 /// The receipt the two artifacts imply for `id`.
 fn derive_receipt(
     repair: &RepairReportArtifact,
@@ -465,7 +489,7 @@ fn derive_receipt(
             signal_identity: scored.signal_identity.clone(),
             evsi_bits: scored.evsi.to_bits(),
             net_value_bits: scored.net_value.map(f64::to_bits),
-            rank: scored.rank,
+            rank: proposal_rank(repair, ranking, id)?,
         },
         decision: DecisionReceipt {
             contract_identity: ranking.decision.contract_identity.clone(),

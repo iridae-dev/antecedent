@@ -39,3 +39,51 @@ path = "tests/typed_bridges_reference.rs"
 [[test]]
 name = "checked_world_composition"
 path = "tests/checked_world_composition.rs"
+
+[[test]]
+name = "ledger_transport_exact"
+path = "tests/ledger_transport_exact.rs"
+
+[[test]]
+name = "ledger_dependence_exact"
+path = "tests/ledger_dependence_exact.rs"
+
+[[test]]
+name = "adaptive_design_exact"
+path = "tests/adaptive_design_exact.rs"
+
+[[test]]
+name = "composition_provenance_exact"
+path = "tests/composition_provenance_exact.rs"
+
+[[test]]
+name = "external_verification_exact"
+path = "tests/external_verification_exact.rs"
+
+[[test]]
+name = "external_probe_enumeration"
+path = "tests/external_probe_enumeration.rs"
+
+[[test]]
+name = "program_binding_exact"
+path = "tests/program_binding_exact.rs"
+
+[[test]]
+name = "external_negotiation_exact"
+path = "tests/external_negotiation_exact.rs"
+
+[[test]]
+name = "callback_consumers_exact"
+path = "tests/callback_consumers_exact.rs"
+
+[[test]]
+name = "ledger_independence_exhaustive"
+path = "tests/ledger_independence_exhaustive.rs"
+
+[[test]]
+name = "provider_admission_table"
+path = "tests/provider_admission_table.rs"
+
+[[test]]
+name = "external_trust_probe_verdicts"
+path = "tests/external_trust_probe_verdicts.rs"

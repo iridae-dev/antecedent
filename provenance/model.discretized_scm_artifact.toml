@@ -1,0 +1,20 @@
+feature_id = "model.discretized_scm_artifact"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Serialization and re-derivation contract: the export carries the source composition premises, the plan and the claimed edges, values and mean errors, and the consumer re-runs the discretization and requires each to match bit for bit. No published procedure is reproduced; the discretization numerics are covered by the discretized linear-Gaussian record.",
+ "The artifact is a deterministic byte export; a coherently resealed forgery is detected only by re-derivation and the expected identity, not by a cryptographic signature.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-model/tests/discretized_scm_artifact.rs",
+ "crates/antecedent-model/tests/discretized_scm_reference.rs",
+]

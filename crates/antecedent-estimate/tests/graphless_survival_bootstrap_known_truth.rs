@@ -101,7 +101,6 @@ struct Arms {
     duration: Vec<f64>,
     event: Vec<i64>,
     treated: Vec<bool>,
-    entry: Vec<f64>,
     n: [usize; 2],
     events: [usize; 2],
 }
@@ -109,19 +108,16 @@ struct Arms {
 /// `n[a]` subjects in arm `a`, the first `events[a]` of them with the event at time 1 and the
 /// rest censored at the horizon.
 fn arms(n: [usize; 2], events: [usize; 2]) -> Arms {
-    let (mut duration, mut event, mut treated, mut entry) = (vec![], vec![], vec![], vec![]);
+    let (mut duration, mut event, mut treated) = (vec![], vec![], vec![]);
     for arm in 0..2 {
         for i in 0..n[arm] {
             let is_event = i < events[arm];
             duration.push(if is_event { 1.0 } else { TAU });
             event.push(i64::from(is_event));
             treated.push(arm == 1);
-            // Delayed-entry variant: alternate time-zero entrants and entrants at 0.5, all
-            // before the event time, so every subject is still at risk at time 1.
-            entry.push(if i % 2 == 0 { 0.0 } else { 0.5 });
         }
     }
-    Arms { duration, event, treated, entry, n, events }
+    Arms { duration, event, treated, n, events }
 }
 
 /// Fixed known censoring: event subjects carry `G = 0.5`, censored subjects `G = 0.8`.
@@ -145,7 +141,7 @@ fn survival_weighted(n: usize, k: usize) -> f64 {
     1.0 - event_total / (event_total + other_weight * (n - k) as f64)
 }
 
-fn scenario(delayed: bool, weighted: bool) {
+fn scenario(weighted: bool) {
     let a = arms([120, 120], [36, 24]);
     let grid = [0.0, 1.0, TAU];
     let g = censoring_grid(&a);
@@ -153,7 +149,7 @@ fn scenario(delayed: bool, weighted: bool) {
         duration: &a.duration,
         event_code: &a.event,
         treated: &a.treated,
-        delayed_entry: delayed.then_some(a.entry.as_slice()),
+        delayed_entry: None,
     };
     let known = KnownCensoring { times: &grid, survival: &g, minimum_probability: 0.05 };
     let survival = |n: usize, k: usize| {
@@ -197,24 +193,137 @@ fn scenario(delayed: bool, weighted: bool) {
     assert!(interval.difference_at_tau[0] < s1 - s0 && s1 - s0 < interval.difference_at_tau[1]);
 }
 
+/// `ln(n!)` for `n = 0..=max`.
+fn ln_factorials(max: usize) -> Vec<f64> {
+    let mut table = vec![0.0; max + 1];
+    for k in 1..=max {
+        table[k] = table[k - 1] + (k as f64).ln();
+    }
+    table
+}
+
+/// Exact law of a function of the trinomial counts `(K, E, L)` of `n` iid subjects drawn from
+/// categories with probabilities `q = [event, early censored, late censored]`.
+fn arm_atoms(n: usize, q: [f64; 3], value: impl Fn(usize, usize) -> f64) -> Vec<(f64, f64)> {
+    let lf = ln_factorials(n);
+    let mut atoms = Vec::new();
+    for k in 0..=n {
+        for e in 0..=(n - k) {
+            let l = n - k - e;
+            let log_p = lf[n] - lf[k] - lf[e] - lf[l]
+                + k as f64 * q[0].ln()
+                + e as f64 * q[1].ln()
+                + l as f64 * q[2].ln();
+            atoms.push((value(k, e), log_p.exp()));
+        }
+    }
+    atoms
+}
+
+fn difference_law(a0: &[(f64, f64)], a1: &[(f64, f64)], scale: f64) -> Law {
+    let mut atoms = Vec::with_capacity(a0.len() * a1.len());
+    for &(s0, p0) in a0 {
+        for &(s1, p1) in a1 {
+            atoms.push((scale * (s1 - s0), p0 * p1));
+        }
+    }
+    Law::new(atoms)
+}
+
+/// Delayed entry that binds: three kinds of subject per arm. Events and early-censored
+/// subjects enter at time zero; late-censored subjects enter at time 2, after the event time 1,
+/// so they are NOT in the risk set at the event time. The Kaplan-Meier step is therefore
+/// `K / (K + E)` (events over events plus early censored), a function of the redrawn trinomial
+/// counts whose exact law is enumerated here; ignoring left truncation would give
+/// `K / (K + E + L)` and a different law.
+fn late_entry_scenario(weighted: bool) {
+    let n = 40_usize;
+    let composition = [[12_usize, 16, 12], [8, 20, 12]];
+    let (mut duration, mut event, mut treated, mut entry, mut g) =
+        (vec![], vec![], vec![], vec![], vec![]);
+    for arm in 0..2 {
+        let [events, early, late] = composition[arm];
+        for i in 0..n {
+            let kind = if i < events { 0 } else if i < events + early { 1 } else { 2 };
+            duration.push(if kind == 0 { 1.0 } else { TAU });
+            event.push(i64::from(kind == 0));
+            treated.push(arm == 1);
+            entry.push(if kind == 2 { 2.0 } else { 0.0 });
+            let gv = if kind == 0 { 0.5 } else { 0.8 };
+            g.extend([1.0, gv, gv]);
+        }
+    }
+    let grid = [0.0, 1.0, TAU];
+    let rows = SurvivalRows {
+        duration: &duration,
+        event_code: &event,
+        treated: &treated,
+        delayed_entry: Some(&entry),
+    };
+    let known = KnownCensoring { times: &grid, survival: &g, minimum_probability: 0.05 };
+    let survival = |k: usize, e: usize| -> f64 {
+        if k == 0 {
+            1.0
+        } else if weighted {
+            1.0 - 2.0 * k as f64 / (2.0 * k as f64 + 1.25 * e as f64)
+        } else {
+            1.0 - k as f64 / (k + e) as f64
+        }
+    };
+    let (s0, s1) = (survival(12, 16), survival(8, 20));
+    let summary = if weighted {
+        randomized_survival_ipcw_summary(&rows, &known, TAU, SurvivalEndpoint::Survival).unwrap().0
+    } else {
+        randomized_survival_summary(&rows, TAU, SurvivalEndpoint::Survival).unwrap()
+    };
+    assert!((summary.control.last().unwrap() - s0).abs() < 1e-12);
+    assert!((summary.treated.last().unwrap() - s1).abs() < 1e-12);
+    assert!((summary.rmst_control.unwrap() - (1.0 + 2.0 * s0)).abs() < 1e-12);
+    assert!((summary.rmst_treated.unwrap() - (1.0 + 2.0 * s1)).abs() < 1e-12);
+    // Left truncation binds: the untruncated risk set would give a different curve.
+    let untruncated = 1.0 - 12.0 / 40.0;
+    assert!((s0 - untruncated).abs() > 0.05);
+
+    let interval = randomized_survival_bootstrap_intervals(
+        &rows,
+        weighted.then_some(&known),
+        TAU,
+        SurvivalEndpoint::Survival,
+        DRAWS,
+        20_261_105,
+    )
+    .unwrap();
+    assert!(f64::from(interval.replicates_ok) >= 0.99 * f64::from(DRAWS));
+    let q = |arm: usize| composition[arm].map(|c| c as f64 / n as f64);
+    let a0 = arm_atoms(n, q(0), &survival);
+    let a1 = arm_atoms(n, q(1), &survival);
+    let survival_law = difference_law(&a0, &a1, 1.0);
+    let rmst_law = difference_law(&a0, &a1, 2.0);
+    let rmst = interval.rmst_difference.expect("survival endpoint reports RMST");
+    survival_law.assert_quantile(interval.difference_at_tau[0], 0.025, "survival lower");
+    survival_law.assert_quantile(interval.difference_at_tau[1], 0.975, "survival upper");
+    rmst_law.assert_quantile(rmst[0], 0.025, "RMST lower");
+    rmst_law.assert_quantile(rmst[1], 0.975, "RMST upper");
+}
+
 #[test]
 fn randomized_survival_scalar_intervals_match_the_exact_bootstrap_law() {
-    scenario(false, false);
+    scenario(false);
 }
 
 #[test]
 fn delayed_entry_scalar_intervals_match_the_exact_bootstrap_law() {
-    scenario(true, false);
+    late_entry_scenario(false);
 }
 
 #[test]
 fn fixed_known_censoring_scalar_intervals_match_the_exact_weighted_bootstrap_law() {
-    scenario(false, true);
+    scenario(true);
 }
 
 #[test]
 fn delayed_entry_fixed_known_censoring_scalar_intervals_match_the_exact_weighted_bootstrap_law() {
-    scenario(true, true);
+    late_entry_scenario(true);
 }
 
 fn band_radius_check(

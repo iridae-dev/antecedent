@@ -1,0 +1,43 @@
+# Algorithm provenance for joint_law.composed_spread_linear.
+
+feature_id = "joint_law.composed_spread_linear"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Uncalibrated spread; the delta method is exact for a linear map and no interval is produced.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+ "crates/antecedent/tests/composed_uncertainty_facade.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Variance of a linear composition of component estimates."
+no_independent_algorithm = "Exact linear-algebra identity from the supplied covariance or aligned rows."
+covered_by = ["joint_law.linear_moment_propagation"]
+derivation = "For c'theta with covariance S, Var(c'theta) = c' S c; from aligned rows it is the n-1 divisor sample variance of the row values c'theta_i; the standard error is its square root."
+record_sha256 = "a6450c232e6919ee604de417c71793eb41e3865e2fa6982b248aae1702565390"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/joint_law_rule.rs"
+sha256 = "6741631ee5e53fe5934a4c91052f84e96e5732ff3b3ed7b994ea0c16e2a91ebe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs"
+sha256 = "6c9e98c93d27af4e15cf154356852c0abc7b3c8e2cecc969e23d848b379e6dc4"

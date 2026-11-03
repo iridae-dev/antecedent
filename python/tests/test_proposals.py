@@ -10,7 +10,7 @@ Oracles (derived by hand, as in ``crates/antecedent-design/tests/proposal_receip
 * Valuation: binary state, guess it for utility 1, prior 1/2. A signal of accuracy ``a`` has
   ``EVSI = a - 1/2``: 3/4 gives 1/4 and 5/8 gives 1/8. With cost 0.01 utility per USD the
   study of 20 USD has net value ``1/4 - 1/5 = 1/20`` and the study of 5 USD has net value
-  ``1/8 - 1/20 = 3/40``, so the cheaper study ranks first.
+  ``1/8 - 1/20 = 3/40``, by net value alone the cheaper study would lead, but sufficient studies rank first.
 """
 
 import copy
@@ -233,13 +233,14 @@ def test_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision(
     assert (wide.cost.sample_budget, wide.cost.sample_size) == (SAMPLES, SAMPLES)
     assert "snapshot:a" in wide.lineage.snapshots
     assert "provider:lab/snap" in wide.lineage.snapshots
-    # Valuation: net 1/4 - 20 * 0.01 = 1/20, ranked second behind the cheaper study.
+    # Valuation: net 1/4 - 20 * 0.01 = 1/20; sufficient studies rank first, so it leads the
+    # insufficient cheaper study whose net value is larger (3/40).
     assert wide.valuation.basis == "net_value"
     assert wide.valuation.evsi == pytest.approx(0.25, abs=1e-12)
     assert wide.valuation.net_value == pytest.approx(0.05, abs=1e-12)
-    assert wide.valuation.rank == 1
+    assert wide.valuation.rank == 0
     cheap = fx.bundle.proposal(fx.narrow_id)
-    assert cheap.valuation.rank == 0
+    assert cheap.valuation.rank == 1
     assert cheap.valuation.net_value == pytest.approx(0.075, abs=1e-12)
     assert cheap.hypothetical.classification == "insufficient"
     assert cheap.hypothetical.derivation_digest is None

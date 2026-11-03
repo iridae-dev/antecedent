@@ -1,0 +1,23 @@
+feature_id = "transport.learned_continuous_trial"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population (Dahabreh, Robertson, Steingrimsson, Stuart, Hernan, 2020)", sections = ["Section 5.3, equation (4): doubly robust estimator DR1 (augmented inverse odds weighting)"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)", sections = ["Section 3.1, Definition 3.1: cross-fitting with a K-fold partition", "Section 5.1: the doubly robust (AIPW) score for the average treatment effect"] },
+]
+
+implementation_deviations = [
+ "The augmented inverse-odds estimator treats outcome and participation nuisances as known or fixed in the paper; here every nuisance is cross-fitted (each fold fitted on the other folds) with learners from the learner registry, so the paper's Section 5.4 inference for estimated nuisances is not implemented and the estimator is claimed only to be model doubly robust (outcome regression or participation model correct) with known randomization probabilities. No efficiency claim.",
+ "The target is a conditional-mean functional over certified standardizers and the interval is not requested by default; the legacy bootstrap interval refuses. Coverage is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/learned_trial_reference_tests.rs",
+ "crates/antecedent/tests/learned_continuous_lifecycle.rs",
+]

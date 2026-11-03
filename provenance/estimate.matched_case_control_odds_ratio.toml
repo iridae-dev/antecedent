@@ -1,0 +1,21 @@
+feature_id = "estimate.matched_case_control_odds_ratio"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Derived in-repo (docs/guides/matched-case-control.md): conditioning each matched set on its size, case count and exposed total removes the set intercept and leaves a noncentral hypergeometric likelihood in the log odds ratio; the standard conditional logistic likelihood for matched case-control sets. No published code or procedure is reproduced.",
+ "The maximiser is a bracketed safeguarded Newton solve of the monotone score with exact hypergeometric weight sums; a monotone likelihood (no finite estimate) and sets with no informative contribution refuse. The interval route is closed and risk-scale estimands are refused without prevalence.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/matched_case_control.rs",
+ "crates/antecedent-estimate/src/matched_case_control.rs",
+ "python/tests/test_matched_case_control.py",
+]

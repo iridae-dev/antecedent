@@ -1,0 +1,37 @@
+# Algorithm provenance for adaptive_inference.procedure_decision_report.
+
+feature_id = "adaptive_inference.procedure_decision_report"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Exact under a hypothesized truth for the declared finite procedure; calibration is derived and unmeasured and nothing is claimed about an unknown truth.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Exact stopping-time law, expected enrolment, decision law, wrong-decision probability and expected regret of a declared adaptive procedure under a hypothesized truth."
+no_independent_algorithm = "Probability-weighted enumeration of the finite decision tree of the declared procedure; the weights are products of the Bernoulli outcome probabilities along each path."
+covered_by = ["adaptive_inference.procedure_law"]
+derivation = "For a finite tree of looks, the probability of a path is the product of its outcome probabilities under the hypothesized arm means. The stopping-look law, expected units, decision law, P(wrong decision) and expected regret are sums of path probabilities times the path's stopping look, units, decision indicator or regret."
+record_sha256 = "e1dc1e9a42a8c5adda5a8cd1891ff0a4f881470daec9510d81d12421985e786d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
+sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs"
+sha256 = "e674629f14cfe68c48c26b55ce3fd265bd24fe61bebffc92cb9a3b9a351f8dfa"

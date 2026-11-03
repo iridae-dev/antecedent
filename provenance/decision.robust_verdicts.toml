@@ -1,0 +1,42 @@
+# Algorithm provenance for decision.robust_verdicts.
+
+feature_id = "decision.robust_verdicts"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "Verdicts range over supplied or checked structural members only; no completeness over graphs outside the supplied members is claimed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-design/tests/decision_robustness.rs",
+ "crates/antecedent-design/tests/decision_robust_artifact.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Robustness verdict of a decision across supplied structures: per-structure expected utilities, the leader of each structure and the range of each action."
+no_independent_algorithm = "Enumeration and range arithmetic over supplied per-structure values; no estimator."
+derivation = "Each structure s supplies a point value v_s(a) per action a. The action ranges are [min_s v_s(a), max_s v_s(a)]. An action is structurally robust when it is the argmax in every structure; otherwise the verdict is graph-dependent, listing each structure's leader and selecting no action."
+record_sha256 = "6cb82817f8d9ce8e7ed5cbc545377465e0400a32e2cfaaa7bf9586034f5dac09"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_structural.rs"
+sha256 = "f97745ca6a8899ebdad48a6adbb2cd7ad765d9bde74e868ff6e8682686befbdf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_robustness.rs"
+sha256 = "6b6e67566702c9e05591df53385b6a046ed85bc7be42933d1d5e4db4343157e4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_robustness.rs"
+sha256 = "0bc02064272e1fcaa00895bb49300f01386da59810cfe6952639f7abb00a164e"

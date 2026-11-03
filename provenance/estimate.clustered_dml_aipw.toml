@@ -1,0 +1,26 @@
+feature_id = "estimate.clustered_dml_aipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)", sections = ["Section 3.1, Definition 3.1: cross-fitting with a K-fold partition", "Section 5.1: the doubly robust (AIPW) score for the average treatment effect"] },
+ { title = "Robust inference with multiway clustering (Cameron, Gelbach, Miller, 2011)", sections = ["Section 2: two-way cluster-robust variance as the sum of the two one-way cluster variances minus the intersection-cluster variance"] },
+]
+
+implementation_deviations = [
+ "Folds own whole clusters (or whole connected components of a two-way declaration) so held-out units are independent of the nuisances fitted on the other folds when clusters are independent; the paper's Definition 3.1 assumes independent identically distributed rows.",
+ "Nuisances are fixed to a logistic propensity and arm-wise ordinary least squares outcomes; flexible learners refuse a cluster option. The one-way variance uses the G/(G-1) cluster factor, a stated convention that is exactly unbiased only for exchangeable equal-size clusters; the interval uses a few-cluster Student reference.",
+ "Derived in-repo (docs/guides/clustered-dml.md); the two-way variance is the inclusion-exclusion sum and a materially negative value is refused rather than truncated. Coverage is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/cluster_dml_aipw.rs",
+ "crates/antecedent/tests/cost_expansion_cells.rs",
+ "crates/antecedent-estimate/tests/cancellation_expansion_cells.rs",
+ "crates/antecedent/tests/cluster_dml_retarget.rs",
+]

@@ -12,7 +12,8 @@
 //! * Valuation: binary state, guess it for utility 1, prior 1/2. A signal of accuracy `a`
 //!   has `EVSI = a - 1/2`: 3/4 gives 1/4 and 5/8 gives 1/8. With cost 0.01 utility per USD
 //!   the study of 20 USD has net value `1/4 - 1/5 = 1/20` and the study of 5 USD has net
-//!   value `1/8 - 1/20 = 3/40`, so the cheaper study ranks first.
+//!   value `1/8 - 1/20 = 3/40`; by net value alone the cheaper study would rank first, but it
+//!   is insufficient, and sufficient studies rank before insufficient ones.
 
 use std::sync::Arc;
 
@@ -381,13 +382,14 @@ fn receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision() {
     assert_eq!((wide.cost.sample_budget, wide.cost.sample_size), (SAMPLES, SAMPLES));
     assert!(wide.lineage.snapshots.contains(&"snapshot:a".to_owned()));
     assert!(wide.lineage.snapshots.contains(&"provider:lab/snap".to_owned()));
-    // Valuation: net 1/4 - 20 * 0.01 = 1/20, ranked second behind the cheaper study.
+    // Valuation: net 1/4 - 20 * 0.01 = 1/20. The sufficient study ranks first although the
+    // insufficient cheaper study has the larger net value 3/40.
     let net = f64::from_bits(wide.valuation.net_value_bits.unwrap());
     assert!((net - 0.05).abs() < 1e-12, "{net}");
     assert!((f64::from_bits(wide.valuation.evsi_bits) - 0.25).abs() < 1e-12);
-    assert_eq!(wide.valuation.rank, 1);
+    assert_eq!(wide.valuation.rank, 0);
     let cheap = receipt_of(&fx.bundle, &fx.cheap);
-    assert_eq!(cheap.valuation.rank, 0);
+    assert_eq!(cheap.valuation.rank, 1);
     assert!((f64::from_bits(cheap.valuation.net_value_bits.unwrap()) - 0.075).abs() < 1e-12);
     assert_eq!(cheap.hypothetical.classification, "insufficient");
     assert!(cheap.hypothetical.derivation_digest.is_none());
