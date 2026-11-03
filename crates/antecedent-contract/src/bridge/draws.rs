@@ -9,7 +9,7 @@
 //!
 //! This module holds the rules, not the arithmetic of sampling:
 //!
-//! * [`BridgeContract::check_draws_licensing`] is [`BridgeContract::check_licensing`]
+//! * [`BridgeContract::check_draws_support`] is [`BridgeContract::check_support`]
 //!   for a draws-valued source, plus the declaration of what the mapping adds to
 //!   the spread of the draws. A map with uncertain coefficients declares how its
 //!   estimators depend on the source estimate; a trial-level line and a
@@ -24,7 +24,7 @@
 //!   only from the source draws and the mapping variance only from the mapping,
 //!   so neither is counted twice; the covariance between them is the declared
 //!   dependence and nothing else.
-//! * [`DrawsPlan`] binds a licensed contract to a source of draws and
+//! * [`DrawsPlan`] binds a supported contract to a source of draws and
 //!   [`DrawsPlan::finish`] produces the derived claim once the mapped draws
 //!   exist: its own identity (binding the contract, the source and the mapped
 //!   draws), provenance and a receipt that says what was not established.
@@ -51,12 +51,12 @@ use super::super::mapping::{
 };
 use super::super::refusal::{
     BridgeRefusal, dependence_not_a_covariance, draws_meaning_mismatch, draws_not_aligned,
-    draws_unusable, interval_not_licensed, malformed_mapping, mapping_uncertainty_invalid,
+    draws_unusable, interval_not_supported, malformed_mapping, mapping_uncertainty_invalid,
     mapping_uncertainty_missing, provenance_failed, quantity_mismatch, source_dependence_invalid,
     source_dependence_missing, source_not_draws, source_variance_invalid,
     validation_trials_too_few, wrong_value_kind,
 };
-use super::{BridgeContract, Licensing, SourceMappingDependence};
+use super::{BridgeContract, SourceMappingDependence, Support};
 use crate::claim::{
     ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, DomainStatus, HandoffReceipt,
 };
@@ -110,7 +110,7 @@ pub struct AffineDrawLaw {
     /// Residual variance of a trial-level line: the variance a new trial adds
     /// to the mean line. Zero for a declared map.
     pub residual_variance: f64,
-    /// The range of source values the map is licensed for, when it has one (the
+    /// The range of source values the map is supported for, when it has one (the
     /// validated surrogate range of a trial-level line).
     pub domain: Option<(f64, f64)>,
 }
@@ -233,7 +233,7 @@ pub struct CorrectionDrawLaw {
     pub sensitivity_variance: f64,
     /// Variance of the specificity estimate; zero states it exact.
     pub specificity_variance: f64,
-    /// Smallest Youden index the model licenses.
+    /// Smallest Youden index the model supports.
     pub min_youden: f64,
     /// Which way the correction runs.
     pub direction: MeasurementDirection,
@@ -455,13 +455,13 @@ pub struct BridgeDrawsSource<'a> {
     pub alignment_identity: &'a str,
 }
 
-/// A licensed contract bound to a source of draws: the mapping law and
+/// A supported contract bound to a source of draws: the mapping law and
 /// everything the derived claim needs, before any draw is mapped.
 #[derive(Clone, Debug)]
 pub struct DrawsPlan {
     contract: BridgeContract,
     contract_identity: SemanticDigest,
-    licensing: Licensing,
+    support: Support,
     mapping: DrawMapping,
     source_claim_id: SemanticDigest,
     source_kind: ValueKind,
@@ -476,14 +476,14 @@ pub struct DrawsPlan {
 impl BridgeContract {
     /// Bind this contract to a source of draws.
     ///
-    /// Nothing is planned unless the contract licenses a draws-valued bridge
-    /// ([`Self::check_draws_licensing`]) and the source is the aligned draws of
+    /// Nothing is planned unless the contract supports a draws-valued bridge
+    /// ([`Self::check_draws_support`]) and the source is the aligned draws of
     /// the contract's source quantity, of the value kind the contract declares.
     /// `stream` names the random stream the mapping's coefficients are drawn
     /// from; it enters the identity of the derived claim.
     ///
     /// # Errors
-    /// A contract that does not license its bridge; a source that is an
+    /// A contract that does not support its bridge; a source that is an
     /// associational, refused, bounded or incomplete claim; draws of another
     /// quantity; draws that are not the declared value kind or are independent
     /// marginals.
@@ -492,7 +492,7 @@ impl BridgeContract {
         source: &BridgeDrawsSource<'_>,
         stream: u64,
     ) -> Result<DrawsPlan, BridgeRefusal> {
-        let licensing = self.check_draws_licensing()?;
+        let support = self.check_draws_support()?;
         if let Err(mismatch) = source.quantity.require_same_coordinate(&self.source.quantity) {
             return Err(quantity_mismatch(
                 mismatch_name(mismatch),
@@ -518,11 +518,11 @@ impl BridgeContract {
         if !source.joint {
             return Err(draws_not_aligned());
         }
-        let mapping = draw_mapping(self, licensing.direction)?;
+        let mapping = draw_mapping(self, support.direction)?;
         Ok(DrawsPlan {
             contract: self.clone(),
             contract_identity: self.identity(),
-            licensing,
+            support,
             mapping,
             source_claim_id: source.claim_id,
             source_kind: held,
@@ -549,10 +549,10 @@ impl DrawsPlan {
         &self.mapping
     }
 
-    /// What the licensing check determined.
+    /// What the support check determined.
     #[must_use]
-    pub const fn licensing(&self) -> Licensing {
-        self.licensing
+    pub const fn support(&self) -> Support {
+        self.support
     }
 
     /// The random stream the coefficients are drawn from.
@@ -671,7 +671,7 @@ impl DrawsPlan {
             source_claim_id: self.source_claim_id,
             value_kind: self.contract.target_value,
             mapping: self.contract.mapping.kind(),
-            transported: self.licensing.transported,
+            transported: self.support.transported,
             alignment_identity: self.alignment,
             stream: self.stream,
             n_draws: summary.n_draws,
@@ -817,7 +817,7 @@ pub fn bridged_distribution_claim_id(
 ///
 /// The source is not modified. The claim's value is the mean of the bridged
 /// draws, a summary: the claim is the aligned draws, whose spread is read as
-/// `uncalibrated_spread` unless a measured coverage record licenses an interval.
+/// `uncalibrated_spread` unless a measured coverage record supports an interval.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BridgedDistributionClaim {
@@ -894,10 +894,10 @@ impl BridgedDistributionClaim {
     /// An unscoped request for an interval of the bridged draws.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `scientific_bridge.interval_not_licensed`:
+    /// Always `not_supported` with `scientific_bridge.interval_not_supported`:
     /// name a level and ask for the interval through the measured-coverage gate.
     pub fn request_interval(&self) -> Result<(), BridgeRefusal> {
-        Err(interval_not_licensed())
+        Err(interval_not_supported())
     }
 }
 

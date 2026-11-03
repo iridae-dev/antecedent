@@ -12,7 +12,7 @@ papers = [
 implementation_deviations = [
  "The model is an additive mean in an intercept and one coefficient per treatment period. Stabilized sequential weights are supplied, not estimated.",
  "Standard errors are subject-clustered CR1 sandwiches. Intervals are separate pointwise normal intervals, not a simultaneous band.",
- "The licensed interval requires the calibrated floors on subjects, observed terminal outcomes, Kish effective sample size, and per-period action probability. Treatment interactions, unstabilized weights, the g-formula, and the sequential doubly robust route are outside this record.",
+ "The supported interval requires the calibrated floors on subjects, observed terminal outcomes, Kish effective sample size, and per-period action probability. Treatment interactions, unstabilized weights, the g-formula, and the sequential doubly robust route are outside this record.",
 ]
 
 upstream_implementations_observed = []
@@ -32,7 +32,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Six finite tables of 4 to 50 subjects with one to three periods: varying propensities, censoring probabilities of 0.6 to 1 with unobserved subjects, probabilities of 0.02 and 0.97 against a floor of 0.01 (largest weight and a Kish effective sample size of 3 of 40), an outcome offset of 1e7, a second-period treatment prevalence of 0.1 and four subjects with one period. Coefficients agree with the exact-rational values to 1e-10 relative (1e-7 at the offset), variances to 1e-8 (1e-6 at the offset). The sandwich is the standard CR1 form with one subject per cluster and does not account for estimation of the weights, so its coverage with fitted weights is not reviewed; the simulation test in the module's own tests covers only known-weight coverage. The cited paper was not retrieved in this review: the correspondence is between the product and the standard definitions that work states, verified numerically. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.1097/00001648-200009000-00011", "https://docs.python.org/3/library/fractions.html"]
 findings_resolved = ["No defect found: coefficients, intercept and period-effect variances, Kish effective sample size, maximum weight and observed count equal the exact-rational weighted least-squares reference in every case, including probabilities at the floor, unobserved subjects and an outcome offset of 1e7.", "The interval gate is exact at each floor (subjects 300, observed subjects 200, effective sample size 150) and refuses a non-positive or non-finite standard error; the endpoints use the normal 0.975 quantile.", "Declarations that would otherwise be ignored are refused: a numerator vector of the wrong length or outside the floor, a floor above one half, mismatched array lengths, a treatment probability below the floor in a row, and a sample with no observed subject."]
-record_sha256 = "62a322bf0112e9885fc858c63902868e1303cbd777fd05b2b26a2f49e37150dd"
+record_sha256 = "0c390cdb3cb2a6b5c1137a6cb3f365867ffa9bb82b9d7230653e7da30e957a62"
 
 [[method_review.artifacts]]
 role = "implementation"

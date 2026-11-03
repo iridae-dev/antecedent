@@ -197,19 +197,19 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
             )
         )
     )
-    assert interval.reason_code == "cell_not_licensed"
+    assert interval.reason_code == "not_supported"
 
     # The default policy admits only `supported` coordinates: accepting a transported claim is the
     # consumer's explicit choice.
     default = refusal_of(
         lambda: require_success(contract().evaluate_transported(response, analysis=prepared))
     )
-    assert default.reason_code == "cell_not_licensed"
+    assert default.reason_code == "not_supported"
     assert default.detail == "transported_decision.transported_not_accepted"
 
     with pytest.raises(tr.TransportedResponseRefusal) as closed:
         response.interval()
-    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
 
 
 def test_a_response_is_declared_with_a_complete_transport_identity() -> None:

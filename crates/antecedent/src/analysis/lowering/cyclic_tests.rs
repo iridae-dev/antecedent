@@ -299,7 +299,7 @@ fn every_cyclic_family_lowers_to_a_complete_program_with_a_stable_identity() {
             "{family}: a feedback program carries no graphical identification product"
         );
         assert!(!first.identification_retained(), "{family}");
-        assert!(!first.scientific().licensed(), "{family}: lowering grants no license");
+        assert!(!first.scientific().supported(), "{family}: lowering grants no support");
         assert_eq!(first.scientific().graph_class(), "cyclic");
         assert!(!first.physical().operators().is_empty(), "{family}");
         let output = first.physical().operators().last().unwrap().estimates().output();

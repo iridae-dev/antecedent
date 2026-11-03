@@ -1,7 +1,7 @@
 //! The retained analysis contract of an adaptive experiment: declarations,
 //! completeness and consistency checks, canonical identity.
 //!
-//! Inference from adaptively collected data is licensed only when the whole
+//! Inference from adaptively collected data is supported only when the whole
 //! data-generating and monitoring contract is represented. The contract keeps
 //! six elements beyond the realized assignments themselves:
 //!
@@ -688,23 +688,23 @@ pub(super) fn authorize_cell(
         ));
     }
     match procedure_status(cell) {
-        CellStatus::Licensed { paradigms } => {
+        CellStatus::Supported { paradigms } => {
             if !paradigms.contains(&paradigm) {
                 return Err(ExternalRefusal::new(
-                    antecedent_core::reason_code!("cell_not_licensed"),
+                    antecedent_core::reason_code!("not_supported"),
                     STAGE_BIND,
-                    "adaptive_inference.paradigm_not_licensed_for_cell",
+                    "adaptive_inference.paradigm_not_supported_for_cell",
                 )
                 .with_offending(paradigm.as_str())
                 .with_supplied(cell.identifier())
                 .with_remedy(
-                    "use a paradigm the cell is licensed for; a guarantee for one paradigm never transfers to another",
+                    "use a paradigm the cell is supported for; a guarantee for one paradigm never transfers to another",
                 ));
             }
         }
         CellStatus::ClosedIncoherent { reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 STAGE_BIND,
                 "adaptive_inference.cell_closed",
             )
@@ -713,16 +713,16 @@ pub(super) fn authorize_cell(
         }
         CellStatus::ClosedPairing { reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.pairing_not_licensed",
+                "adaptive_inference.pairing_not_supported",
             )
             .with_supplied(cell.identifier())
             .with_expected(reason));
         }
         CellStatus::CarriedForward { owner, reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 STAGE_BIND,
                 "adaptive_inference.cell_carried_forward",
             )

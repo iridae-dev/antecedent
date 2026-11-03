@@ -11,7 +11,7 @@
 //!
 //! The frequentist estimate is the unpenalized maximum-likelihood fit with its Fisher delta-method
 //! standard error. The Bayesian estimate is the Laplace posterior of the same contrast under a
-//! Gaussian coefficient prior. Neither is a licensed route and their calibration is unmeasured.
+//! Gaussian coefficient prior. Neither is a supported route and their calibration is unmeasured.
 
 use std::collections::BTreeMap;
 
@@ -41,7 +41,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         if query.is_multi_step_sustained() || !query.effect_modifiers.is_empty() {
             return Err(CausalError::Unsupported {
                 message: "the temporal GLM link contrast is a single-step pulse or one-step \
@@ -237,7 +237,7 @@ impl super::Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<SubjectColumns, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         if query.is_multi_step_sustained() || !query.effect_modifiers.is_empty() {
             return Err(CausalError::Unsupported {
                 message: "independent-subject rows exist for a single-step pulse or one-step \

@@ -3,13 +3,13 @@
 
 A residual limitation is something a closure record, a recorded evidence row or checked work says
 is still missing: a narrowed promise with its next attempt, a theory reason that closes a quadrant,
-an evidence row whose interval has no coverage record, a failed promotion gate, or a source comment
+an evidence row whose interval has no coverage record, a failed capability gate, or a source comment
 that says a coverage claim has not been measured. This script scans
 
   parity/counterparts.toml                    narrowed promises and theory-closed quadrants
   parity/capabilities/route_manifest.toml     counterpart and narrowed next attempts on routes
   parity/*.toml `limitations` fields          sentences naming an unmeasured or uncalibrated claim
-  parity/promotion_carryovers.toml            failed promotion gates and their corrective action
+  parity/capability_gaps.toml            failed capability gates and their corrective action
   crates, python, docs                        comments and prose saying a claim is not yet measured
 
 and writes parity/residual_limitations.toml, one row per limitation with its source, its text and
@@ -65,7 +65,7 @@ SKIPPED_PARITY = {
     "counterparts.toml",
     "residual_limitations.toml",
     "residual_limitation_owners.toml",
-    "promotion.toml",
+    "capability_records.toml",
     "evidence_ledger.toml",
     "transport_stages.toml",
 }
@@ -204,7 +204,7 @@ def carryover_limitations(document: dict) -> list[dict]:
             {
                 "id": f"carryover.{cell['id']}",
                 "kind": "failed_gate",
-                "source": "parity/promotion_carryovers.toml",
+                "source": "parity/capability_gaps.toml",
                 "locator": cell["id"],
                 "text": text,
                 "item": "",
@@ -270,7 +270,7 @@ def collect(root: Path = ROOT) -> list[dict]:
         if rel == "parity/capabilities/route_manifest.toml":
             continue
         rows += evidence_limitations(rel, load_toml(path))
-    carry = root / "parity/promotion_carryovers.toml"
+    carry = root / "parity/capability_gaps.toml"
     if carry.is_file():
         rows += carryover_limitations(load_toml(carry))
     rows += phrase_limitations(root)

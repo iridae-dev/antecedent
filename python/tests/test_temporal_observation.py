@@ -1,4 +1,4 @@
-"""Licensed observation pairs on temporal ResponseCurve / InterventionResponse."""
+"""Supported observation pairs on temporal ResponseCurve / InterventionResponse."""
 
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ def test_temporal_observation_default_bootstrap_publishes_band():
     assert np.all(lower < means) and np.all(means < upper)
 
 
-def test_unlicensed_temporal_observation_refuses():
+def test_unsupported_temporal_observation_refuses():
     dgp = _dgp()
     data = {"t": dgp["t"], "y": dgp["latent"], "lo": dgp["latent"] - 1, "hi": dgp["latent"] + 1}
     query = antecedent.ResponseCurve(
@@ -170,5 +170,5 @@ def test_unlicensed_temporal_observation_refuses():
         observation=obs.IntervalCensored("y", "lo", "hi"),
         observation_assumptions=[obs.IndependentGiven([])],
     )
-    with pytest.raises(CausalError, match="temporal response observation pair is not licensed"):
+    with pytest.raises(CausalError, match="temporal response observation pair is not supported"):
         require_success(antecedent.analyze(data, graph=_EDGES, query=query, refute=False))

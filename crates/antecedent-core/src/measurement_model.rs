@@ -97,7 +97,7 @@ impl MeasurementKind {
     }
 }
 
-/// The bounded correction route a model licenses.
+/// The bounded correction route a model supports.
 ///
 /// The set is closed by the routes' frozen records; a new route is a new
 /// record and a deliberate breaking change, so matches over it are exhaustive.
@@ -943,7 +943,7 @@ pub enum MeasurementInference {
     /// A point with a delta-method standard error that includes the
     /// measurement-parameter uncertainty. The standard error is an
     /// *uncalibrated* estimate of an asymptotic standard deviation: no
-    /// coverage has been measured and no interval is licensed.
+    /// coverage has been measured and no interval is supported.
     UncalibratedStandardError,
 }
 

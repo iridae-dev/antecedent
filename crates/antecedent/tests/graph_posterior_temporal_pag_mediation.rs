@@ -212,7 +212,7 @@ fn a_posterior_of_temporal_pags_mixes_each_atoms_window_decomposition() {
             + 0.4 * explicit(&series, contemporaneous_template(), contrast);
         let graphs = pag_posterior(&[0.6, 0.4], &[lagged_atom(), contemporaneous_atom()]);
         let built = mixed_study(&series, graphs, contrast);
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         assert!((result.effect() - expected).abs() < 1e-9, "{contrast:?}: {}", result.effect());
         let mixture = result.structural_response.as_ref().expect("the atom mixture");

@@ -215,11 +215,11 @@ impl IdentificationSlot {
     }
 }
 
-/// Matrix licensing versus empirical support. They stay distinct.
+/// Matrix support versus empirical support. They stay distinct.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct SupportSlot {
-    /// Support-matrix evidence status (`licensed`, `not_applicable`, `refused`).
+    /// Support-matrix evidence status (`supported`, `not_applicable`, `not_supported`).
     pub matrix_status: Arc<str>,
     /// Actual matrix coordinate, when classified.
     pub matrix_coordinate: Option<Arc<str>>,
@@ -374,7 +374,7 @@ mod tests {
     fn unavailable_is_not_an_empty_success() {
         let view = ReasoningView::structural(
             SupportSlot {
-                matrix_status: Arc::from("licensed"),
+                matrix_status: Arc::from("supported"),
                 matrix_coordinate: None,
                 empirical: SlotAvailability::unavailable("not_evaluated"),
             },

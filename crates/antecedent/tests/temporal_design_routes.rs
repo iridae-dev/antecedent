@@ -3,7 +3,7 @@
 //!
 //! Every fixture draws a panel from a known law: the excursion effects, the dose response, the
 //! quantile shift and the regime survival contrast are known, and the routes must recover them
-//! within their own reported uncertainty. The routes are unlicensed: no support status, a
+//! within their own reported uncertainty. The routes are unsupported: no support status, a
 //! `calibration = "unmeasured"` section, and a refusal for every option they do not read.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -147,7 +147,7 @@ fn the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes() {
     assert_eq!(frequentist.support_status(), None);
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "two_arm");
-    assert!(!fit.licensed && &*fit.calibration == "unmeasured");
+    assert!(!fit.supported && &*fit.calibration == "unmeasured");
     assert_eq!(&*fit.coordinates[0], "excursion_effect");
     within(fit, 0, 1.25, 4.0);
     assert!(fit.lower[0] < fit.estimate[0] && fit.estimate[0] < fit.upper[0]);
@@ -657,7 +657,7 @@ fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forger
     let bytes = prepared.encode_contracted_result(&result, "temporal-design", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.temporal_design.as_ref().expect("the section is exported");
-    assert!(!wire.licensed && wire.calibration == "unmeasured");
+    assert!(!wire.supported && wire.calibration == "unmeasured");
     assert_eq!(wire.design, "two_arm");
     assert_eq!(wire.estimate, fit.estimate.to_vec());
     assert_eq!(wire.lower, fit.lower.to_vec());
@@ -668,15 +668,15 @@ fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forger
         "temporal-design-again",
     )
     .unwrap();
-    let mut licensed = body.clone();
-    licensed.temporal_design.as_mut().unwrap().licensed = true;
+    let mut supported = body.clone();
+    supported.temporal_design.as_mut().unwrap().supported = true;
     let error = antecedent_io::encode_analysis_result_artifact(
-        &licensed,
+        &supported,
         header.variable_names.clone(),
-        "forged-license",
+        "forged-support",
     )
     .unwrap_err();
-    assert!(error.to_string().contains("claims no licence"), "{error}");
+    assert!(error.to_string().contains("claims no support"), "{error}");
     let mut reversed = body.clone();
     let section = reversed.temporal_design.as_mut().unwrap();
     section.lower[0] = section.upper[0] + 1.0;
@@ -754,7 +754,7 @@ fn the_observational_excursion_fits_its_assignment_law_and_removes_confounding()
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "observational_excursion");
     assert_eq!(&*fit.calibration, "unmeasured");
-    assert!(!fit.licensed);
+    assert!(!fit.supported);
     assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
     assert!(
         (fit.estimate[0] - 1.0).abs() < 4.0 * fit.standard_error[0] + 0.05,
@@ -882,7 +882,7 @@ fn the_observational_regime_removes_time_varying_confounding_under_feedback() {
         let fit = section(&frequentist);
         assert_eq!(&*fit.design, "observational_regime");
         assert_eq!(&*fit.calibration, "unmeasured");
-        assert!(!fit.licensed);
+        assert!(!fit.supported);
         assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
         assert!(
             (fit.estimate[0] - 4.2).abs() < 4.0 * fit.standard_error[0] + 0.1,

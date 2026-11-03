@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A held-out whole-program intervention on the broader panel family: a world whose complete
 //! program no source group received is not certified by the design, however well the mechanism
-//! fits, and the model-conditional response there stays unlicensed.
+//! fits, and the model-conditional response there stays unsupported.
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]
@@ -101,7 +101,7 @@ fn cells_06_a_held_out_whole_program_is_not_certified_by_the_broader_family_fit(
     assert_eq!(rejected.worlds[0].matched_groups.len(), 1, "the reference was observed");
 
     // The fit still produces a model-conditional response at the held-out doses, finite and
-    // without a causal license.
+    // without a causal support.
     let result = held_out.estimate(&ctx).unwrap();
     assert!(result.point.iter().all(|world| world.means.iter().all(|m| m.is_finite())));
     assert!(result.require_identified().is_err());

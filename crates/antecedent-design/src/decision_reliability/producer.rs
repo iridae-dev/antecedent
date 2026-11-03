@@ -18,7 +18,7 @@
 //!
 //! What a carrier may claim depends on where its randomness came from. Per-action
 //! utilities that are functions of one posterior draw are a joint law, and ranking
-//! statements over them are licensed to the carrier. Policies rolled out on
+//! statements over them are supported to the carrier. Policies rolled out on
 //! implementation-keyed uniforms share noise as a variance-reduction device, which makes
 //! their means and mean differences valid but does not make pairwise ranking
 //! probabilities a statement about any structural joint law; and importance-weighted
@@ -92,12 +92,12 @@ pub enum JointLawDeclaration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JointLawStanding {
     /// The utilities are functions of one declared joint law: ranking statements and the
-    /// joint-law intervals are licensed to the carrier.
+    /// joint-law intervals are supported to the carrier.
     OneSharedLaw,
-    /// Only functional estimates and selection assessment are licensed; ranking is
+    /// Only functional estimates and selection assessment are supported; ranking is
     /// refused because the shared noise is not a structural joint law.
     MarginalOnly {
-        /// Why no ranking is licensed.
+        /// Why no ranking is supported.
         reason: &'static str,
     },
 }

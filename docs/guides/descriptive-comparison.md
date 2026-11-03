@@ -41,7 +41,7 @@ things are deliberately absent:
 * **No interval or standard error for the gap.** The covariance between the raw and the
   adjusted estimate is not carried by either (they use the same rows) and is not assumed
   zero. The field `gap_interval_unavailable` carries the typed reason
-  (`cell_not_licensed`, `descriptive_comparison.gap_interval_unavailable`).
+  (`not_supported`, `descriptive_comparison.gap_interval_unavailable`).
 * **No attribution to adjustment columns.** The adjusted estimate is not an additive
   function of the columns: a leave-one-out difference depends on the order, on the columns
   that remain and on the functional form. `attribute_gap_to_columns(...)` is a closed
@@ -55,7 +55,7 @@ from the sufficient statistics in pure Python and compares them with the stored 
 
 ## Reporting-scale transform
 
-From a mean-outcome pair `(mu1, mu0)` (a licensed result's arm means) `transform_mean_pair`
+From a mean-outcome pair `(mu1, mu0)` (a supported result's arm means) `transform_mean_pair`
 reports one or more declared scales:
 
 | scale | value | gradient `(d/dmu1, d/dmu0)` | domain |
@@ -87,7 +87,7 @@ fewer than two rows has no sample variance and the covariance is then unavailabl
 **No interval.** A Wald interval from this covariance would rest on asymptotic normality of
 the pair and on the linearization being adequate near the boundary of the scale (a risk
 ratio of a rare event, an odds ratio near 0 or 1). No coverage record measures that, so
-`level=...` is a typed refusal (`cell_not_licensed`,
+`level=...` is a typed refusal (`not_supported`,
 `descriptive_comparison.interval_withheld`) and only the points and the covariance are
 published.
 
@@ -98,7 +98,7 @@ published.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.
 * The delta-method covariance is first order and describes the source `Sigma`'s own
-  uncertainty. It adds nothing the source did not license: when the source interval is
+  uncertainty. It adds nothing the source did not support: when the source interval is
   withheld, so is this.
 * `raw_vs_adjusted` reads the data you pass it; it does not check that `adjusted_estimate`
   came from the same rows.

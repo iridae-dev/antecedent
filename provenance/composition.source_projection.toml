@@ -9,7 +9,7 @@ implementation_deviations = ["Original artifact consumers reconstruct each proje
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_projection.rs", "python/tests/test_source_projection.py"]
 algorithm_provenance = ["provenance/composition.source_projection.toml"]
-parity_registry = "parity/promotion.toml"
+parity_registry = "parity/capability_records.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "composition.source_projection.source_projection.source_projection_original_native_mean_and_affine_utility_match_independent_truth.positive"
 oracle_kind = "closed_form"
@@ -17,7 +17,7 @@ oracle_inputs = "Original linear SCM Y=1+2A+.2X with balanced X, interventions1/
 expected_values = "Native/external means3/5; affine utilitiesA5/B2.5; selected A remains5 when B has original weak-overlap standing, while selected B and full-contract output refuse; full-source replay refuses resealed numeric/source/snapshot/coordinate/dependency mutations; three projection nodes require one actual checked execution."
 tolerance = "absolute1e-4 native means; exact affine arithmetic, original identities and execution counts"
 calibration = "point_only_original_unmeasured_no_new_interval_or_joint_coverage"
-executing_gate = "scripts/gate_promotion.sh"
+executing_gate = "scripts/gate_capability_records.sh"
 artifact_consumer_fixture = "composition.source_projection.source_projection.test_source_projection_fresh_process_requires_actual_original_raw_data_execution.artifact"
 provider_trust = "original_native_source_unverified_on_import; external_attestation_retained"
 exact_request_verification = "actual_original_PreparedStudy_execution_full_source_comparison_required_for_native_bundle_resolution"
@@ -28,14 +28,14 @@ kind = "wrapper"
 rationale = "Source-backed projections of a portable workflow: replay of an original artifact consumer, binding exact coordinates and an affine decision expression."
 no_independent_algorithm = "Replays an original consumer and an affine expression over supplied numbers; the module has no square root, logarithm, exponential, power or solve."
 covered_by = ["composition.source_evidence", "decision.contract"]
-record_sha256 = "b5e6a88904969b902f59451406b12b850c29de293485f9427393859771557a49"
+record_sha256 = "d6eeb60b6ef6164d04c667756e36a8e08c976ed04b315e1a9d1cfaf17c2e8536"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/source_projection_artifact.rs"
-sha256 = "e9592368eb2956c5822bef965263500ef067986d4bd473789306b0aff3340f8a"
+sha256 = "3c813c2f7214f1cada55e75c28edc12b3ac71cd8c2e9aaec2a7727d276771278"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_projection.rs"
-sha256 = "226ba94887ce91a844417e8286a1ce1a745eee4a07ad8d4110fbfb450c97d10e"
+sha256 = "21c11ee7dfe81397d57dcc488668b6b3ed170b57ea219217b3840607626dd83b"

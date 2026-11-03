@@ -678,7 +678,7 @@ fn a_latent_posterior_needs_an_exactly_matching_provider_object() {
     );
     // Metadata cannot confer native trust.
     let refusal =
-        check_latent_posterior(&m, &good, &ExternalTrustState::NativeLicensed).unwrap_err();
+        check_latent_posterior(&m, &good, &ExternalTrustState::NativeSupported).unwrap_err();
     assert_eq!(refusal.detail, "measurement_model.posterior_native_trust");
     // Another request fingerprint is another object.
     let mut other_identity = identity.clone();
@@ -811,12 +811,12 @@ fn estimator_and_contract_refuse_the_same_requests_with_the_same_details() {
         correct_classical_linear_effect(&m, &binding, &linear_data(&sim), &ctx()).unwrap_err();
     assert_eq!(contract.code, estimate.code);
     assert_eq!(contract.detail, estimate.detail);
-    // An interval is never licensed for a measurement-corrected functional.
+    // An interval is never supported for a measurement-corrected functional.
     let mut interval = request("cohort");
     interval.operation = MeasurementOperation::Interval;
     let refusal = check_measurement_request(&m, &interval, None).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(antecedent_estimate::measurement::interval_not_licensed().code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(antecedent_estimate::measurement::interval_not_supported().code, "not_supported");
 }
 
 // ---------------------------------------------------------------------------

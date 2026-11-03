@@ -5,7 +5,7 @@
 //! adjustment (Abadie–Imbens) is applied on the match feature(s).
 //!
 //! **Bootstrap caution:** the nonparametric bootstrap is invalid for nearest-neighbor
-//! matching with a fixed number of matches (Abadie–Imbens 2008). The licensed uncertainty
+//! matching with a fixed number of matches (Abadie–Imbens 2008). The supported uncertainty
 //! product is the Abadie–Imbens analytic SE ([`EffectEstimate::se_analytic`]). Setting
 //! `PropensityMatching`'s declared bootstrap replicates do **not** populate
 //! [`EffectEstimate::se_bootstrap`] — the invalid bootstrap is not retained as a CI.
@@ -2252,7 +2252,7 @@ mod tests {
         assert!(rate >= 0.85, "nominal-95% coverage {rate} too low (covered {covered}/{reps})");
     }
 
-    /// Regression: requesting bootstrap replicates must not license an SE in
+    /// Regression: requesting bootstrap replicates must not support an SE in
     /// `se_bootstrap` (Abadie–Imbens 2008). Analytic SE remains the uncertainty product.
     #[test]
     fn bootstrap_replicates_do_not_populate_se_bootstrap() {

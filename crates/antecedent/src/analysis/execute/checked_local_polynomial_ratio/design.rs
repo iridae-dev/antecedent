@@ -2,8 +2,8 @@
 //! robust bias-corrected interval, a calendar-time running variable with a within-side block
 //! bootstrap, and the density and covariate-balance diagnostics.
 //!
-//! The result is unlicensed and its calibration is unmeasured; the existing fixed-bandwidth
-//! licence row covers only the declared-bandwidth independent-row route.
+//! The result is unsupported and its calibration is unmeasured; the existing fixed-bandwidth
+//! support row covers only the declared-bandwidth independent-row route.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -197,7 +197,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "{label} in calendar time at bandwidth {bandwidth}; {} of {} block \
-                     Bayesian-bootstrap draws produced a finite ratio; unlicensed and \
+                     Bayesian-bootstrap draws produced a finite ratio; unsupported and \
                      uncalibrated",
                     posterior.draws_ok, posterior.requested
                 ),

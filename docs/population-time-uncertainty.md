@@ -8,8 +8,8 @@ Whether a route is available, and what its claim is, follows from its current co
 
 - **Structural envelope.** An unweighted range over a finite, enumerated set of scenarios. It is not a probability statement and carries no sampling uncertainty.
 - **Point only.** A value (or a matrix of values) with no interval and no coverage claim. Where a test is reported, its Type I error and power are unmeasured.
-- **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and require a current, passing record. Only the named scalar intervals receive that standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket licence.
-- **Closed or unlicensed.** A missing implementation, unsupported protocol or nonattesting record produces a typed refusal.
+- **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and require a current, passing record. Only the named scalar intervals receive that standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket support.
+- **Closed or unsupported.** A missing implementation, unsupported protocol or nonattesting record produces a typed refusal.
 
 Every refusal is a pair of a registered reason code and a detail of the form `<namespace>.<snake_case>`; callers switch on the pair.
 
@@ -31,7 +31,7 @@ Both methods run checked general identification before fitting; nonparametric id
 - `antecedent.transport.advanced.binary_nested_markov_fisher_interval` reports `mean0`, `mean1` and `contrast` at 0.95, using the expected multinomial Fisher information and full delta covariance. Measured sample-size scope is 1000 to 4000; singular or boundary information refuses.
 - `antecedent.transport.advanced.binary_nested_markov` uses the full eleven-dimensional feasible Möbius model with all eleven raw-coordinate Beta(1,1) or all Beta(2,2) shapes. Its sampler is four chains, 2048 warmup and 4096 retained draws per chain, with 0.95 equal-tailed quantiles. All fourteen parameters and derived estimands must satisfy rank and folded Rhat at most 1.01 and bulk and tail ESS at least 400. Measured count scope is 2000 to 8000.
 
-Both return `inference.MeasuredInference` only if all three scalar bases have current records. Posterior summaries are Monte Carlo estimates; parameter-coordinate or simultaneous intervals are not licensed. Correct model specification and IID sampling cannot be established from the observed table alone. The fresh consumer replays the point fit plus the complete information or posterior receipt; changing the prior, settings, counts or identity refuses, and a Fisher record cannot supply a Bayesian licence.
+Both return `inference.MeasuredInference` only if all three scalar bases have current records. Posterior summaries are Monte Carlo estimates; parameter-coordinate or simultaneous intervals are not supported. Correct model specification and IID sampling cannot be established from the observed table alone. The fresh consumer replays the point fit plus the complete information or posterior receipt; changing the prior, settings, counts or identity refuses, and a Fisher record cannot supply Bayesian support.
 
 ## Uncertain initial state
 

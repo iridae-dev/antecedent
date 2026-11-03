@@ -953,8 +953,8 @@ fn verify_class_posterior(case: &Case<'_>, result: &StudyResult, draws: usize) {
     assert!(seen >= 2, "{}: no posterior mixture of enumeration weights", case.name);
 }
 
-fn assert_licensed(status: Option<CellStatus>, name: &str) {
-    assert_eq!(status, Some(CellStatus::Licensed), "{name}");
+fn assert_supported(status: Option<CellStatus>, name: &str) {
+    assert_eq!(status, Some(CellStatus::Supported), "{name}");
 }
 
 const ANOMALY_CASES: [&str; 9] = [
@@ -1006,9 +1006,9 @@ fn known_truth(names: &[&str]) {
         let case = Case::of(&document, name);
         for accepted in [false, true] {
             let study = study_of(&case, accepted, &frequentist(), RefuteSuite::None);
-            assert_licensed(study.support_status(), name);
+            assert_supported(study.support_status(), name);
             let result = run(&case, &study);
-            assert_licensed(result.support_status(), name);
+            assert_supported(result.support_status(), name);
             verify_payload(&case, &result);
             // An accepted structure is attributed exactly as a supplied one.
             if accepted {
@@ -1020,7 +1020,7 @@ fn known_truth(names: &[&str]) {
         let draws = if case.is_anomaly() { 400 } else { 150 };
         for accepted in [false, true] {
             let study = study_of(&case, accepted, &bayesian(draws), RefuteSuite::None);
-            assert_licensed(study.support_status(), name);
+            assert_supported(study.support_status(), name);
             let result = run(&case, &study);
             // The Bayesian-bootstrap draws move the posterior, not the point attribution.
             verify_payload(&case, &result);
@@ -1046,9 +1046,9 @@ fn graph_posterior_attribution_known_truth() {
         for name in POSTERIOR_CASES {
             let case = Case::of(&document, name);
             let study = study_of(&case, false, &frequentist(), RefuteSuite::None);
-            assert_licensed(study.support_status(), name);
+            assert_supported(study.support_status(), name);
             let result = run(&case, &study);
-            assert_licensed(result.support_status(), name);
+            assert_supported(result.support_status(), name);
             verify_payload(&case, &result);
             let mixture = result.structural_response.as_ref().unwrap();
             assert_eq!(
@@ -1092,11 +1092,11 @@ fn class_attribution_executes_from_retained_plan_after_builder_is_dropped() {
             let case = Case::of(&document, name);
             for accepted in [false, true] {
                 let result = retained_run(&case, accepted, &frequentist());
-                assert_licensed(result.support_status(), name);
+                assert_supported(result.support_status(), name);
                 verify_payload(&case, &result);
             }
             let result = retained_run(&case, false, &bayesian(24));
-            assert_licensed(result.support_status(), name);
+            assert_supported(result.support_status(), name);
             verify_payload(&case, &result);
             // A frequentist class attribution is a point value: it reports no interval.
             let point = retained_run(&case, false, &frequentist());
@@ -1131,10 +1131,10 @@ fn class_graph_posterior_attribution_executes_from_retained_plan_after_builder_i
         for name in POSTERIOR_CASES {
             let case = Case::of(&document, name);
             let result = retained_posterior_run(&case, &frequentist());
-            assert_licensed(result.support_status(), name);
+            assert_supported(result.support_status(), name);
             verify_payload(&case, &result);
             let result = retained_posterior_run(&case, &bayesian(24));
-            assert_licensed(result.support_status(), name);
+            assert_supported(result.support_status(), name);
             verify_payload(&case, &result);
         }
     });
@@ -1168,7 +1168,7 @@ fn a_hedged_class_attribution_is_refused_with_the_witness_and_the_masses_are_sta
                 .refute(RefuteSuite::None)
                 .build()
                 .unwrap();
-            assert_licensed(study.support_status(), "hedge");
+            assert_supported(study.support_status(), "hedge");
             let error = study.run(&ctx()).unwrap_err();
             assert!(matches!(error, CausalError::NotIdentified { .. }), "{error}");
             let text = error.to_string();
@@ -1431,10 +1431,10 @@ fn refuter_states(names: &[&str]) {
                         matches!(inference, InferenceMode::Bayesian(_))
                     );
                     let clean_study = study_of(&clean_case, accepted, &inference, suite);
-                    assert_licensed(clean_study.support_status(), &tag);
+                    assert_supported(clean_study.support_status(), &tag);
                     let clean = run(&clean_case, &clean_study);
                     let planted_study = study_of(&planted_case, accepted, &inference, suite);
-                    assert_licensed(planted_study.support_status(), &tag);
+                    assert_supported(planted_study.support_status(), &tag);
                     let planted = run(&planted_case, &planted_study);
                     if family.series {
                         // A complete-window subset can have a nonzero diagnostic discrepancy
@@ -1518,7 +1518,11 @@ fn a_change_attribution_validation_is_refused_for_classes_and_posteriors() {
                     let message = match try_study_of(&case, accepted, &frequentist(), suite) {
                         Err(error) => error.to_string(),
                         Ok(study) => {
-                            assert_eq!(study.support_status(), Some(CellStatus::Refused), "{name}");
+                            assert_eq!(
+                                study.support_status(),
+                                Some(CellStatus::NotSupported),
+                                "{name}"
+                            );
                             study.run(&ctx()).unwrap_err().to_string()
                         }
                     };

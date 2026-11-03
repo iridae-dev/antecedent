@@ -472,10 +472,10 @@ fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.causal_validity, "not_established");
     assert_eq!(report.uncertainty.sampling_interval, "not reported");
-    assert_eq!(report.uncertainty.reason_code, "cell_not_licensed");
+    assert_eq!(report.uncertainty.reason_code, "not_supported");
     let interval = report.request_score_interval().unwrap_err();
-    assert_eq!(interval.reason_code(), "cell_not_licensed");
-    assert_eq!(interval.detail(), detail::INTERVAL_NOT_LICENSED);
+    assert_eq!(interval.reason_code(), "not_supported");
+    assert_eq!(interval.detail(), detail::INTERVAL_NOT_SUPPORTED);
     let causal = report.request_causal_validity().unwrap_err();
     assert_eq!(causal.detail(), detail::NOT_A_CAUSAL_CLAIM);
     let probability = report.request_score_as_probability().unwrap_err();
@@ -483,13 +483,13 @@ fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
 }
 
 #[test]
-fn a_score_interval_request_is_refused_with_cell_not_licensed() {
+fn a_score_interval_request_is_refused_with_not_supported() {
     let mut spec = generator_spec(50);
     spec.score_interval =
         Some(ScoreIntervalRequest { level: 0.95, method: "block bootstrap".to_owned() });
     let (code, detail_slot) = refusal(assess_predictive_laws(&spec, &ctx()));
-    assert_eq!(code, "cell_not_licensed");
-    assert_eq!(detail_slot, detail::INTERVAL_NOT_LICENSED);
+    assert_eq!(code, "not_supported");
+    assert_eq!(detail_slot, detail::INTERVAL_NOT_SUPPORTED);
 }
 
 // -- target, horizon and law-source refusals --------------------------------------------
@@ -609,7 +609,7 @@ fn iid_is_refused_for_rolling_origin_and_blocked_designs() {
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!(
         (code.as_str(), slot.as_str()),
-        ("sampling_dependence_unknown", detail::IID_NOT_LICENSED)
+        ("sampling_dependence_unknown", detail::IID_NOT_SUPPORTED)
     );
 
     let n = 6;
@@ -621,7 +621,7 @@ fn iid_is_refused_for_rolling_origin_and_blocked_designs() {
     );
     blocked.dependence = Some(DependenceDeclaration::Iid);
     let (_, slot) = refusal(assess_predictive_laws(&blocked, &ctx()));
-    assert_eq!(slot, detail::IID_NOT_LICENSED);
+    assert_eq!(slot, detail::IID_NOT_SUPPORTED);
 }
 
 #[test]
@@ -1198,7 +1198,7 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
     let report = assess_predictive_laws(&nine, &ctx()).unwrap();
     let error =
         construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.reason_code(), "not_supported");
     assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
     // Ten clusters satisfy the requirement; the construction no longer refuses on it.
     let ten = clustered(10);
@@ -1260,7 +1260,7 @@ fn a_case_count_beyond_every_measured_record_is_not_published() {
         level: 0.95,
     };
     let error = expected_score_interval(&spec, &report, &query).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.reason_code(), "not_supported");
     assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
 }
 

@@ -24,7 +24,7 @@
 //! What this does **not** say: non-rejection never certifies invariance
 //! (`non_rejection_certifies_invariance` is `false` and a stored `true` is refused), the
 //! diagnostic informs only a selection node on the compared node, Type I error and power are
-//! unmeasured (`calibration = "unmeasured"`), and no causal or interval license is granted.
+//! unmeasured (`calibration = "unmeasured"`), and no causal or interval support is granted.
 //! Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

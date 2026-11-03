@@ -53,7 +53,7 @@ def test_observational_network_exposure_recovers_known_contrast_and_cluster_vari
     assert result.clusters == 2
     assert result.minimum_exposure_probability == pytest.approx(0.5)
     assert result.propensity_provenance == "externally_estimated"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "No unmeasured network confounding" in result.assumptions[0]
     assert "no interval" in result.uncertainty_semantics
 

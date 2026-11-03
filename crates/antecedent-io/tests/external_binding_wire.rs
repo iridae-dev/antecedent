@@ -336,7 +336,7 @@ fn trust_tier_and_lineage_survive_without_upgrade() {
     assert_eq!(wire(&verified), "verified_extension");
     for artifact in [&attested, &verified] {
         assert!(!artifact.metadata().native_estimation);
-        assert_ne!(wire(artifact), "native_licensed");
+        assert_ne!(wire(artifact), "native_supported");
         let stages = artifact
             .metadata()
             .identity

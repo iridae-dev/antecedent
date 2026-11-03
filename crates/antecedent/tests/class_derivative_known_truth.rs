@@ -305,7 +305,11 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
                             study(&data, structure, accepted, &functional, inference, suite)
                                 .build()
                                 .unwrap_or_else(|e| panic!("{label}: {e}"));
-                        assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+                        assert_eq!(
+                            builder.support_status(),
+                            Some(CellStatus::Supported),
+                            "{label}"
+                        );
                         let context = ExecutionContext::for_tests(814);
                         let prepared =
                             builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -313,7 +317,7 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
                         let result = prepared
                             .estimate(&data, &context)
                             .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                        assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                         let values = published(&result, &label);
                         assert_eq!(values.len(), truths.len(), "{label}");
                         for (value, truth) in values.iter().zip(&truths) {

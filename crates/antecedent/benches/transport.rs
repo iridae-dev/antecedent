@@ -1,6 +1,6 @@
 //! Transport identification, catalog search, exact evaluation, and bootstrap.
 //!
-//! Workloads stay inside the licensed classical/catalog subset. Absolute times
+//! Workloads stay inside the supported classical/catalog subset. Absolute times
 //! live in `benches/baselines/transport.md`.
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 

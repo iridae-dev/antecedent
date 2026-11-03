@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the licensed rows of the counterfactual and nested-effect cells on mixed and class graphs.
+"""Generate the supported rows of the counterfactual and nested-effect cells on mixed and class graphs.
 
 The rows are a deterministic function of the table below. They live between two marker lines of
-parity/support_licensed.toml; `--check` fails when the file differs from the generated block and
+parity/support_cells.toml; `--check` fails when the file differs from the generated block and
 `--write` replaces (or appends) the block.
 
     python3 scripts/generate_cross_world_class_support_rows.py --check
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# BEGIN generated rows: scripts/generate_cross_world_class_support_rows.py"
 END = "# END generated rows: scripts/generate_cross_world_class_support_rows.py"
 
@@ -28,7 +28,7 @@ CHECKED = "class_cross_world_effects_execute_from_the_retained_plan_without_the_
 EVIDENCE_VALIDATED = "class_cross_world_cheap_and_full_validation_refutes_the_exact_functionals"
 CHECKED_VALIDATED = "class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"
 
-# (query, graph class, estimator, validations licensed)
+# (query, graph class, estimator, validations supported)
 CELLS = [
     ("Counterfactual", "Admg", "functional.effect", ["none", "cheap", "full"]),
     ("Counterfactual", "TemporalAdmg", "functional.effect", ["none", "cheap", "full"]),
@@ -214,7 +214,7 @@ def main(argv: list[str]) -> int:
     if len(argv) != 1 or argv[0] not in {"--check", "--write"}:
         print(__doc__)
         return 2
-    text = LICENSED.read_text(encoding="utf-8")
+    text = SUPPORTED.read_text(encoding="utf-8")
     if BEGIN in text and END in text:
         head, rest = text.split(BEGIN, 1)
         _, tail = rest.split(END, 1)
@@ -223,11 +223,11 @@ def main(argv: list[str]) -> int:
         new = text.rstrip("\n") + "\n\n" + block()
     if argv[0] == "--check":
         if new != text:
-            print("parity/support_licensed.toml differs from the generated cross-world class rows")
+            print("parity/support_cells.toml differs from the generated cross-world class rows")
             return 1
         print("ok")
         return 0
-    LICENSED.write_text(new, encoding="utf-8")
+    SUPPORTED.write_text(new, encoding="utf-8")
     print(f"wrote {len(rows())} rows")
     return 0
 

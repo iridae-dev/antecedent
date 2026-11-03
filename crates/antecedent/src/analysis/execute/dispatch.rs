@@ -123,7 +123,7 @@ impl super::Study {
             return self.ensure_association_admitted(query);
         }
         let class = self.graph.class();
-        self.ensure_nested_counterfactual_licensed(class)?;
+        self.ensure_nested_counterfactual_supported(class)?;
         if self.declared.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && (!matches!(self.data, DataInput::Tabular(_))
                 || class != GraphClass::Dag
@@ -138,7 +138,7 @@ impl super::Study {
             ));
         }
         if let DataInput::Panel(panel) = &self.data {
-            super::super::builder::refuse_unlicensed_panel_route(
+            super::super::builder::refuse_unsupported_panel_route(
                 &self.query,
                 class,
                 &self.settings.inference,
@@ -152,7 +152,7 @@ impl super::Study {
 
     /// Nested-counterfactual admission: the temporal twin or the fixed three-node linear
     /// mediation DAG, and nothing else.
-    fn ensure_nested_counterfactual_licensed(&self, class: GraphClass) -> Result<(), CausalError> {
+    fn ensure_nested_counterfactual_supported(&self, class: GraphClass) -> Result<(), CausalError> {
         if let CausalQuery::NestedCounterfactual(q) = &self.query {
             q.validate()?;
             if self.graph_posterior.is_some() && matches!(self.data, DataInput::Tabular(_)) {
@@ -182,7 +182,7 @@ impl super::Study {
                 let Some(graph) = self.graph.as_dag() else {
                     return Err(crate::unsupported_reason!(
                         "cross_world_not_identified",
-                        "natural direct effect requires the licensed three-node DAG"
+                        "natural direct effect requires the supported three-node DAG"
                     ));
                 };
                 let expected = [
@@ -217,7 +217,7 @@ impl super::Study {
                 {
                     return Err(crate::unsupported_reason!(
                         "cross_world_not_identified",
-                        "only the point-only linear Gaussian mediation route is licensed for this query"
+                        "only the point-only linear Gaussian mediation route is supported for this query"
                     ));
                 }
             }
@@ -502,7 +502,7 @@ impl super::Study {
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
     ///
     /// `CoDetermined` tier-closure is generalized adjustment + AIPW, not `general.id`.
-    /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
+    /// A same-tier bidirected clique must not kick a supported AIPW study onto the
     /// The ADMG static route's identifier/estimator ids, applying defaults.
     pub(super) fn resolve_admg_ids(&self) -> (IdentifierId, EstimatorId) {
         if self
@@ -2441,7 +2441,7 @@ impl super::Study {
                                     .is_none_or(|id| id == EstimatorId::ResponseBayesian)
                         }
                         // The Bayesian intervention level seals its cheap/full refuter
-                        // state too (it executes unlicensed).
+                        // state too (it executes unsupported).
                         (
                             antecedent_core::ResponseFunctional::InterventionResponse { .. },
                             InferenceMode::Bayesian(_),
@@ -2552,7 +2552,7 @@ impl super::Study {
         route: Option<RouteInput<'_>>,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        // AIPW's licensed checked operation is complete for the binary,
+        // AIPW's supported checked operation is complete for the binary,
         // all-observed mean ATE on a supplied DAG under any diagnosed overlap
         // policy: the trim rule selects the cross-fitted or the common-support
         // procedure inside the retained operation. Route that selection through
@@ -3030,7 +3030,7 @@ impl super::Study {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
-        let licensed_shape = match &self.query {
+        let supported_shape = match &self.query {
             CausalQuery::Response(query)
                 if query.temporal.is_none()
                     && !response_functional_is_derivative(&query.functional)
@@ -3050,7 +3050,7 @@ impl super::Study {
             }
             _ => false,
         };
-        if licensed_shape
+        if supported_shape
             && self.plain_fixed_route()
             && self.graph.class() == GraphClass::Admg
             && self.graph.as_admg().is_some_and(admg_has_bidirected)
@@ -3127,7 +3127,7 @@ impl super::Study {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
             // identification runs per-graph, against the real posterior atoms, inside `execute()`.
             return Err(CausalError::Support {
-                id: crate::support::SupportRefusal::Refused,
+                id: crate::support::SupportRefusal::NotSupported,
                 message: "identify_only is not a graph-posterior cell; identification \
                           runs per-graph inside execute.",
             });
@@ -3143,7 +3143,7 @@ impl super::Study {
             if admg_has_bidirected(admg) {
                 let CausalQuery::AverageEffect(query) = &self.query else {
                     return Err(CausalError::Support {
-                        id: crate::support::SupportRefusal::Refused,
+                        id: crate::support::SupportRefusal::NotSupported,
                         message: "identify_only on an ADMG supports AverageEffect only.",
                     });
                 };
@@ -3161,7 +3161,7 @@ impl super::Study {
         }
 
         let graph = self.graph.as_dag().ok_or(CausalError::Support {
-            id: crate::support::SupportRefusal::Refused,
+            id: crate::support::SupportRefusal::NotSupported,
             message: "identify_only supports static DAG and ADMG graphs only.",
         })?;
         identify_static_query(id, graph, &self.query)
@@ -3194,7 +3194,7 @@ impl super::Study {
     ) -> Result<crate::Identification, CausalError> {
         if self.graph_posterior.is_some() {
             return Err(CausalError::Support {
-                id: crate::support::SupportRefusal::Refused,
+                id: crate::support::SupportRefusal::NotSupported,
                 message: "identify_structure is not a graph-posterior cell; identification \
                           runs per-graph inside execute.",
             });
@@ -3269,7 +3269,7 @@ pub(crate) fn push_gaussian_likelihood_disclosure(
 }
 
 /// Disclose that a requested `AverageEffect` on a temporal graph was compiled and executed as
-/// its lag-0 pulse contrast, and that the result is unlicensed.
+/// its lag-0 pulse contrast, and that the result is unsupported.
 pub(crate) fn push_lag_zero_average_effect_disclosure(
     study: &crate::Study,
     result: &mut StudyResult,
@@ -3291,7 +3291,7 @@ pub(crate) fn push_lag_zero_average_effect_disclosure(
             "the AverageEffect on series data under a temporal graph denotes the lag-0 \
              contrast E[Y_t | do(X_t = active)] - E[Y_t | do(X_t = control)]; it was compiled \
              as the pulse at offset 0 read at horizon 1 and identified on every completion of \
-             the graph. The AverageEffect cell on a temporal graph is unlicensed: the result \
+             the graph. The AverageEffect cell on a temporal graph is unsupported: the result \
              reports support status refused and no coverage record names it"
                 .to_owned(),
         )

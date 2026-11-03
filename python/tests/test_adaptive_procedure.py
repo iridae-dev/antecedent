@@ -10,7 +10,7 @@ Truth is computed here in pure Python, never by native code:
 * the martingale property of a posterior mean, and the anytime-valid bound ``<= alpha``.
 
 Every result is labelled ``derived_unmeasured`` and every premise failure is refused with
-``cell_not_licensed`` and the premise's own detail.
+``not_supported`` and the premise's own detail.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ EVEN = ai.AssignmentRule.fixed((0.5, 0.5))
 THOMPSON = ai.AssignmentRule.thompson_beta()
 
 
-def refused(call, detail: str, code: str = "cell_not_licensed") -> AdaptiveInferenceRefusal:
+def refused(call, detail: str, code: str = "not_supported") -> AdaptiveInferenceRefusal:
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)

@@ -14,7 +14,7 @@ use super::{
 use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
-use crate::analysis::query_license::{graphless_design, is_graphless_design};
+use crate::analysis::query_support::{graphless_design, is_graphless_design};
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::EstimatorId;
@@ -291,7 +291,7 @@ impl Study {
             (_, CausalQuery::NestedCounterfactual(query)) => {
                 let graph = self.graph.as_dag().ok_or(crate::unsupported_reason!(
                     "cross_world_not_identified",
-                    "natural direct effect requires the licensed three-node DAG"
+                    "natural direct effect requires the supported three-node DAG"
                 ))?;
                 Some(crate::gcm::NestedCounterfactualOperation::compile(graph.clone(), *query)?)
             }
@@ -363,7 +363,7 @@ impl Study {
     ///
     /// # Errors
     ///
-    /// Identification refuses, or a graph-posterior coordinate is not licensed on
+    /// Identification refuses, or a graph-posterior coordinate is not supported on
     /// the prepared handle.
     pub(crate) fn identify_caches(
         &self,
@@ -386,7 +386,7 @@ impl Study {
     }
 
     /// Identify the caches of a study that carries a graph posterior, refusing the
-    /// coordinates the prepared handle does not license.
+    /// coordinates the prepared handle does not support.
     fn identify_graph_posterior_caches(
         &self,
         posterior: &antecedent_discovery::GraphPosterior,
@@ -496,8 +496,8 @@ impl Study {
                 // `ensure_prepared_supported` already refuses this coordinate; a
                 // library must still answer with a typed refusal, never a panic.
                 return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::Refused,
-                    message: "graph_posterior on the prepared handle is licensed only for \
+                    id: crate::support::SupportRefusal::NotSupported,
+                    message: "graph_posterior on the prepared handle is supported only for \
                         tabular AverageEffect/Response/ConditionalEffect and series \
                         TemporalEffect, TemporalMediationEffect, or TemporalDag Response",
                 });

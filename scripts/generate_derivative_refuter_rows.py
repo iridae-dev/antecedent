@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the licensed rows of the static-DAG derivative cheap and full validation cells.
+"""Generate the supported rows of the static-DAG derivative cheap and full validation cells.
 
-Each family below names the cells it licenses (a cartesian selector over the support axes), the
+Each family below names the cells it supports (a cartesian selector over the support axes), the
 fixture whose closed-form oracle is the truth, and the executing test that consumes the fixture,
 builds every cell of the family and runs it from its retained checked operation. The rows are
-written between the generated markers at the end of parity/support_licensed.toml; the script is
+written between the generated markers at the end of parity/support_cells.toml; the script is
 deterministic and `--check` fails when the file differs from the table.
 
     python3 scripts/generate_derivative_refuter_rows.py          # rewrite the generated block
@@ -21,7 +21,7 @@ from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# generated:derivative_refuter_rows:begin (scripts/generate_derivative_refuter_rows.py)"
 END = "# generated:derivative_refuter_rows:end"
 
@@ -652,16 +652,16 @@ def splice(text: str, block: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    current = LICENSED.read_text(encoding="utf-8")
+    current = SUPPORTED.read_text(encoding="utf-8")
     updated = splice(current, render_block())
     if argv[:1] == ["--check"]:
         if updated != current:
-            print("parity/support_licensed.toml: generated derivative refuter block drifted")
+            print("parity/support_cells.toml: generated derivative refuter block drifted")
             return 1
         print("derivative refuter rows OK")
         return 0
     if updated != current:
-        LICENSED.write_text(updated, encoding="utf-8", newline="\n")
+        SUPPORTED.write_text(updated, encoding="utf-8", newline="\n")
     print(f"wrote {sum(len(list(cells(f))) for f in FAMILIES)} rows")
     return 0
 

@@ -9,7 +9,7 @@
 //! declared with `BayesianConfig::design_model`; it has no default, because a prior alone never
 //! identifies a contrast. Assignment probabilities must be known and identical across units.
 //!
-//! The two-arm Gaussian IPW superpopulation construction has an exact graphless license as a
+//! The two-arm Gaussian IPW superpopulation construction has an exact graphless support as a
 //! modular pseudo-posterior conditional on the fitted observation model. Its interval calibration
 //! is unmeasured. Other arm constructions retain their separate scope. Draws are quantile grids.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -426,7 +426,7 @@ impl super::CheckedRandomizedOperation {
                 "estimate.randomized.bayesian_arm_contrast.inverse_probability",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "licensed modular IPW pseudo-posterior: every assigned unit contributes its \
+                "supported modular IPW pseudo-posterior: every assigned unit contributes its \
                  score-adjusted inverse-probability pseudo-outcome to a Gaussian working \
                  likelihood. The observation model is estimated and held fixed in the posterior, \
                  with its score correction incorporated in the pseudo-outcome spread. \
@@ -458,8 +458,8 @@ impl super::CheckedRandomizedOperation {
             );
             row.validate()?;
             result.payload = crate::result::ResultPayload::PosteriorRow(row);
-            result.support_status = Some(crate::support::CellStatus::Licensed);
-            result.diagnostics.retain(|d| d.code.as_ref() != "estimate.quasi.bayesian.unlicensed");
+            result.support_status = Some(crate::support::CellStatus::Supported);
+            result.diagnostics.retain(|d| d.code.as_ref() != "estimate.quasi.bayesian.unsupported");
         }
         Ok(result)
     }
@@ -471,14 +471,14 @@ impl super::CheckedRandomizedOperation {
         model: ArmOutcomeModel,
     ) -> Result<antecedent_io::randomized_ipow_wire::RandomizedIpowWire, CausalError> {
         // Multi-arm and factorial quantile grids represent marginal laws, not joint draws.
-        // Their joint pseudo-posterior has no earned license; do not run it as unlicensed.
+        // Their joint pseudo-posterior has no earned support; do not run it as unsupported.
         let design = match self.query.design {
             RandomizationDesign::Bernoulli => "bernoulli",
             RandomizationDesign::Complete { .. } => "complete",
             _ => {
                 return Err(unread_option(
                     ROUTE,
-                    "IPW outside the licensed two-arm Bernoulli or complete design",
+                    "IPW outside the supported two-arm Bernoulli or complete design",
                     "a two-arm Bernoulli or complete design, or the Frequentist responder estimator",
                 ));
             }
@@ -674,11 +674,11 @@ impl super::CheckedRandomizedOperation {
                 ),
             ],
             diagnostics: vec![Diagnostic::new(
-                "estimate.randomized.bayesian_complier_effect.unlicensed",
+                "estimate.randomized.bayesian_complier_effect.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 format!(
-                    "unlicensed and uncalibrated Bayesian route: every first-stage draw is positive (smallest {:.4}) so the ratio posterior is proper; a first stage reaching zero is refused, never published as a ratio",
+                    "unsupported and uncalibrated Bayesian route: every first-stage draw is positive (smallest {:.4}) so the ratio posterior is proper; a first stage reaching zero is refused, never published as a ratio",
                     fit.first_stage.draws.iter().copied().fold(f64::INFINITY, f64::min)
                 ),
             )],

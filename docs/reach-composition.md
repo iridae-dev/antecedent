@@ -20,7 +20,7 @@ An ADAPTER or DIRECT cell never upgrades a label. A point stays a point, an
 uncalibrated standard error stays labelled `uncalibrated_standard_error`, an
 assumption range stays an assumption range, and no interval, posterior or
 coverage statement exists for any row below: each interval route is closed
-with `cell_not_licensed` until whole-method coverage is measured.
+with `not_supported` until whole-method coverage is measured.
 
 Consumers and their owning modules:
 
@@ -43,7 +43,7 @@ standard error is uncalibrated; `PreparedMeasurementModel::interval` and the
 estimate's `interval` always refuse (`measurement_model.interval_closed`).
 The route card (`antecedent_contract::measurement::route_card`) lists each
 route's allowed and refused operations, and a refused operation reads
-`cell_not_licensed` / `measurement_model.operation_not_licensed` with the
+`not_supported` / `measurement_model.operation_not_supported` with the
 reason from the card.
 
 | Route | Inference mode | Allowed downstream operation | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
@@ -55,10 +55,10 @@ reason from the card.
 | external latent posterior | point-only (provider posterior in, Rubin or posterior-mean substitution out), uncalibrated SE | linear adjusted effect; linear functional | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | REFUSED (not an allowed operation) | REFUSED (bound to the posterior's population and regime) | REFUSED (time-varying error) | SCHEDULED |
 
 Refusal details for this table: counterfactual and transport cells are
-`measurement_model.operation_not_licensed` (the operations
+`measurement_model.operation_not_supported` (the operations
 `condition_on_construct` and `transport_to_other_population`); an
 intervention on a representation's coordinates is
-`measurement_model.operation_not_licensed` or
+`measurement_model.operation_not_supported` or
 `measurement_model.learned_coordinates_not_intervenable`; error that differs
 by population or time is `measurement_model.differential_axis_unsupported`.
 A model may be carried to another population only through
@@ -69,7 +69,7 @@ point-only with its uncalibrated standard error, a differential population
 needs the target population's own model, and the replicate route and an
 external posterior (bound to its source snapshot) have nothing to carry. Every
 route above still refuses the transport operation without that declaration,
-and the refusal names the premise that would license it.
+and the refusal names the premise that would support it.
 
 The artifact (`measurement_model_v1`) is consumed independently by
 `consume_measurement_model_artifact`, whose `check_use` re-asks the contract
@@ -136,12 +136,12 @@ A composed mechanism model reaches an inverse query through
 `PreparedMechanismComposition::inverse_forward_source`: a linear-Gaussian
 composition supplies a replayed mean per action (a quantile or probability is
 refused `inverse_forward_source.composed_law_not_materialized`, an interval
-`inverse_forward_source.interval_not_licensed`), a finite-table composition
+`inverse_forward_source.interval_not_supported`), a finite-table composition
 supplies the exact law of each action under the caller's coding of outcome
 levels, and a composition with admitted mechanisms is a transported claim: it
 needs the carrying receipt and an input policy that accepts a transported
 input (`inverse_forward_source.transported_not_accepted`,
-`cell_not_licensed`, otherwise), and its support label is extrapolative at
+`not_supported`, otherwise), and its support label is extrapolative at
 best. A composition can also be discretized into an exact finite SCM with a
 computed mean-contrast error bound
 (`PreparedMechanismComposition::discretize`; point-only, `discretized_scm.point_only`
@@ -170,7 +170,7 @@ range and is labelled so. Nothing is an interval or posterior.
 | evidence reuse, repeated observation use | accounting only (mass counted once, flagged `data_reuse`) | NO ROUTE (no numeric value) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE (accounting only) | NO ROUTE | SCHEDULED |
 | pooled interval | closed | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
-The pooled interval refusal is `evidence_ledger.interval_not_licensed`. The
+The pooled interval refusal is `evidence_ledger.interval_not_supported`. The
 one connected consumer of the ledger is counted-table transport:
 `overlap_declaration_from_ledger` derives the overlap declaration of count
 tables from ledger sources, so that tables whose observations the ledger
@@ -219,7 +219,7 @@ Refusal details: counted, empirical or posterior laws given to the exact
 route are `counterfactual_transport.sampled_inference_closed`; a cyclic graph
 is `counterfactual_transport.graph_outside_contract`; a selected-sample law is
 `counterfactual_transport.selected_sample_law`; an interval from the sampled
-route is `counterfactual_transport_sampled.interval_not_licensed`; an
+route is `counterfactual_transport_sampled.interval_not_supported`; an
 undeclared table relation is `counterfactual_transport_sampled.overlap_unknown`.
 
 A transported response (a value with a receipt of route, populations,
@@ -230,7 +230,7 @@ inverse query through `antecedent::analysis::inverse_sources`; a point answers
 an affine utility or a target mean and refuses a law
 (`transported_decision.law_not_supplied`,
 `inverse_forward_source.point_only_law_requested`) and an interval
-(`cell_not_licensed`), and the default policy refuses the label
+(`not_supported`), and the default policy refuses the label
 (`transported_decision.transported_not_accepted`). A bounded violation of the
 transport premise gives an assumption range through the sensitivity artifact
 surface (`transport_sensitivity`; additive or proportional shift, an
@@ -281,7 +281,7 @@ cell: it has no decision-reliability route.
 | composed spread (linear moments, aligned functional) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | transported spread (source sampling, target sampling, transport functional) | uncalibrated spread, all three pieces and their dependence named | DIRECT (`propagation_artifact`: replays to identical bits); REFUSED for decision-reliability, composition and inverse query | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| composed interval | closed until a measured record exists at the composed coordinate and construction | REFUSED (`published_route`: `cell_not_licensed`, with the mismatch named) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| composed interval | closed until a measured record exists at the composed coordinate and construction | REFUSED (`published_route`: `not_supported`, with the mismatch named) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 | derived decision uncertainty (numerical, selection, rollout components) | derived and unmeasured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and unmeasured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | transported cohort effect (facade over the fitted-effect transport) | point-only, extrapolative, typed receipt | DIRECT (`decision`: the existing cohort-mean source) | DIRECT (interval and law REFUSED) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NO ROUTE | NO ROUTE | DIRECT (revalidation) | NO ROUTE | SCHEDULED |
@@ -294,13 +294,13 @@ cell: it has no decision-reliability route.
 
 - A SCHEDULED cell is not a promise of a date. It records that the consumer
   has no way to accept this output today and which module owns the adapter.
-- Frequentist and Bayesian modes are not licensed for any row: each would need
+- Frequentist and Bayesian modes are not supported for any row: each would need
   a measured whole-method coverage record, and every such route is closed with
   a typed refusal until then. A derived, unmeasured statement (a composed
   spread, a decision-reliability numerical or selection interval, a
   whole-procedure adaptive report) is labelled `uncalibrated_spread` or
-  `derived_unmeasured` and is never a license: publishing it refuses
-  `cell_not_licensed`.
+  `derived_unmeasured` and is never support: publishing it refuses
+  `not_supported`.
 - Which paradigm each route supports, and the typed closed row for a missing
   one (`paradigm_parity.paradigm_closed`), is the parity table of
   `antecedent_model::discretized_scm::PARITY_TABLE`.

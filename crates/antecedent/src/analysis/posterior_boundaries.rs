@@ -6,11 +6,11 @@
 //!   ([`trajectory_survival_bootstrap`]); a credible interval for the survival under the
 //!   regime needs a joint likelihood for the confounders, treatment, censoring and hazard,
 //!   which the weights do not supply, so [`trajectory_hazard_credible_interval`] always
-//!   refuses with `cell_not_licensed` and names that likelihood and the next attempt.
+//!   refuses with `not_supported` and names that likelihood and the next attempt.
 //! * The temporal response-curve posterior is a tempered generalized posterior. An ordinary
 //!   posterior needs the innovation law of the series in the likelihood;
 //!   [`require_ordinary_temporal_curve_posterior`] refuses the ordinary reading with
-//!   `cell_not_licensed` and `temporal_curve.ordinary_posterior_not_licensed` unless the
+//!   `not_supported` and `temporal_curve.ordinary_posterior_not_supported` unless the
 //!   caller attests independent innovations, and names the next attempt.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -66,7 +66,7 @@ pub fn trajectory_survival_bootstrap(
 ///
 /// # Errors
 /// Invalid trajectories as for [`trajectory_survival_contrast`]; otherwise always a
-/// `cell_not_licensed` refusal (`trajectory_survival.credible_interval_not_licensed`) naming
+/// `not_supported` refusal (`trajectory_survival.credible_interval_not_supported`) naming
 /// the missing joint likelihood and the next attempt.
 pub fn trajectory_hazard_credible_interval(
     rows: &TrajectoryRows<'_>,
@@ -85,8 +85,8 @@ pub fn trajectory_hazard_credible_interval(
     ) {
         Err(invalid) => Err(data_error(invalid)),
         Ok(_) => Err(CausalError::Estimate(EstimationError::refused_detail(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "trajectory_survival.credible_interval_not_licensed",
+            antecedent_core::reason_code!("not_supported"),
+            "trajectory_survival.credible_interval_not_supported",
             message,
         ))),
     }
@@ -95,7 +95,7 @@ pub fn trajectory_hazard_credible_interval(
 /// Require the ordinary-likelihood reading of a temporal response-curve posterior.
 ///
 /// # Errors
-/// A `cell_not_licensed` refusal with detail `temporal_curve.ordinary_posterior_not_licensed`
+/// A `not_supported` refusal with detail `temporal_curve.ordinary_posterior_not_supported`
 /// when the innovation dependence is [`SerialErrorModel::Unmodeled`]; the message names the
 /// missing likelihood and the next attempt.
 pub fn require_ordinary_temporal_curve_posterior(

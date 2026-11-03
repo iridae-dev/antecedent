@@ -72,7 +72,7 @@ class ClosureAudit(unittest.TestCase):
         report = audit.audit([CHILD], {}, rows, [])
         self.assertEqual(report["missing_attempt"][0]["next_attempt"], "derive the law")
         self.assertEqual(report["missing_attempt"][0]["side"], "static.bayesian")
-        executing = audit.audit([CHILD], {}, [row("M#a", "executing_unlicensed", "delivered")], [])
+        executing = audit.audit([CHILD], {}, [row("M#a", "not_supported", "delivered")], [])
         self.assertEqual(executing["missing_attempt"], [])
 
     def test_a_missing_consumer_is_reported_per_child(self) -> None:
@@ -82,11 +82,11 @@ class ClosureAudit(unittest.TestCase):
         self.assertEqual(audit.audit([CHILD], {CHILD["id"]: []}, [], [])["missing_consumer"], [])
 
     def test_a_narrowed_promise_is_listed_with_its_adjusted_claim(self) -> None:
-        rows = [row("M#a", "licensed", "narrowed_promise", "point only", "measure the interval")]
+        rows = [row("M#a", "supported", "narrowed_promise", "point only", "measure the interval")]
         report = audit.audit([CHILD], {}, rows, [])
         self.assertEqual(report["adjusted_claim"][0]["reason"], "point only")
         self.assertEqual(report["adjusted_claim"][0]["next_attempt"], "measure the interval")
-        bare = audit.audit([CHILD], {}, [row("M#b", "licensed", "narrowed_promise")], [])
+        bare = audit.audit([CHILD], {}, [row("M#b", "supported", "narrowed_promise")], [])
         self.assertTrue(any("without a reason" in line for line in audit.release_findings(bare)))
 
     def test_the_report_is_deterministic_and_names_the_audited_attempts(self) -> None:

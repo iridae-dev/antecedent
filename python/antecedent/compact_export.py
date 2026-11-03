@@ -24,7 +24,7 @@ model-based standard error ``sqrt(phi' V phi)`` from the stored covariance. It i
 ``model_based_sqrt_phi_v_phi`` with calibration **unmeasured**: it is never an interval or a
 coverage claim, and it carries no extrapolation or misspecification uncertainty. A query outside
 the declared support, in a masked region, with a missing, unknown or mistyped quantity, or with a
-non-finite value is refused (:class:`CompactExportRefusal`, ``cell_not_licensed``); nothing is
+non-finite value is refused (:class:`CompactExportRefusal`, ``not_supported``); nothing is
 extrapolated.
 
 Verification is independent: :meth:`CompactExport.consume` and every :meth:`~CompactExport.evaluate`
@@ -87,7 +87,7 @@ class CompactExportRefusal(StructuredRefusal):
     """A typed refusal of the compact export.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``cell_not_licensed`` for an unlicensed query, ``invalid_argument`` for a malformed or
+    (``not_supported`` for an unsupported query, ``invalid_argument`` for a malformed or
     tampered export) and a ``compact_export.*`` ``detail`` such as
     ``compact_export.out_of_support`` or ``compact_export.masked_region``; ``offending`` is the
     quantity, region or identity the refusal is about.
@@ -434,7 +434,7 @@ class CompactExport(ScientificResult):
 
         ``query`` maps every declared input to a number (numeric inputs) or a level string
         (categorical inputs). The artifact is re-verified against :attr:`identity` first. Raises
-        :class:`CompactExportRefusal` (``cell_not_licensed``) for a query that is out of
+        :class:`CompactExportRefusal` (``not_supported``) for a query that is out of
         support, in a masked region, missing or has an unknown or mistyped quantity, or is not
         finite; nothing is extrapolated.
         """

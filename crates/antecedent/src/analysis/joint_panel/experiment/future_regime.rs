@@ -3,7 +3,7 @@
 //! A candidate study may run in another population, window, dose, duration, exposure
 //! regime, recency or spend than the experiment that produced the current update. It then
 //! measures a different functional of the same retained joint response, through its own
-//! licensed bridge (with the transport premise that regime needs) and its own paired
+//! supported bridge (with the transport premise that regime needs) and its own paired
 //! per-draw affine mapping. The retained draws, their current posterior weights and the
 //! terminal responses stay exactly those of the update; only what each draw predicts the
 //! study will observe changes. The ranking therefore values the study through the actual
@@ -24,7 +24,7 @@ use antecedent_design::decision::DecisionProblem;
 pub struct PanelFutureRegime {
     /// The time functional of the retained worlds that the study's estimand corresponds to.
     pub functional: JointPanelResponseFunctional,
-    /// Licensed translation from that study's population, window, dose, duration, exposure,
+    /// Supported translation from that study's population, window, dose, duration, exposure,
     /// recency and spend to the retained contrast, with its transport premise and the
     /// mapping uncertainty and source dependence it carries.
     pub bridge: BridgeContract,
@@ -98,7 +98,7 @@ impl PanelExperimentResult {
         };
         regime
             .bridge
-            .check_licensing()
+            .check_support()
             .map_err(|error| JointPanelError::compile(format!("{error:?}")))?;
         if regime.bridge.estimand_bridge.is_none() || regime.bridge.source_dependence.is_none() {
             return Err(JointPanelError::compile(
@@ -200,15 +200,15 @@ impl PanelExperimentResult {
 
     /// Rank candidate studies, each in its own regime, by the value of the update it would cause.
     ///
-    /// Every study is sampled through its own licensed bridge and paired mapping. The current
+    /// Every study is sampled through its own supported bridge and paired mapping. The current
     /// finite posterior is reweighted by that study's likelihood, the caller's terminal actions
     /// and utility are evaluated on every whole response row, and the gain over deciding now,
     /// minus the declared cost, is the net value. A regime whose bridge, transport premise,
-    /// mapping pairing or evidence is not licensed refuses the whole ranking; it is never
+    /// mapping pairing or evidence is not supported refuses the whole ranking; it is never
     /// replaced by the observed estimand.
     ///
     /// # Errors
-    /// Invalid catalog, replicate bounds or costs, an unlicensed or unaligned regime, stale
+    /// Invalid catalog, replicate bounds or costs, an unsupported or unaligned regime, stale
     /// current authority, resources, cancellation or callback failures.
     pub fn rank_next_studies<A: serde::Serialize>(
         &self,
@@ -261,7 +261,7 @@ impl PanelExperimentResult {
     /// response means; deciding on those means is what the ranking's value averages over.
     ///
     /// # Errors
-    /// An unlicensed regime, stale authority, a nonfinite outcome or an invalid likelihood.
+    /// An unsupported regime, stale authority, a nonfinite outcome or an invalid likelihood.
     pub fn update_for_future_study(
         &self,
         study: &PanelFutureStudy,

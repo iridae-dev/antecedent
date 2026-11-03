@@ -78,9 +78,9 @@ macro_rules! invalid {
     };
 }
 
-macro_rules! not_licensed {
+macro_rules! not_supported {
     ($detail:literal, $($message:tt)+) => {
-        refuse!(NotLicensed, "cell_not_licensed", $detail, $($message)+)
+        refuse!(NotSupported, "not_supported", $detail, $($message)+)
     };
 }
 
@@ -595,7 +595,7 @@ impl EvidenceLedger {
                     "a transport identity names its source populations, target population and assumptions"
                 ));
             }
-            // A transport that states no assumption licenses nothing, and a
+            // A transport that states no assumption supports nothing, and a
             // target that is one of its own sources is not a transport at all;
             // the decision and handoff routes refuse both, so refuse here
             // rather than late and under another code.
@@ -1174,14 +1174,14 @@ impl EvidenceLedger {
     /// interval or posterior. Always refused; the message names the reason.
     ///
     /// # Errors
-    /// Always: an unknown result is invalid, a known one is not licensed.
+    /// Always: an unknown result is invalid, a known one is not supported.
     pub fn request_interval(&self, id: ResultId) -> Result<std::convert::Infallible, LedgerError> {
         let record = self.result(id).ok_or_else(|| {
             invalid!("evidence_ledger.unknown_result", "result {id} is not in the ledger")
         })?;
-        Err(not_licensed!(
-            "evidence_ledger.interval_not_licensed",
-            "result {id} is a {} claim; the ledger licenses no interval, posterior or coverage statement for pooled evidence until its coverage is measured",
+        Err(not_supported!(
+            "evidence_ledger.interval_not_supported",
+            "result {id} is a {} claim; the ledger supports no interval, posterior or coverage statement for pooled evidence until its coverage is measured",
             record.claim_class.as_str()
         ))
     }
@@ -1553,7 +1553,7 @@ impl EvidenceLedger {
     /// Apply one operation. On refusal the ledger is unchanged.
     ///    ///
     /// # Errors
-    /// A typed [`LedgerError`] naming the rule and what would license the request.
+    /// A typed [`LedgerError`] naming the rule and what would support the request.
     pub fn apply(&mut self, operation: LedgerOperation) -> Result<&AppliedOperation, LedgerError> {
         let plan = self.plan(&operation)?;
         let id = self.operation_identity(&plan);

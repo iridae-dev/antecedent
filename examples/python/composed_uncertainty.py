@@ -64,7 +64,7 @@ def main():
     try:
         require_success(jl.aligned_functional("product", x, y, "product")).interval()
     except jl.JointLawPropagationRefusal as error:
-        assert error.reason_code == "cell_not_licensed"
+        assert error.reason_code == "not_supported"
         print("Interval request:", error.reason_code)
     else:
         raise AssertionError("A point producer supplied an interval")

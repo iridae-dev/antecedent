@@ -11,7 +11,7 @@ Epanechnikov kernel, the estimand is
 The bandwidth and kernel are part of the estimand (a different ``h`` is a different
 target, never tuned). Every window ``[a - h, a + h]`` must lie inside the dose support;
 extrapolative points are refused. Only the two IID designs ``nested_cohort`` and
-``independent_samples`` are licensed.
+``independent_samples`` are supported.
 
 The outcome curve ``mu(t, x)`` (a regression learner over a row-wise dose-by-covariate
 basis) and source membership are learned through ``antecedent.learners`` specs and
@@ -20,8 +20,8 @@ each point (outcome curve or participation model correct, density known); no
 efficiency, rate, CATE, derivative or simultaneous claim is made. Each grid dose
 records its quadrature (numerical) error estimate and a smoothing-bias diagnostic
 separately; neither is ever added to the estimate. The smoothing-bias diagnostic is
-computed from the fitted curve alone (it is zero for a fit linear in the dose). The whole-estimator interval is not licensed:
-its route is closed with ``cell_not_licensed`` until its coverage records are measured.
+computed from the fitted curve alone (it is zero for a fit linear in the dose). The whole-estimator interval is not supported:
+its route is closed with ``not_supported`` until its coverage records are measured.
 The derivation is in ``docs/architecture/smoothed-dose-response-transport.md``.
 """
 
@@ -242,7 +242,7 @@ class SmoothedDoseGridPoint:
     """One grid dose: the point, its quadrature error, smoothing-bias diagnostic and support.
 
     ``quadrature`` and ``smoothing_bias`` are separate records, never added to
-    ``estimate``; ``influence_se_diagnostic`` is a diagnostic, not a licensed claim.
+    ``estimate``; ``influence_se_diagnostic`` is a diagnostic, not a supported claim.
     """
 
     dose: float
@@ -446,7 +446,7 @@ class SmoothedDosePosterior(ScientificResult):
 
     ``posterior`` holds the posterior mean and equal-tailed 95% credible interval at every grid
     dose and the covariance across the grid from the joint draws (exact Gaussian moments when
-    the residual variance is known). The row is unlicensed and its calibration is
+    the residual variance is known). The row is unsupported and its calibration is
     ``"unmeasured"``; the interval route of the point estimate stays closed.
     """
 
@@ -518,7 +518,7 @@ class PreparedSmoothedDose(ScientificResult):
         return PreparedSmoothedDose(native, self._execution)
 
     def posterior(self, model: SmoothedDosePosteriorModel) -> Outcome[SmoothedDosePosterior]:
-        """The unlicensed Bayesian posterior of the same smoothed dose response.
+        """The unsupported Bayesian posterior of the same smoothed dose response.
 
         Runs on the retained rows and the certificate derived at preparation; the model is
         declared, never selected from the rows.

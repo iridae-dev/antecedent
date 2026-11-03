@@ -1,6 +1,6 @@
 //! Typed refusals of the scientific bridge: a registered reason code, a
 //! `scientific_bridge.*` detail and the declaration or evidence that would
-//! license the request.
+//! support the request.
 //!
 //! Every detail literal is written here, beside the reason code it is emitted
 //! under, as one named constructor per refusal. The rest of the module tree
@@ -51,14 +51,14 @@ fn mismatch(
         )
 }
 
-fn not_licensed(
+fn not_supported(
     detail: &str,
     expected: impl Into<String>,
     supplied: impl Into<String>,
     remedy: &'static str,
 ) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("bridge_mapping_not_licensed"),
+        antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
         detail,
     )
@@ -236,7 +236,7 @@ pub(super) fn model_score_as_probability() -> BridgeRefusal {
     substitution(
         "scientific_bridge.model_score_as_probability",
         QuantityClass::ModelScore,
-        "a calibrated predictive probability needs a held-out calibration of the score; no calibration bridge is licensed for a score, so use the model's calibrated predictive law where it supplies one",
+        "a calibrated predictive probability needs a held-out calibration of the score; no calibration bridge is supported for a score, so use the model's calibrated predictive law where it supplies one",
     )
     .with_expected(QuantityClass::PredictiveQuantity.as_str())
 }
@@ -441,13 +441,13 @@ pub(super) fn units_mismatch(
     mismatch("scientific_bridge.units_mismatch", expected, supplied)
 }
 
-// -- values outside what the mapping licenses (cell_not_licensed, bridge_mapping_not_licensed) ------------
+// -- values outside what the mapping supports (not_supported, bridge_mapping_not_supported) ------------
 
 /// A value kind the route does not carry: a law or a posterior on the point route, an
 /// identified set or a joint law on either.
 pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_BIND,
         "scientific_bridge.value_kind_not_carried",
     )
@@ -461,7 +461,7 @@ pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
 /// The source claim is not a finite point value.
 pub(super) fn source_not_point(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_BIND,
         "scientific_bridge.source_not_point",
     )
@@ -474,11 +474,11 @@ pub(super) fn source_not_point(supplied: &str) -> BridgeRefusal {
 
 /// An interval, posterior or joint law requested of a bridged claim.
 #[must_use]
-pub fn interval_not_licensed() -> BridgeRefusal {
+pub fn interval_not_supported() -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_BIND,
-        "scientific_bridge.interval_not_licensed",
+        "scientific_bridge.interval_not_supported",
     )
     .with_remedy(
         "a bridged claim carries one mean and the contract layer states no uncertainty; name a level and ask for the interval of the bridged value, which needs the source claim's declared standard error and is published only inside a measured design. A posterior and a joint law have no executed bridge",
@@ -486,7 +486,7 @@ pub fn interval_not_licensed() -> BridgeRefusal {
 }
 
 pub(super) fn validation_trials_too_few(declared: u32, supplied: usize) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.validation_trials_too_few",
         declared.to_string(),
         supplied.to_string(),
@@ -499,11 +499,11 @@ pub(super) fn degenerate_validation(
     supplied: &str,
     remedy: &'static str,
 ) -> BridgeRefusal {
-    not_licensed("scientific_bridge.degenerate_validation", expected, supplied, remedy)
+    not_supported("scientific_bridge.degenerate_validation", expected, supplied, remedy)
 }
 
 pub(super) fn validation_r_squared_too_low(declared: f64, supplied: f64) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.validation_r_squared_too_low",
         declared.to_string(),
         supplied.to_string(),
@@ -512,16 +512,16 @@ pub(super) fn validation_r_squared_too_low(declared: f64, supplied: f64) -> Brid
 }
 
 pub(super) fn outside_validated_range(low: f64, high: f64, value: f64) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.outside_validated_range",
         format!("[{low}, {high}]"),
         value.to_string(),
-        "the relationship is applied only within the surrogate effects the validation trials covered; extrapolation is not licensed, so validate trials that cover this effect",
+        "the relationship is applied only within the surrogate effects the validation trials covered; extrapolation is not supported, so validate trials that cover this effect",
     )
 }
 
 pub(super) fn measurement_route_not_supported(expected: &str, supplied: &str) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.measurement_route_not_supported",
         expected,
         supplied,
@@ -534,7 +534,7 @@ pub(super) fn outside_attainable_range(
     supplied: f64,
     remedy: &'static str,
 ) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.outside_attainable_range",
         expected,
         supplied.to_string(),
@@ -543,7 +543,7 @@ pub(super) fn outside_attainable_range(
 }
 
 pub(super) fn nonlinear_mean_not_expectation(map: &str) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.nonlinear_mean_not_expectation",
         "E[g(X)]",
         format!("g(E[X]) via {map}"),
@@ -553,17 +553,17 @@ pub(super) fn nonlinear_mean_not_expectation(map: &str) -> BridgeRefusal {
 }
 
 pub(super) fn nonlinear_law_insufficient(supplied: &str) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.nonlinear_law_insufficient",
         "normal",
         supplied,
-        "an exponential expectation is licensed for a normal law; a mean and a variance do not determine it",
+        "an exponential expectation is supported for a normal law; a mean and a variance do not determine it",
     )
     .with_offending("exponential")
 }
 
 pub(super) fn uncertain_mapping_not_affine(supplied: &str) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.uncertain_mapping_not_affine",
         "identity or affine",
         supplied,
@@ -572,7 +572,7 @@ pub(super) fn uncertain_mapping_not_affine(supplied: &str) -> BridgeRefusal {
 }
 
 pub(super) fn dependence_not_a_covariance(supplied: String) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.dependence_not_a_covariance",
         "covariance within the slope and source variances",
         supplied,
@@ -581,7 +581,7 @@ pub(super) fn dependence_not_a_covariance(supplied: String) -> BridgeRefusal {
 }
 
 pub(super) fn functional_not_supported(supplied: String) -> BridgeRefusal {
-    not_licensed(
+    not_supported(
         "scientific_bridge.functional_not_supported",
         "prevalence or risk on the identity scale",
         supplied,
@@ -622,7 +622,7 @@ pub(super) fn youden_too_small(youden: f64, min_youden: f64) -> BridgeRefusal {
 /// an associational claim, a refusal, bounds or an incomplete contract.
 pub(super) fn source_not_draws(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_BIND,
         "scientific_bridge.source_not_draws",
     )
@@ -666,18 +666,18 @@ pub fn draws_unusable(field: &str, remedy: &'static str) -> BridgeRefusal {
     invalid("scientific_bridge.draws_unusable", remedy).with_offending(field)
 }
 
-/// A draw outside the range the mapping is licensed for. The first offending
+/// A draw outside the range the mapping is supported for. The first offending
 /// draw is named.
 #[must_use]
 pub fn draws_outside_domain(count: usize, total: usize, first: f64) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("bridge_mapping_not_licensed"),
+        antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
         "scientific_bridge.draws_outside_domain",
     )
     .with_offending(format!("{count} of {total} draws; first {first}"))
     .with_remedy(
-        "every draw must lie inside the range the mapping is licensed for (the validated surrogate range, the attainable recorded prevalence); the bridge neither truncates nor extrapolates a law",
+        "every draw must lie inside the range the mapping is supported for (the validated surrogate range, the attainable recorded prevalence); the bridge neither truncates nor extrapolates a law",
     )
 }
 

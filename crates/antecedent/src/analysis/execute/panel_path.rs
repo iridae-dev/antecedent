@@ -29,10 +29,10 @@ use crate::planner::RouteDefaults;
 use antecedent_core::StreamDomain;
 
 impl super::Study {
-    /// The panel license owner, consulted on the data each execute receives
+    /// The panel support owner, consulted on the data each execute receives
     /// (a prepared refresh hands in new units).
-    pub(super) fn refuse_unlicensed_panel(&self, panel: &PanelData) -> Result<(), CausalError> {
-        super::super::builder::refuse_unlicensed_panel_route(
+    pub(super) fn refuse_unsupported_panel(&self, panel: &PanelData) -> Result<(), CausalError> {
+        super::super::builder::refuse_unsupported_panel_route(
             &self.query,
             self.graph.class(),
             &self.settings.inference,
@@ -61,7 +61,7 @@ impl super::Study {
         ctx: &ExecutionContext,
         clusters: PanelClusters,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         let started = Instant::now();
         let (identification, estimand, indexer, identify_cached) =
             self.identify_pooled_panel(graph, query, Some(physical), ctx)?;
@@ -366,7 +366,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         if query.is_multi_step_sustained() {
             return self.execute_panel_class_sequential(panel, query, physical, ctx);
         }
@@ -736,14 +736,14 @@ impl super::Study {
         Ok((reports, diagnostics))
     }
 
-    /// Refuses panel response queries outside the licensed slice and returns their temporal spec.
+    /// Refuses panel response queries outside the supported slice and returns their temporal spec.
     fn panel_response_temporal_spec<'a>(
         query: &'a ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<&'a antecedent_core::TemporalResponseSpec, CausalError> {
         if query.observation != ObservationSpec::Complete {
             return Err(CausalError::Unsupported {
-                message: "panel response is licensed for complete observations only",
+                message: "panel response is supported for complete observations only",
             });
         }
         let Some(temporal) = query.temporal.as_ref() else {
@@ -758,7 +758,7 @@ impl super::Study {
             .is_some_and(|plan| plan.mechanism_overlays().is_some())
         {
             return Err(CausalError::Unsupported {
-                message: "panel multi-step Sequence overlays are not licensed; keep the \
+                message: "panel multi-step Sequence overlays are not supported; keep the \
                           series sequential owner",
             });
         }
@@ -859,7 +859,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         let started = Instant::now();
         let temporal = Self::panel_response_temporal_spec(query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
@@ -962,7 +962,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
+        self.refuse_unsupported_panel(panel)?;
         let started = Instant::now();
         let temporal = Self::panel_response_temporal_spec(query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
@@ -1511,7 +1511,7 @@ impl super::Study {
             .as_ref()
             .map(|prior| prior.masses_for_envelope(&bundle.envelope))
             .transpose()?;
-        // The panel license refuses caller priors here; the per-unit fits use the
+        // The panel support refuses caller priors here; the per-unit fits use the
         // default prior.
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             Some(bayesian_gcomp(cfg, ctx))

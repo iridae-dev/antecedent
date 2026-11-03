@@ -1,7 +1,7 @@
 //! Structured refusals for decision contracts, evaluation, structures and design.
 //!
 //! Each typed error maps to one registered reason code and a namespaced detail
-//! (`family.slot`). Every detail is a string literal so the promotion gate can
+//! (`family.slot`). Every detail is a string literal so the capability gate can
 //! match it against the declared refusals; nothing is parsed out of a message.
 //! The existing reason codes are unchanged.
 //!

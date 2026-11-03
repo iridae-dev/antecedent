@@ -116,7 +116,7 @@ fn table(outcome: &RecalcOutcome) -> Table {
 }
 
 fn reused_string(stage: Stage) -> String {
-    let dep = stage.dependencies(RetargetSupport::Licensed).first().copied().unwrap_or(stage);
+    let dep = stage.dependencies(RetargetSupport::Supported).first().copied().unwrap_or(stage);
     format!("reused({dep})")
 }
 
@@ -384,14 +384,14 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
 
     // Off-grid on a cold session: nothing runs and nothing becomes live.
     session.set_request_support(RequestSupport::OffGrid {
-        licensed_route: Some("transport.smoothed_dose".into()),
+        supported_route: Some("transport.smoothed_dose".into()),
     });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
     assert_eq!(
         plan.status(Stage::TreatmentGrid),
         Some(&StageStatus::Refused {
             reason: RefusalReason::OffGrid {
-                licensed_route: Some("transport.smoothed_dose".into())
+                supported_route: Some("transport.smoothed_dose".into())
             }
         })
     );
@@ -408,7 +408,7 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     session.set_request_support(RequestSupport::OnGrid);
     let first = go(&mut session, &base, SEED);
     let known = session.identities().clone();
-    session.set_request_support(RequestSupport::Unsupported { licensed_route: None });
+    session.set_request_support(RequestSupport::Unsupported { supported_route: None });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
     assert_eq!(plan.first_refusal().unwrap().1.detail(), "recalc.unsupported_request");
     assert!(session.is_live());
@@ -419,7 +419,7 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     assert_no_work(&counts(&again), 0);
     assert_eq!(again.law.ate.to_bits(), first.law.ate.to_bits());
 
-    // Weights that are not a licensed function of the adjustment set refuse at the law.
+    // Weights that are not a supported function of the adjustment set refuse at the law.
     session.set_retarget_support(RetargetSupport::Incompatible);
     let mut changed = base.clone();
     changed.target = Some(z_weights(&base));

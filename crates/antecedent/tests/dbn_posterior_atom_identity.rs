@@ -335,7 +335,7 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
 
 #[test]
 fn dbn_posterior_with_a_static_query_is_refused_rather_than_panicking() {
-    // A plain AverageEffect on a series reads as the lag-0 pulse and is licensed. A
+    // A plain AverageEffect on a series reads as the lag-0 pulse and is supported. A
     // static AverageEffect with an effect modifier has no temporal reading: a series study
     // that pairs a DBN posterior with it must answer with a typed refusal at build or
     // prepare, never reach an internal unreachable branch.

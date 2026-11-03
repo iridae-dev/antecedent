@@ -48,7 +48,7 @@
     ],
     "duplicate_executions_removed": 750,
     "explicit_pending_calibration_deselections": [
-      "antecedent-design::suite_01::decision_reliability::every_published_route_is_licensed_inside_a_measured_coverage_record",
+      "antecedent-design::suite_01::decision_reliability::every_published_route_is_supported_inside_a_measured_coverage_record",
       "antecedent-design::suite_01::decision_reliability_intervals::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it",
       "antecedent-io::measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit",
       "antecedent-io::sampled_counterfactual_transport_artifact::a_measured_construction_reports_an_interval_bound_to_its_coverage_record",

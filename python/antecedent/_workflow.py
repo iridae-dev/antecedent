@@ -243,7 +243,7 @@ class LoadedResult(ResultAPI):
     @property
     def quasi_rollout(self) -> QuasiRolloutEstimate | None:
         """The recorded rollout, conformal or multi-unit synthetic-panel, or optioned
-        local-ratio result (unlicensed, calibration unmeasured), equal to the live
+        local-ratio result (unsupported, calibration unmeasured), equal to the live
         ``result.quasi_rollout``; ``None`` when absent or the load is unavailable."""
         from ._quasi_rollout import quasi_rollout_from_wire
 
@@ -257,7 +257,7 @@ class LoadedResult(ResultAPI):
     @property
     def temporal_design(self) -> Any:
         """The recorded temporal-design result
-        (:class:`antecedent.temporal_designs.TemporalDesignEstimate`, unlicensed, calibration
+        (:class:`antecedent.temporal_designs.TemporalDesignEstimate`, unsupported, calibration
         unmeasured), equal to the live ``result.temporal_design``; ``None`` when absent or the
         load is unavailable."""
         from ._temporal_design import temporal_design_from_wire

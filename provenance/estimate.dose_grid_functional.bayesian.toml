@@ -16,7 +16,7 @@ papers = []
 implementation_deviations = [
   "The published posterior is the joint posterior of a level, derivative or contrast of a randomized-dose response curve m(d) = sum_j beta_j z^j, z = (2d - lo - hi)/(hi - lo), under the declared coefficient prior beta_j | sigma^2 ~ N(0, sigma^2 s_j^2) and a known or inverse-gamma residual variance. The coefficient scales s, the degree and the residual prior are the prior and are reported with the request; a smoothing parameter alone is not a posterior. A dose outside the observed range is refused, never extrapolated, and an observational dose design is refused.",
   "One coefficient draw gives every grid dose at once, so the draws preserve the covariance across the grid; the posterior mean, equal-tailed 95 percent interval and joint covariance reported with the draws are Monte Carlo summaries, and under a known residual variance the exact Gaussian mean and covariance are reported beside them. The contrast covariance is the draw variance of the difference with divisor n_draws.",
-  "The posterior is for the curve m, not for a new outcome Y. It is uncalibrated: no coverage record measures it and the route is not licensed. A smoothing bias is not part of the target because the target is the polynomial curve itself.",
+  "The posterior is for the curve m, not for a new outcome Y. It is uncalibrated: no coverage record measures it and the route is not supported. A smoothing bias is not part of the target because the target is the polynomial curve itself.",
   "A separate point-only route in the same module family publishes the level and derivative at the posterior mean of a Gaussian-kernel local-quadratic fit (LocalQuadraticNamespace::DoseGrid in posterior_mean.rs); its arithmetic is the one reviewed under estimate.quadratic_dose.bayesian and is not part of this record's review.",
 ]
 
@@ -38,12 +38,12 @@ redistribution = "No work is redistributed; the identities are textbook conjugat
 limitations = "Fourteen cases of 3 to 20 rows with polynomial widths 1 to 5. Known-variance exact moments agree to a relative 1e-8 (1e-5 when the doses sit at 1e6 or -3e5 and the rescaling loses digits). The retained draws (1e5) agree with the reference mean within five Monte Carlo standard errors and with the covariance to 3 percent (known variance) or 6 percent (inverse-gamma) of the geometric mean variance, so the draws are not compared more tightly than that, and the inverse-gamma moments are the Student-t covariance b_n/(a_n - 1) V, reached only through those draws. The posterior of the coefficients is Gaussian or Student-t exactly, so no approximation error is assessed; the interval is equal-tailed from draws and its frequentist coverage is not measured. Not exercised: widths above 5, thousands of rows, heavy-tailed outcomes, and the streaming of tiles larger than the memory admission. The cited conjugate theory was not retrieved in this review; the reference states the identities it checks. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
 sources = ["https://mpmath.org/doc/1.3.0/", "https://en.wikipedia.org/wiki/Bayesian_linear_regression"]
 findings_resolved = ["Replaced the record's description: it described the point-only Gaussian-kernel local-quadratic posterior mean and cited its test, while the executing route this record is linked to (bayesian.dose_grid, the joint polynomial posterior in dose_grid_posterior.rs) had no description or reference of its own. The local-quadratic route is now named as a separate route covered by estimate.quadratic_dose.bayesian.", "Under a known residual variance the exact mean and covariance of every level, derivative and contrast equal the 50-digit (X'X + diag(1/s^2))^-1 X'y and v (X'X + diag(1/s^2))^-1 pushed through the functional rows, including a support wider than the data, doses offset by 1e6, more coefficients than rows and three rows.", "The retained draws reproduce the same moments (and the Student-t moments b_n/(a_n - 1) V for an inverse-gamma prior), the pointwise interval is the normal quantile pair of the exact moments, and the joint covariance across grid doses is the exact off-diagonal, not independent per-point draws.", "No product defect was found in this record."]
-record_sha256 = "1c26dd4e8e25b7c7b0c58c3adcde9567e4a1f2b128037f1fa5e38bd8bbcc9461"
+record_sha256 = "137b80f2733058f4c2eb98654fc45e904e31bfe6e3b3d8b7fbe93f797ca7299f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_posterior.rs"
-sha256 = "c18014a9246632af975cd18dfe7f0af43258d8e3685176229ecb9f6903a6ddb7"
+sha256 = "fde689d830b56d88effabd4cef30166e309accb63022bbf80671027cf4eadf9e"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -53,7 +53,7 @@ sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs"
-sha256 = "4a71f4c82ba5dab8259c087b5a1e57a8768b500d7007a57180e205967b4cf792"
+sha256 = "c345ba5f5258327b6629ac2aba16f6c44a1f22fa4a45d49183fdda3285cf7369"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -2,7 +2,7 @@
 
 The standard producer returns native-authorized scalar inference only inside the
 finite degree-two validation design. The complete original posterior remains an
-unmeasured, model-conditional candidate; its law receives no blanket interval license.
+unmeasured, model-conditional candidate; its law receives no blanket interval support.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def _frozen() -> CausalUnsupportedError:
     """The fallback refusal; the native call always raises before it is reached."""
     return CausalUnsupportedError(
         f"{_ROUTE_FROZEN}: {_ROUTE} is a closed route; calibration is unmeasured",
-        reason_code="cell_not_licensed",
+        reason_code="not_supported",
         remedy=_REMEDY,
     )
 
@@ -166,7 +166,7 @@ def learned_joint_transport(
             draws,
         )
     except CausalUnsupportedError as error:
-        if getattr(error, "reason_code", None) == "cell_not_licensed" and not getattr(
+        if getattr(error, "reason_code", None) == "not_supported" and not getattr(
             error, "remedy", None
         ):
             error.remedy = _REMEDY

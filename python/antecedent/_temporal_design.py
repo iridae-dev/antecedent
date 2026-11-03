@@ -417,7 +417,7 @@ class TemporalDesignEstimate:
     ``estimate`` is the point estimate (frequentist) or the posterior mean (Bayesian);
     ``standard_error`` is the standard error (the whole-procedure bootstrap standard
     deviation when ``replicates`` is set) or the posterior standard deviation (when ``draws``
-    is set). Unlicensed; calibration unmeasured.
+    is set). Unsupported; calibration unmeasured.
     """
 
     design: str
@@ -444,7 +444,7 @@ class TemporalDesignEstimate:
     draws: int | None
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
 
     def coordinate(self, name: str) -> tuple[float, float, float]:
         """``(estimate, lower, upper)`` of the named coordinate."""
@@ -512,7 +512,7 @@ def temporal_design_from_raw(raw: Any) -> TemporalDesignEstimate | None:
         draws=None if section.draws is None else int(section.draws),
         uncertainty=str(section.uncertainty),
         calibration=str(section.calibration),
-        licensed=bool(section.licensed),
+        supported=bool(section.supported),
     )
 
 
@@ -545,7 +545,7 @@ def temporal_design_from_wire(wire: Any) -> TemporalDesignEstimate | None:
         draws=None if wire.get("draws") is None else int(wire["draws"]),
         uncertainty=str(wire["uncertainty"]),
         calibration=str(wire.get("calibration", "unmeasured")),
-        licensed=bool(wire.get("licensed", False)),
+        supported=bool(wire.get("supported", False)),
     )
 
 
@@ -568,7 +568,7 @@ def describe_temporal_design(estimate: TemporalDesignEstimate) -> str:
         scale = f"standard error {spread:g}"
     return (
         f"{estimate.design} temporal design, {name} = {value:g}: 95% interval "
-        f"[{lower:g}, {upper:g}], {scale} ({estimate.uncertainty}). Unlicensed; calibration "
+        f"[{lower:g}, {upper:g}], {scale} ({estimate.uncertainty}). Unsupported; calibration "
         f"is {estimate.calibration}."
     )
 

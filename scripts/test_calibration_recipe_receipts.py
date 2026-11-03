@@ -53,7 +53,9 @@ class RecipeReceiptTests(unittest.TestCase):
         )
         path = "crates/antecedent-estimate/tests/knn_matching_calibration.rs"
         (self.root / path).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / path, self.root / path)
+        # The frozen KNN source the receipts were measured on, not the branch's later tightened test.
+        knn_sha = next(r for r in self.recipes if r["case_id"] == "knn_ci_path_10000")["calibration_sha"]
+        (self.root / path).write_bytes(receipts.family.read_source(ROOT, path, knn_sha))
         shutil.copyfile(
             ROOT / "parity/calibration_gates.toml", self.root / "parity/calibration_gates.toml"
         )
@@ -259,7 +261,7 @@ class RecipeReceiptTests(unittest.TestCase):
                     self.root, recipe, case, closure.case_size(case)
                 )
 
-    def test_statistical_test_width_exemption_cannot_license_a_sensitivity_interval(self) -> None:
+    def test_statistical_test_width_exemption_cannot_support_a_sensitivity_interval(self) -> None:
         recipe, case = self.count_recipe("scalable_gpdc_replacement_validated_separately")
         case["expected"]["kind"] = "calibrated_interval"
         with self.assertRaisesRegex(ValueError, "exact source/size/role"):

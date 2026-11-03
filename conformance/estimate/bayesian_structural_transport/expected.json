@@ -1,6 +1,11 @@
 {
   "schema_version": 1,
-  "counts_x0y0_x0y1_x1y0_x1y1": [20, 0, 10, 1],
+  "counts_x0y0_x0y1_x1y0_x1y1": [
+    20,
+    0,
+    10,
+    1
+  ],
   "draws": 2048,
   "empirical_support_p_y1_given_do_x1": 0.09090909090909091,
   "state_space_p_y1_given_do_x1": 0.15384615384615385,
@@ -43,7 +48,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/src/analysis/statistical.rs",
-          "sha256": "1fb9500763f2bd2219d5d0fa7616f8f32cc061ed664823d7b801f3e3fbefa397"
+          "sha256": "c66bb2e0b433dee772eaa8d3a357eaa381373bd9728bdde80972d79f2b4c13e9"
         }
       ],
       "fixture_payload_sha256": "749908d22929d7e5e05c7b660391ed5cf1bf0977b30fe4798662cf5cc7c31ce9"

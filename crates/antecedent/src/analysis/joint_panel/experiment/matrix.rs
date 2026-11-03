@@ -25,7 +25,7 @@ pub struct JointExperimentAcceptanceRow {
     pub implementation_gaps: Vec<String>,
     /// Declared statistical limits, kept separate from implementation obligations.
     pub statistical_limitations: Vec<String>,
-    /// Stable-candidate measurement status; passing implementation tests grants no license.
+    /// Stable-candidate measurement status; passing implementation tests grants no support.
     pub calibration: String,
     /// Complete procedure stages that the positive case must execute and independently check.
     pub stages: Vec<String>,
@@ -33,7 +33,7 @@ pub struct JointExperimentAcceptanceRow {
 /// Generated matrix containing every advertised design and bridge/decision combination.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct JointExperimentAcceptanceMatrix {
-    /// Version of the generated protocol; not an artifact trust or calibration license.
+    /// Version of the generated protocol; not an artifact trust or calibration support.
     pub version: u16,
     /// Explicit update semantics shared by all positive rows.
     pub modular_policy: String,

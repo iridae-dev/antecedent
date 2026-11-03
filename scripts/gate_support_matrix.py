@@ -67,9 +67,8 @@ def load(rel: str) -> dict:
 
 axes = load("parity/support_axes.toml")
 na_doc = load("parity/support_n_a.toml")
-closed_doc = load("parity/support_closed.toml")
-allow_doc = load("parity/support_allowlist.toml")
-lic_doc = load("parity/support_licensed.toml")
+closed_doc = load("parity/support_refusal_reasons.toml")
+lic_doc = load("parity/support_cells.toml")
 
 queries = list(axes.get("queries") or [])
 stage_queries = list(axes.get("stage_queries") or [])
@@ -109,7 +108,7 @@ else:
     block = init_text[q_start:q_end]
     live_queries = re.findall(r'"([A-Za-z][A-Za-z0-9]+)"', block)
 
-# TransportQuery stays on the support-matrix query axis (licensed trial-IPW
+# TransportQuery stays on the support-matrix query axis (supported trial-IPW
 # cell) but lives on `antecedent.transport.advanced`, not root `__all__`.
 root_queries = [q for q in queries if q != "TransportQuery"]
 # Public query class names can differ from the stable support query axis.
@@ -285,20 +284,18 @@ import test_evidence  # noqa: E402
 closed_rules = closed_doc.get("closed") or []
 for i, rule in enumerate(closed_rules, 1):
     if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
-        fail.append(f"parity/support_closed.toml rule #{i}: missing reason")
-    if "executes_unlicensed" in rule and not isinstance(rule["executes_unlicensed"], bool):
-        fail.append(f"parity/support_closed.toml rule #{i}: executes_unlicensed must be a boolean")
+        fail.append(f"parity/support_refusal_reasons.toml rule #{i}: missing reason")
     for key, legal in AXIS_KEYS.items():
         vals = rule.get(key)
         if vals is None:
             continue
         if not isinstance(vals, list) or not vals:
-            fail.append(f"parity/support_closed.toml rule #{i}: {key} must be a non-empty list")
+            fail.append(f"parity/support_refusal_reasons.toml rule #{i}: {key} must be a non-empty list")
             continue
         for v in vals:
             if v not in legal:
                 fail.append(
-                    f"parity/support_closed.toml rule #{i}: {key} value {v!r} is not an axis value"
+                    f"parity/support_refusal_reasons.toml rule #{i}: {key} value {v!r} is not an axis value"
                 )
 
 
@@ -307,9 +304,9 @@ def is_closed(cell: dict) -> bool:
 
 
 # n/a and reason-backed refusals are disjoint. A too-broad n/a must not mask
-# a reason row in legacy-named support_closed.toml.
+# a reason row in legacy-named support_refusal_reasons.toml.
 if all_queries and graph_classes and structures and inferences and validations:
-    lic_keys_for_overlap = {
+    supported_keys_for_overlap = {
         (
             row.get("query"),
             row.get("graph_class"),
@@ -338,83 +335,18 @@ if all_queries and graph_classes and structures and inferences and validations:
             overlap_n += 1
             if overlap_n <= 25:
                 fail.append(
-                    f"parity/support_closed.toml rule #{closed_hit} overlaps n/a cell "
+                    f"parity/support_refusal_reasons.toml rule #{closed_hit} overlaps n/a cell "
                     f"{(q, g, s, inf, v)}"
                 )
-        if (q, g, s, inf, v) in lic_keys_for_overlap:
+        if (q, g, s, inf, v) in supported_keys_for_overlap:
             fail.append(
-                f"parity/support_closed.toml rule #{closed_hit} overlaps licensed cell "
+                f"parity/support_refusal_reasons.toml rule #{closed_hit} overlaps supported cell "
                 f"{(q, g, s, inf, v)}"
             )
     if overlap_n > 25:
         fail.append(f"... {overlap_n - 25} more n/a/refusal-reason overlaps")
 
-# --- allowlist rules -----------------------------------------------------------
-allowed_rules = allow_doc.get("allowed") or []
-if allowed_rules:
-    fail.append(
-        "parity/support_allowlist.toml: 0.9 requires an empty allowlist; "
-        f"found {len(allowed_rules)} active rule(s)"
-    )
-for i, rule in enumerate(allowed_rules, 1):
-    label = f"parity/support_allowlist.toml rule #{i}"
-    if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
-        fail.append(f"{label}: missing reason")
-    if not isinstance(rule.get("parent"), str) or not rule["parent"].strip():
-        fail.append(f"{label}: missing parent")
-    for key, legal in AXIS_KEYS.items():
-        vals = rule.get(key)
-        if vals is None:
-            continue
-        if not isinstance(vals, list) or not vals:
-            fail.append(f"{label}: {key} must be a non-empty list")
-            continue
-        for v in vals:
-            if v not in legal:
-                fail.append(f"{label}: {key} value {v!r} is not an axis value")
-
-
-def is_allowed(cell: dict) -> bool:
-    return (
-        (not is_n_a(cell))
-        and (not is_closed(cell))
-        and any(rule_matches(rule, cell) for rule in allowed_rules)
-    )
-
-
-# Retained compatibility rules must not match any licensed, n/a, or
-# reason-backed refused cell. The 0.9 invariant above requires zero rules;
-# these checks remain so a bad legacy entry reports all of its defects.
-if all_queries and graph_classes and structures and inferences and validations:
-    lic_keys_for_disjointness = {
-        (
-            row.get("query"),
-            row.get("graph_class"),
-            row.get("structure"),
-            row.get("inference"),
-            row.get("validation"),
-        )
-        for row in (lic_doc.get("cell") or [])
-    }
-    for i, rule in enumerate(allowed_rules, 1):
-        label = f"parity/support_allowlist.toml rule #{i}"
-        for q, g, s, inf, v in product(
-            all_queries, graph_classes, structures, inferences, validations
-        ):
-            if not rule_matches(
-                rule,
-                {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v},
-            ):
-                continue
-            cell = {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v}
-            if (q, g, s, inf, v) in lic_keys_for_disjointness:
-                fail.append(f"{label}: matches licensed cell {(q, g, s, inf, v)}")
-            elif is_n_a(cell):
-                fail.append(f"{label}: matches an n/a cell {(q, g, s, inf, v)}")
-            elif is_closed(cell):
-                fail.append(f"{label}: matches a reason-backed refused cell {(q, g, s, inf, v)}")
-
-# --- licensed cells ----------------------------------------------------------
+# --- supported cells ----------------------------------------------------------
 cells = lic_doc.get("cell") or []
 seen: set[tuple[str, ...]] = set()
 required = (
@@ -428,13 +360,13 @@ required = (
 )
 legal_q = set(all_queries)
 
-# Every staged licensed row names the executing test and test function that
-# carries its evidence. Rows licensed before this rule are frozen in
+# Every staged supported row names the executing test and test function that
+# carries its evidence. Rows supported before this rule are frozen in
 # parity/_evidence_test_backlog.txt; the backlog only shrinks.
 missing_evidence: set[str] = set()
 
 
-# Estimator wire-ids recorded on licensed rows (secondary axis; not cartesian).
+# Estimator wire-ids recorded on supported rows (secondary axis; not cartesian).
 # When present, every entry must be a non-empty string. Empty lists are allowed
 # only when the row honestly has no estimator evidence (classify_estimator then
 # refuses every concrete EstimatorId, including the five unmeasured families).
@@ -455,7 +387,7 @@ def check_evidence_test(label: str, row: dict) -> None:
         fail.append(f"{label}: {problem}")
 
 
-# Every licensed estimator on a row executes through a retained checked
+# Every supported estimator on a row executes through a retained checked
 # operation: one checked_execution entry per estimator, each citing an
 # executing test that discards its builder, executes the plan, and inspects it.
 def check_checked_execution(label: str, row: dict) -> None:
@@ -465,8 +397,8 @@ def check_checked_execution(label: str, row: dict) -> None:
 
 for i, row in enumerate(cells, 1):
     if i % 50 == 0:
-        print(f"support matrix: checked {i}/{len(cells)} licensed cells", flush=True)
-    label = f"parity/support_licensed.toml cell #{i}"
+        print(f"support matrix: checked {i}/{len(cells)} supported cells", flush=True)
+    label = f"parity/support_cells.toml cell #{i}"
     for key in required:
         if key not in row:
             fail.append(f"{label}: missing {key}")
@@ -487,7 +419,7 @@ for i, row in enumerate(cells, 1):
     if v not in set(validations):
         fail.append(f"{label}: validation {v!r} is not an axis value")
     if row.get("staged") is not True:
-        fail.append(f"{label}: staged must be true (analyze-only is not a license)")
+        fail.append(f"{label}: staged must be true (analyze-only is not support)")
     kind = row.get("evidence_kind")
     if not isinstance(kind, str) or kind not in EVIDENCE_KINDS:
         fail.append(f"{label}: evidence_kind is required and must be a known kind")
@@ -554,18 +486,16 @@ for i, row in enumerate(cells, 1):
         "validation": v,
     }
     if all(cell.values()) and is_n_a(cell):
-        fail.append(f"{label}: cell is n/a under support_n_a.toml; cannot license it")
+        fail.append(f"{label}: cell is n/a under support_n_a.toml; cannot support it")
     if all(cell.values()) and is_closed(cell):
         fail.append(
-            f"{label}: cell has a refusal reason under support_closed.toml; cannot license it"
+            f"{label}: cell has a refusal reason under support_refusal_reasons.toml; cannot support it"
         )
-    if all(cell.values()) and is_allowed(cell):
-        fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
 
 # --- cross-check-only cells need a known-truth sibling -------------------------
 # A cell whose only evidence is an internal cross-check (the estimator against an
 # in-test recomputation that may share its convention) and that carries no measured
-# coverage has nothing tying it to the truth. It is licensed only while another cell of
+# coverage has nothing tying it to the truth. It is supported only while another cell of
 # the same query and inference mode has known-truth or external-oracle evidence, so the
 # estimand itself is checked against a simulation truth somewhere.
 _truth_kinds = KNOWN_TRUTH_KINDS
@@ -596,14 +526,14 @@ if backlog_path.is_file():
             evidence_backlog.add(line)
 for key in sorted(missing_evidence - evidence_backlog):
     fail.append(
-        f"licensed cell {key} is staged but has no evidence_test/evidence_assertion; "
+        f"supported cell {key} is staged but has no evidence_test/evidence_assertion; "
         "name the executing test file and test function (do not add rows to "
         f"{backlog_rel} -- it is frozen)"
     )
 for key in sorted(evidence_backlog - missing_evidence):
     fail.append(
         f"{backlog_rel} lists {key} but that row now names its evidence (or is no "
-        "longer licensed) -- delete the line in the same change (the list only shrinks)"
+        "longer supported) -- delete the line in the same change (the list only shrinks)"
     )
 
 # --- counts ------------------------------------------------------------------
@@ -611,7 +541,6 @@ if all_queries and graph_classes and structures and inferences and validations:
     cartesian = 0
     n_a_count = 0
     reason_backed_refused_count = 0
-    allowed_count = 0
     for q, g, s, inf, v in product(all_queries, graph_classes, structures, inferences, validations):
         cartesian += 1
         cell = {
@@ -625,21 +554,19 @@ if all_queries and graph_classes and structures and inferences and validations:
             n_a_count += 1
         elif is_closed(cell):
             reason_backed_refused_count += 1
-        elif is_allowed(cell):
-            allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
-    unreasoned = refused - reason_backed_refused_count - allowed_count
+    unreasoned = refused - reason_backed_refused_count
     if refused < 0:
-        fail.append("licensed + n/a exceeds the cartesian product")
-    if reason_backed_refused_count + allowed_count > refused:
-        fail.append("reason-backed refusals + compatibility entries exceed refused cells")
+        fail.append("supported + n/a exceeds the cartesian product")
+    if reason_backed_refused_count > refused:
+        fail.append("reason-backed refusals exceed refused cells")
     if unreasoned:
         fail.append(
             f"{unreasoned} meaningful refused cell(s) have no reason in "
-            "parity/support_closed.toml; every refused cell must name why"
+            "parity/support_refusal_reasons.toml; every refused cell must name why"
         )
 else:
-    cartesian = n_a_count = reason_backed_refused_count = allowed_count = refused = 0
+    cartesian = n_a_count = reason_backed_refused_count = refused = 0
     fail.append("axes are incomplete; cannot form a cartesian product")
 
 if fail:
@@ -649,8 +576,7 @@ if fail:
     sys.exit(1)
 
 print(
-    f"Support matrix OK ({cartesian} cells; {len(cells)} licensed; "
+    f"Support matrix OK ({cartesian} cells; {len(cells)} supported; "
     f"{n_a_count} n/a; {reason_backed_refused_count} refused with reasons; "
-    f"{refused - reason_backed_refused_count - allowed_count} refused without reasons; "
-    f"{allowed_count} active allowed_unlicensed compatibility entries)"
+    f"{refused - reason_backed_refused_count} refused without reasons)"
 )

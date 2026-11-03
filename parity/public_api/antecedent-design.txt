@@ -574,8 +574,8 @@ impl core::clone::Clone for antecedent_design::inverse_forward_source::ForwardRe
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ForwardSourceKind
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::clone::Clone for antecedent_design::inverse_forward_source::InverseDemand
-impl core::clone::Clone for antecedent_design::inverse_forward_source::LicensedForwardSource
 impl core::clone::Clone for antecedent_design::inverse_forward_source::SourcedInverseResult
+impl core::clone::Clone for antecedent_design::inverse_forward_source::SupportedForwardSource
 impl core::clone::Clone for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::clone::Clone for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery
 impl core::clone::Clone for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult
@@ -2476,8 +2476,8 @@ impl core::fmt::Debug for antecedent_design::inverse_forward_source::ForwardRepr
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ForwardSourceKind
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::InverseDemand
-impl core::fmt::Debug for antecedent_design::inverse_forward_source::LicensedForwardSource
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::SourcedInverseResult
+impl core::fmt::Debug for antecedent_design::inverse_forward_source::SupportedForwardSource
 impl core::fmt::Debug for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::fmt::Debug for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery
 impl core::fmt::Debug for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult
@@ -3545,8 +3545,8 @@ impl core::marker::Freeze for antecedent_design::inverse_forward_source::Forward
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::marker::Freeze for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::marker::Freeze for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::marker::Freeze for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::marker::Freeze for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::marker::Freeze for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -4319,8 +4319,8 @@ impl core::marker::Send for antecedent_design::inverse_forward_source::ForwardRe
 impl core::marker::Send for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::marker::Send for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::marker::Send for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::marker::Send for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::marker::Send for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::marker::Send for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -5766,8 +5766,8 @@ impl core::marker::Sync for antecedent_design::inverse_forward_source::ForwardRe
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::marker::Sync for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::marker::Sync for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::marker::Sync for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::marker::Sync for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::marker::Sync for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -6541,8 +6541,8 @@ impl core::marker::Unpin for antecedent_design::inverse_forward_source::ForwardR
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::marker::Unpin for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::marker::Unpin for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::marker::Unpin for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::marker::Unpin for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::marker::Unpin for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -7312,8 +7312,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forw
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -8076,8 +8076,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ForwardSourceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ForwardSourceRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::InverseDemand [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::LicensedForwardSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::SourcedInverseResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::SupportedForwardSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult [auto]
@@ -8995,7 +8995,7 @@ pub const antecedent_design::decision_evidence::SEPARATION_STATEMENT: &str
 pub const antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS: [(u64, u64); 4]
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND: &str
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_STREAM_DOMAIN: antecedent_core::execution::rng::StreamDomain
-pub const antecedent_design::decision_reliability::DEFAULT_LICENSE_LEVEL: f64
+pub const antecedent_design::decision_reliability::DEFAULT_SUPPORT_LEVEL: f64
 pub const antecedent_design::decision_reliability::DERIVED_UNCERTAINTY_VERSION: u32
 pub const antecedent_design::decision_reliability::MAX_DECISION_RELIABILITY_BYTES: usize
 pub const antecedent_design::decision_reliability::MIN_DRAWS: usize
@@ -9009,7 +9009,7 @@ pub const antecedent_design::decision_reliability::selection::MAX_QUADRATURE_GRO
 pub const antecedent_design::decision_transported_source::DETAIL_CALIBRATION_INFLATED: &str
 pub const antecedent_design::decision_transported_source::DETAIL_IDENTITY_INCOMPLETE: &str
 pub const antecedent_design::decision_transported_source::DETAIL_IDENTITY_NOT_DIGEST: &str
-pub const antecedent_design::decision_transported_source::DETAIL_INTERVAL_NOT_LICENSED: &str
+pub const antecedent_design::decision_transported_source::DETAIL_INTERVAL_NOT_SUPPORTED: &str
 pub const antecedent_design::decision_transported_source::DETAIL_INVALID_VALUE: &str
 pub const antecedent_design::decision_transported_source::DETAIL_LAW_NOT_SUPPLIED: &str
 pub const antecedent_design::decision_transported_source::DETAIL_MIXED_TRANSPORTS: &str
@@ -9083,6 +9083,7 @@ pub const antecedent_design::planning::PRESPECIFY_STOPPING_RULE: antecedent_core
 pub const antecedent_design::planning::RELAX_TARGET: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::planning::SIMULATE_ADAPTIVE_PROCEDURE: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::planning::SINGLE_CONTRAST_BAYESIAN: antecedent_core::refusal::NextAttempt
+pub const antecedent_design::program_search::selection::procedure::MAX_SELECTION_REPETITIONS: usize
 pub const antecedent_design::repair::REPAIR_DEFAULT_DEPTH: usize
 pub const antecedent_design::repair::REPAIR_MAX_MEMORY_BYTES: u64
 pub const antecedent_design::repair::REPAIR_MAX_OPERATIONS: usize
@@ -10133,13 +10134,13 @@ pub field antecedent_design::decision_evidence::DerivedResult::calibration: &'st
 pub field antecedent_design::decision_evidence::DerivedResult::contrast: core::option::Option<f64>
 pub field antecedent_design::decision_evidence::DerivedResult::control_value: core::option::Option<f64>
 pub field antecedent_design::decision_evidence::DerivedResult::interval_statement: &'static str
-pub field antecedent_design::decision_evidence::DerivedResult::license: &'static str
 pub field antecedent_design::decision_evidence::DerivedResult::name: alloc::string::String
 pub field antecedent_design::decision_evidence::DerivedResult::quantity_identity: alloc::string::String
 pub field antecedent_design::decision_evidence::DerivedResult::sampling: core::option::Option<antecedent_design::decision_evidence::SamplingInterval>
 pub field antecedent_design::decision_evidence::DerivedResult::sampling_at_vertices: alloc::vec::Vec<antecedent_design::decision_evidence::SamplingInterval>
 pub field antecedent_design::decision_evidence::DerivedResult::separation: &'static str
 pub field antecedent_design::decision_evidence::DerivedResult::standing: antecedent_design::decision_evidence::Standing
+pub field antecedent_design::decision_evidence::DerivedResult::support: &'static str
 pub field antecedent_design::decision_evidence::DerivedResult::treated_value: core::option::Option<f64>
 pub field antecedent_design::decision_evidence::DerivedResult::units: alloc::string::String
 pub field antecedent_design::decision_evidence::DerivedResult::unresolved: alloc::vec::Vec<antecedent_design::decision_evidence::UnresolvedReason>
@@ -10161,7 +10162,7 @@ pub field antecedent_design::decision_evidence::JointExperimentEvidence::design_
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::evidence_id: alloc::string::String
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::exposure: antecedent_design::decision_evidence::Exposure
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::horizon: u32
-pub field antecedent_design::decision_evidence::JointExperimentEvidence::marginal_licenses: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::marginal_supports: alloc::vec::Vec<core::option::Option<alloc::string::String>>
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::population_id: alloc::string::String
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::treated_means: alloc::vec::Vec<f64>
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::treated_regime_id: alloc::string::String
@@ -12163,7 +12164,7 @@ pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn estim
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn merge_independent(&self, other: &Self, declared_independent: bool) -> core::result::Result<Self, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn new(evidence_id: impl core::convert::Into<alloc::string::String>, population_id: impl core::convert::Into<alloc::string::String>, regimes: (impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, means: (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>), dependence: antecedent_design::decision_evidence::Dependence, design: antecedent_design::decision_evidence::DesignRecord, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<Self, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn scientific_identity(&self) -> alloc::string::String
-pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn with_marginal_licenses(self, licenses: alloc::vec::Vec<core::option::Option<alloc::string::String>>) -> Self
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn with_marginal_supports(self, supports: alloc::vec::Vec<core::option::Option<alloc::string::String>>) -> Self
 pub fn <antecedent_design::decision_evidence::ProxyDecision>::fn unsupported_evidence(&self, ledger: &antecedent_design::decision_evidence::EvidenceLedger) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn reuses_any(&self) -> bool
 pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn status(&self, stage: antecedent_design::decision_evidence::Stage) -> antecedent_design::decision_evidence::StageStatus
@@ -12324,10 +12325,10 @@ pub fn <antecedent_design::inverse_forward_source::ForwardSourceKind>::const fn 
 pub fn <antecedent_design::inverse_forward_source::ForwardSourceRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent_design::inverse_forward_source::ForwardSourceRefusal>::fn detail(&self) -> alloc::string::String
 pub fn <antecedent_design::inverse_forward_source::ForwardSourceRefusal>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
-pub fn <antecedent_design::inverse_forward_source::LicensedForwardSource>::const fn origin(&self) -> &antecedent_design::inverse_forward_source::ForwardOrigin
-pub fn <antecedent_design::inverse_forward_source::LicensedForwardSource>::const fn representation(&self) -> antecedent_design::inverse_forward_source::ForwardRepresentation
-pub fn <antecedent_design::inverse_forward_source::LicensedForwardSource>::fn action_claims(&self) -> core::option::Option<&[(alloc::string::String, antecedent_design::inverse_query::ForwardClaim)]>
-pub fn <antecedent_design::inverse_forward_source::LicensedForwardSource>::fn claim(&self) -> core::option::Option<&antecedent_design::inverse_query::ForwardClaim>
+pub fn <antecedent_design::inverse_forward_source::SupportedForwardSource>::const fn origin(&self) -> &antecedent_design::inverse_forward_source::ForwardOrigin
+pub fn <antecedent_design::inverse_forward_source::SupportedForwardSource>::const fn representation(&self) -> antecedent_design::inverse_forward_source::ForwardRepresentation
+pub fn <antecedent_design::inverse_forward_source::SupportedForwardSource>::fn action_claims(&self) -> core::option::Option<&[(alloc::string::String, antecedent_design::inverse_query::ForwardClaim)]>
+pub fn <antecedent_design::inverse_forward_source::SupportedForwardSource>::fn claim(&self) -> core::option::Option<&antecedent_design::inverse_query::ForwardClaim>
 pub fn <antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>::const fn code(&self) -> &'static str
 pub fn <antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
@@ -12650,11 +12651,11 @@ pub fn antecedent_design::decision_reliability::banded_record_functional(coordin
 pub fn antecedent_design::decision_reliability::calibration::calibration_basis(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
 pub fn antecedent_design::decision_reliability::calibration::candidate_count_band(count: u64) -> core::option::Option<(u64, u64)>
 pub fn antecedent_design::decision_reliability::calibration::closed_routes(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::vec::Vec<antecedent_design::decision_reliability::ClosedRoute>
-pub fn antecedent_design::decision_reliability::calibration::license_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
-pub fn antecedent_design::decision_reliability::calibration::license_route_at(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::string::String
 pub fn antecedent_design::decision_reliability::calibration::simulate_replicate(design: &antecedent_design::decision_reliability::KnownOptimumDesign, run_seed: u64, replicate: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReplicateOutcome, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::simulate_selection_draws(design: &antecedent_design::decision_reliability::KnownOptimumDesign, stream: &antecedent_design::decision_reliability::StreamId) -> core::result::Result<antecedent_design::decision_reliability::DecisionDraws, antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::calibration::support_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::calibration::support_route_at(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::coverage_design() -> alloc::vec::Vec<antecedent_design::decision_reliability::CoverageCell>
 pub fn antecedent_design::decision_reliability::derive_uncertainty(draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, interval: &antecedent_design::decision_reliability::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::DerivedUncertainty, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::estimate(values: &[f64], weights: core::option::Option<&[f64]>, dependence: antecedent_design::decision_reliability::WithinStreamDependence, plan: antecedent_design::decision_reliability::BatchPlan, functional: &antecedent_design::decision_reliability::Functional) -> core::result::Result<antecedent_design::decision_reliability::FunctionalEstimate, antecedent_design::decision_reliability::ReliabilityError>
@@ -12690,15 +12691,15 @@ pub fn antecedent_design::evsi::evaluate_evsi_with_evidence<A: core::clone::Clon
 pub fn antecedent_design::failure_routes(result: &antecedent_identify::result::IdentificationResult, graph: &antecedent_graph::admg::Admg, observed: &[antecedent_core::ids::VariableId], population: &str, sensitivity: core::option::Option<&antecedent_design::SensitivityFinding>) -> core::result::Result<antecedent_design::FailureRoutes, antecedent_design::RepairError>
 pub fn antecedent_design::identification_repair::latent_expansion(admg: &antecedent_graph::admg::Admg) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<antecedent_design::LatentCause>), antecedent_design::RepairError>
 pub fn antecedent_design::identified_under_intervention(samples: &[antecedent_design::GraphPosteriorSample], treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<antecedent_prob::graph_samples::GraphIdentFlag>, antecedent_design::StructureIdentificationError>
-pub fn antecedent_design::inverse_forward_source::cohort_forward_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent_design::inverse_forward_source::composed_forward_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent_design::inverse_forward_source::composed_forward_source_accepting(response: &antecedent_design::inverse_forward_source::ComposedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent_design::inverse_forward_source::evaluate_inverse_on_source(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::cohort_forward_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::composed_forward_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::composed_forward_source_accepting(response: &antecedent_design::inverse_forward_source::ComposedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::evaluate_inverse_on_source(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent_design::inverse_forward_source::forward_claim_digest(claim: &antecedent_design::inverse_query::ForwardClaim) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_design::inverse_forward_source::query_needs_law(query: &antecedent_design::inverse_query::InverseQuery) -> core::option::Option<&'static str>
-pub fn antecedent_design::inverse_forward_source::seal_on_source(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent_design::inverse_forward_source::seal_per_action_on_source(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent_design::inverse_forward_source::transported_forward_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::seal_on_source(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::seal_per_action_on_source(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent_design::inverse_forward_source::transported_forward_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent_design::inverse_observational_scenarios::evaluate_observational_scenarios(query: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery, law: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult, antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>
 pub fn antecedent_design::inverse_observational_scenarios::verify_observational_scenarios(result: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult, query: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery, law: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<(), antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>
 pub fn antecedent_design::inverse_query::evaluate_inverse_query(query: &antecedent_design::inverse_query::InverseQuery, evidence: &antecedent_design::inverse_query::ForwardEvidence) -> core::result::Result<antecedent_design::inverse_query::InverseResult, antecedent_design::inverse_query::InverseQueryError>
@@ -13217,9 +13218,9 @@ pub struct antecedent_design::inverse_forward_source::ComposedActionResponse
 pub struct antecedent_design::inverse_forward_source::ComposedResponse
 pub struct antecedent_design::inverse_forward_source::ForwardOrigin
 pub struct antecedent_design::inverse_forward_source::InverseDemand
-pub struct antecedent_design::inverse_forward_source::LicensedForwardSource
-pub struct antecedent_design::inverse_forward_source::LicensedForwardSource has private fields
 pub struct antecedent_design::inverse_forward_source::SourcedInverseResult
+pub struct antecedent_design::inverse_forward_source::SupportedForwardSource
+pub struct antecedent_design::inverse_forward_source::SupportedForwardSource has private fields
 pub struct antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery
 pub struct antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult
 pub struct antecedent_design::inverse_observational_scenarios::ScenarioCell
@@ -13585,7 +13586,7 @@ pub use antecedent_design::decision_reliability::artifact::MAX_DECISION_RELIABIL
 pub use antecedent_design::decision_reliability::calibration::CANDIDATE_COUNT_BANDS = antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS
 pub use antecedent_design::decision_reliability::calibration::CalibrationCoordinate = antecedent_design::decision_reliability::CalibrationCoordinate
 pub use antecedent_design::decision_reliability::calibration::ClosedRoute = antecedent_design::decision_reliability::ClosedRoute
-pub use antecedent_design::decision_reliability::calibration::DEFAULT_LICENSE_LEVEL = antecedent_design::decision_reliability::DEFAULT_LICENSE_LEVEL
+pub use antecedent_design::decision_reliability::calibration::DEFAULT_SUPPORT_LEVEL = antecedent_design::decision_reliability::DEFAULT_SUPPORT_LEVEL
 pub use antecedent_design::decision_reliability::calibration::KnownOptimumDesign = antecedent_design::decision_reliability::KnownOptimumDesign
 pub use antecedent_design::decision_reliability::calibration::NoiseCoupling = antecedent_design::decision_reliability::NoiseCoupling
 pub use antecedent_design::decision_reliability::calibration::PublishedRoute = antecedent_design::decision_reliability::PublishedRoute
@@ -13624,8 +13625,6 @@ pub use antecedent_design::decision_reliability::interval::SelectionComponent = 
 pub use antecedent_design::decision_reliability::interval::SelectionCorrectedInterval = antecedent_design::decision_reliability::SelectionCorrectedInterval
 pub use antecedent_design::decision_reliability::interval::UtilityInterval = antecedent_design::decision_reliability::UtilityInterval
 pub use antecedent_design::decision_reliability::interval::derive_uncertainty = antecedent_design::decision_reliability::derive_uncertainty
-pub use antecedent_design::decision_reliability::license_route = antecedent_design::decision_reliability::calibration::license_route
-pub use antecedent_design::decision_reliability::license_route_at = antecedent_design::decision_reliability::calibration::license_route_at
 pub use antecedent_design::decision_reliability::mc_error::BatchPlan = antecedent_design::decision_reliability::BatchPlan
 pub use antecedent_design::decision_reliability::mc_error::DifferenceEstimate = antecedent_design::decision_reliability::DifferenceEstimate
 pub use antecedent_design::decision_reliability::mc_error::Functional = antecedent_design::decision_reliability::Functional
@@ -13693,6 +13692,8 @@ pub use antecedent_design::decision_reliability::stream::DECISION_RELIABILITY_ST
 pub use antecedent_design::decision_reliability::stream::DrawSegment = antecedent_design::decision_reliability::DrawSegment
 pub use antecedent_design::decision_reliability::stream::StreamId = antecedent_design::decision_reliability::StreamId
 pub use antecedent_design::decision_reliability::stream::StreamPurpose = antecedent_design::decision_reliability::StreamPurpose
+pub use antecedent_design::decision_reliability::support_route = antecedent_design::decision_reliability::calibration::support_route
+pub use antecedent_design::decision_reliability::support_route_at = antecedent_design::decision_reliability::calibration::support_route_at
 pub use antecedent_design::decision_reliability::winners_curse_bound = antecedent_design::decision_reliability::selection::winners_curse_bound
 pub use antecedent_design::decision_structural_artifact::StructuralResultArtifact = antecedent_design::StructuralResultArtifact
 pub use antecedent_design::error::DesignError = antecedent_design::DesignError
@@ -13772,9 +13773,9 @@ pub use antecedent_design::sensitivity_decision::AssumptionCoordinate = antecede
 pub use antecedent_design::sensitivity_decision::AssumptionRangeStatement = antecedent_io_core::sensitivity_artifact::AssumptionRangeStatement
 pub use antecedent_design::sensitivity_decision::DecisionSwitch = antecedent_io_core::sensitivity_artifact::DecisionSwitch
 pub use antecedent_design::sensitivity_decision::IdentifiedBound = antecedent_io_core::sensitivity_artifact::IdentifiedBound
-pub use antecedent_design::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS = antecedent_io_core::sensitivity_artifact::LICENSED_SAMPLING_COMPOSITIONS
 pub use antecedent_design::sensitivity_decision::NoRobustReason = antecedent_io_core::sensitivity_artifact::NoRobustReason
 pub use antecedent_design::sensitivity_decision::PointSupport = antecedent_io_core::sensitivity_artifact::PointSupport
+pub use antecedent_design::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS = antecedent_io_core::sensitivity_artifact::SUPPORTED_SAMPLING_COMPOSITIONS
 pub use antecedent_design::sensitivity_decision::SamplingInterval = antecedent_io_core::sensitivity_artifact::SamplingInterval
 pub use antecedent_design::sensitivity_decision::SamplingStatus = antecedent_io_core::sensitivity_artifact::SamplingStatus
 pub use antecedent_design::sensitivity_decision::SensitivityArtifact = antecedent_io_core::sensitivity_artifact::SensitivityArtifact
@@ -14016,7 +14017,7 @@ pub variant antecedent_design::composition_boundary::AtomPlan::Weighted(alloc::v
 pub variant antecedent_design::composition_boundary::AtomPlan::WorstCase
 pub variant antecedent_design::composition_boundary::BoundaryError::Artifact(antecedent_io_core::error::IoError)
 pub variant antecedent_design::composition_boundary::BoundaryError::ConflictingAtomsNotAveraged
-pub variant antecedent_design::composition_boundary::BoundaryError::DependenceRouteNotLicensed { left: alloc::string::String, right: alloc::string::String }
+pub variant antecedent_design::composition_boundary::BoundaryError::DependenceRouteNotSupported { left: alloc::string::String, right: alloc::string::String }
 pub variant antecedent_design::composition_boundary::BoundaryError::Eval(antecedent_design::decision_eval::DecisionEvalError)
 pub variant antecedent_design::composition_boundary::BoundaryError::InvalidAtomProbabilities
 pub variant antecedent_design::composition_boundary::BoundaryError::InvalidInput(&'static str)
@@ -14121,7 +14122,7 @@ pub variant antecedent_design::composition_bundle::ProviderOrData::Provider { pr
 pub variant antecedent_design::decision_adapters::AdapterError::Admissibility(antecedent_design::decision_contract::AdmissibilityError)
 pub variant antecedent_design::decision_adapters::AdapterError::BayesOverIdentifiedSet
 pub variant antecedent_design::decision_adapters::AdapterError::CompletionCountNotProbability(alloc::string::String)
-pub variant antecedent_design::decision_adapters::AdapterError::CriterionNotLicensedForSet
+pub variant antecedent_design::decision_adapters::AdapterError::CriterionNotSupportedForSet
 pub variant antecedent_design::decision_adapters::AdapterError::DuplicateAction(alloc::string::String)
 pub variant antecedent_design::decision_adapters::AdapterError::GraphClaimsCarryNoProbability(alloc::string::String)
 pub variant antecedent_design::decision_adapters::AdapterError::InvalidClaims(&'static str)
@@ -14323,12 +14324,12 @@ pub variant antecedent_design::decision_reliability::PublishedRoute::SelectionCo
 pub variant antecedent_design::decision_reliability::PublishedRoute::UtilityInterval
 pub variant antecedent_design::decision_reliability::ReliabilityError::Admission { error: antecedent_core::execution::admission::AdmissionError }
 pub variant antecedent_design::decision_reliability::ReliabilityError::Cancelled
-pub variant antecedent_design::decision_reliability::ReliabilityError::CellNotLicensed { route: &'static str, coordinate: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::CombinedUncertainty
 pub variant antecedent_design::decision_reliability::ReliabilityError::DependenceUnknown { what: &'static str }
 pub variant antecedent_design::decision_reliability::ReliabilityError::EffectiveSampleSizeTooSmall { what: &'static str, effective_sample_size: f64, minimum: f64 }
 pub variant antecedent_design::decision_reliability::ReliabilityError::InvalidInput { slot: &'static str, message: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::JointLawRequired { reason: &'static str }
+pub variant antecedent_design::decision_reliability::ReliabilityError::NotSupported { route: &'static str, coordinate: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::Numerical { message: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::ProducerMeanDisagrees { id: alloc::string::String, reported: f64, draws_mean: f64, standard_error: f64 }
 pub variant antecedent_design::decision_reliability::ReliabilityError::ProducerPointOnly { producer: antecedent_design::decision_reliability::ProducerKind, held: &'static str }
@@ -14430,7 +14431,7 @@ pub variant antecedent_design::decision_transported_source::TransportedDemand::L
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::Boundary(antecedent_design::composition_boundary::BoundaryError)
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::CalibrationLabelInflated
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::IdentityNotDigest
-pub variant antecedent_design::decision_transported_source::TransportedRefusal::IntervalNotLicensed
+pub variant antecedent_design::decision_transported_source::TransportedRefusal::IntervalNotSupported
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::InvalidValue(&'static str)
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::LawNotSupplied { needed: &'static str }
 pub variant antecedent_design::decision_transported_source::TransportedRefusal::MixedTransports
@@ -14528,7 +14529,7 @@ pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::Com
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::ComposedLawNotMaterialized { needed: &'static str }
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::ComposedLevelCoding { action: alloc::string::String, problem: &'static str }
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::ComposedQueryResultMismatch(alloc::string::String)
-pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::IntervalNotLicensed(antecedent_design::inverse_forward_source::ForwardSourceKind)
+pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::IntervalNotSupported(antecedent_design::inverse_forward_source::ForwardSourceKind)
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::Inverse(antecedent_design::inverse_query::InverseQueryError)
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::PerActionNotSealable
 pub variant antecedent_design::inverse_forward_source::ForwardSourceRefusal::PointOnlyLawRequested { kind: antecedent_design::inverse_forward_source::ForwardSourceKind, needed: &'static str }
@@ -14769,7 +14770,7 @@ pub variant antecedent_design::signal::SignalError::TrustMismatch
 pub variant antecedent_design::signal::SignalError::TrustNativeClaimed
 pub variant antecedent_design::signal::SignalTrustLabel::ExactRequestVerified
 pub variant antecedent_design::signal::SignalTrustLabel::ExternallyAttested
-pub variant antecedent_design::signal::SignalTrustLabel::NativeLicensed
+pub variant antecedent_design::signal::SignalTrustLabel::NativeSupported
 pub variant antecedent_design::signal::SignalUpdateMode::ExternalDecisionValues
 pub variant antecedent_design::signal::SignalUpdateMode::ExternalPosterior
 pub variant antecedent_design::signal::SignalUpdateMode::NativeUpdate

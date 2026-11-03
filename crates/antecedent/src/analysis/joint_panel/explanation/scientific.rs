@@ -1097,7 +1097,7 @@ mod tests {
     }
 
     /// Complete data-generation, design identification, native F/B fitting and hybrid
-    /// decomposition measurement. Execution does not grant a release calibration license.
+    /// decomposition measurement. Execution does not grant a release calibration support.
     #[test]
     #[ignore = "Q08/E14 stable-candidate measurement; execute explicitly"]
     #[allow(
@@ -1216,7 +1216,7 @@ mod tests {
                 let fraction = f64::from(coverage[mode]) / repetitions as f64;
                 eprintln!(
                     "{}",
-                    serde_json::json!({"procedure":"compiled_reference_decomposition_full_procedure","temporal":temporal,"inference":if mode==0 {"frequentist"} else {"bayesian"},"repetitions":repetitions,"simultaneous_coverage":fraction,"mean_component_width":width[mode]/(4*repetitions) as f64,"mean_ordering_sensitivity":ordering_sensitivity[mode]/(4*repetitions) as f64,"failed_slots":0,"nominal_joint_probability":0.95,"grants_release_license":false})
+                    serde_json::json!({"procedure":"compiled_reference_decomposition_full_procedure","temporal":temporal,"inference":if mode==0 {"frequentist"} else {"bayesian"},"repetitions":repetitions,"simultaneous_coverage":fraction,"mean_component_width":width[mode]/(4*repetitions) as f64,"mean_ordering_sensitivity":ordering_sensitivity[mode]/(4*repetitions) as f64,"failed_slots":0,"nominal_joint_probability":0.95,"grants_release_support":false})
                 );
                 assert!(
                     fraction >= 0.90,

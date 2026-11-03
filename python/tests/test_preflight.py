@@ -163,7 +163,7 @@ def test_rank_drop_follows_the_declared_priority_and_refuses_query_columns() -> 
         pf.plan_rank_drop(
             data, treatment="t", outcome="y", adjustment=["a", "b", "c"], priority=["a"]
         )
-    assert raised.value.reason_code == "rank_drop_not_licensed"
+    assert raised.value.reason_code == "rank_drop_not_supported"
     assert_registered_refusal(raised.value)
     assert raised.value.refusal_fields["stage"] == "rank_drop"
     assert raised.value.refusal_fields["implicated_columns"] == ["b", "c"]
@@ -171,7 +171,7 @@ def test_rank_drop_follows_the_declared_priority_and_refuses_query_columns() -> 
     aliased = _frame(t, t + a, a=a, alias=t.copy())
     with pytest.raises(CausalUnsupportedError) as raised:
         pf.plan_rank_drop(aliased, treatment="t", outcome="y", adjustment=["a", "alias"])
-    assert raised.value.reason_code == "rank_drop_not_licensed"
+    assert raised.value.reason_code == "rank_drop_not_supported"
     assert "alias" in raised.value.refusal_fields["implicated_columns"]
 
 
@@ -323,12 +323,12 @@ def test_estimate_with_rank_drop_matches_numpy_and_records_the_drop() -> None:
     assert aipw.ate == pytest.approx(1.5, abs=0.1)
 
 
-def test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators() -> None:
+def test_estimate_with_rank_drop_refuses_aliases_and_unsupported_estimators() -> None:
     t, y, a, b, c = _collinear(seed=32)
     aliased = _frame(t, y, a=a, alias=t.copy())
     with pytest.raises(CausalUnsupportedError) as raised:
         pf.estimate_with_rank_drop(aliased, treatment="t", outcome="y", adjustment=["a", "alias"])
-    assert raised.value.reason_code == "rank_drop_not_licensed"
+    assert raised.value.reason_code == "rank_drop_not_supported"
     assert_registered_refusal(raised.value)
 
     data = _frame(t, y, a=a, b=b, c=c)
@@ -346,7 +346,7 @@ def test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators() -> 
         pf.estimate_with_rank_drop(
             data, treatment="t", outcome="y", adjustment=["a", "b", "c"], priority=["a"]
         )
-    assert raised.value.reason_code == "rank_drop_not_licensed"
+    assert raised.value.reason_code == "rank_drop_not_supported"
 
 
 def test_fit_diagnostics_of_a_confounded_design_match_an_independent_logistic_fit() -> None:

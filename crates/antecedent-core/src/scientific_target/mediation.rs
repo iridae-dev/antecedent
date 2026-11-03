@@ -17,7 +17,7 @@ use super::{ActionFault, ScientificTargetError, TimeFrame, WorldBinding};
 /// Which mediation functional is the target.
 ///
 /// These names match [`crate::query::MediationContrast`]. [`Self::Direct`] is the
-/// natural direct path-sum, not a controlled direct effect licensed by algebra.
+/// natural direct path-sum, not a controlled direct effect supported by algebra.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum MediationComponent {

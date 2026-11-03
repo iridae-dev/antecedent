@@ -4620,7 +4620,7 @@ grid = [
   { point = 1, n_min = 600, n_max = 600, observed = 0.9616368286445013, mcse = 0.009713470284054017, replicates = 391, boundary = false, role = "gated" },
   { point = 2, n_min = 1200, n_max = 1200, observed = 0.9564102564102565, mcse = 0.010339081673687932, replicates = 390, boundary = false, role = "gated" },
 ]
-dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data"
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::supported_family_data"
 test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_discovered_effect_nominal_95_coverage"
 facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
@@ -4656,7 +4656,7 @@ grid = [
   { point = 1, n_min = 1200, n_max = 1200, observed = 0.9460154241645244, mcse = 0.011458008885845817, replicates = 389, boundary = true, role = "named_boundary" },
   { point = 2, n_min = 2400, n_max = 2400, observed = 0.9394736842105263, mcse = 0.01223270862186451, replicates = 380, boundary = true, role = "named_boundary" },
 ]
-dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data"
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::supported_family_data"
 test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_full_row_reuse_boundary_95"
 facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"

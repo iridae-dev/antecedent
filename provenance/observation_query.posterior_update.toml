@@ -14,7 +14,7 @@ implementation_deviations = [
   "Both updates are textbook identities evaluated exactly given a declared prior and likelihood; there is no estimation, sampling or approximation step.",
   "The finite update is computed in log space with the evidence by log-sum-exp, from the counts of each observation level. Observations are declared exchangeable and conditionally independent given the hypothesis, so the posterior does not depend on their order; sequential dependence is not represented.",
   "The conjugate model is Beta-Bernoulli only, reporting the posterior shapes and the predictive probability of the next success (the posterior mean). The posterior tail probability of the parameter needs a regularised incomplete beta that is not a public primitive of this library; it is not offered.",
-  "A posterior or decision probability is exact given the declared model. When the prior or likelihood was fitted to a sample the caller labels it so, and the claim carries point_only_sample_fitted: no interval or calibration is made and both routes are closed with cell_not_licensed.",
+  "A posterior or decision probability is exact given the declared model. When the prior or likelihood was fitted to a sample the caller labels it so, and the claim carries point_only_sample_fitted: no interval or calibration is made and both routes are closed with not_supported.",
 ]
 
 upstream_implementations_observed = []
@@ -37,7 +37,7 @@ redistribution = "The reference script and frozen output are repository-authored
 limitations = "Gelman et al. and Bernardo and Smith were not retrieved (nothing downloaded, no local copy); the check is of the code against Bayes' rule and the conjugate identity. The comparison covers six finite models (two to five hypotheses, two to four observation levels, dyadic priors and likelihoods so that the reference is exact) at counts up to 6e8 per level (evaluated at 60 digits), the stream form against the tally for up to 200 observations in reversed order, and six Beta updates (shapes from 1e-3 to 1e300, counts to 2^52 and 10^9) at 1e-14 relative. The probability of the observations itself underflows for long streams, so the log evidence is the quantity compared. It does not examine models near the table-size bounds or the sequential (non-exchangeable) case."
 sources = ["https://doi.org/10.1201/b16018", "https://doi.org/10.1002/9780470316870", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No defect found: posteriors, log evidence and predictive probabilities agree with the 60-digit computation at counts up to 6e8 (the log-space form does not underflow where the direct product would), the stream and tally forms agree in any order, and the Beta updates and means are exact including at shapes near f64::MAX."]
-record_sha256 = "72c840a755002579a4264dabf942ea9729550c4cd716cccafedb8b5fa9471f19"
+record_sha256 = "fa9e16dd6bb68bbadb39de59d2224e38b65174f11662d64676e268e54709ab05"
 
 [[method_review.artifacts]]
 role = "implementation"

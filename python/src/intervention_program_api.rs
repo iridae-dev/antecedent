@@ -127,10 +127,10 @@ fn run_counterfactual<'py>(
     Ok(out)
 }
 
-/// One route's decision as `{licensed, assumption, reason_code, detail, message}`.
+/// One route's decision as `{supported, assumption, reason_code, detail, message}`.
 fn decision_dict<'py>(py: Python<'py>, decision: &RouteDecision) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("licensed", decision.is_licensed())?;
+    out.set_item("supported", decision.is_supported())?;
     out.set_item("assumption", decision.assumption())?;
     let (code, detail, message) = match decision {
         RouteDecision::Refused { code, detail, message } => {
@@ -232,7 +232,7 @@ pub(crate) fn counterfactual_policy<'py>(
     run_counterfactual(py, &fitted, programs_of(&fitted, policies)?, &outcomes, seed, threads)
 }
 
-/// The licence of each route (simulation, counterfactual execution, observational
+/// The support of each route (simulation, counterfactual execution, observational
 /// identification) for a program on the fitted model, with the reason code of every refusal.
 #[pyfunction]
 pub(crate) fn policy_support<'py>(
@@ -259,7 +259,7 @@ pub(crate) fn policy_value<'py>(
     run_value(py, &fitted, programs_of(&fitted, policies)?, outcome, n, seed, threads)
 }
 
-/// A program compiled and licensed once against one fitted model, rerun on any route without
+/// A program compiled and supported once against one fitted model, rerun on any route without
 /// being compiled again: the retained handle of the policy workflow. Every method calls the
 /// same executor as the free functions; `value` runs it on the retained compiled overlay.
 #[pyclass(name = "PreparedPolicy", frozen)]
@@ -305,13 +305,13 @@ impl PyPreparedPolicy {
         self.core.program_compilations()
     }
 
-    /// How many fitted models the program's overlay and licence were resolved against.
+    /// How many fitted models the program's overlay and support were resolved against.
     #[getter]
     fn model_bindings(&self) -> u64 {
         self.core.model_bindings()
     }
 
-    /// The licence of each route, fixed when the policy was prepared.
+    /// The support of each route, fixed when the policy was prepared.
     fn support<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         support_dict(py, self.core.support())
     }

@@ -32,7 +32,7 @@ implementation_deviations = [
  "When the denominator posterior has mass within a declared floor of zero above the interval's tail mass, the credible interval is withheld and the mass is reported with a weak-first-stage diagnostic; the ratio is not divided through.",
  "Residual covariance is a plug-in 2x2 estimate and is not given a prior or integrated out; the correlation is clamped away from one so the joint draw stays positive definite. The coefficient prior scale prior_sd is in residual standard deviations of each response (the ridge strength is 1/prior_sd^2 on the unscaled Gram matrix and the covariance is multiplied by the residual covariance), and the residuals come from the posterior-mean fit.",
  "Manipulation, density, continuity-placebo and covariate-adjusted checks are not provided.",
- "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+ "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval.",
 ]
 
 upstream_implementations_observed = []
@@ -54,7 +54,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Three 400-row series (201-row windows) with a strong fuzzy jump, a kink and a first stage whose jump is 0.02 (so 98.6% of the denominator mass lies within the floor 0.1): the window count, denominator mean (five Monte Carlo standard errors) and sd (1%), positive probability and near-zero mass (five binomial standard errors), the weak flag, the withheld interval and thirteen points of the ratio distribution function (five binomial standard errors) agree with the exact bivariate-Normal law, 200,000 draws at one seed. The prior is wide (prior_sd 20) so the tight-prior inflation of the plug-in covariance seen in the sharp posterior is not exercised here. Not exercised: floors near the 2.5% threshold, strongly correlated residuals near the clamp, windows near the 12-row minimum and coverage under the declared law. The cited publications were not retrieved."
 sources = ["https://doi.org/10.1111/1468-0262.00183", "https://doi.org/10.3982/ECTA11224", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The documentation described prior_sd as the absolute standard deviation of every coefficient, but the posterior is the one for coefficient covariance multiplied by each response's residual variance (the prior is in residual standard deviations, as in the sharp posterior); the module, field and record text now say so.", "No numerical defect was found: window membership, the ridge posterior means, the residual covariance with its floors and clamp, the joint coordinate draws, the pairing of numerator and denominator and the weak-first-stage rule agree with the exact reference."]
-record_sha256 = "7a85c65e1b5dab7a4e0eebaffef21bfb8c0f39ae2a7057d41cb23a6a12d1b744"
+record_sha256 = "771386de03db32ca487e8df21dee88ffd07bda30b424766e0d0ad0783e1adbdd"
 
 [[method_review.artifacts]]
 role = "implementation"

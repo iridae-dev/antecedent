@@ -63,7 +63,7 @@ pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
 pub const MAX_JOINT_BINARY: usize = 31;
 
 /// Named refuse: coarsened `continuous_cell` is not a point CDE.
-pub const POINT_CDE_UNLICENSED: &str = "point controlled direct effect is unlicensed; continuous_cell coarsens D onto a grid and is not do(D=d0)";
+pub const POINT_CDE_UNSUPPORTED: &str = "point controlled direct effect is unsupported; continuous_cell coarsens D onto a grid and is not do(D=d0)";
 
 /// Cell-saturated joint AIPW estimator.
 #[derive(Clone, Debug)]
@@ -116,7 +116,7 @@ impl CellSaturatedAipw {
     ///
     /// No treatments, more joint cells than complete-case rows, empty cells needed for a requested contrast,
     /// a fold missing a cell that appears in the data, or a continuous cell
-    /// (point CDE is unlicensed).
+    /// (point CDE is unsupported).
     pub fn fit_scores(
         &self,
         data: &TabularData,
@@ -230,7 +230,7 @@ impl CellSaturatedAipw {
         if continuous.is_some() {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
-                POINT_CDE_UNLICENSED,
+                POINT_CDE_UNSUPPORTED,
             ));
         }
         let mut prepared =
@@ -277,7 +277,7 @@ pub struct CellScoreSpec<'a> {
     pub adjustment: &'a [VariableId],
     /// Outcome functional the score table is built for.
     pub functional: &'a OutcomeFunctional,
-    /// Discretized continuous coordinate; refused as an unlicensed point CDE.
+    /// Discretized continuous coordinate; refused as an unsupported point CDE.
     pub continuous: Option<ContinuousCellSpec<'a>>,
 }
 
@@ -336,7 +336,7 @@ fn prepare_cells(
     if continuous.is_some() {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            POINT_CDE_UNLICENSED,
+            POINT_CDE_UNSUPPORTED,
         ));
     }
     if let Some(c) = continuous {
@@ -952,7 +952,7 @@ pub fn cell_minus_control_coefficients(
     if table.distinct_threshold_count() > 1 {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            "cell_minus_control on an exceedance grid is not licensed; request a single threshold",
+            "cell_minus_control on an exceedance grid is not supported; request a single threshold",
         ));
     }
     let first = table.columns.first().and_then(|c| c.threshold);
@@ -986,7 +986,7 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
     if table.distinct_threshold_count() > 1 {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
+            "interaction contrast on an exceedance grid is not supported; request a single Exceedance threshold or a raw coefficient vector",
         ));
     }
     let first_threshold = table.columns.first().and_then(|c| c.threshold);

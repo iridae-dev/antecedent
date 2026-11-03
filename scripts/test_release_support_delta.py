@@ -33,7 +33,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             baseline = Path(directory) / "v9.8.6.md"
             baseline.write_text(
-                f"{FROZEN_BEGIN if frozen else ''}\n{count} licensed of 4 meaningful cells\n\n{inventory}\n{FROZEN_END}",
+                f"{FROZEN_BEGIN if frozen else ''}\n{count} supported of 4 meaningful cells\n\n{inventory}\n{FROZEN_END}",
                 encoding="utf-8",
             )
             return "\n".join(release_support_delta(cells, self.axes, baseline))
@@ -71,7 +71,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "v9.8.6.md").write_text(
-                f"{FROZEN_BEGIN}\n2 licensed of 4 meaningful cells\n\n{self.inventory}\n{FROZEN_END}",
+                f"{FROZEN_BEGIN}\n2 supported of 4 meaningful cells\n\n{self.inventory}\n{FROZEN_END}",
                 encoding="utf-8",
             )
             added = "- `AverageEffect` × `Dag` × `accepted` × `Frequentist` × validation `none`"

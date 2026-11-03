@@ -328,13 +328,13 @@ fn observed_laws_outside_the_contract_are_refused() {
     probabilities[impossible] += probabilities[complete];
     probabilities[complete] = 0.0;
     assert_eq!(refuse(&relabel(&law, probabilities)).detail, RecoveryDetail::InvalidObservedLaw);
-    // A counted (empirical) law is a sampled provider: not licensed.
+    // A counted (empirical) law is a sampled provider: not supported.
     let counts: Vec<u64> = law.probabilities().iter().map(|_| 1).collect();
     let uniform = relabel(&law, vec![1.0 / counts.len() as f64; counts.len()]);
     let empirical = uniform.with_empirical_counts(counts).unwrap();
     let error = refuse(&empirical);
-    assert_eq!(error.detail, RecoveryDetail::EmpiricalNotLicensed);
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.detail, RecoveryDetail::EmpiricalNotSupported);
+    assert_eq!(error.reason_code(), "not_supported");
     // Another snapshot than the catalog binds.
     let other = ExactDiscreteLaw::try_new(
         POPULATION,

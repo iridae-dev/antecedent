@@ -3,7 +3,7 @@
 //! exactly quadratic, so smoothing bias is zero at fixed bandwidth .6. HC0 local
 //! covariance and shared-row contrast covariance are refitted per independent sample.
 //! Level at2, derivative at2 and contrast1→3 are separate pointwise claims. No band,
-//! unrestricted smoothing-bias license or calibration run occurs in ordinary tests.
+//! unrestricted smoothing-bias support or calibration run occurs in ordinary tests.
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]
 #[path = "../../antecedent/tests/common/calibration.rs"]
 mod calibration;

@@ -19,7 +19,7 @@ decompose a causal effect.
   ``covariance_unavailable`` (independence is never assumed for arms that share data).
   :func:`raw_reporting_transform` does this for the raw arm means of a sample, whose
   independent-groups covariance it can form itself. No interval is reported on a transformed
-  scale: ``level=...`` is refused with ``cell_not_licensed``.
+  scale: ``level=...`` is refused with ``not_supported``.
 
 * :class:`Association` is the compiled noncausal route: an outcome against predictors, stated as a
   query to :func:`antecedent.analyze`. A declared selection rule picks a stratified mean or
@@ -27,7 +27,7 @@ decompose a causal effect.
   predictive model scored on held-out folds, from the outcome scale and the functional. The
   answer (``result.answer.kind == "associational"``, ``result.association``) describes the
   observed law: identification is not claimed, it is never the effect of an intervention, it ranks
-  no action, and every uncertainty it reports is unlicensed with calibration ``unmeasured``.
+  no action, and every uncertainty it reports is unsupported with calibration ``unmeasured``.
   Rows are independent units (``temporal=False``) or the consecutive points of one series
   (``temporal=True``, resampled in circular blocks under the declared dependent-series design).
   After a causal query was refused, ``refused_after=`` keeps the refusal's reason code beside the
@@ -88,7 +88,7 @@ _SCALES = ("mean_difference", "risk_difference", "log_risk_ratio", "log_odds_rat
 _INTERPRETATION = "descriptive_not_causal_decomposition"
 
 # (registered reason code, detail) of the typed absences carried as data.
-_GAP_INTERVAL_UNAVAILABLE = ("cell_not_licensed", "descriptive_comparison.gap_interval_unavailable")
+_GAP_INTERVAL_UNAVAILABLE = ("not_supported", "descriptive_comparison.gap_interval_unavailable")
 _JOINT_COVARIANCE_UNAVAILABLE = (
     "required_option_missing",
     "descriptive_comparison.joint_covariance_unavailable",
@@ -377,7 +377,7 @@ def transform_mean_pair(
 
     ``covariance`` is the ``2 x 2`` joint covariance of ``(mean_active, mean_control)`` exactly
     as the source estimate published it; ``None`` is not read as independence. ``level`` exists
-    only so that asking for an interval is a typed refusal (``cell_not_licensed``).
+    only so that asking for an interval is a typed refusal (``not_supported``).
 
     ``risk_difference`` needs both means in ``[0, 1]``, ``log_risk_ratio`` both means positive and
     ``log_odds_ratio`` both inside ``(0, 1)``; outside that the call is refused.
@@ -555,7 +555,7 @@ class Association:
     The answer describes the observed law: ``result.answer.kind == "associational"``, identification
     is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
     ``refused_after=`` the reason code (or the error) of a refused causal query to keep the
-    refusal beside the description. The route is unlicensed and its calibration is unmeasured.
+    refusal beside the description. The route is unsupported and its calibration is unmeasured.
     """
 
     outcome: str
@@ -685,7 +685,7 @@ class AssociationPrediction:
 
 @dataclass(frozen=True, slots=True)
 class AssociationEstimate:
-    """A noncausal association and the evidence behind it. Unlicensed, calibration unmeasured.
+    """A noncausal association and the evidence behind it. Unsupported, calibration unmeasured.
 
     ``analysis`` is what the declared selection rule (``rule``) picked for the ``outcome_kind``
     and ``modality``; ``requested`` is the functional the query asked for. The result is never an
@@ -708,7 +708,7 @@ class AssociationEstimate:
     prediction: AssociationPrediction | None = None
     refused_after: str | None = None
     calibration: str = "unmeasured"
-    licensed: bool = False
+    supported: bool = False
     ranks_actions: bool = False
     is_intervention_effect: bool = False
 
@@ -777,7 +777,7 @@ def association_from_raw(raw: Any) -> AssociationEstimate | None:
         ),
         refused_after=section.refused_after,
         calibration=section.calibration,
-        licensed=section.licensed,
+        supported=section.supported,
         ranks_actions=section.ranks_actions,
         is_intervention_effect=section.is_intervention_effect,
     )
@@ -806,5 +806,5 @@ def describe_association(association: AssociationEstimate) -> str:
     )
     return (
         f"{head}{spread}. Identification is not claimed: this is not the effect of changing any "
-        f"variable and ranks no action.{follows} Unlicensed, calibration unmeasured."
+        f"variable and ranks no action.{follows} Unsupported, calibration unmeasured."
     )

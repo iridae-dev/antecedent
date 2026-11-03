@@ -14,7 +14,7 @@
 //! Rank candidate experimental designs by identification probability.
 //!
 //! Ranking is advisory — it does not auto-rerun analyses. Ranking runs through a
-//! prepared study's contract, which refuses an unlicensed study and reports the candidates the
+//! prepared study's contract, which refuses an unsupported study and reports the candidates the
 //! objective cannot score instead of scoring them.
 //!
 //! Run: `cargo run -p antecedent --example rank_designs`

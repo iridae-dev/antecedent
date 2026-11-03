@@ -11,7 +11,7 @@
 //!    alignment identity); mixtures need known weights; a transported interval
 //!    composed with another claim needs an aligned law or a covariance.
 //!    Unrelated marginal draws are never paired by index.
-//! 2. **Execute** the licensed route in `antecedent_stats::joint_law`: the
+//! 2. **Execute** the supported route in `antecedent_stats::joint_law`: the
 //!    delta method for a linear map, the aligned expectation, the law of total
 //!    variance for a mixture, or a dependence envelope.
 //! 3. **Export** seals the declaration, the numbers and the result into
@@ -22,13 +22,13 @@
 //! probability with its Monte Carlo band and verdict) is requested through the
 //! `*_spread` and `*_exceedance` functions; it is labelled
 //! `uncalibrated_spread` and carries no coverage statement. An **interval** at
-//! a composed coordinate is licensed only by
+//! a composed coordinate is supported only by
 //! [`PropagationClaim::check_composed_interval`] with a measured coverage
 //! record for exactly that coordinate and construction.
 //!
 //! # What a value means
 //!
-//! A value computed under a licensed dependence route is a labelled point
+//! A value computed under a supported dependence route is a labelled point
 //! value (`point_only`): no interval and no posterior is produced. A
 //! dependence envelope is a `structural_envelope` (the set of values no
 //! coupling of the marginals could exceed) or, for a declared correlation
@@ -59,7 +59,7 @@ use antecedent_stats::{
 
 /// The refusals of a propagation request: each with a registered reason code,
 /// a namespaced `joint_law_propagation.*` detail, the offending subject and a
-/// remedy that names the dependence information that would license it.
+/// remedy that names the dependence information that would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JointLawPropagationRefusal {
     /// Every refusal. Never empty.
@@ -366,7 +366,7 @@ pub enum LinearDependence {
 
 // ------------------------------------------------------------------ claims
 
-/// A composed uncertain quantity: the licensed route, the labelled value and
+/// A composed uncertain quantity: the supported route, the labelled value and
 /// the sealed artifact that replays it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PropagationClaim {
@@ -452,7 +452,7 @@ impl PropagationClaim {
     /// measured at: `operation|route|role,role,...`.
     ///
     /// # Errors
-    /// A declaration whose dependence route does not license a spread (an
+    /// A declaration whose dependence route does not support a spread (an
     /// envelope has no composed coordinate with a spread).
     pub fn coordinate_id(&self) -> Result<String, Refusal> {
         let request =
@@ -466,7 +466,7 @@ impl PropagationClaim {
     /// the declared sample size of the least-supported input's evidence.
     ///
     /// # Errors
-    /// A declaration whose dependence route licenses no spread, or a sample
+    /// A declaration whose dependence route supports no spread, or a sample
     /// size of zero.
     pub fn composed_interval_basis(
         &self,
@@ -492,15 +492,15 @@ impl PropagationClaim {
         ))
     }
 
-    /// The interval reading of the composed quantity, licensed only by a
+    /// The interval reading of the composed quantity, supported only by a
     /// currently attesting coverage record the registry holds for exactly this
     /// composed coordinate, construction, nominal level and evidence size.
     /// The caller supplies no record. Without one it is closed with the typed
     /// refusal; a component interval does not cover the composition.
     ///
-    /// A licensed `normal_approximation` interval is built from this claim's
+    /// A supported `normal_approximation` interval is built from this claim's
     /// mean and variance at the record's nominal level. For another
-    /// construction the licence is returned without bounds: the caller builds
+    /// construction the support is returned without bounds: the caller builds
     /// the interval from the aligned draws with the construction the record
     /// was measured for.
     ///
@@ -509,7 +509,7 @@ impl PropagationClaim {
     ///
     /// # Errors
     /// The refusals of `antecedent_contract::check_composed_interval`: an
-    /// unlicensed dependence route, a missing or non-attesting record, or a
+    /// unsupported dependence route, a missing or non-attesting record, or a
     /// nominal level outside `(0, 1)`.
     pub fn check_composed_interval(
         &self,
@@ -586,7 +586,7 @@ impl PropagationClaim {
     /// does not cover the composition.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with the stated remedy.
+    /// Always `not_supported` with the stated remedy.
     pub fn interval(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Interval)
     }
@@ -594,7 +594,7 @@ impl PropagationClaim {
     /// A posterior statement for the composed quantity. Always refused.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with the stated remedy.
+    /// Always `not_supported` with the stated remedy.
     pub fn posterior(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Posterior)
     }
@@ -611,7 +611,7 @@ impl PropagationClaim {
     }
 }
 
-/// A composed interval licensed by a measured coverage record at its composed
+/// A composed interval supported by a measured coverage record at its composed
 /// coordinate. The record, not this value, carries the coverage evidence.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComposedInterval {
@@ -626,7 +626,7 @@ pub struct ComposedInterval {
 
 impl ComposedInterval {
     /// The evidence size the record was resolved at. It is the caller's
-    /// declaration, not something the sealed claim authenticates: the licence
+    /// declaration, not something the sealed claim authenticates: the support
     /// holds only as far as that declaration is true.
     #[must_use]
     pub fn declared_evidence_rows(&self) -> u64 {
@@ -639,7 +639,7 @@ impl ComposedInterval {
         &self.coordinate_id
     }
 
-    /// The identity of the record that licensed the interval.
+    /// The identity of the record that supported the interval.
     #[must_use]
     pub fn record_id(&self) -> &str {
         &self.record_id
@@ -678,7 +678,7 @@ impl ComposedInterval {
 ///
 /// # Errors
 /// A refusal of the rule (with its registered code and remedy), numbers that do
-/// not fit the licensed route, a failed computation or cancellation.
+/// not fit the supported route, a failed computation or cancellation.
 pub fn propagate(
     declared: &PropagationRequest,
     numbers: PropagationRequestWire,
@@ -790,7 +790,7 @@ pub fn propagate_linear_moments(
     )
 }
 
-/// The spread (a variance under the licensed dependence route) of
+/// The spread (a variance under the supported dependence route) of
 /// `sum a_i X_i` from means and a covariance, labelled `uncalibrated_spread`.
 /// The variance is what the route determines; it carries no coverage statement.
 ///
@@ -1345,7 +1345,7 @@ pub fn claim_from_artifact(
 ///
 /// # Errors
 /// A malformed or edited artifact, a retained identity that differs, a result
-/// that does not replay, or a stored declaration the rule no longer licenses.
+/// that does not replay, or a stored declaration the rule no longer supports.
 pub fn consume_joint_law_propagation_artifact(
     bytes: &[u8],
     expected_identity: Option<&str>,

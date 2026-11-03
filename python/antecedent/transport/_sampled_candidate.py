@@ -43,7 +43,7 @@ class SampledRecoveryIdentity:
 
 @dataclass(frozen=True, slots=True, init=False)
 class SampledRecoveryCandidate(ScientificResult):
-    """Checked whole-row bootstrap candidate, with no measured coverage license.
+    """Checked whole-row bootstrap candidate, with no measured coverage support.
 
     Created through the private candidate hook in a calibration-internal build.
     The standard public producer returns native-authorized measured inference.
@@ -68,7 +68,7 @@ class SampledRecoveryCandidate(ScientificResult):
             raise CausalUnsupportedError(
                 "sampled_recovery.route_frozen: private candidate factory requires "
                 "the original calibration-internal native hook",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         decoded = json.loads(payload)
         if decoded.get("calibration") != "unmeasured":
@@ -150,7 +150,7 @@ class SampledRecoveryCandidate(ScientificResult):
         if consume is None:
             raise CausalUnsupportedError(
                 "sampled_recovery.route_frozen: private candidate replay requires calibration-internal",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         payload = call_native(
             execution,

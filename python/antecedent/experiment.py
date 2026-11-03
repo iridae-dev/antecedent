@@ -301,7 +301,7 @@ class SwitchbackEstimate:
     treatment_arms: tuple[str, str]
     estimand: str = "unit_period_itt"
     uncertainty: str = "independent_sequence_cluster_sandwich_standard_error_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "known marginal randomization probability for every unit-period",
         "independent assignment sequences with arbitrary within-sequence dependence",
@@ -555,7 +555,7 @@ class RandomizedEffect:
     cluster design the adjustment is applied to cluster totals, so the cluster stays the unit of
     analysis and the estimand stays the unadjusted per-row ITT. A coefficient learned from the
     rows (``ancova_covariates``) is Bernoulli-only. Each adjusted route has its own graphless
-    support row; neither inherits the unadjusted design's license.
+    support row; neither inherits the unadjusted design's support.
 
     ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
     unadjusted Bernoulli or completely randomized design. The estimate is then the
@@ -672,7 +672,7 @@ class RandomizedEffect:
         This direct estimator utility supports the underlying Bernoulli,
         complete, and cluster assignment kernels. Its variance is a
         conservative design-based variance bound, not a calibrated interval
-        or a support-matrix license. Exact randomization inference is available
+        or a support-matrix support. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
         """
         if isinstance(self.design, MultiArmExperimentDesign):
@@ -751,7 +751,7 @@ class RandomizedEffect:
                 if isinstance(self.design.assignment, ClusterRandomization)
                 else "bernoulli_ht_design_variance_no_interval"
             ),
-            support_status="unlicensed_direct_estimator_utility",
+            support_status="unsupported_direct_estimator_utility",
         )
 
 
@@ -900,7 +900,7 @@ class ComplierEffectEstimate:
     interval_95: tuple[float, float] | None = None
     estimand: str = "cace_late"
     uncertainty: str = "asymptotic_influence_function_standard_error"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "random assignment of the encouragement with known positive probabilities",
         "exclusion restriction: assignment affects outcome only through treatment receipt",
@@ -916,7 +916,7 @@ class CUPEDEstimate:
     adjustment_coefficient: float
     standard_error: float
     uncertainty: str = "asymptotic_independent_unit_standard_error"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "known independent Bernoulli assignment probabilities",
         "the pre-treatment covariate is measured before assignment",
@@ -960,7 +960,7 @@ class ANCOVAEstimate:
     treated_support: int
     control_support: int
     uncertainty: str = "hc0_independent_unit_standard_error_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "independent Bernoulli assignment with a common known probability",
         "all adjustment covariates were measured before assignment",
@@ -981,7 +981,7 @@ def estimate_ancova_effect(
     Returns the treatment coefficient, adjustment coefficients, and HC0
     independent-row sandwich standard error. The API requires a common
     Bernoulli propensity and does not produce a confidence interval or a
-    support-matrix license.
+    support-matrix support.
     """
     from ._data import as_columns
 
@@ -1037,7 +1037,7 @@ class RandomizationTest:
     assignments_enumerated: int
     null: str = "sharp_no_effect"
     uncertainty: str = "exact_randomization_test_under_declared_bernoulli_design"
-    support_status: str = "unlicensed_direct_inference_utility"
+    support_status: str = "unsupported_direct_inference_utility"
 
 
 def exact_randomization_test(
@@ -1047,7 +1047,7 @@ def exact_randomization_test(
 
     Exact enumeration is limited to 20 independent assignment units. This is a
     test of the sharp no-effect null, not a confidence interval or a weak-null
-    test, and it does not create a licensed support coordinate.
+    test, and it does not create a supported support coordinate.
     """
     y = np.asarray(outcomes, dtype=np.float64)
     if y.ndim != 1 or y.size == 0 or y.size > 20 or not np.isfinite(y).all():
@@ -1081,7 +1081,7 @@ class MultiArmExperimentEstimate:
     arm_values: tuple[tuple[str, float], ...]
     contrasts: tuple[MultiArmContrast, ...]
     uncertainty: str = "covariance_free_variance_bound_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "known randomized probabilities for every action and unit",
         "consistency, no interference, and independent assignment units",

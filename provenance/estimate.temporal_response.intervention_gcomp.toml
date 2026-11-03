@@ -16,7 +16,7 @@ papers = [
 
 implementation_deviations = [
   "uses one additive linear OLS projection per horizon rather than recursive longitudinal g-computation",
-  "this single-coordinate backend supports a hard/constant level or additive shift; other licensed temporal Soft mean families and multi-variable sequences route through estimate.temporal_sequential",
+  "this single-coordinate backend supports a hard/constant level or additive shift; other supported temporal Soft mean families and multi-variable sequences route through estimate.temporal_sequential",
   "single-step Sequence preserves its explicit timing; multi-step and joint Sequence use estimate.temporal_sequential rather than this projection backend. Nested Sequence remains refused",
   "the pointwise band is published only when joint bootstrap replicates are requested (a joint circular-block bootstrap of the lag-aligned rows, or Dirichlet block-weight draws), at the requested level or at each replicate's own treatment mean plus the shift; with zero replicates no band is published because an analytic OLS band would treat lag-aligned rows as independent; the band is conditional on the unfolded linear regression and not on the identification step",
 ]
@@ -40,12 +40,12 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Five series (9, 70 and 400 rows) with one treatment, one confounder and horizons 1 and 2, adjustment lags {1,2} and {2} read off the unfolded graph by hand; an outcome offset of 1e6 with a treatment offset of 1e3 and confounder lags correlated at 0.9995. Levels are asserted to 1e-9 of the sum of absolute terms (1e-6 for the nearly collinear case). The review covers the point surface and levels only: the pointwise band is a joint circular-block bootstrap (or Dirichlet block-weight) construction with a fixed-b dispersion inflation and a kernel-bias factor and is not examined here, nor are the simultaneous band, the Bayesian surface, a series with missing time points, sampling weights or the support classification. The adjustment set is taken from the temporal backdoor identifier as hand-checked for this graph; the identifier is a separate record. The cited publications were not retrieved."
 sources = ["https://doi.org/10.1515/9781400829828", "https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/"]
 findings_resolved = ["The hard-level response equals the exact rational OLS level at that dose at every horizon, and the additive-shift response equals the exact rational level at each horizon's own treatment mean plus the shift, under a 1e6 outcome offset, a 1e3 treatment offset, nearly collinear confounder lags, a nine-row series and 400 rows.", "Record text corrected: the pointwise band is not an analytic delta-method band; with zero replicates none is published and otherwise it is the joint circular-block bootstrap band."]
-record_sha256 = "943bd6c41f43833b5268e2ce212e5acd2aa7f16dff9a3a5efd4be5734a8a13b8"
+record_sha256 = "1201e9f24a26d829f6fc6700436113c2aafcd226743a5aad0778dce43b17c694"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
-sha256 = "85d6d8aa753d2aaf00bcae5e3639dded6c23c9cd9340540583ddc23fd3aed29b"
+sha256 = "c7713f367c9713aaeca44cd3e418e5e068d158c83cdee01342fb5816d1caae88"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -1,7 +1,7 @@
 """Shared evidence vocabulary; these categories are propositions, not a ranking.
 
 Calibration is measured evidence with its own scope/commit attestation. No category
-here, including agreement with an external package, grants a calibration license.
+here, including agreement with an external package, grants calibration support.
 """
 
 import hashlib
@@ -38,7 +38,7 @@ SOFTWARE_KINDS = frozenset(
 
 
 def evidence_roles(kind: str | None, activity: str | None = None) -> list[str]:
-    """A scientific assertion is also a software regression check, never a license."""
+    """A scientific assertion is also a software regression check, never support."""
     if activity == "statistical_smoke":
         return ["software", "statistical_smoke"]
     if kind == "process_attested":

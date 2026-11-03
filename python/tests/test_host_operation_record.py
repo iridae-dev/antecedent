@@ -12,7 +12,7 @@ from antecedent.errors import CausalTypeError, CausalValueError
 def _report(**overrides):
     base = {
         "operation": "estimate",
-        "applicability": "licensed",
+        "applicability": "supported",
         "readiness": "executable",
         "coordinate": "static/binary/ate",
         "blockers": [],
@@ -23,18 +23,18 @@ def _report(**overrides):
     return {**base, **overrides}
 
 
-def test_a_licensed_executable_operation_is_supported_and_carries_every_field():
+def test_a_supported_executable_operation_is_supported_and_carries_every_field():
     record = host.operation_record(_report())
     assert record == {
         "operation": "estimate",
-        "applicability": "licensed",
+        "applicability": "supported",
         "readiness": "executable",
         "coordinate": "static/binary/ate",
         "blockers": [],
         "next_actions": [],
         "neighbors": [],
         "unmet_obligations": [],
-        "status": host.operation_status("licensed", "executable"),
+        "status": host.operation_status("supported", "executable"),
     }
     assert record["status"] == "supported"
 
@@ -42,7 +42,7 @@ def test_a_licensed_executable_operation_is_supported_and_carries_every_field():
 def test_blockers_actions_neighbors_and_obligations_are_carried_with_the_status():
     record = host.operation_record(
         _report(
-            applicability="licensed",
+            applicability="supported",
             readiness="binding_missing",
             blockers=[
                 {"id": "treatment_unbound", "reason": "no treatment column", "scientific": 0}
@@ -67,7 +67,7 @@ def test_blockers_actions_neighbors_and_obligations_are_carried_with_the_status(
             ],
         )
     )
-    assert record["status"] == host.operation_status("licensed", "binding_missing")
+    assert record["status"] == host.operation_status("supported", "binding_missing")
     assert record["blockers"] == [
         {"id": "treatment_unbound", "reason": "no treatment column", "scientific": False}
     ]
@@ -76,7 +76,7 @@ def test_blockers_actions_neighbors_and_obligations_are_carried_with_the_status(
     assert record["unmet_obligations"][0]["status"] == "uncheckable"
 
 
-def test_an_unlicensed_operation_is_never_supported_and_a_missing_readiness_is_none():
+def test_an_unsupported_operation_is_never_supported_and_a_missing_readiness_is_none():
     record = host.operation_record(
         _report(applicability="impossible", readiness=None, coordinate=None)
     )
@@ -98,9 +98,9 @@ def test_a_report_that_is_not_a_mapping_of_the_capability_fields_is_refused():
 _AXES = ("query", "graph_class", "structure", "inference", "validation")
 
 
-def _unlicensed_single_axis_cells(cells):
-    """Coordinates one axis value away from a licensed cell that are not licensed, by status."""
-    licensed = set(cells)
+def _unsupported_single_axis_cells(cells):
+    """Coordinates one axis value away from a supported cell that are not supported, by status."""
+    supported = set(cells)
     values = [sorted({c.split(":")[i] for c in cells}) for i in range(len(_AXES))]
     found: dict[tuple[str, bool], tuple[str, str, int, dict]] = {}
     for cell in cells:
@@ -110,16 +110,16 @@ def _unlicensed_single_axis_cells(cells):
                 if option == parts[axis]:
                     continue
                 candidate = ":".join([*parts[:axis], option, *parts[axis + 1 :]])
-                if candidate in licensed:
+                if candidate in supported:
                     continue
                 report = host.support_cell_report(candidate)
                 found.setdefault((report["status"], axis == 1), (candidate, cell, axis, report))
-        if ("refused", False) in found and ("not_applicable", False) in found:
+        if ("not_supported", False) in found and ("not_applicable", False) in found:
             break
     return found
 
 
-def test_every_listed_support_cell_reports_licensed_with_no_neighbors():
+def test_every_listed_support_cell_reports_supported_with_no_neighbors():
     cells = host.support_cells()
     assert cells and len(set(cells)) == len(cells)
     for coordinate in cells:
@@ -127,13 +127,13 @@ def test_every_listed_support_cell_reports_licensed_with_no_neighbors():
         report = host.support_cell_report(coordinate)
         assert report == {
             "coordinate": coordinate,
-            "status": "licensed",
+            "status": "supported",
             "message": None,
             "neighbors": [],
         }
 
 
-def test_a_prepared_study_is_licensed_exactly_when_its_cell_is_listed():
+def test_a_prepared_study_is_supported_exactly_when_its_cell_is_listed():
     n = 120
     z = np.sin(np.arange(n) / 7.0)
     t = (z + np.cos(np.arange(n) / 5.0) > 0).astype(float)
@@ -146,27 +146,27 @@ def test_a_prepared_study_is_licensed_exactly_when_its_cell_is_listed():
         execution=ant.Execution(seed=3),
     )
     payload = prepared.inspect().support.payload
-    assert payload["matrix_status"] == "licensed"
+    assert payload["matrix_status"] == "supported"
     assert payload["matrix_coordinate"] in host.support_cells()
     assert host.support_cell_report(payload["matrix_coordinate"])["neighbors"] == []
 
 
-def test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_neighbors():
+def test_an_unsupported_cell_reports_its_blocker_and_same_class_changed_premise_neighbors():
     cells = host.support_cells()
-    licensed = set(cells)
-    found = _unlicensed_single_axis_cells(cells)
-    candidate, origin, axis, report = found[("refused", False)]
+    supported = set(cells)
+    found = _unsupported_single_axis_cells(cells)
+    candidate, origin, axis, report = found[("not_supported", False)]
     assert report["coordinate"] == candidate
-    assert report["status"] == "refused"
+    assert report["status"] == "not_supported"
     assert isinstance(report["message"], str) and report["message"]
     assert host.support_cell_report(candidate) == report, "the report is a pure read"
 
     neighbors = report["neighbors"]
-    assert neighbors, "a refused cell of a licensed graph class names licensed alternatives"
+    assert neighbors, "a refused cell of a supported graph class names supported alternatives"
     sizes = [len(n["changed"]) for n in neighbors]
     assert sizes == sorted(sizes) and min(sizes) >= 1, "nearest first, each changes a premise"
     for neighbor in neighbors:
-        assert neighbor["coordinate"] in licensed
+        assert neighbor["coordinate"] in supported
         assert neighbor["coordinate"].split(":")[1] == candidate.split(":")[1], "no class relabel"
         assert isinstance(neighbor["required_action"], str) and neighbor["required_action"]
         for change in neighbor["changed"]:

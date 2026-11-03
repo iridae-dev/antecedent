@@ -76,7 +76,7 @@ def test_a_source_sharing_rows_with_the_respondents_is_refused():
     assert raised.value.details
 
 
-def test_a_rationale_does_not_license_cross_population_transfer():
+def test_a_rationale_does_not_support_cross_population_transfer():
     other = source(population="another market")
     with pytest.raises(ChoiceInferenceRefusal):
         ci.ChoiceInferenceSession.prepare(study(sources=(other,)))
@@ -85,11 +85,11 @@ def test_a_rationale_does_not_license_cross_population_transfer():
         ci.ChoiceInferenceSession.prepare(study(sources=(declared,)))
 
 
-def test_an_interval_request_is_not_licensed_without_coverage():
+def test_an_interval_request_is_not_supported_without_coverage():
     session = ci.ChoiceInferenceSession.prepare(study())
     with pytest.raises(ChoiceInferenceRefusal) as raised:
         session.interval()
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"
 
 
 def test_a_stopping_study_has_exact_operating_characteristics():

@@ -1,5 +1,5 @@
 //! Python bindings for an autoregressive mechanism refreshed across observation periods,
-//! least squares and the conjugate posterior on the same rows (an unlicensed, uncalibrated
+//! least squares and the conjugate posterior on the same rows (an unsupported, uncalibrated
 //! route: the result is the posterior of the stated linear Gaussian model under the stated
 //! prior, and a prior alone identifies no causal target).
 //!

@@ -4,7 +4,7 @@
 //! A forward source is a claim about the response of each declared action, adapted from a
 //! composed mechanism model, a cohort-mean contrast or a transported response. Python
 //! declares the actions' coordinates and queries and the transport receipt; the replay of every
-//! composition query, the license of what the source can answer, the engine, the sealed
+//! composition query, the support of what the source can answer, the engine, the sealed
 //! artifact and every refusal are Rust's. A refusal comes back as structured JSON for the
 //! Python layer to raise as a typed exception.
 //!
@@ -14,9 +14,9 @@
 use antecedent::analysis::cohort_decision::{CohortExpectation, consume_cohort_decision_source};
 use antecedent::analysis::inverse_query::{InverseQueryWire, InverseResultWire};
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, LicensedForwardSource,
-    ObservationalScenarioQuery, ObservationalScenarioResult, OutcomeEvent, ScenarioCell,
-    ScenarioCondition, TransportReceipt, TransportedInputPolicy, cohort_source, evaluate,
+    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, ObservationalScenarioQuery,
+    ObservationalScenarioResult, OutcomeEvent, ScenarioCell, ScenarioCondition,
+    SupportedForwardSource, TransportReceipt, TransportedInputPolicy, cohort_source, evaluate,
     evaluate_observational, inspect_observational, inspect_origin, seal, seal_per_action,
     transported_source, verify_observational,
 };
@@ -54,10 +54,10 @@ fn policy_of(accepts_transported: bool) -> TransportedInputPolicy {
 /// A forward source that passed its own checks, with the origin it carries.
 #[pyclass(name = "ForwardSourceHandle", skip_from_py_object)]
 pub(crate) struct ForwardSourceHandle {
-    inner: LicensedForwardSource,
+    inner: SupportedForwardSource,
 }
 
-fn origin_json(source: &LicensedForwardSource) -> Json {
+fn origin_json(source: &SupportedForwardSource) -> Json {
     let origin = source.origin();
     let inspection = inspect_origin(origin);
     json!({

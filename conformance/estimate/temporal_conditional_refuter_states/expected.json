@@ -101,7 +101,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_conditional_validation_truth.rs",
-          "sha256": "1f6b395bbb5a202203c81a3a79441c3ef2a99ec4873b94aaf02f346c25a1744c"
+          "sha256": "5bf67963746df89401e5f7d0993e2fa912649a2d46056c9d1b2e57c3bab57cd2"
         }
       ],
       "fixture_payload_sha256": "5429e5a117cb27ea96f0f06a59935c0ebd7f1c7b49a464d70a9dc0732a3ea49b"

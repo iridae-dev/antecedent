@@ -393,7 +393,7 @@ impl ProgramSelectionProcedure<JointRandomizedUnit> for PreparedRandomizedSelect
 }
 impl RandomizedSelectionResult {
     /// Failure-aware selected-value report. Sandwich uncertainty is asymptotic
-    /// under the declared independent-unit model; no release coverage is licensed.
+    /// under the declared independent-unit model; no release coverage is supported.
     #[must_use]
     pub fn report(&self) -> serde_json::Value {
         let observed = &self.procedure.observed;
@@ -597,7 +597,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Q08/E14: execute only on the stable candidate; no implementation-stage calibration license"]
+    #[ignore = "Q08/E14: execute only on the stable candidate; no implementation-stage calibration support"]
     fn whole_procedure_randomized_selected_value_calibration_l95() {
         let repetitions = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
             .ok()

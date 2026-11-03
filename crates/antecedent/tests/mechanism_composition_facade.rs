@@ -489,7 +489,7 @@ fn unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim() {
     assert!(refusal.refusals[0].remedy.is_some());
     // The interval route is closed regardless.
     let closed = prepared.interval().unwrap_err();
-    assert_eq!(closed.code(), "cell_not_licensed");
+    assert_eq!(closed.code(), "not_supported");
     assert_eq!(closed.details(), vec!["mechanism_composition.interval_route_closed"]);
 
     // Independence declared over shared evidence is contradicted, not accepted.

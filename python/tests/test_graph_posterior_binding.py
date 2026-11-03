@@ -377,4 +377,4 @@ def test_supplied_posterior_keeps_discovery_provenance():
         )
     )
     assert result.plan.discovery_algorithm == "exact_dag_posterior"
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"

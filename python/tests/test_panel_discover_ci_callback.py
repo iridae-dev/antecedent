@@ -100,7 +100,7 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
     (the pulse is unidentifiable against the discovered graph),
     `CausalCompileError` (a compile-stage failure), or `CausalUnsupportedError`
     (this discovery/query/graph combination is a support-matrix refusal —
-    `SupportRefusal::Refused` / `NotApplicable`, surfaced via `Support{id,
+    `SupportRefusal::NotSupported` / `NotApplicable`, surfaced via `Support{id,
     message}` in `python/src/lib.rs`). Any other exception is a real wiring
     break.
     """

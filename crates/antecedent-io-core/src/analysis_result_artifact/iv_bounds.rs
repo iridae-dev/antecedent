@@ -6,7 +6,7 @@
 //! loader recomputes the Balke-Pearl bounds from the retained observed law and checks that they
 //! are the reported ones, that the law is a law (each instrument arm sums to one), that the
 //! sampling interval, when present, is ordered and covers the identified set when it is a
-//! frequentist Imbens-Manski interval, and that the result claims no licence and an unmeasured
+//! frequentist Imbens-Manski interval, and that the result claims no support and an unmeasured
 //! calibration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -73,7 +73,7 @@ pub struct IvBoundsPosteriorWire {
     pub upper_sd: f64,
 }
 
-/// Sharp bounds on the average effect under a binary instrument (unlicensed, unmeasured).
+/// Sharp bounds on the average effect under a binary instrument (unsupported, unmeasured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct IvBoundsWire {
@@ -100,7 +100,7 @@ pub struct IvBoundsWire {
     /// Always `unmeasured`.
     pub calibration: String,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 /// Check a bounds section against its query.
@@ -115,7 +115,7 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
         (false, Some(_)) => return fail("the section is attached to another query"),
         (true, Some(section)) => section,
     };
-    if section.licensed
+    if section.supported
         || section.calibration != "unmeasured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
@@ -123,7 +123,7 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
         || result.interval_upper.is_some()
     {
         return fail(
-            "a bounds result is an identified set: it claims no licence, no calibration, and no \
+            "a bounds result is an identified set: it claims no support, no calibration, and no \
              scalar estimate or interval",
         );
     }

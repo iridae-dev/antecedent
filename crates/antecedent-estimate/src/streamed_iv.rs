@@ -62,7 +62,7 @@ pub struct StreamedIvEstimate {
 
 impl StreamedIvEstimate {
     /// The estimate the resident fit would publish: the effect with no Wald or bootstrap
-    /// standard error, the first-stage diagnostics and the licensed uncertainty set.
+    /// standard error, the first-stage diagnostics and the supported uncertainty set.
     #[must_use]
     pub fn into_effect(
         self,

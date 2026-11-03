@@ -38,7 +38,7 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
-          "sha256": "53e702cdb45da242ad20c3da1d31940bd6d65bbc00da9f2238b5b6ffa3ad3087"
+          "sha256": "5af931a684a94dafd933df3fe64530f95d7decbe79d5b2461c9354dcf21b11e0"
         },
         {
           "role": "assertion_source",

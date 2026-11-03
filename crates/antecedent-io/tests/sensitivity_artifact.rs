@@ -55,7 +55,7 @@ fn withheld() -> UncertaintyRelationship {
         },
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
-            reason_code: "cell_not_licensed".into(),
+            reason_code: "not_supported".into(),
             detail: "joint_sensitivity.interval_withheld".into(),
         },
     }
@@ -332,7 +332,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
     assert_eq!(interval.upper, vec![9.0; 3]);
     assert_eq!(restored.quantities()[0].lower, vec![2.5, 1.5, 0.5]);
 
-    // Composition with the assumption range is refused: no method is licensed.
+    // Composition with the assumption range is refused: no method is supported.
     let mut composed = frozen_parts();
     composed.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
         quantity: "ua".into(),
@@ -344,8 +344,8 @@ fn range_and_sampling_interval_stay_separate_fields() {
     });
     let error = SensitivityArtifact::new(composed).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("sensitivity_decision_composition.composition_not_licensed"));
+    assert_eq!(code, "not_supported");
+    assert!(message.starts_with("sensitivity_decision_composition.composition_not_supported"));
 }
 
 #[test]

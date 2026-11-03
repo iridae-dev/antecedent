@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Join existing test, claim, fixture and provenance registries without licensing.
+"""Join existing test, claim, fixture and provenance registries without support.
 
 report is source/metadata inspection, never execution verification. --strict fails
 on every reported gap. scientific-filter prints the nextest expression selecting
@@ -324,13 +324,13 @@ def software_fixture_claim_problems(claim: dict, fixture: dict) -> list[str]:
 
 
 def axis_coverage(claims: list[dict]) -> dict[str, dict[str, int]]:
-    """Licensed rows per graph class and inference, split by evidence role.
+    """Supported rows per graph class and inference, split by evidence role.
 
     A cell with no scientific row is software coverage only; this is a map of
     where evidence is thin, not a verdict on any row."""
     table: dict[str, dict[str, int]] = {}
     for claim in claims:
-        if claim["registry"] != "parity/support_licensed.toml":
+        if claim["registry"] != "parity/support_cells.toml":
             continue
         key = f"{claim.get('graph_class')}/{claim.get('inference')}"
         row = table.setdefault(key, {"rows": 0, "scientific": 0, "software_only": 0})
@@ -517,7 +517,7 @@ def build_report(root: Path) -> dict:
     )
     routes = {r["id"]: r for r in route_data.get("route", [])}
     for claim in claims:
-        route = f"licensed.{claim.get('query')}.{claim.get('graph_class')}"
+        route = f"supported.{claim.get('query')}.{claim.get('graph_class')}"
         linked = (
             [s for s in specs if s.get("route") == route] if route in routes else []
         )
@@ -595,11 +595,11 @@ def build_report(root: Path) -> dict:
                 for c in claims
             ),
         },
-        "licensed_claims": {
-            "registry": "parity/support_licensed.toml",
-            "claims": sum(c["registry"] == "parity/support_licensed.toml" for c in claims),
+        "supported_claims": {
+            "registry": "parity/support_cells.toml",
+            "claims": sum(c["registry"] == "parity/support_cells.toml" for c in claims),
         },
-        "licensed_axis_coverage": axis_coverage(claims),
+        "supported_axis_coverage": axis_coverage(claims),
         "pending_calibration": {
             "acceptance_assertions": len(calibration_acceptance),
             "status": "pending_frozen_candidate",
@@ -654,7 +654,7 @@ def build_report(root: Path) -> dict:
                     (root / "parity/evidence_ledger.toml").read_text(encoding="utf-8")
                 ).get("cell", []),
                 tomllib.loads(
-                    (root / "parity/promotion.toml").read_text(encoding="utf-8")
+                    (root / "parity/capability_records.toml").read_text(encoding="utf-8")
                 ).get("record", []),
                 tomllib.loads(
                     (root / "parity/transport_stages.toml").read_text(encoding="utf-8")
@@ -711,7 +711,7 @@ def render(report: dict) -> str:
         f"{partition['software_coverage']['software_only_fixtures']} software-only fixtures.",
         f"- Scientific propositions: {partition['scientific_propositions']['distinct_cited_assertions']} distinct cited assertions "
         f"({partition['scientific_propositions']['claims_with_scientific_role']} claims); declarations, not verified execution or independence.",
-        f"- Licensed claims: {partition['licensed_claims']['claims']} rows in {partition['licensed_claims']['registry']}; a licensed row is not calibration.",
+        f"- Supported claims: {partition['supported_claims']['claims']} rows in {partition['supported_claims']['registry']}; a supported row is not calibration.",
         f"- Pending calibration: {partition['pending_calibration']['acceptance_assertions']} acceptance assertions; "
         f"{partition['pending_calibration']['status']}; no measurements or attestations are made here.",
         f"- Evidence gaps: {partition['evidence_gaps']['claims_with_gaps']} claims and "
@@ -720,11 +720,11 @@ def render(report: dict) -> str:
     ]
     thin = [
         f"{key} ({v['software_only']} of {v['rows']})"
-        for key, v in partition["licensed_axis_coverage"].items()
+        for key, v in partition["supported_axis_coverage"].items()
         if v["scientific"] == 0
     ]
     lines.append(
-        "- Licensed graph-class/inference cells with no scientific row: "
+        "- Supported graph-class/inference cells with no scientific row: "
         + (", ".join(thin) if thin else "none")
         + "."
     )
@@ -740,7 +740,7 @@ def render(report: dict) -> str:
         "",
         "## Software-only fixture propositions",
         "",
-        "These declarations supply no independent numerical truth or calibration license.",
+        "These declarations supply no independent numerical truth or calibration support.",
         "",
     ]
     for f in software_fixtures:

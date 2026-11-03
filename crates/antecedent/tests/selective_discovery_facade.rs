@@ -233,7 +233,7 @@ fn plan(previous: &StageIdentities, requested: &StageIdentities) -> RecalcPlan {
     RecalcPlan::plan(
         previous,
         requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
 }
 

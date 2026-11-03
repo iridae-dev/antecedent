@@ -29,8 +29,8 @@ with its own refusals and its identity travels into the result and the sealed ar
   population (:class:`~antecedent.transported_response.TransportedResponse`), as a point or a
   law.
 
-Every source is refused an interval region (``cell_not_licensed``,
-``inverse_forward_source.interval_not_licensed``); a point is refused a quantile, a probability,
+Every source is refused an interval region (``not_supported``,
+``inverse_forward_source.interval_not_supported``); a point is refused a quantile, a probability,
 a nonlinear utility and an outcome-law input. A source's own standard error is an uncalibrated
 diagnostic and never becomes a feasibility statement.
 
@@ -48,7 +48,7 @@ observational law. The result is associational: it ranks no action (``ranks_acti
 ``False``), is not an intervention effect and carries no interval. :meth:`
 ObservationalScenarioResult.verify` re-derives it from the law.
 
-Rust owns the replay, the license of each source, the engine, the artifact and every refusal;
+Rust owns the replay, the support of each source, the engine, the artifact and every refusal;
 this module declares the actions and presents the result. A refusal raises
 :class:`~antecedent.inverse_query.InverseQueryRefusal` with a registered ``reason_code``, a
 namespaced ``detail`` and a ``remedy``.
@@ -112,7 +112,7 @@ class ForwardOrigin(ScientificResult):
     transported claim. ``transport`` is the receipt of a transported claim.
     ``assumed_mechanisms`` are the mechanisms the analyst wrote down rather than estimated;
     every claim of a composition rests on them. ``claim_digest`` identifies the claim handed to
-    the engine. ``interval_region`` is always ``not_licensed``.
+    the engine. ``interval_region`` is always ``not_supported``.
     """
 
     version: int
@@ -124,7 +124,7 @@ class ForwardOrigin(ScientificResult):
     assumed_mechanisms: tuple[str, ...]
     provider_id: str
     claim_digest: str
-    interval_region: str = "not_licensed"
+    interval_region: str = "not_supported"
 
     @property
     def transported(self) -> bool:

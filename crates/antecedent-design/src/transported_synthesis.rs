@@ -150,7 +150,7 @@ pub struct TransportedSynthesis {
     pub native_population: Option<String>,
     /// Observation mass the ledger counted, each observation once.
     pub mass: MassAccount,
-    /// What the ledger says the result licenses.
+    /// What the ledger says the result supports.
     pub claim_class: ClaimClass,
 }
 
@@ -170,7 +170,7 @@ pub enum TransportedSynthesisRefusal {
         detail: &'static str,
         /// The source at fault, when one is.
         source: Option<SourceId>,
-        /// What would license the request.
+        /// What would support the request.
         remedy: &'static str,
     },
 }

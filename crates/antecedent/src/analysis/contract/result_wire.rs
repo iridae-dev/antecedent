@@ -2,8 +2,8 @@
 //!
 //! Each estimate family converts to its portable wire section here, so the
 //! result body is assembled by dispatch rather than by inline conversion. An
-//! estimate whose section carries the graphless license the executing result
-//! resolved converts through [`LicensedWire`]; the rest are plain `From`.
+//! estimate whose section carries the graphless support the executing result
+//! resolved converts through [`SupportedWire`]; the rest are plain `From`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -29,9 +29,9 @@ use crate::result::{
 };
 use crate::support::CellStatus;
 
-/// Wire section of an estimate whose graphless license is decided by the
+/// Wire section of an estimate whose graphless support is decided by the
 /// executing result rather than by the estimate itself.
-pub(super) trait LicensedWire {
+pub(super) trait SupportedWire {
     type Wire;
 
     /// `support` is the result's graphless support status.
@@ -46,7 +46,7 @@ fn unit_values(values: &[(impl ToString, f64)]) -> Vec<(String, f64)> {
     values.iter().map(|(unit, value)| (unit.to_string(), *value)).collect()
 }
 
-impl LicensedWire for PolicyValueEstimate {
+impl SupportedWire for PolicyValueEstimate {
     type Wire = PolicyValueWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> PolicyValueWire {
@@ -103,7 +103,7 @@ impl LicensedWire for PolicyValueEstimate {
     }
 }
 
-impl LicensedWire for ContinuousDoseResponseEstimate {
+impl SupportedWire for ContinuousDoseResponseEstimate {
     type Wire = ContinuousDoseResponseWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> ContinuousDoseResponseWire {
@@ -147,7 +147,7 @@ impl LicensedWire for ContinuousDoseResponseEstimate {
     }
 }
 
-impl LicensedWire for PanelDidEstimate {
+impl SupportedWire for PanelDidEstimate {
     type Wire = PanelDidWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> PanelDidWire {
@@ -188,7 +188,7 @@ impl LicensedWire for PanelDidEstimate {
     }
 }
 
-impl LicensedWire for LocalPolynomialRatioEstimate {
+impl SupportedWire for LocalPolynomialRatioEstimate {
     type Wire = LocalPolynomialRatioWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> LocalPolynomialRatioWire {
@@ -212,7 +212,7 @@ impl LicensedWire for LocalPolynomialRatioEstimate {
     }
 }
 
-impl LicensedWire for RandomizedEffectEstimate {
+impl SupportedWire for RandomizedEffectEstimate {
     type Wire = RandomizedEffectWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> RandomizedEffectWire {
@@ -256,7 +256,7 @@ impl LicensedWire for RandomizedEffectEstimate {
     }
 }
 
-impl LicensedWire for SurvivalEstimate {
+impl SupportedWire for SurvivalEstimate {
     type Wire = SurvivalWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> SurvivalWire {
@@ -405,7 +405,7 @@ impl From<&HistoryMatchEstimate> for HistoryMatchWire {
             caliper: fit.caliper,
             uncertainty: fit.uncertainty.to_string(),
             calibration: "unmeasured".to_owned(),
-            licensed: false,
+            supported: false,
         }
     }
 }
@@ -429,7 +429,7 @@ impl From<&SequentialContrastEstimate> for SequentialContrastWire {
             contrast_scores: fit.contrast_scores.to_vec(),
             uncertainty: fit.uncertainty.to_string(),
             calibration: "unmeasured".to_owned(),
-            licensed: false,
+            supported: false,
         }
     }
 }
@@ -520,7 +520,7 @@ impl From<&crate::QuasiRolloutEstimate>
                 .filter(|(_, value)| value.is_finite())
                 .map(|(name, value)| (name.to_string(), *value))
                 .collect(),
-            licensed: fit.licensed,
+            supported: fit.supported,
         }
     }
 }
@@ -555,7 +555,7 @@ impl From<&crate::TemporalDesignEstimate>
             draws: fit.draws,
             uncertainty: fit.uncertainty.to_string(),
             calibration: fit.calibration.to_string(),
-            licensed: fit.licensed,
+            supported: fit.supported,
         }
     }
 }
@@ -601,7 +601,7 @@ pub(crate) fn iv_bounds_wire(
             }),
             uncertainty,
             calibration: "unmeasured".to_owned(),
-            licensed: false,
+            supported: false,
         }
     }
 }
@@ -672,7 +672,7 @@ pub(crate) fn association_wire(
         refused_after: payload.refused_after.as_deref().map(str::to_owned),
         uncertainty: uncertainty.to_owned(),
         calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
-        licensed: false,
+        supported: false,
         ranks_actions: false,
         is_intervention_effect: false,
     }

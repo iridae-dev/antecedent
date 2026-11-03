@@ -15,7 +15,7 @@ prior. A later observation period is applied under the window-survival rules:
 The ledger (:meth:`PeriodRefresh.export`) records the stated prior and its digest, every
 period applied, and the blocks of rows the live fit used. :func:`consume_period_refresh_artifact`
 recomputes the posterior and the least-squares fit from those rows alone and refuses a tampered
-ledger or a block used twice. The route is unlicensed and uncalibrated: the posterior is that of
+ledger or a block used twice. The route is unsupported and uncalibrated: the posterior is that of
 the stated linear Gaussian model under the stated prior, and a prior alone identifies no causal
 target. Rust owns every rule; refusals raise
 :class:`~antecedent.transport.advanced.TemporalExtensionRefusal`.

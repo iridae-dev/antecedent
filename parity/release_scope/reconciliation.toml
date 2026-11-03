@@ -11,822 +11,822 @@ mandatory_reconciled = 229
 mandatory_open = 0
 
 [[row]]
-id = "licensed.AnomalyAttribution.Dag"
+id = "supported.AnomalyAttribution.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AnomalyAttribution.TemporalDag"
+id = "supported.AnomalyAttribution.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageDerivative.Dag"
+id = "supported.AverageDerivative.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageDerivative.TemporalDag"
+id = "supported.AverageDerivative.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageDerivative.TemporalCpdag"
+id = "supported.AverageDerivative.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageDerivative.TemporalPag"
+id = "supported.AverageDerivative.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.Dag"
+id = "supported.AverageEffect.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.Admg"
+id = "supported.AverageEffect.Admg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.Cpdag"
+id = "supported.AverageEffect.Cpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.Pag"
+id = "supported.AverageEffect.Pag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.TemporalAdmg"
+id = "supported.AverageEffect.TemporalAdmg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.CoDetermined"
+id = "supported.AverageEffect.CoDetermined"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.AverageEffect.Unknown"
+id = "supported.AverageEffect.Unknown"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ChangeAttribution.Dag"
+id = "supported.ChangeAttribution.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ChangeAttribution.TemporalDag"
+id = "supported.ChangeAttribution.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ConditionalEffect.Dag"
+id = "supported.ConditionalEffect.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ConditionalEffect.Cpdag"
+id = "supported.ConditionalEffect.Cpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ConditionalEffect.Pag"
+id = "supported.ConditionalEffect.Pag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Counterfactual.Dag"
+id = "supported.Counterfactual.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Counterfactual.TemporalDag"
+id = "supported.Counterfactual.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Counterfactual.TemporalCpdag"
+id = "supported.Counterfactual.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Counterfactual.TemporalPag"
+id = "supported.Counterfactual.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.DirectionalDerivative.Dag"
+id = "supported.DirectionalDerivative.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.DirectionalDerivative.TemporalDag"
+id = "supported.DirectionalDerivative.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.DirectionalDerivative.TemporalCpdag"
+id = "supported.DirectionalDerivative.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.DirectionalDerivative.TemporalPag"
+id = "supported.DirectionalDerivative.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Elasticity.Dag"
+id = "supported.Elasticity.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Elasticity.TemporalDag"
+id = "supported.Elasticity.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Elasticity.TemporalCpdag"
+id = "supported.Elasticity.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.Elasticity.TemporalPag"
+id = "supported.Elasticity.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.Dag"
+id = "supported.InterventionalDistribution.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.Admg"
+id = "supported.InterventionalDistribution.Admg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.TemporalDag"
+id = "supported.InterventionalDistribution.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.TemporalCpdag"
+id = "supported.InterventionalDistribution.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.TemporalPag"
+id = "supported.InterventionalDistribution.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionalDistribution.TemporalAdmg"
+id = "supported.InterventionalDistribution.TemporalAdmg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.Dag"
+id = "supported.InterventionResponse.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.Admg"
+id = "supported.InterventionResponse.Admg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.Cpdag"
+id = "supported.InterventionResponse.Cpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.Pag"
+id = "supported.InterventionResponse.Pag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.TemporalDag"
+id = "supported.InterventionResponse.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.TemporalCpdag"
+id = "supported.InterventionResponse.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.TemporalPag"
+id = "supported.InterventionResponse.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.TemporalAdmg"
+id = "supported.InterventionResponse.TemporalAdmg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterventionResponse.CoDetermined"
+id = "supported.InterventionResponse.CoDetermined"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.MediationEffect.Dag"
+id = "supported.MediationEffect.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.NestedCounterfactualEffect.Dag"
+id = "supported.NestedCounterfactualEffect.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.NestedCounterfactualEffect.TemporalDag"
+id = "supported.NestedCounterfactualEffect.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.NestedCounterfactualEffect.TemporalCpdag"
+id = "supported.NestedCounterfactualEffect.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.NestedCounterfactualEffect.TemporalPag"
+id = "supported.NestedCounterfactualEffect.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PathSpecificEffect.Dag"
+id = "supported.PathSpecificEffect.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PathSpecificEffect.TemporalDag"
+id = "supported.PathSpecificEffect.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PathSpecificEffect.TemporalCpdag"
+id = "supported.PathSpecificEffect.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PathSpecificEffect.TemporalPag"
+id = "supported.PathSpecificEffect.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PointDerivative.Dag"
+id = "supported.PointDerivative.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PointDerivative.TemporalDag"
+id = "supported.PointDerivative.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PointDerivative.TemporalCpdag"
+id = "supported.PointDerivative.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PointDerivative.TemporalPag"
+id = "supported.PointDerivative.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PulseEffect.TemporalDag"
+id = "supported.PulseEffect.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PulseEffect.TemporalCpdag"
+id = "supported.PulseEffect.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.PulseEffect.TemporalPag"
+id = "supported.PulseEffect.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.Dag"
+id = "supported.ResponseCurve.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.Admg"
+id = "supported.ResponseCurve.Admg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.Cpdag"
+id = "supported.ResponseCurve.Cpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.Pag"
+id = "supported.ResponseCurve.Pag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.TemporalDag"
+id = "supported.ResponseCurve.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.TemporalCpdag"
+id = "supported.ResponseCurve.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.TemporalPag"
+id = "supported.ResponseCurve.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseCurve.TemporalAdmg"
+id = "supported.ResponseCurve.TemporalAdmg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseJacobian.Dag"
+id = "supported.ResponseJacobian.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseJacobian.TemporalDag"
+id = "supported.ResponseJacobian.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseJacobian.TemporalCpdag"
+id = "supported.ResponseJacobian.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.ResponseJacobian.TemporalPag"
+id = "supported.ResponseJacobian.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SemiElasticity.Dag"
+id = "supported.SemiElasticity.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SemiElasticity.TemporalDag"
+id = "supported.SemiElasticity.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SemiElasticity.TemporalCpdag"
+id = "supported.SemiElasticity.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SemiElasticity.TemporalPag"
+id = "supported.SemiElasticity.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SustainedEffect.TemporalDag"
+id = "supported.SustainedEffect.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SustainedEffect.TemporalCpdag"
+id = "supported.SustainedEffect.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.SustainedEffect.TemporalPag"
+id = "supported.SustainedEffect.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalPulse.TemporalDag"
+id = "supported.TemporalConditionalPulse.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalPulse.TemporalCpdag"
+id = "supported.TemporalConditionalPulse.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalPulse.TemporalPag"
+id = "supported.TemporalConditionalPulse.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalSustained.TemporalDag"
+id = "supported.TemporalConditionalSustained.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalSustained.TemporalCpdag"
+id = "supported.TemporalConditionalSustained.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalConditionalSustained.TemporalPag"
+id = "supported.TemporalConditionalSustained.TemporalPag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalMediationEffect.TemporalDag"
+id = "supported.TemporalMediationEffect.TemporalDag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TemporalMediationEffect.TemporalCpdag"
+id = "supported.TemporalMediationEffect.TemporalCpdag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TransportQuery.Admg"
+id = "supported.TransportQuery.Admg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.TransportQuery.TemporalAdmg"
+id = "supported.TransportQuery.TemporalAdmg"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
-id = "licensed.InterferenceQuery.Dag"
+id = "supported.InterferenceQuery.Dag"
 source = "route_manifest"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["unlisted"]
 
 [[row]]
@@ -925,8 +925,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/sequential_aipw_inference.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_wald_matches_the_pinned_reference_and_round_trips"]
-consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/unsupported_design_routes.rs::sequential_contrast_wald_matches_the_pinned_reference_and_round_trips"]
+consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unsupported_design_routes.rs"]
 
 [[row]]
 id = "P03.aipw.temporal.bayesian"
@@ -934,8 +934,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/sequential_aipw_inference.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
-consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/unsupported_design_routes.rs::sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
+consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unsupported_design_routes.rs"]
 
 [[row]]
 id = "P03.policy.static.bayesian"
@@ -962,7 +962,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian/gcomp.rs", "crates/antecedent-estimate"]
 fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect"]
-consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unlicensed_design_routes.py"]
+consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unsupported_design_routes.py"]
 
 [[row]]
 id = "P04.temporal.frequentist"
@@ -970,8 +970,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/history_match.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_serial_interval_equals_the_period_series_long_run_variance_of_the_matched_pairs", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_three_period_hand_case_pins_the_newey_west_arithmetic", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_missing_period_does_not_invent_an_adjacency", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::matches_in_a_single_period_refuse_a_serial_interval_with_a_typed_reason", "crates/antecedent/tests/unlicensed_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
-consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
+fixtures = ["crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_serial_interval_equals_the_period_series_long_run_variance_of_the_matched_pairs", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_three_period_hand_case_pins_the_newey_west_arithmetic", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_missing_period_does_not_invent_an_adjacency", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::matches_in_a_single_period_refuse_a_serial_interval_with_a_typed_reason", "crates/antecedent/tests/unsupported_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
+consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unsupported_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
 
 [[row]]
 id = "P04.temporal.bayesian"
@@ -980,7 +980,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/history_outcome_model.rs", "crates/antecedent-estimate"]
 fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::the_history_outcome_model_reports_a_model_based_effect_on_the_treated"]
-consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unlicensed_design_routes.py"]
+consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unsupported_design_routes.py"]
 
 [[row]]
 id = "P06.static.bayesian"
@@ -1348,7 +1348,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-attribution/src/anomaly.rs", "crates/antecedent-attribution"]
-fixtures = ["crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unlicensed_standard_errors", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
+fixtures = ["crates/antecedent/tests/unsupported_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unsupported_standard_errors", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
 consumer = ["crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target"]
 
 [[row]]
@@ -1519,7 +1519,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1528,7 +1528,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1537,7 +1537,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1546,7 +1546,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1645,7 +1645,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_disposal", "crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism", "crates/antecedent/tests/joint_panel_workflow.rs::exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_uncertainty"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_disposal", "crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_support_from_a_finite_mechanism", "crates/antecedent/tests/joint_panel_workflow.rs::exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_uncertainty"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer", "crates/antecedent/src/analysis/joint_panel/ports.rs"]
 
 [[row]]
@@ -1730,7 +1730,7 @@ fixtures = ["crates/antecedent/tests/flagship_decision_fixture.rs", "crates/ante
 consumer = ["crates/antecedent-io/tests/flagship_decision_artifact.rs"]
 
 [[row]]
-id = "X01.licensed_contrast"
+id = "X01.supported_contrast"
 source = "joint_response"
 list = "mandatory"
 status = "reconciled"
@@ -1744,7 +1744,7 @@ source = "attempt"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/joint_panel.rs"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_support_from_a_finite_mechanism"]
 consumer = ["crates/antecedent/src/analysis/joint_panel.rs"]
 
 [[row]]
@@ -1861,7 +1861,7 @@ source = "method_children"
 list = "research"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent-estimate/src/joint_panel/family_tests.rs::geometric_hill_family_recovers_the_response_curves_of_a_simulated_panel", "crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_coordinates_vary_through_the_same_path_and_refit_a_shape_change", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_fits_a_broader_family_through_the_same_selection_procedure", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/family_tests.rs::geometric_hill_family_recovers_the_response_curves_of_a_simulated_panel", "crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_coordinates_vary_through_the_same_path_and_refit_a_shape_change", "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_fits_a_broader_family_through_the_same_selection_procedure", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unsupported"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -1870,7 +1870,7 @@ source = "method_children"
 list = "research"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_posterior_selects_jointly_with_the_family_coordinates_and_group_axes", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::bayesian_posterior_over_every_family_coordinate_is_sampled_with_shared_axes", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed"]
+fixtures = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs::broader_family_posterior_selects_jointly_with_the_family_coordinates_and_group_axes", "crates/antecedent-estimate/src/joint_panel/family_tests.rs::bayesian_posterior_over_every_family_coordinate_is_sampled_with_shared_axes", "crates/antecedent/tests/joint_panel_workflow.rs::broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unsupported"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[row]]
@@ -2033,7 +2033,7 @@ source = "scope_amendment_2026_10_22"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/report.rs", "python/antecedent/results/_report.py"]
-fixtures = ["crates/antecedent/tests/report.rs", "python/tests/test_report.py", "crates/antecedent/tests/golden/report/licensed_static_effect.md"]
+fixtures = ["crates/antecedent/tests/report.rs", "python/tests/test_report.py", "crates/antecedent/tests/golden/report/supported_static_effect.md"]
 consumer = ["crates/antecedent/tests/report.rs", "python/tests/test_report.py", "golden-file tests; Python report API"]
 
 [[row]]
@@ -2052,7 +2052,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_response"]
 fixtures = ["crates/antecedent/tests/temporal_attribution_block_bootstrap.rs", "crates/antecedent/tests/temporal_design_routes.rs", "python/tests/test_checked_temporal_interval.py"]
-consumer = ["crates/antecedent/src/analysis/checked_temporal_response.rs", "temporal licensed routes; later whole-procedure calibration"]
+consumer = ["crates/antecedent/src/analysis/checked_temporal_response.rs", "temporal supported routes; later whole-procedure calibration"]
 
 [[row]]
 id = "audit.frequentist_bayesian_symmetry"
@@ -2060,7 +2060,7 @@ source = "scope_amendment_2026_10_22"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate"]
-fixtures = ["scripts/test_check_counterparts.py", "crates/antecedent/tests/licensed_compiler.rs"]
+fixtures = ["scripts/test_check_counterparts.py", "crates/antecedent/tests/supported_compiler.rs"]
 consumer = ["scripts/check_counterparts.py", "scripts/gate_docs_support_matrix.sh", "support matrix gates"]
 
 [[row]]
@@ -2069,7 +2069,7 @@ source = "scope_amendment_2026_10_22"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs", "crates/antecedent/tests/bayesian_design_routes.rs", "crates/antecedent/tests/bayesian_design_posterior_routes.rs", "crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs", "crates/antecedent/tests/bayesian_design_routes.rs", "crates/antecedent/tests/bayesian_design_posterior_routes.rs", "crates/antecedent/tests/unsupported_design_routes.rs"]
 consumer = ["scripts/check_counterparts.py", "parity/capabilities/route_manifest.toml", "method children; route manifest"]
 
 [[row]]

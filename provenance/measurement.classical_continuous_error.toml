@@ -39,7 +39,7 @@ record_sha256 = "4bbd59e4cf2ea7b4743fb9ba338c0c3e414f7334a3518eb10a925bf489b9904
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-sha256 = "b216391f4ca4a3f501ff1eba73545525eb516f7f8cc2c732ac2b408729e08066"
+sha256 = "d8a7bfc6b04d7fc4e30754aed03b368ad30842bb0d8213f5a2cf46d5bc53da20"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -1,7 +1,7 @@
 """Original scoped diagnostics and independently consumed source lineage.
 
 Imported evidence retains its original claim; it supplies no executable state,
-provider trust upgrade, transformed local support value or calibration license.
+provider trust upgrade, transformed local support value or calibration support.
 """
 
 from __future__ import annotations

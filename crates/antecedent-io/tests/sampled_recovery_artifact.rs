@@ -447,7 +447,7 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
 fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_authority() {
     let mut f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
     Arc::make_mut(&mut f.catalog.bindings)[0].weights =
-        Some(antecedent_core::LicensedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
+        Some(antecedent_core::SupportedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
     let wire = wire_of(&f);
     let bytes = wire.export().unwrap();
     // Original candidate proof, receipt and wire semantics are unchanged.

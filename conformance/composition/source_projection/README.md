@@ -18,5 +18,5 @@ contract/request identities and unresolved dependencies. Actual native execution
 resolution requires an opaque receipt produced by re-executing the existing
 checked preparation on its actual data and matching the whole original source.
 Matching portable hashes alone does not authenticate data or issue authority.
-External attestation remains external. No calibration or interval license is
+External attestation remains external. No calibration or interval support is
 claimed; these deterministic acceptance fixtures are not calibration runs.

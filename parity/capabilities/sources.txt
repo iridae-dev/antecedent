@@ -1,9 +1,9 @@
 parity/support_axes.toml
-parity/support_licensed.toml
-parity/support_closed.toml
+parity/support_cells.toml
+parity/support_refusal_reasons.toml
 parity/support_n_a.toml
 parity/support_graphless.toml
-parity/licensed_routes.toml
+parity/supported_routes.toml
 parity/gcm.toml
 docs/guides/mechanism-selection.md
 crates/antecedent/src/analysis/execute/compile.rs

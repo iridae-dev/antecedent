@@ -2,7 +2,7 @@
 //!
 //! Compilation retains the declared sampling design, per-row subject identities and the exact
 //! observed source. No uncalibrated posterior result, causal claim or decision carrier is
-//! exposed: the only interval is a measured inference that a covering coverage record licenses.
+//! exposed: the only interval is a measured inference that a covering coverage record supports.
 use std::sync::Arc;
 
 #[cfg(feature = "calibration-internal")]
@@ -187,8 +187,8 @@ fn min_level_rows() -> u64 {
 }
 
 impl PreparedCategoricalPosteriorCandidate {
-    /// Inspect the real compiler lowering. The program carries no license of its own: an
-    /// interval is licensed only when a covering coverage record exists at measurement.
+    /// Inspect the real compiler lowering. The program carries no support of its own: an
+    /// interval is supported only when a covering coverage record exists at measurement.
     #[must_use]
     pub fn program(&self) -> &LoweredProgram {
         &self.program
@@ -224,7 +224,7 @@ impl PreparedCategoricalPosteriorCandidate {
     }
 
     /// The calibrated credible interval of every level against the reference; the same
-    /// licensed route as [`Self::measured_interval`].
+    /// supported route as [`Self::measured_interval`].
     ///
     /// # Errors
     /// As [`Self::measured_interval`].
@@ -327,7 +327,7 @@ impl CategoricalPosteriorCandidateRunReceipt {
 #[cfg(feature = "calibration-internal")]
 impl PreparedCategoricalPosteriorCandidate {
     /// Run the candidate inside its retained lowered dispatch for calibration only.
-    /// The returned intervals, one per non-reference level, are not licensed.
+    /// The returned intervals, one per non-reference level, are not supported.
     ///
     /// # Errors
     /// A native estimator refusal, cancellation, or resource admission failure.
@@ -502,18 +502,18 @@ mod tests {
         let ctx = ExecutionContext::for_tests(7);
         let input = request();
         let candidate = prepare(input.clone(), &ctx).unwrap();
-        assert!(!candidate.program().scientific().licensed());
+        assert!(!candidate.program().scientific().supported());
         assert_eq!(candidate.program().route(), "CategoricalPosteriorCandidate");
         assert_eq!(
             candidate.program().claim().uncertainty(),
             crate::planner::lowered::UncertaintyReading::Posterior
         );
-        // Licensing is decided by a covering coverage record at measurement, never by
+        // Support is decided by a covering coverage record at measurement, never by
         // compilation: the route either refuses for want of a record or returns a result.
         match candidate.measured_interval(&ctx) {
             Ok(_) => {}
             Err(antecedent_io::IoError::Refused { code, .. }) => {
-                assert_eq!(code, "cell_not_licensed")
+                assert_eq!(code, "not_supported")
             }
             Err(other) => panic!("unexpected failure: {other}"),
         }

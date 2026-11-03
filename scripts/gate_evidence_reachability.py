@@ -144,20 +144,20 @@ for stale in backlog - record_ids:
     fail.append(f"provenance/_deviations_backlog.txt lists {stale!r} but no such record exists")
 
 # ------------------------------------------------ 5. observation ride consumes its fixture
-# A licensed cell that names observation_primitives as evidence is a lie unless a
+# A supported cell that names observation_primitives as evidence is a lie unless a
 # Rust test *function* both include_str!s that fixture and constructs a non-Complete
 # ObservationSpec. Same-file adjacency is not enough; same-function is the consume.
-licensed_obs = []
-lic_path = root / "parity" / "support_licensed.toml"
+supported_obs = []
+lic_path = root / "parity" / "support_cells.toml"
 if lic_path.exists():
     with open(lic_path, "rb") as handle:
         lic = tomllib.load(handle)
     for cell in lic.get("cell", []):
         lim = str(cell.get("limitations", ""))
         if "observation_primitives" in lim:
-            licensed_obs.append(cell)
+            supported_obs.append(cell)
 obs_spec = re.compile(r"ObservationSpec::(?!Complete\b)\w+")
-if licensed_obs:
+if supported_obs:
     joint = False
     for p in sorted(root.glob("crates/**/*.rs")):
         if "target" in p.parts:
@@ -171,7 +171,7 @@ if licensed_obs:
             break
     if not joint:
         fail.append(
-            "a licensed cell names observation_primitives but no Rust test function "
+            "a supported cell names observation_primitives but no Rust test function "
             "both loads that fixture and constructs ObservationSpec != Complete"
         )
 

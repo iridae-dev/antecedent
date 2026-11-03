@@ -276,9 +276,9 @@ def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classe
     assert isinstance(duplicate.value, ValueError)
     assert duplicate.value.detail == "provider.already_registered"
     with pytest.raises(ProviderRefusal) as native:
-        registry.register("other", Mean(), trust=ProviderTrust.NATIVE_LICENSED)
+        registry.register("other", Mean(), trust=ProviderTrust.NATIVE_SUPPORTED)
     assert native.value.reason_code == "external_verification_failed"
-    assert native.value.detail == "provider.native_licence_not_available"
+    assert native.value.detail == "provider.native_support_not_available"
     wrong = ProviderVerificationFixture(
         name="truth",
         request={"data": {"y": [1.0, 3.0]}},

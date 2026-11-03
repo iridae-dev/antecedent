@@ -213,7 +213,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         query_variables: Arc::clone(&record.query_variables),
         source_digest: None,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
-        licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
+        supported: matches!(study.support_status, Some(crate::support::CellStatus::Supported)),
         support_status: study.support_status,
     };
     // An identified set is read as an envelope under frequentist inference: the sampling

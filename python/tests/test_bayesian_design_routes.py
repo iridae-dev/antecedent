@@ -1,6 +1,6 @@
 """Bayesian panel DiD and fuzzy local ratio through the installed ``antecedent`` package.
 
-The routes are explicitly unlicensed and uncalibrated; the posterior is compared with a
+The routes are explicitly unsupported and uncalibrated; the posterior is compared with a
 closed-form Normal-Inverse-Gamma reference computed here, independently of the library.
 """
 
@@ -51,7 +51,7 @@ def test_bayesian_estimator_ids_are_public():
     assert antecedent.Estimator.BAYESIAN_LOCAL_RATIO.value == "bayesian.local_ratio"
 
 
-def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
+def test_bayesian_panel_did_matches_the_closed_form_and_stays_unsupported():
     data, changes, groups = _panel()
     result = require_success(
         antecedent.analyze(
@@ -67,7 +67,7 @@ def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
     assert result.posterior.effect_mean == pytest.approx(mean, abs=0.004)
     assert result.posterior.effect_sd == pytest.approx(sd, rel=0.015)
     assert result.posterior.q025 < mean < result.posterior.q975
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status != "supported"
     assert result.panel_did is None
     artifact = require_success(antecedent.load(result.export(quantity="posterior")))
     assert artifact.n_draws == 20000

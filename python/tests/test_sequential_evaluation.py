@@ -434,7 +434,7 @@ def test_another_population_or_period_and_any_interval_are_typed_refusals():
         "transport_missing_evidence",
         "sequential_evaluation.transported_policy_contract_missing",
     )
-    refused(se.request_interval, "cell_not_licensed", "sequential_evaluation.interval_not_licensed")
+    refused(se.request_interval, "not_supported", "sequential_evaluation.interval_not_supported")
 
 
 def test_observation_channels_pass_through_the_measurement_model_checks():

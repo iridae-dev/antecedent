@@ -2,7 +2,7 @@
 //!
 //! Python declares the failed identification (`FailureStage`), the studies that might close
 //! it and the posterior ensemble to rank under. The repair search that decides which study
-//! is sufficient on its own, the unlock lists derived from it, the licence and identity
+//! is sufficient on its own, the unlock lists derived from it, the support and identity
 //! checks against the prepared study's contract and the ranker are Rust's: a study the
 //! search did not verify is reported and never scored.
 //!

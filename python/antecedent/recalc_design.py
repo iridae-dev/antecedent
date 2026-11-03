@@ -3,7 +3,7 @@
 Utility changes reuse the checked estimate. Changed supplied inputs invalidate
 its identification or numerical fits; the existing public estimators do the
 actual work. Weak-IV decisions refuse while retaining the attempted point and
-actual Anderson–Rubin diagnostics. Reuse grants no calibrated interval license.
+actual Anderson–Rubin diagnostics. Reuse grants no calibrated interval support.
 """
 
 from __future__ import annotations

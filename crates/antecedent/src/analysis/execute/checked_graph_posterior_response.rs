@@ -54,7 +54,7 @@ impl CheckedGraphPosteriorResponse {
     ///
     /// Refuses ADMG atoms (they have their own sealed family), a query outside
     /// the complete-observation mean response family, a validation suite the
-    /// family does not license, a procedure that does not match the inference
+    /// family does not support, a procedure that does not match the inference
     /// mode, or a cache that does not describe the frozen posterior.
     pub(crate) fn prepare(
         premises: CheckedGraphPosteriorResponsePremises,

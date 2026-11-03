@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
  "The clusters are the units of the Bayesian bootstrap: a Dirichlet(1..1) weight vector over all clusters restricted to an arm is that arm's posterior, and a draw is the contrast of the two arms' weighted means of the scaled cluster totals.",
  "Complete cluster randomization identifies the total-effect contrast between (0,0) and (1,1); partial interference and the exposure mapping are declared, not tested, and the prior identifies nothing.",
- "Unlicensed and uncalibrated: no coverage record covers the credible interval.",
+ "Unsupported and uncalibrated: no coverage record covers the credible interval.",
 ]
 
 upstream_implementations_observed = []
@@ -29,15 +29,15 @@ scope = "estimate_cluster_interference_bayesian_bootstrap in crates/antecedent-e
 assumptions = ["Complete cluster randomization and partial interference as for the design-based cluster estimator; every design refusal of that estimator applies first.", "Dirichlet(1,..,1) weights over all clusters, restricted to an arm and renormalised, are independent Dirichlet(1,..,1) posteriors for the two arms (Dirichlet aggregation property), so the arm means are independent given the data.", "The posterior is for the mean of the observed arm cluster-score distributions; the Bayesian bootstrap prior identifies nothing and no calibration is claimed."]
 historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. The review read the arXiv v4 manuscript of Aronow and Samii (1305.6156) as a PDF retrieved on 27 October 2026 (Rubin 1981 itself was not retrieved) and the product source; it did not read the typeset Annals of Applied Statistics pagination."
 redistribution = "Primary papers are linked, not redistributed. The unit tests added in this review are original repository-authored code under MIT OR Apache-2.0; no upstream code, comments or tests were copied."
-limitations = "The generic exposure estimator now checks complete and cluster realized assignments against their declared randomization support; this separate guard is outside this review. Verifies the posterior spread and mean of the arm-weighted contrast against the exact Dirichlet moment on one 8-cluster fixture (4 clusters per arm) and the shared score-posterior moment tests. It does not establish frequentist coverage of the credible interval, behavior with few clusters, or Rubin's argument beyond the standard Dirichlet(1,...,1) property; Rubin's paper text was not read. The new moment assertion lives in the bound implementation file and was not executed in this session. Unlicensed and uncalibrated."
+limitations = "The generic exposure estimator now checks complete and cluster realized assignments against their declared randomization support; this separate guard is outside this review. Verifies the posterior spread and mean of the arm-weighted contrast against the exact Dirichlet moment on one 8-cluster fixture (4 clusters per arm) and the shared score-posterior moment tests. It does not establish frequentist coverage of the credible interval, behavior with few clusters, or Rubin's argument beyond the standard Dirichlet(1,...,1) property; Rubin's paper text was not read. The new moment assertion lives in the bound implementation file and was not executed in this session. Unsupported and uncalibrated."
 sources = ["https://doi.org/10.1214/aos/1176345338", "https://arxiv.org/abs/1305.6156"]
 findings_resolved = ["Verified that the ratio of Dirichlet-weighted treated-cluster totals over treated weight mass equals the arm weighted mean, with both arms drawn from one shared weight vector, and that the posterior mean equals the design-based Horvitz-Thompson contrast.", "Added an executing assertion that the contrast draws' standard deviation matches sqrt(spread_t/(m_t+1)+spread_c/(m_c+1)) to 5% and that the draw mean matches the design estimate, replacing the earlier route test's loose 0.4x-1.6x comparison to the Neyman standard error as the only spread check.", "Corrected the exposure-mapping section reference to Section 3 / Condition 1 of the arXiv v4 manuscript."]
-record_sha256 = "226d6b6d5780a2a908b39cd93c76fbb0a7e7435b13c707d70afe6d7e3ca1f52d"
+record_sha256 = "d4ec76416f2c2dfd446213ae085b064f9ccaa544f20f4e0aa5b8948fd4871528"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference.rs"
-sha256 = "8ad2bde13cd8ff2000cf6b880bc1c0e085ccca95b4a5820b07132d133594eb3a"
+sha256 = "c0f6109a74e91195861e83e8bf168a5cabe79abc033860917e9eb0971b6b936a"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -47,4 +47,4 @@ sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "0be6112eb9b4ffdfced25a6e52ea0604317ae9a6c4ae54d826174794b6c080ba"
+sha256 = "68cc6f0b32eb664fc36fee835230efb08e48739b82b7a5e30ced25044eb2d537"

@@ -35,7 +35,7 @@ impl NativePreparedMnarFixedShift {
             Err(antecedent_io::IoError::Refused { code, message }) => {
                 let (detail, text) = message
                     .split_once(": ")
-                    .unwrap_or(("mnar_fixed_shift.interval_not_licensed", &message));
+                    .unwrap_or(("mnar_fixed_shift.interval_not_supported", &message));
                 Ok((None, Some(refusal_json(code, detail, text))))
             }
             Err(error) => Ok((

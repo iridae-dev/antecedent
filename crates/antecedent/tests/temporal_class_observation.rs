@@ -173,7 +173,7 @@ fn censored_series(
     .unwrap()
 }
 
-fn licensed_pairs(
+fn supported_pairs(
     pin: &serde_json::Value,
     t: &[f64],
     latent: &[f64],
@@ -278,15 +278,15 @@ fn carries_observation_claim(result: &antecedent::StudyResult) -> bool {
 }
 
 #[test]
-fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
+fn supported_observation_pairs_run_on_temporal_cpdag_and_pag() {
     let class = class_pin();
-    let pairs: Vec<String> = class["licensed_pairs"]
+    let pairs: Vec<String> = class["supported_pairs"]
         .as_array()
         .unwrap()
         .iter()
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
-    assert!(pairs.len() >= 5, "licensed_pairs must name every TemporalDag pair: {pairs:?}");
+    assert!(pairs.len() >= 5, "supported_pairs must name every TemporalDag pair: {pairs:?}");
     let pin = pin();
     let (t_full, latent_full, selected_full, c_ind_full, c_cox_full, _) = generate(&pin);
     let n_cov = 400.min(t_full.len());
@@ -297,7 +297,7 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
         &c_ind_full[..n_cov],
         &c_cox_full[..n_cov],
     );
-    for (name, series, spec, assumption) in licensed_pairs(&pin, t, latent, selected, c_ind, c_cox)
+    for (name, series, spec, assumption) in supported_pairs(&pin, t, latent, selected, c_ind, c_cox)
     {
         assert!(pairs.iter().any(|listed| listed == name), "{name} missing from fixture");
         let query = curve_query(&pin, spec, assumption);
@@ -437,7 +437,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
     // bootstrap successes (`bootstrap_has_enough_successes`,
     // crates/antecedent/src/analysis/execute/execute_helpers.rs); 8 (as used for the
     // `incomplete` run above, which never publishes a band regardless of replicate count)
-    // cannot license one, so the strict `banded()` checks below need enough requested to
+    // cannot support one, so the strict `banded()` checks below need enough requested to
     // clear that floor even after any refit failures.
     let oriented = run_pair(
         series,

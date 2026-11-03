@@ -510,7 +510,7 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     let artifact = RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap();

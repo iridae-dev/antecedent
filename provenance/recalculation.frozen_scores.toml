@@ -17,12 +17,12 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: the licensed claim is the counted work (fits, identifications, score builds, reweights, decisions) and the point law and net benefit of the existing AIPW routes. The law standard error is a reported diagnostic with calibration 'unmeasured'; no interval and no coverage record are produced.",
+  "Claim policy: the supported claim is the counted work (fits, identifications, score builds, reweights, decisions) and the point law and net benefit of the existing AIPW routes. The law standard error is a reported diagnostic with calibration 'unmeasured'; no interval and no coverage record are produced.",
   "The fit counter is the estimator's own additive thread-local instrument (antecedent_estimate::cell_aipw::count_cell_model_fits): it counts every multinomial propensity and per-cell outcome regression that actually completed, so a zero is measured rather than asserted by the wrapper. A first run on two binary treatments is 5 folds x (1 propensity + 4 cell regressions) = 25 fits. The instrument is thread-local and counts only fits run on the calling thread inside the measured closure.",
   "Resume is limited to ONE operation: retarget the frozen scores by row weights over the SAME row ids and recompute the law and decision with zero fits. A changed outcome, folds, graph, adjustment, row design, data snapshot or new rows are refused with the planner's Unavailable for the data (recalc.unavailable_data) before any work and leave the session unchanged. A requested data snapshot that differs from the frozen one makes the score artifact Unavailable rather than reused (a fix to the core planner).",
-  "ResumeContext distinguishes scores_snapshot_bound from supplied_data. A score-only process may retain the unchanged snapshot identity without claiming raw data availability. A changed snapshot still refuses before work, and portable_scores plus the bound identity do not license fresh fits. Selected contrasts bind the law identity; changing contrast recomputes the law and decision without refitting. Caller overrides cannot replace computed graph, target or utility identities and duplicate overrides refuse.",
+  "ResumeContext distinguishes scores_snapshot_bound from supplied_data. A score-only process may retain the unchanged snapshot identity without claiming raw data availability. A changed snapshot still refuses before work, and portable_scores plus the bound identity do not support fresh fits. Selected contrasts bind the law identity; changing contrast recomputes the law and decision without refitting. Caller overrides cannot replace computed graph, target or utility identities and duplicate overrides refuse.",
   "A resumed receipt is a verified in-process record, not a sealed artifact: the recalc_receipt_v1 format refuses a derived stage stored as reused under a fresh-process boundary, so a ResumeReceipt cannot be exported through it.",
-  "Identification is recomputed in a fresh process (the planner never reuses a derived stage there): the declared-adjustment descendant screen runs over the requested graph and is counted once. The retarget licence, the declared adjustment set and the declared inputs are caller declarations, recorded and never verified here.",
+  "Identification is recomputed in a fresh process (the planner never reuses a derived stage there): the declared-adjustment descendant screen runs over the requested graph and is counted once. The retarget support, the declared adjustment set and the declared inputs are caller declarations, recorded and never verified here.",
   "The frozen_scores_v1 artifact carries scores, stage digests and identities and no data and no model; a consumer recomputes the fit identity from the stored stage digests, requires the stored snapshot digest to be the declared one and recomputes the artifact identity. A consumer holding no retained identity checks only internal consistency, so a consistently resealed artifact of another run passes under its own identity.",
 ]
 
@@ -40,14 +40,14 @@ kind = "wrapper"
 rationale = "Cell-AIPW retention with portable frozen scores: a compatible target-weight retarget reweights the frozen cell scores with zero refits."
 no_independent_algorithm = "recalc_cell.rs freezes the estimator's score table, validates weights and calls antecedent_estimate::retarget; the fits and the reweighted mean are the covered estimator and retarget routines. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
 covered_by = ["estimate.cell.aipw", "estimate.aipw"]
-record_sha256 = "1c85fe8c9b2b8dba324f8479a3bc8f181d15ce046656cc0f0dc82ed8f567dfcc"
+record_sha256 = "8db1cace4c3705f610ee769c49d91f69bb198743a03f92721a3d40d1e516856e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_cell.rs"
-sha256 = "4e162aa003ec4cde0ca67393aa4d8deb7039128f3af7ea42702bc9f64cd44d89"
+sha256 = "33dece1c1f81e428639ff2b3d171baeebec89ac3f7207697b993b5cacd541528"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_cell.rs"
-sha256 = "5accbe345c510365fd7d7e57a7a7a26cc6f7fa9e0d92e6197d1deb7a37c56f51"
+sha256 = "7812e84406cb0a9300faba93f70a2f8edadd42b704690dce0d1e7af82e764681"

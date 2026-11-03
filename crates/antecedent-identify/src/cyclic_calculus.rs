@@ -27,7 +27,7 @@ pub enum CyclicCalculusStatus {
     /// Every required sigma-separation test verified the rewrite.
     Verified,
     /// A sigma-connection prevents using this rule's criterion.
-    NotLicensedByCriterion,
+    NotSupportedByCriterion,
     /// The pairwise-check budget ended before verification.
     BudgetExhausted,
 }
@@ -152,7 +152,7 @@ pub fn apply_cyclic_calculus(
             .is_separated()
             {
                 return Ok(CyclicCalculusApplication {
-                    status: CyclicCalculusStatus::NotLicensedByCriterion,
+                    status: CyclicCalculusStatus::NotSupportedByCriterion,
                     program: None,
                     sigma_checks: checks,
                     derivation,
@@ -266,7 +266,7 @@ mod tests {
         );
         assert_eq!(
             rule(&graph, CyclicCalculusRule::Action, 10).status,
-            CyclicCalculusStatus::NotLicensedByCriterion
+            CyclicCalculusStatus::NotSupportedByCriterion
         );
         assert_eq!(
             rule(&graph, CyclicCalculusRule::Exchange, 0).status,
@@ -275,7 +275,7 @@ mod tests {
         graph.insert_directed(id(2), id(0)).unwrap();
         assert_eq!(
             rule(&graph, CyclicCalculusRule::Exchange, 10).status,
-            CyclicCalculusStatus::NotLicensedByCriterion
+            CyclicCalculusStatus::NotSupportedByCriterion
         );
         let disconnected = CyclicMixedGraph::with_variables(3);
         assert_eq!(

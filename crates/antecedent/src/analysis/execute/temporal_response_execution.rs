@@ -196,7 +196,7 @@ impl CheckedTemporalResponseExecution {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
                 return Err(CausalError::Unsupported {
-                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
                 });
             }
         }

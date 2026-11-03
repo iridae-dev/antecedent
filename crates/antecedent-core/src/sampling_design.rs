@@ -1079,7 +1079,7 @@ mod tests {
         let series_variance = series
             .design()
             .apply_variance(VarianceRule::RowSubjectIid)
-            .expect_err("a time column does not license an independent variance formula");
+            .expect_err("a time column does not support an independent variance formula");
         assert_failed(
             &series_variance,
             SamplingDesign::DependentTimeSeries,

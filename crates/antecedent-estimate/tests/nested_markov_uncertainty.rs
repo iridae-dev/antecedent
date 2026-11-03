@@ -83,7 +83,7 @@ fn nested_fisher_delta_covariance_matches_independent_stratified_variance() {
         estimate.pilot.status.inference,
         InferenceStanding::IntervalWithheldCalibrationUnmeasured
     );
-    assert!(format!("{}", refuse_public_interval_route()).contains("cell_not_licensed"));
+    assert!(format!("{}", refuse_public_interval_route()).contains("not_supported"));
 }
 
 #[test]

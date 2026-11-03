@@ -1,7 +1,7 @@
 //! Finite, explicitly supplied graph/selection scenarios for one transport question.
 //!
 //! This is not equivalence-class transport. Each scenario is a fixed selection
-//! ADMG over the same named variables, decided independently by the licensed
+//! ADMG over the same named variables, decided independently by the supported
 //! classical catalog route: a bounded catalog-aware search, and, only when that
 //! search certifies nothing, the classical identifier for an independently
 //! verified s-hedge. A scenario's evidence binding is its own; nothing certified

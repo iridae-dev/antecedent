@@ -76,7 +76,7 @@ fn artifact(
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -313,7 +313,7 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     // The envelope states no point and no interval.
     for refusal in [cdf.interval(), cdf.posterior()] {
         let error = refusal.expect_err("closed");
-        assert_eq!(error.code(), "cell_not_licensed");
+        assert_eq!(error.code(), "not_supported");
     }
     assert_eq!(
         cdf.interval().expect_err("closed").details(),
@@ -422,6 +422,6 @@ fn a_transported_interval_needs_an_aligned_law_or_a_covariance() {
         inputs: vec![transported, other],
         ..unknown
     };
-    let claim = propagate(&with_covariance, numbers, &ctx()).expect("covariance licenses it");
+    let claim = propagate(&with_covariance, numbers, &ctx()).expect("covariance supports it");
     assert!((claim.value("variance").expect("variance") - 2.5).abs() < 1e-15);
 }

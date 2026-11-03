@@ -78,7 +78,7 @@ Rust kind is population-scoped carries the same keyword-only field
 the six derivative queries) and accepts the `antecedent.population` types
 (`AllRows`, `Treated`, `Untreated`, `Named`, `Rows`, `CustomDistribution`, with
 named and custom targets bound by `population_registry=`). `None` means the
-all-observed population. The Rust study builder licenses the declaration: an
+all-observed population. The Rust study builder supports the declaration: an
 `AverageEffect` estimates the targets its estimator supports (AIPW and the
 propensity estimators take treated, untreated, predicate and custom-distribution
 targets; `linear.adjustment.ate` and Bayesian g-computation take only the
@@ -309,8 +309,8 @@ rest on a stated remainder condition and are calibration-wired and unmeasured, s
 they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
 GLM fit fails and records the failed fit in `penalized_fallback`;
-`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_licensed`) and a lasso outside
-the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_licensed`). This is
+`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_supported`) and a lasso outside
+the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_supported`). This is
 distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
 
 ## Declare the independence unit of the AIPW cross-fit
@@ -319,11 +319,11 @@ distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized
 with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
 reports the cross-fitted point, keeps the score table and reports the cluster-sandwich
 standard error of the scores as `se_analytic`: a bootstrap or a non-default `se` is refused
-up front (`cluster_interval_not_licensed`), fewer clusters than
+up front (`cluster_interval_not_supported`), fewer clusters than
 `min_clusters` refuse `too_few_clusters`. `ClusterDml(unit="dyad", cluster_ids=...,
 second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
 the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
-endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
+endpoint roles or one giant component refuses `dyadic_dependence_not_supported`, and fewer
 than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML` and
 `DRLearner` declare dependence through `cluster_dml` only, and `CausalForest` through
 `cluster="site"` (whole-cluster subsampling, honesty and cross-fitting; see
@@ -398,7 +398,7 @@ retain their original object and traceback. These failures do not publish a succ
 scientific outcome.
 
 Reports retain identification mass, uncertainty sources and targets (including
-omitted components), assumption obligations, and support evidence. A licensed
+omitted components), assumption obligations, and support evidence. A supported
 matrix cell does not establish empirical support or validate its assumptions.
 
 ## Portable executions
@@ -437,7 +437,7 @@ different layers. A prepared inspect has a program and no claim.
 
 ## Current boundaries
 
-**Composition evidence.** Every licensed support-matrix cell completes the inspect, preview, execute, claim and consume sequence in the Rust compiler path on synthetic fixtures. That shows the pieces compose; it does not carry over a parent estimator's coverage evidence.
+**Composition evidence.** Every supported support-matrix cell completes the inspect, preview, execute, claim and consume sequence in the Rust compiler path on synthetic fixtures. That shows the pieces compose; it does not carry over a parent estimator's coverage evidence.
 
 **Reusable studies.** `analyze` performs preparation followed by explicit
 estimation. Completed analysis outcomes retain their applicable immutable study;

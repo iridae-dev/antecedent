@@ -21,7 +21,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested). Least-squares nuisances require finite outcome moments; heavy tails warn via response.heavy_tailed_outcome rather than changing the licensed cell."
+limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested). Least-squares nuisances require finite outcome moments; heavy tails warn via response.heavy_tailed_outcome rather than changing the supported cell."
 python_facade = "full"
 notes = "Claimed shared-linear-contract conformance: frozen fixture conformance/response/two_point_curve_average_effect compares ResponseCurve(kennedy_dr) two-point contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. External ehkennedy/npcausal::ctseff remains an unclaimed candidate (nuisance/bandwidth contract not pinned)."
 
@@ -146,7 +146,7 @@ evidence_assertion = "temporal_observation_pairs_match_fixture_and_beat_complete
 known_truth_fixture = "conformance/response/temporal_observation"
 limitations = "Same pairs as the static observation contract, applied once to the long-format series before per-horizon g-computation. IndependentGiven(Z) / OutcomeIndependentGiven(Z) lag-align named covariates at the policy treatment offset. Complete-on-recorded-proxy must miss the surface. No Bayesian ride, delayed entry, interval/truncation, cheap/full, TemporalCpdag/Pag, or joint observation/curve bands."
 python_facade = "full"
-notes = "Pin conformance/response/temporal_observation is consumed by crates/antecedent/tests/temporal_observation.rs and python/tests/test_temporal_observation.py. Unlicensed pairs refuse at compile with TEMPORAL_OBSERVATION_UNLICENSED. Provenance estimate.temporal_response.observation_adjusted."
+notes = "Pin conformance/response/temporal_observation is consumed by crates/antecedent/tests/temporal_observation.rs and python/tests/test_temporal_observation.py. Unsupported pairs refuse at compile with TEMPORAL_OBSERVATION_UNSUPPORTED. Provenance estimate.temporal_response.observation_adjusted."
 
 [[capabilities]]
 id = "estimate.temporal_observed_bayes"
@@ -167,7 +167,7 @@ evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
-limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success. Named test is the shared static response-facade test whose Bayesian block checks the posterior mean against the response_surfaces pin (explicit and accepted structure, curve and intervention)."
+limitations = "Only the recorded forms and assumptions are supported. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success. Named test is the shared static response-facade test whose Bayesian block checks the posterior mean against the response_surfaces pin (explicit and accepted structure, curve and intervention)."
 notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -178,7 +178,7 @@ evidence_test = "crates/antecedent/tests/temporal_response_facade.rs"
 evidence_assertion = "bayesian_temporal_response_and_sustained_window_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
-limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are supported. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]

@@ -210,7 +210,7 @@ class ProviderTrust(StrEnum):
     nobody has claimed anything for it; a provider is never registered with it.
     """
 
-    NATIVE_LICENSED = "native_licensed"
+    NATIVE_SUPPORTED = "native_supported"
     VERIFIED_EXTENSION = "verified_extension"
     EXTERNALLY_ATTESTED = "externally_attested"
     UNVERIFIED = "unverified"
@@ -264,7 +264,7 @@ class CausalProviderSpec:
     """Machine-readable claims required before an extension can run.
 
     These declarations describe an extension's contract; they do not make its
-    scientific claims true. Native licensing and extension verification remain
+    scientific claims true. Native support and extension verification remain
     separate gates.
 
     ``capabilities`` and ``meaning`` are the typed counterparts of what a
@@ -503,7 +503,7 @@ class ProviderVerificationReceipt:
     the receipt covers, and its digest are decided natively. One receipt serves
     every surface. It is exportable, loadable under the digest a consumer
     retained, and consumable by composition through :meth:`trust_evidence`. It
-    covers only the listed requests and never grants native licensing or
+    covers only the listed requests and never grants native support or
     calibration.
     """
 
@@ -747,13 +747,13 @@ class ProviderRegistry:
         if not callable(getattr(provider, "execute", None)):
             raise TypeError("provider must implement execute(request)")
         executable = cast(ExecutableProvider, provider)
-        if trust is ProviderTrust.NATIVE_LICENSED:
+        if trust is ProviderTrust.NATIVE_SUPPORTED:
             raise _refuse(
-                "provider.native_licence_not_available",
-                "Python extensions cannot register as native licensed providers",
+                "provider.native_support_not_available",
+                "Python extensions cannot register as native supported providers",
                 code="external_verification_failed",
                 offending="trust",
-                remedy="register as externally attested; native licensing is granted only to "
+                remedy="register as externally attested; native support is granted only to "
                 "providers implemented in the library",
             )
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
@@ -816,7 +816,7 @@ class ProviderRegistry:
         references (assumptions, support label, provenance, artifact bytes) are
         compared here and must hold before any probe is submitted. This checks
         the executable contract and supplied references; it does not certify the
-        scientific validity of caller supplied truth or grant native licensing.
+        scientific validity of caller supplied truth or grant native support.
         Promotion is atomic after every fixture passes.
         """
         provider, trust = self._entry(name)

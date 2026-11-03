@@ -19,5 +19,5 @@ product of coefficients gives neither, so both mistakes fail the `1e-12` pin.
 
 `crates/antecedent/tests/pag_admg_numeric_pins.rs` and
 `python/tests/test_pag_admg_numeric_pins.py` pin that number for explicit and
-accepted ADMGs through every licensed Frequentist validation level; the Rust
+accepted ADMGs through every supported Frequentist validation level; the Rust
 test also pins prepared estimate and same-schema refresh reuse.

@@ -548,7 +548,7 @@ def temporal_new_period_refresh(
 class TemporalIntervalCandidate(ScientificResult):
     """Original whole-unit candidate, available only in internal acceptance builds.
 
-    Calibration is unmeasured; this object is not a released interval license.
+    Calibration is unmeasured; this object is not a released interval support.
     The native artifact retains the entire panel, estimator and replicate identities.
     """
 
@@ -626,7 +626,7 @@ class TemporalIntervalCandidate(ScientificResult):
         if consumer is None:
             raise TemporalExtensionRefusal(
                 {
-                    "code": "cell_not_licensed",
+                    "code": "not_supported",
                     "stage": "temporal_extension",
                     "detail": "temporal_interval.route_frozen",
                     "message": "the interval consumer remains closed pending calibration",

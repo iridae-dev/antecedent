@@ -19,7 +19,7 @@ pub enum ProxyMapping {
         residual: (f64, f64),
         /// Substantive assumption identifying the effect relationship.
         assumption_id: String,
-        /// Evidence supporting the mapping, retained as lineage (not promoted to a license).
+        /// Evidence supporting the mapping, retained as lineage (not promoted to support).
         mapping_evidence_id: String,
     },
 }

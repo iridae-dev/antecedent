@@ -8,7 +8,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not a TemporalAdmg license. No interval.",
+  "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not TemporalAdmg support. No interval.",
   "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
 ]
 
@@ -25,12 +25,12 @@ rationale = "Dirichlet posterior mean of the supplied finite law (AdmgConditiona
 no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "5eae19a159b600b5a5499239ef004b293e242a790f38a519bc7cc47cacf5cbca"
+record_sha256 = "276301bba7c993bb8f72518a81d5b0d240954bb0b03cc082ee1f7dfa7f571b52"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
@@ -40,4 +40,4 @@ sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs"
-sha256 = "0649323c128671193f681a89091cf93aa940c3ead76244e8904f813430358314"
+sha256 = "047faa91ac5378c752c36af09fd3e48f00c9a2b68af6eaf9bc5938e653221db5"

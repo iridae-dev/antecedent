@@ -171,8 +171,8 @@ impl SignalUpdateMode {
 /// Trust label a signal carries on its receipt.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SignalTrustLabel {
-    /// Implemented and licensed natively.
-    NativeLicensed,
+    /// Implemented and supported natively.
+    NativeSupported,
     /// Supplier-asserted only.
     ExternallyAttested,
     /// The exact contract passed object-level verification (still not native).
@@ -184,7 +184,7 @@ impl SignalTrustLabel {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::NativeLicensed => "native_licensed",
+            Self::NativeSupported => "native_supported",
             Self::ExternallyAttested => "externally_attested",
             Self::ExactRequestVerified => "exact_request_verified",
         }
@@ -666,7 +666,7 @@ fn native_prepared(
             rng_seed: request.rng_seed,
             family: family.to_owned(),
             update_mode: SignalUpdateMode::NativeUpdate,
-            trust: SignalTrustLabel::NativeLicensed,
+            trust: SignalTrustLabel::NativeSupported,
             attestor: None,
             provider_identity: None,
             evidence_lineage: lineage,
@@ -1104,7 +1104,7 @@ impl ExternalSignal {
             return Err(SignalError::InvalidObject);
         };
         match &trust {
-            ExternalTrustState::NativeLicensed => return Err(SignalError::TrustNativeClaimed),
+            ExternalTrustState::NativeSupported => return Err(SignalError::TrustNativeClaimed),
             ExternalTrustState::ExternallyAttested { attestor } => {
                 if is_blank(attestor) {
                     return Err(SignalError::TrustMismatch);
@@ -1144,7 +1144,7 @@ impl ExternalSignal {
             ExternalTrustState::ExactRequestVerified(_) => {
                 (SignalTrustLabel::ExactRequestVerified, None)
             }
-            ExternalTrustState::NativeLicensed => (SignalTrustLabel::ExternallyAttested, None),
+            ExternalTrustState::NativeSupported => (SignalTrustLabel::ExternallyAttested, None),
         }
     }
 

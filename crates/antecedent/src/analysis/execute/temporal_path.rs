@@ -895,7 +895,7 @@ impl super::Study {
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
 
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let observation = self.prepare_temporal_response_observation(
             &ResponseObservationInput {
                 data,
@@ -1069,7 +1069,7 @@ impl super::Study {
         if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
-                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
                 });
             }
         }
@@ -1109,7 +1109,7 @@ impl super::Study {
         )];
         diagnostics.extend(response.support.warnings.iter().cloned());
         // A derivative's cheap/full suite is its refuter state on the horizon's Pulse
-        // witness (unlicensed).
+        // witness (unsupported).
         let (refutations, predictive_checks) = if matches!(self.settings.refute, RefuteSuite::None)
         {
             (Vec::new(), Vec::new())
@@ -1324,9 +1324,9 @@ impl super::Study {
                 run,
                 refuted,
             );
-            // No evidence row names the front-door derivative route: the cell's licence belongs to
+            // No evidence row names the front-door derivative route: the cell's support belongs to
             // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
-            result.support_status = Some(crate::support::CellStatus::Refused);
+            result.support_status = Some(crate::support::CellStatus::NotSupported);
             return Ok(result);
         }
         self.execute_temporal_derivative_response(
@@ -1374,7 +1374,7 @@ impl super::Study {
         );
         // The evidence rows of the temporal-ADMG derivative cells run one horizon; several
         // horizons execute and report their status as refused.
-        result.support_status = Some(crate::support::CellStatus::Refused);
+        result.support_status = Some(crate::support::CellStatus::NotSupported);
         Ok(result)
     }
 
@@ -1458,7 +1458,7 @@ impl super::Study {
         // A multi-horizon derivative's cheap/full suite is the support of the published
         // values, the front-door state of each front-door horizon and the TemporalDag
         // Pulse-native suite on each adjustment horizon's witness; horizons are not mixed
-        // (unlicensed).
+        // (unsupported).
         let mut refuted = (Vec::new(), Vec::new(), Vec::new());
         if self.settings.refute != RefuteSuite::None {
             let value = super::derivative_refutation::derivative_scalar(combined).0;
@@ -1586,7 +1586,7 @@ impl super::Study {
     }
 
     /// The front-door derivative refuter state of one horizon of a temporal ADMG, on the
-    /// window table the published value was estimated on (unlicensed).
+    /// window table the published value was estimated on (unsupported).
     fn refute_temporal_admg_front_door(
         &self,
         fit: &TemporalFrontDoorFit,
@@ -1652,7 +1652,7 @@ impl super::Study {
         result
     }
 
-    /// Licenses the response's observation spec and, for a non-Bayesian
+    /// Supports the response's observation spec and, for a non-Bayesian
     /// observed series, adjusts the series and the working query; records the
     /// observation assumptions on both assumption sets.
     fn prepare_temporal_response_observation(
@@ -1670,7 +1670,7 @@ impl super::Study {
         } else if observed_bayes {
             if self.observation_delayed_entry.is_some() {
                 return Err(CausalError::Unsupported {
-                    message: "delayed entry is not licensed for temporal observation",
+                    message: "delayed entry is not supported for temporal observation",
                 });
             }
             append_temporal_observation_assumptions(
@@ -1682,7 +1682,7 @@ impl super::Study {
         } else {
             if self.observation_delayed_entry.is_some() {
                 return Err(CausalError::Unsupported {
-                    message: "delayed entry is not licensed for temporal observation",
+                    message: "delayed entry is not supported for temporal observation",
                 });
             }
             let adjustment = contemporaneous_adjustment_variables(aligned);
@@ -1853,7 +1853,7 @@ impl super::Study {
             identify_cached,
         );
         // An intervention level's cheap/full suite runs the per-horizon Pulse-witness
-        // refuter state (unlicensed); a curve keeps the skipped note.
+        // refuter state (unsupported); a curve keeps the skipped note.
         let (refutations, predictive_checks) = match &self.query {
             CausalQuery::Response(query)
                 if !matches!(self.settings.refute, RefuteSuite::None)
@@ -2190,7 +2190,7 @@ impl super::Study {
                 .execute_temporal_class_derivative_within(data, query, physical, budget, ctx);
         }
         let started = Instant::now();
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         if matches!(
             query.observation,
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. }
@@ -2363,7 +2363,7 @@ impl super::Study {
         } else {
             if self.observation_delayed_entry.is_some() {
                 return Err(CausalError::Unsupported {
-                    message: "delayed entry is not licensed for temporal observation",
+                    message: "delayed entry is not supported for temporal observation",
                 });
             }
             let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
@@ -2614,7 +2614,7 @@ impl super::Study {
             checked_witness_leases,
         } = run;
         // A class intervention level's cheap/full suite is the per-completion,
-        // per-horizon Pulse-witness refuter state (unlicensed).
+        // per-horizon Pulse-witness refuter state (unsupported).
         let (refutations, predictive_checks) = if witness_sites.is_empty() {
             (Vec::new(), Vec::new())
         } else {
@@ -3517,7 +3517,7 @@ impl super::Study {
                 if let Some(summary) = conflict.as_ref() {
                     // A transfer conflict is a per-completion diagnostic. It rides the
                     // atom posterior and the result diagnostics whether or not a class
-                    // prior licenses a mixture, and it never changes identification.
+                    // prior supports a mixture, and it never changes identification.
                     push_conflict_diagnostics(diagnostics, summary);
                     posterior = with_conflict_summary(posterior, summary.clone());
                 }
@@ -3985,7 +3985,7 @@ pub(super) fn temporal_class_response_mean(
     if !full_mass_scope || n_horizons == 0 {
         return None;
     }
-    // Licensed contract: `conditional_on_identified` is published only when
+    // Supported contract: `conditional_on_identified` is published only when
     // every identified atom is aligned *and* unidentified/unevaluable mass is
     // zero. Renormalizing over identified atoms would hide retained class mass.
     let (_, unidentified, unevaluable) = temporal_class_response_masses(atoms);
@@ -4497,7 +4497,7 @@ fn shared_temporal_class_uncertainty(
 }
 
 /// The completion-envelope diagnostic every class response publishes, plus the
-/// Bayesian note when no class prior licenses a posterior mixture.
+/// Bayesian note when no class prior supports a posterior mixture.
 pub(super) fn class_response_identified_set_diagnostics(
     bayesian: bool,
     class_prior: bool,
@@ -6006,7 +6006,7 @@ impl super::Study {
             InferenceMode::Bayesian(cfg) => {
                 if cfg.has_transfer() {
                     return Err(CausalError::Unsupported {
-                        message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                        message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
                     });
                 }
                 Ok(Some(cfg.prior_scale))
@@ -6080,7 +6080,7 @@ impl super::Study {
         let started = Instant::now();
         if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not supported",
             });
         }
         let prior_scale = self.cross_world_prior_scale()?;
@@ -7108,7 +7108,7 @@ pub(super) fn temporal_linear_derivative_value(
         F::AverageDerivative { outcome, treatment, weighting } => {
             if !matches!(weighting, DerivativeWeighting::Observed) {
                 return Err(CausalError::Unsupported {
-                    message: "temporal average derivative is licensed for the observed weighting",
+                    message: "temporal average derivative is supported for the observed weighting",
                 });
             }
             let (_, slopes) = fit(*outcome, &[*treatment])?;

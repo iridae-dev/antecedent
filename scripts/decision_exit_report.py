@@ -5,8 +5,8 @@ The registry `DECISION_STORIES` below is where each decision-story owner adds th
 story tests of their cell (Rust integration-test targets and Python test files, all of which must
 pass from clean preparation through independent artifact consumption). Each story is registered
 in `crates/antecedent/tests/decision_exit_gate.rs`; a story is still PENDING_IMPLEMENTATION while
-its record is `frozen` or `in_progress`, and PASS only once it is `promoted` with its stories
-passing and any allocated coverage measured.
+its record is `not_supported`, and PASS only once it is `supported` with its stories
+passing (a measured-coverage reading is reported as an annotation).
 
     python3 scripts/decision_exit_report.py --list-tests                      # TSV of tests to run
     python3 scripts/decision_exit_report.py --runs runs.tsv --intervals iv.json \\
@@ -26,16 +26,15 @@ STORY RULES (strict, deterministic):
   * at least one evidence name must live in a story file, and every one that does must appear as
     passed in that story's run log (`test <name> ... ok` for Rust; `PASSED ...::<name>` for pytest -rA),
     so a green run of unrelated tests proves nothing;
-  * a `promoted` package one of whose records (`carried_forward` included) allocates coverage ids
-    never passes without a calibration reading for it: a missing or pending reading is
-    PENDING_CALIBRATION (live record) or a CARRIED_FORWARD calibration row (carried record).
+  * a `supported` package one of whose records allocates coverage ids reports a missing or pending
+    calibration reading as PENDING_CALIBRATION (an annotation; only `--require-calibrated` fails it).
 
 Registered stories (one line each; owners register these in `DECISION_STORIES`):
   admg_conditional_transport  prepare latent-confounded selection ADMG + conditional query ->
       point vs enumerated truth -> export -> independent consume; non-transportable diagram ->
       `transport_not_certified`; counted laws refused.
   smoothed_dose_response  prepare trial + dose + grid -> smoothed psi_h -> export/consume;
-      tampered artifact fails; `.interval()` refuses `cell_not_licensed`.
+      tampered artifact fails; `.interval()` refuses `not_supported`.
   joint_mechanism_sensitivity  z baseline -> joint 2-factor deviation with tipping frontier ->
       export/consume; re-sealed mutated threshold/factor set fails replay; union never labelled
       a CI.
@@ -46,19 +45,16 @@ Registered stories (one line each; owners register these in `DECISION_STORIES`):
       export/consume; non-identified event refuses; uncertainty refuses.
   binary_observation_recovery  binary m-graph with item-missing variables -> recover joint law ->
       feed downstream ID -> export/consume; out-of-class mechanism refuses; `prepare_empirical`
-      refuses `cell_not_licensed`.
+      refuses `not_supported`.
 
 Per-story status:
-  PASS                   record `promoted`, stories registered with evidence, every registered story
+  PASS                   record `supported`, stories registered with evidence, every registered story
                          target ran and passed, evidence passed, and any allocated coverage is
                          measured and attested
   FAIL                   a registered story failed, did not run or ran zero tests; or the record's
                          interval state is FAIL
-  PENDING_IMPLEMENTATION no record yet, record `frozen`, no story tests registered, or the record
-                         is `in_progress` with nothing left but its closed routes
-  PENDING_CALIBRATION    stories pass but an allocated coverage record is absent
-  CARRIED_FORWARD        the record is `carried_forward` (its refusal stays visible); also
-                         a separate calibration row for a carried record's unmeasured coverage ids
+  PENDING_IMPLEMENTATION no record yet, record `not_supported`, or no story tests registered
+  PENDING_CALIBRATION    stories pass but an allocated coverage record is absent (annotation)
 
 Exit status: 1 on any FAIL. PENDING_CALIBRATION is nonzero only with `--require-calibrated`,
 PENDING_IMPLEMENTATION only with `--require-implemented`; `--release` is both.
@@ -83,7 +79,7 @@ ROOT = Path(os.environ.get("DECISION_EXIT_ROOT", REPO))
 # ---------------------------------------------------------------------------------------------
 # STORY REGISTRY. Each decision story adds its end-to-end story tests here (additive, one entry per
 # story; do not invent tests that do not exist):
-#   "records": the promotion record ids (parity/promotion.toml) the story covers
+#   "records": the capability record ids (parity/capability_records.toml) the story covers
 #   "rust":   [("<crate>", "<integration test target>")]   run as `cargo test -p <crate> --test <target>`
 #   "python": ["tests/<file>.py"]                         run from python/ with pytest
 #   "evidence": ["<test fn name>", ...]  the route-evidence assertions the story covers (required
@@ -152,8 +148,8 @@ PASSED_PY = re.compile(r"\b(\d+) passed\b")
 FAILED_PY = re.compile(r"\b\d+ (failed|error)")
 
 
-def story_records(root: Path, registry: str = "parity/promotion.toml") -> dict[str, list[dict]]:
-    """Every record of each registered story (a story may own several, e.g. a carried one)."""
+def story_records(root: Path, registry: str = "parity/capability_records.toml") -> dict[str, list[dict]]:
+    """Every record of each registered story (a story may own several)."""
     p = root / registry
     records = tomllib.loads(p.read_text(encoding="utf-8")).get("record", []) if p.is_file() else []
     by_id = {r["id"]: r for r in records}
@@ -330,51 +326,24 @@ def evaluate(
                 (
                     label,
                     "PENDING_IMPLEMENTATION",
-                    "no record in parity/promotion.toml",
+                    "no record in parity/capability_records.toml",
                 )
             )
             continue
-        live = [r for r in recs if r.get("status") != "carried_forward"]
-        carried = [r for r in recs if r.get("status") == "carried_forward"]
-        extra: list[tuple[str, str, str]] = []
-        for r in carried:
-            ids = _allocated(r)
-            cal = calibration.get(r["id"])
-            if ids and (cal is None or cal.get("status") != "PASS"):
-                why = cal["detail"] if cal else "no calibration reading in the interval check"
-                extra.append(
-                    (
-                        f"{pkg} calibration",
-                        "CARRIED_FORWARD",
-                        f"{r['id']}: {len(ids)} coverage id(s) carried with the record ({why})",
-                    )
-                )
-        if not live:
-            rows.append(
-                (
-                    label,
-                    "CARRIED_FORWARD",
-                    "every record of the story is carried_forward",
-                )
-            )
-            rows.extend(extra)
+        live = recs
+        # Every record of the story must be supported for a PASS: a story whose
+        # record (or sibling record) is not_supported is not finished.
+        unsupported = [r for r in live if r.get("status") != "supported"]
+        if unsupported:
+            ids = ", ".join(r["id"] for r in unsupported)
+            rows.append((label, "PENDING_IMPLEMENTATION", f"record not_supported ({ids})"))
             continue
-        # Every live record of the story must be promoted for a PASS: a story
-        # whose sibling record is still frozen or in_progress is not finished.
-        unpromoted = [r for r in live if r.get("status") != "promoted"]
-        if any(r.get("status") == "frozen" for r in live):
-            frozen_ids = ", ".join(r["id"] for r in live if r.get("status") == "frozen")
-            rows.append((label, "PENDING_IMPLEMENTATION", f"record frozen ({frozen_ids})"))
-            rows.extend(extra)
-            continue
-        status = unpromoted[0].get("status") if unpromoted else "promoted"
         state, detail = story_state(pkg, entry, runs, recs, root)
         if state == "FAIL":
             rows.append((label, "FAIL", detail))
             continue
         if state == "NONE":
-            rows.append((label, "PENDING_IMPLEMENTATION", f"record {status}; {detail}"))
-            rows.extend(extra)
+            rows.append((label, "PENDING_IMPLEMENTATION", f"record supported; {detail}"))
             continue
         cal_fail = cal_pending = None
         for r in live:
@@ -393,17 +362,8 @@ def evaluate(
             rows.append((label, "FAIL", f"interval calibration: {cal_fail}"))
         elif cal_pending is not None:
             rows.append((label, "PENDING_CALIBRATION", f"{detail}; {cal_pending}"))
-        elif unpromoted:
-            rows.append(
-                (
-                    label,
-                    "PENDING_IMPLEMENTATION",
-                    f"{detail}; record still {status} ({unpromoted[0]['id']})",
-                )
-            )
         else:
             rows.append((label, "PASS", detail))
-        rows.extend(extra)
     rows.append(
         (
             "intervals",
@@ -545,8 +505,8 @@ def self_test() -> int:
                 if rc != code or not found:
                     failures.append(f"'{label}': rc={rc} (want {code}), want {verdict!r}\n{text}")
 
-            # ---- all six promoted and passing (every package its own stories)
-            full = {p: rec(p, "promoted") for p in DECISION_STORIES}
+            # ---- all six supported and passing (every package its own stories)
+            full = {p: rec(p, "supported") for p in DECISION_STORIES}
             lines_all = []
             for p in DECISION_STORIES:
                 if p == P1:
@@ -568,7 +528,7 @@ def self_test() -> int:
                 f"python\t{P1}\ttests/test_synth_exit_gate.py\t0\t{py_ok}",
             ]
             expect(
-                "all promoted and passing",
+                "all supported and passing",
                 full,
                 parse_runs("\n".join(lines_all)),
                 iv_ok,
@@ -600,16 +560,16 @@ def self_test() -> int:
                 True,
             )
             expect(
-                "frozen record is pending implementation",
-                {P1: rec(P1, "frozen")},
+                "not_supported record is pending implementation",
+                {P1: rec(P1, "not_supported")},
                 {},
                 iv_ok,
                 0,
-                "record frozen",
+                "record not_supported",
             )
             expect(
-                "registered stories + evidence, promoted: the first story passes",
-                {P1: rec(P1, "promoted")},
+                "registered stories + evidence, supported: the first story passes",
+                {P1: rec(P1, "supported")},
                 runs(),
                 iv_ok,
                 0,
@@ -617,7 +577,7 @@ def self_test() -> int:
             )
             expect(
                 "a failed Rust story fails",
-                {P1: rec(P1, "promoted")},
+                {P1: rec(P1, "supported")},
                 runs(rc_rust=101),
                 iv_ok,
                 1,
@@ -625,7 +585,7 @@ def self_test() -> int:
             )
             expect(
                 "a failed Python story fails",
-                {P1: rec(P1, "promoted")},
+                {P1: rec(P1, "supported")},
                 runs(py=bad_py),
                 iv_ok,
                 1,
@@ -633,7 +593,7 @@ def self_test() -> int:
             )
             expect(
                 "a nonzero Python rc fails",
-                {P1: rec(P1, "promoted")},
+                {P1: rec(P1, "supported")},
                 runs(rc_py=1),
                 iv_ok,
                 1,
@@ -641,7 +601,7 @@ def self_test() -> int:
             )
             expect(
                 "zero tests run fails",
-                {P1: rec(P1, "promoted")},
+                {P1: rec(P1, "supported")},
                 runs(rust=zero),
                 iv_ok,
                 1,
@@ -649,7 +609,7 @@ def self_test() -> int:
             )
             expect(
                 "a story that never ran fails",
-                {P1: rec(P1, "promoted")},
+                {P1: rec(P1, "supported")},
                 runs(skip_py=True),
                 iv_ok,
                 1,
@@ -657,7 +617,7 @@ def self_test() -> int:
             )
             expect(
                 "pending calibration exits 0 by default",
-                {P1: rec(P1, "in_progress", "calibrated")},
+                {P1: rec(P1, "supported", "interval")},
                 runs(),
                 iv_pending,
                 0,
@@ -665,7 +625,7 @@ def self_test() -> int:
             )
             expect(
                 "pending calibration fails --require-calibrated",
-                {P1: rec(P1, "in_progress", "calibrated")},
+                {P1: rec(P1, "supported", "interval")},
                 runs(),
                 iv_pending,
                 1,
@@ -674,37 +634,29 @@ def self_test() -> int:
             )
             expect(
                 "a failed story outranks pending calibration",
-                {P1: rec(P1, "in_progress", "calibrated")},
+                {P1: rec(P1, "supported", "interval")},
                 runs(rc_rust=1),
                 iv_pending,
                 1,
                 "verdict: FAIL",
             )
             expect(
-                "in_progress point-only record is not a pass",
-                {P1: rec(P1, "in_progress")},
-                runs(),
-                iv_ok,
-                0,
-                "record still in_progress",
-            )
-            expect(
                 "record with no registered story is pending",
-                {P2: rec(P2, "promoted")},
+                {P2: rec(P2, "supported")},
                 runs(),
                 iv_ok,
                 0,
                 "no story test registered",
             )
-            # A package is not finished while a sibling live record is unpromoted.
-            sibling = [rec(P1, "promoted"), rec(P1, "in_progress", rid="synth.sibling")]
+            # A package is not finished while a sibling record is not_supported.
+            sibling = [rec(P1, "supported"), rec(P1, "not_supported", rid="synth.sibling")]
             expect(
-                "a promoted record with an in_progress sibling is pending, not a pass",
+                "a supported record with a not_supported sibling is pending, not a pass",
                 {P1: sibling},
                 runs(),
                 iv_ok,
                 0,
-                "record still in_progress (synth.sibling)",
+                "record not_supported (synth.sibling)",
             )
             expect(
                 "... and fails --require-implemented",
@@ -716,31 +668,13 @@ def self_test() -> int:
                 False,
                 True,
             )
-            expect(
-                "a frozen sibling is pending implementation",
-                {P1: [rec(P1, "promoted"), rec(P1, "frozen", rid="synth.sibling")]},
-                runs(),
-                iv_ok,
-                0,
-                "record frozen (synth.sibling)",
-            )
             expect("interval violation fails", {}, {}, iv_fail, 1, "verdict: FAIL")
-            expect(
-                "carried_forward is accepted",
-                {P3: rec(P3, "carried_forward")},
-                {},
-                iv_ok,
-                0,
-                "CARRIED_FORWARD",
-                True,
-                False,
-            )
 
             # ---- D4: evidence rules. A green story run is not enough.
-            promoted = {P1: rec(P1, "promoted")}
+            supported = {P1: rec(P1, "supported")}
             expect(
                 "a story whose run log lacks the evidence tests fails",
-                promoted,
+                supported,
                 runs(rust=rust_no_ev),
                 iv_ok,
                 1,
@@ -748,7 +682,7 @@ def self_test() -> int:
             )
             expect(
                 "a python evidence test that did not pass fails",
-                promoted,
+                supported,
                 runs(py=py_unrelated),
                 iv_ok,
                 1,
@@ -757,7 +691,7 @@ def self_test() -> int:
             DECISION_STORIES[P1]["evidence"] = []
             expect(
                 "stories registered with no evidence list fail",
-                promoted,
+                supported,
                 runs(),
                 iv_ok,
                 1,
@@ -766,14 +700,14 @@ def self_test() -> int:
             DECISION_STORIES[P1]["evidence"] = [ev, "ghost_test"]
             expect(
                 "an evidence name defined nowhere fails",
-                promoted,
+                supported,
                 runs(),
                 iv_ok,
                 1,
                 "ghost_test is neither",
             )
             DECISION_STORIES[P1]["evidence"] = ["cited_fixture_fn"]
-            fixture_rec = rec(P1, "promoted")
+            fixture_rec = rec(P1, "supported")
             fixture_rec["fixtures"] = [
                 {
                     "evidence_test": "crates/antecedent/tests/fixture_cited.rs",
@@ -802,8 +736,8 @@ def self_test() -> int:
             # ---- D3: allocated coverage ids never pass without a calibration reading
             ids = ["cov.x.l95.a"]
             expect(
-                "promoted with allocated ids and no calibration reading is pending",
-                {P1: rec(P1, "promoted", "assumption_range", ids)},
+                "supported with allocated ids and no calibration reading is pending",
+                {P1: rec(P1, "supported", "assumption_range", ids)},
                 runs(),
                 iv_ok,
                 0,
@@ -811,7 +745,7 @@ def self_test() -> int:
             )
             expect(
                 "... and fails --require-calibrated",
-                {P1: rec(P1, "promoted", "assumption_range", ids)},
+                {P1: rec(P1, "supported", "assumption_range", ids)},
                 runs(),
                 iv_ok,
                 1,
@@ -824,43 +758,12 @@ def self_test() -> int:
                 "errors": [],
             }
             expect(
-                "promoted with allocated ids and a passing reading passes",
-                {P1: rec(P1, "promoted", "calibrated", ids)},
+                "supported with allocated ids and a passing reading passes",
+                {P1: rec(P1, "supported", "interval", ids)},
                 runs(),
                 iv_pass,
                 0,
                 f"ROW:{P1}:PASS",
-            )
-            carried = rec(P1, "carried_forward", "calibrated", ids, rid="synth.carried")
-            expect(
-                "a carried_forward sibling's unmeasured ids are a CARRIED_FORWARD calibration row",
-                {P1: [rec(P1, "promoted"), carried]},
-                runs(),
-                iv_ok,
-                0,
-                f"{P1} calibration",
-                True,
-                False,
-            )
-            expect(
-                "...and the promoted record still passes",
-                {P1: [rec(P1, "promoted"), carried]},
-                runs(),
-                iv_ok,
-                0,
-                f"ROW:{P1}:PASS",
-            )
-            expect(
-                "a carried record with a failing reading does not hide behind the carry",
-                {P1: [rec(P1, "promoted", "calibrated", ids), carried]},
-                runs(),
-                {
-                    "intervals": "PASS",
-                    "calibration": {RECORD_IDS[P1]: {"status": "FAIL", "detail": "not attested"}},
-                    "errors": [],
-                },
-                1,
-                "interval calibration",
             )
         finally:
             DECISION_STORIES.clear()
@@ -883,18 +786,18 @@ def main(argv: list[str]) -> int:
         "--require-implemented",
     ):
         parser.add_argument(flag, action="store_true")
-    for flag in ("--runs", "--intervals", "--promotion"):
+    for flag in ("--runs", "--intervals", "--capability"):
         parser.add_argument(flag)
     parser.parse_args(argv)  # Reject unknown flags, bare arguments and missing values.
-    registry = "parity/promotion.toml"
-    if "--promotion" in argv:
-        index = argv.index("--promotion")
+    registry = "parity/capability_records.toml"
+    if "--capability" in argv:
+        index = argv.index("--capability")
         if index + 1 >= len(argv):
-            print("--promotion requires a registry path", file=sys.stderr)
+            print("--capability requires a registry path", file=sys.stderr)
             return 2
         selected = argv[index + 1]
         if (ROOT / selected).resolve() != (ROOT / registry).resolve():
-            print("--promotion requires parity/promotion.toml", file=sys.stderr)
+            print("--capability requires parity/capability_records.toml", file=sys.stderr)
             return 2
         argv = argv[:index] + argv[index + 2 :]
     if "--self-test" in argv:

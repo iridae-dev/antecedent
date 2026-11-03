@@ -15,7 +15,7 @@ once from
 Only ``proven_non_transportable`` is an impossibility claim, and only because a
 two-model witness (two finite models that agree on every declared regime and
 differ on the query) was re-verified by exact rational enumeration. A
-``missing_evidence`` decision names the regimes that would license a derivation,
+``missing_evidence`` decision names the regimes that would support a derivation,
 ``not_certified`` says the bounded search found neither a derivation nor a
 witness (not an impossibility), and ``budget_cancel`` is a stop with its receipt,
 never a verdict. The route is sound and incomplete.
@@ -410,7 +410,7 @@ class CounterfactualTransportDerivation:
     ) -> CounterfactualTransportResult:
         """Evaluate on exact finite laws of the cited population/regime/world.
 
-        A counted or empirical law is refused (``cell_not_licensed``,
+        A counted or empirical law is refused (``not_supported``,
         ``counterfactual_transport.sampled_inference_closed``): sampled evidence
         belongs to :meth:`estimate_sampled`. A cited regime without a law at a
         needed intervention level is ``transport_missing_provider``; a
@@ -480,7 +480,7 @@ class CounterfactualTransportDerivation:
         evaluation on the estimated tables, the point estimate, and statistical
         inference, which is withheld: the delta-method standard error is
         reported as ``uncalibrated_standard_error`` and no interval is
-        published (``cell_not_licensed``).
+        published (``not_supported``).
         """
         tables = tuple(tables)
         if any(not isinstance(t, SampledCountTable) for t in tables):
@@ -565,7 +565,7 @@ class CounterfactualTransportDecision(ScientificResult):
 
     @property
     def missing_regimes(self) -> tuple[Mapping[str, Any], ...]:
-        """The regimes whose supplied laws would license a derivation."""
+        """The regimes whose supplied laws would support a derivation."""
         return tuple(self.decision.get("missing_regimes", ()))
 
     @property
@@ -915,7 +915,7 @@ class SampledCounterfactualTransportEstimate(ScientificResult):
     ``probability`` is ``None`` for an envelope request whose observed shares
     leave the formula undefined, and then ``envelope`` is the structural range.
     ``standard_error`` is labelled ``uncalibrated_standard_error``; ``interval``
-    is always withheld (``available`` is ``False``, reason ``cell_not_licensed``).
+    is always withheld (``available`` is ``False``, reason ``not_supported``).
     """
 
     labels: Mapping[str, str]
@@ -969,7 +969,7 @@ class SampledCounterfactualTransportEstimate(ScientificResult):
         for the measured construction (independent units, refused unseen cells,
         equal table totals inside the measured sample-size range, a query with a
         currently attesting coverage record); anything else raises
-        ``cell_not_licensed``. The estimate itself still carries no interval.
+        ``not_supported``. The estimate itself still carries no interval.
         """
         native = call_native(
             execution, self._native.measure_interval, cancel="cancel", memory="memory_bytes"

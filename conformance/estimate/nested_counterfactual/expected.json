@@ -40,12 +40,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/nested_counterfactual_route_evidence.rs",
-          "sha256": "871eb3412ad44862afc6590ec4b7eed8787339bed64e000b8a5970ce0110063e"
+          "sha256": "20ef5a7d088fe7a9a4bfac89c0c6a8e6830daf10b5077121ae4d10a40bc8a621"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_static_kinds.rs",
-          "sha256": "4c61ba5c4ad0d4783c0ee97575590787447fded093b9e604ef4abbfbae2e9298"
+          "sha256": "7761e069fb0814d5a7d4c2e3e14cc897d662de3446dea0ab19d77815f107d987"
         }
       ],
       "fixture_payload_sha256": "a10abe1470f93454a9d4451790c28a5d02082c731b060c23f864c4c1c0d47cf6"

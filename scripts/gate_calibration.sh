@@ -472,7 +472,7 @@ run_posterior_summary() {
 echo "== posterior quantile numerical precision =="
 run_posterior_summary posterior_type7_quantile_precision
 
-# Precision of shared-row bootstrap covariance; no interval or error-control license.
+# Precision of shared-row bootstrap covariance; no interval or error-control support.
 run_scenario_covariance() {
   local name="$1"
   check "scenario_covariance_calibration: ${name}" cargo test --release -p antecedent-estimate --test scenario_covariance_calibration "$name" -- --ignored --exact --nocapture
@@ -480,7 +480,7 @@ run_scenario_covariance() {
 echo "== shared-row covariance numerical precision =="
 run_scenario_covariance shared_row_mean_covariance_precision
 
-# Conditional numerical diagnostics only; no coverage emitter or new inference license.
+# Conditional numerical diagnostics only; no coverage emitter or new inference support.
 run_evsi_precision() {
   local name="$1"
   check "evsi_precision_calibration: ${name}" cargo test --release -p antecedent-design --test evsi_precision_calibration "$name" -- --ignored --exact --nocapture
@@ -1530,7 +1530,7 @@ run_js z_joint_sensitivity_positive_box
 
 echo "== batch retarget unpublished max-t simultaneous band (antecedent) =="
 # Record estimate.batch_retarget_covariance. The family-level simultaneous interval
-# route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
+# route is closed (not_supported); the band is scored through the unpublished evaluator
 # and is measured only by this gate.
 run_br() {
   local filter="$1"
@@ -1709,7 +1709,7 @@ run_adjusted_recalc_precision adjusted_logit_fixed_target_delta_precision
 # registration, outside the frozen historical coverage/risk-allocation family.
 # Request them explicitly with the exact clean candidate SHA. The dedicated
 # runner validates that SHA, executes every registered ignored Cargo procedure,
-# retains original-data failures and writes logs without issuing coverage licenses.
+# retains original-data failures and writes logs without issuing coverage supports.
 if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ] &&
    [ -z "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ] &&
    { [ -z "$SHARD_N" ] || [ "$SHARD_K" -eq 0 ]; }; then

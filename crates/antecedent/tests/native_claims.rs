@@ -193,7 +193,7 @@ fn native_response_exposes_coordinates_support_and_native_trust() {
     assert_eq!(claim.means(), &[3.0, 5.0][..]);
     assert_eq!(claim.point_status(), &[SupportStatus::Supported, SupportStatus::Supported][..]);
     assert_eq!(claim.support_status(), SupportStatus::Supported);
-    assert_eq!(claim.trust(), DistributionTrust::NativeLicensed);
+    assert_eq!(claim.trust(), DistributionTrust::NativeSupported);
     assert_eq!(claim.calibration(), DistributionCalibration::Unmeasured);
     assert_eq!(claim.program_identity(), program().identity());
     assert_eq!(claim.provenance_id(), "op-1");
@@ -210,7 +210,7 @@ fn native_mean_response_feeds_an_affine_decision_on_hand_values() {
     let requirement = contract.source_requirement().unwrap().unwrap();
     let input = claim.into_decision_source(&requirement).unwrap();
     assert_eq!(input.representation, SourceRepresentation::Mean);
-    assert_eq!(input.trust, DistributionTrust::NativeLicensed);
+    assert_eq!(input.trust, DistributionTrust::NativeSupported);
     assert!(input.withheld.is_empty());
     assert_eq!(input.coordinates, vec![quantity("1"), quantity("2")]);
     let NativeDecisionSource::Mean(source) = &input.source else {
@@ -271,7 +271,7 @@ fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals() {
     // Draw-major rows: draw 0 = (2, 4), draw 1 = (4, 6).
     assert_eq!(artifact.draws(), &[2.0, 4.0, 4.0, 6.0][..]);
     assert_eq!(artifact.metadata().identity.alignment, DrawAlignment::Joint);
-    assert_eq!(artifact.metadata().trust, DistributionTrust::NativeLicensed);
+    assert_eq!(artifact.metadata().trust, DistributionTrust::NativeSupported);
     assert_eq!(artifact.metadata().calibration, DistributionCalibration::Unmeasured);
     assert_eq!(artifact.metadata().identity.causal_contract_id, "contract:c");
     assert!(close(artifact.mean(0).unwrap(), 3.0));

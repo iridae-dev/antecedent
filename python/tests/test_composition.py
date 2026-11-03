@@ -69,7 +69,7 @@ def joint(
     x0 = [1.0, 2.0, 3.0, 2.0]
     x1 = [4.0, 0.0, 2.0, 6.0]
     draws = np.array([[a, b, 0.0] for a, b in zip(x0, x1, strict=True)], dtype=np.float64)
-    if trust == "native_licensed":
+    if trust == "native_supported":
         # Negative compatibility case: a historical caller-labelled artifact.
         # The public constructor now refuses such labels before copying rows.
         assert provider == "engine" and snapshot == "snap-n"
@@ -81,7 +81,7 @@ def joint(
     )
 
 
-LABELLED_NATIVE: dict[str, Any] = {"trust": "native_licensed", "calibration": "exact"}
+LABELLED_NATIVE: dict[str, Any] = {"trust": "native_supported", "calibration": "exact"}
 
 
 def joint_input(
@@ -170,7 +170,7 @@ def test_composition_boundary_caller_native_constructor_refuses_before_coercion(
 
     identity = joint().identity
     with pytest.raises(CausalValueError) as refused:
-        JointDistributionArtifact(identity, UnreadableDraws(), trust="native_licensed")  # type: ignore[arg-type]
+        JointDistributionArtifact(identity, UnreadableDraws(), trust="native_supported")  # type: ignore[arg-type]
     assert refused.value.reason_code == "invalid_argument"
     assert "native_distribution.authority_required" in str(refused.value)
 
@@ -179,12 +179,12 @@ def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native(
     path = REPO_ROOT / "conformance/composition/metadata_only_native/legacy.art"
     artifact = JointDistributionArtifact.load(path.read_bytes(), expected_identity=joint().identity)
     metadata = json.loads(artifact._native.metadata_json)
-    assert metadata["trust"] == "native_licensed"
+    assert metadata["trust"] == "native_supported"
     assert metadata["calibration"] == "exact"
     np.testing.assert_array_equal(
         np.asarray(artifact), [[1.0, 4.0, 0.0], [2.0, 0.0, 0.0], [3.0, 2.0, 0.0], [2.0, 6.0, 0.0]]
     )
-    assert artifact.trust == "native_licensed" and artifact.calibration == "exact"
+    assert artifact.trust == "native_supported" and artifact.calibration == "exact"
     with pytest.raises(comp.UnverifiedTrustRefusal) as refused:
         comp.DecisionInput.from_distribution("native", artifact, requirement="native")
     assert refused.value.detail == "composition_boundary.metadata_only_native_claim"
@@ -553,12 +553,12 @@ def test_composition_boundary_shared_data_refuses_independent_pooling() -> None:
             )
         )
     assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
     assert refused.value.offending == "native~external"
     assert_registered_refusal(refused.value)
 
 
-def test_composition_boundary_shared_data_refuses_paired_draws_without_a_licensed_route() -> None:
+def test_composition_boundary_shared_data_refuses_paired_draws_without_a_supported_route() -> None:
     pair = [joint_input("native"), joint_input("external", "lab", "snap-x")]
     with pytest.raises(comp.DependenceRefusal):
         require_success(comp.check_paired_draws(pair, [shared_data("native", "external")]))
@@ -566,7 +566,7 @@ def test_composition_boundary_shared_data_refuses_paired_draws_without_a_license
     with pytest.raises(
         comp.DependenceRefusal,
         match=re.escape(
-            "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+            "reason=scenario_aggregate_not_supported: composition_boundary.shared_evidence_not"
         ),
     ):
         require_success(comp.check_paired_draws(pair, [shared_data("external", "native")]))
@@ -586,7 +586,7 @@ def test_composition_boundary_shared_data_refuses_paired_draws_without_a_license
         require_success(
             comp.check_paired_draws(pair, [shared_data("native", "external", covariance)])
         )
-    assert refused.value.detail == "composition_boundary.dependence_route_not_licensed"
+    assert refused.value.detail == "composition_boundary.dependence_route_not_supported"
     assert_registered_refusal(refused.value)
 
 
@@ -603,7 +603,7 @@ def test_composition_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair()
                     inputs, [shared_data("native", "external", route)], "statistical_pooling"
                 )
             )
-        assert refused.value.detail == "composition_boundary.dependence_route_not_licensed"
+        assert refused.value.detail == "composition_boundary.dependence_route_not_supported"
     ok = comp.DependenceRoute("joint_law", "joint-law-1", "native")
     require_success(
         comp.check_composition(
@@ -684,7 +684,7 @@ def test_composition_boundary_operations_are_declared_separately() -> None:
         with pytest.raises(
             comp.DependenceRefusal,
             match=re.escape(
-                "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+                "reason=scenario_aggregate_not_supported: composition_boundary.shared_evidence_not"
             ),
         ):
             require_success(comp.check_composition(inputs, data, operation))
@@ -700,7 +700,7 @@ def test_composition_boundary_operations_are_declared_separately() -> None:
         with pytest.raises(
             comp.DependenceRefusal,
             match=re.escape(
-                "reason=scenario_aggregate_not_licensed: composition_boundary.shared_evidence_not"
+                "reason=scenario_aggregate_not_supported: composition_boundary.shared_evidence_not"
             ),
         ):
             require_success(comp.check_composition(inputs, model, operation))
@@ -715,14 +715,14 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_atom_combination(atoms, "weighted_by_declared_probabilities"))
     assert refused.value.detail == "composition_boundary.conflicting_atoms_not_averaged"
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
 
-    # Probabilities on only some atoms are still not a license to average.
+    # Probabilities on only some atoms are still not support to average.
     partial = [comp.StructuralAtom("graph-a", 0.5), comp.StructuralAtom("graph-b")]
     with pytest.raises(
         comp.DependenceRefusal,
         match=re.escape(
-            "reason=scenario_aggregate_not_licensed: composition_boundary.conflicting_atoms_n"
+            "reason=scenario_aggregate_not_supported: composition_boundary.conflicting_atoms_n"
         ),
     ):
         require_success(comp.check_atom_combination(partial, "weighted_by_declared_probabilities"))
@@ -731,7 +731,7 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
     assert require_success(comp.check_atom_combination(atoms, "report_each")).kind == "report_each"
     assert require_success(comp.check_atom_combination(atoms, "worst_case")).kind == "worst_case"
 
-    # Declared probabilities license the weighted plan; missing mass is not renormalized.
+    # Declared probabilities support the weighted plan; missing mass is not renormalized.
     declared = [comp.StructuralAtom("graph-a", 0.25), comp.StructuralAtom("graph-b", 0.5)]
     plan = require_success(
         comp.check_atom_combination(declared, "weighted_by_declared_probabilities")

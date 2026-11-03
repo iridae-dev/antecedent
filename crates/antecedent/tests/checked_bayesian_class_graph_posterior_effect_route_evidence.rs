@@ -2,7 +2,7 @@
 //! graph posteriors.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
@@ -137,7 +137,7 @@ fn bayesian_class_graph_posterior_effect_body() {
             let mut prepared = builder.prepare(&ctx).unwrap();
             drop(builder);
 
-            assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+            assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
             match &prepared.contract().unwrap().reasoning.support {
                 SlotAvailability::Available(slot) => {
                     assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));

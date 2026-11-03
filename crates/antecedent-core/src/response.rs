@@ -374,7 +374,7 @@ pub enum ResponseIdentification {
     PartiallyIdentified(ResponseValue),
     /// Graph-conditional responses; keys are stable graph identifiers.
     GraphDependent(Vec<(u64, ResponseValue)>),
-    /// No numerical response is licensed.
+    /// No numerical response is supported.
     Unidentified {
         /// Stable certificate/diagnostic id.
         certificate: Arc<str>,

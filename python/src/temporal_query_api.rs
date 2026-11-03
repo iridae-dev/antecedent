@@ -29,7 +29,7 @@ struct TemporalGeometry {
 impl TemporalGeometry {
     fn response_spec(self) -> PyResult<TemporalResponseSpec> {
         let policy = match self.window {
-            Some(_) if self.treatment_lag != crate::temporal_license::DEFAULT_TREATMENT_LAG => {
+            Some(_) if self.treatment_lag != crate::temporal_support::DEFAULT_TREATMENT_LAG => {
                 return Err(crate::value_err(
                     "treatment_lag does not apply with a window: the window states the policy's own span",
                 ));
@@ -38,7 +38,7 @@ impl TemporalGeometry {
                 TemporalPolicy::sustained(from, until)
             }
             Some(_) => return Err(crate::value_err("a temporal window requires sustained policy")),
-            None => crate::temporal_license::policy_at_lag(self.policy, self.treatment_lag)?,
+            None => crate::temporal_support::policy_at_lag(self.policy, self.treatment_lag)?,
         };
         TemporalResponseSpec::new(self.horizons, policy, self.max_history_lag)
             .map_err(antecedent::CausalError::from)

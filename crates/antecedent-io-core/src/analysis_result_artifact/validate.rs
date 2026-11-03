@@ -110,17 +110,17 @@ pub(super) fn validate_result(
             }
         }
         // A published, support-passing interval on one of the three off-axis
-        // cluster designs is exactly the licensed condition; every invalid or
+        // cluster designs is exactly the supported condition; every invalid or
         // unsupported interval was already refused above, so recomputing the
-        // license from the published interval catches a forged status.
-        let graphless_licensed = inference.interval.is_some();
+        // support from the published interval catches a forged status.
+        let graphless_supported = inference.interval.is_some();
         if !graphless_status_ok(
             inference.graphless_support_status.as_deref(),
-            graphless_licensed,
+            graphless_supported,
             allow_legacy_graphless_missing,
         ) {
             return Err(IoError::Convert(
-                "interference graphless license does not match the published interval support"
+                "interference graphless support does not match the published interval support"
                     .into(),
             ));
         }
@@ -211,7 +211,7 @@ pub(super) fn validate_result(
                     ));
                 };
                 source.validate_query(query, &row.coordinates, variable_names.len())?;
-                result.randomized_effect.is_none() && row.licensed
+                result.randomized_effect.is_none() && row.supported
             }
             crate::CausalQueryWire::Survival(_) => result.survival.is_none(),
             crate::CausalQueryWire::ContinuousDoseResponse(query) => {
@@ -351,7 +351,7 @@ pub(super) fn validate_result(
             || !window_matches
             || (!query.uniform_unit_randomization
                 && ((query.augmentation_ridge.is_none()
-                    && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
+                    && fit.uncertainty != "point_only_with_unsupported_placebo_rank")
                     || fit.randomization_p_value.is_some()
                     || fit.randomization_null_effect.is_some()
                     || !fit.randomization_statistics.is_empty()))
@@ -523,9 +523,9 @@ pub(super) fn validate_result(
         }
     }
     validate_survival_graphless(result)?;
-    if result.estimate.is_some() && !licenses_scalar_estimate(&result.identification.status) {
+    if result.estimate.is_some() && !supports_scalar_estimate(&result.identification.status) {
         return Err(IoError::Convert(
-            "identification status does not license a scalar estimate".into(),
+            "identification status does not support a scalar estimate".into(),
         ));
     }
     if result.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
@@ -706,10 +706,10 @@ fn validate_structural_response(
     Ok(())
 }
 
-/// A point scalar is licensed only when identification does not refuse the estimand.
-/// `not_identified` never licenses one; partial / graph-dependent mixtures may still
+/// A point scalar is supported only when identification does not refuse the estimand.
+/// `not_identified` never supports one; partial / graph-dependent mixtures may still
 /// publish a conditional or retained identified-mass summary.
-fn licenses_scalar_estimate(status: &str) -> bool {
+fn supports_scalar_estimate(status: &str) -> bool {
     status != "not_identified"
 }
 

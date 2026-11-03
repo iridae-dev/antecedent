@@ -764,8 +764,8 @@ def rank_studies(
     The repair search of ``contract`` decides which studies are sufficient on their own; only
     those are scored, with their measured variables outside the observed base law and their
     set variables as the unlock list for ``query_id``. Every other study is reported in
-    ``unverified`` and as an ``unlicensed_candidate`` violation. ``study`` is the immutable
-    prepared study the ranking is bound to: an unlicensed support cell or one without an
+    ``unverified`` and as an ``unsupported_candidate`` violation. ``study`` is the immutable
+    prepared study the ranking is bound to: an unsupported support cell or one without an
     identification product raises :class:`~antecedent.errors.CausalUnsupportedError`. ``route``
     names the failure route that decides sufficiency (``backdoor``, ``frontdoor``,
     ``instrument``, ``hedge``) and may be omitted when the failure has exactly one.

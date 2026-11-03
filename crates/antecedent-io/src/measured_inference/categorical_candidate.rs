@@ -267,19 +267,19 @@ mod tests {
         let (code, message) = super::super::with_test_records(vec![], || {
             refusal_code(measure_source(&bytes, &ctx).unwrap_err())
         });
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert!(message.contains("measured_inference.record_not_attesting"));
         // A record of another level count or another row range does not cover this execution.
         for wrong in [record(3, 30, 4096), record(2, 100, 4096), record(2, 30, 39)] {
             let (code, _) = super::super::with_test_records(vec![wrong], || {
                 refusal_code(measure_source(&bytes, &ctx).unwrap_err())
             });
-            assert_eq!(code, "cell_not_licensed");
+            assert_eq!(code, "not_supported");
         }
     }
 
     #[test]
-    fn a_covering_attesting_record_licenses_every_level_contrast() {
+    fn a_covering_attesting_record_supports_every_level_contrast() {
         let ctx = ExecutionContext::for_tests(7);
         for (counts, levels) in [(vec![20, 20], 2), (vec![5, 12, 33], 3), (vec![4; 8], 8)] {
             let source = source(&counts);
@@ -300,7 +300,7 @@ mod tests {
                     Some(rows)
                 );
             }
-            // The licensed envelope replays from its original source and is refused without the record.
+            // The supported envelope replays from its original source and is refused without the record.
             let again = super::super::with_test_records(vec![record(levels, 30, 4096)], || {
                 consume_measured(measured.export(), measured.expectation(), &ctx)
             })
@@ -320,7 +320,7 @@ mod tests {
         let (code, _) = super::super::with_test_records(vec![record(2, 30, 79)], || {
             refusal_code(measure_source(&bytes, &ctx).unwrap_err())
         });
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         let inside = super::super::with_test_records(vec![record(2, 30, 80)], || {
             measure_source(&bytes, &ctx)
         });

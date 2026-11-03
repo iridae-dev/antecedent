@@ -52,7 +52,7 @@
 //!
 //! The bridged distribution is read as an uncalibrated spread. An interval is
 //! requested through the measured-coverage gate (`antecedent_io::bridge_interval`
-//! and its distribution counterpart) and is otherwise unlicensed. The bridge's
+//! and its distribution counterpart) and is otherwise unsupported. The bridge's
 //! declared assumptions stay unresolved obligations, and pairing the bridged
 //! column with another column of the table assumes the mapping's evidence is
 //! independent of the evidence behind that column.
@@ -112,7 +112,7 @@ pub struct CorrectionColumns {
     pub sensitivities: Vec<f64>,
     /// The drawn specificity of each row.
     pub specificities: Vec<f64>,
-    /// Smallest Youden index the correction licenses.
+    /// Smallest Youden index the correction supports.
     pub min_youden: f64,
     /// Which way the correction runs.
     pub direction: MeasurementDirection,
@@ -257,7 +257,7 @@ impl BridgedDistribution {
     ///   `(q + specificity - 1) / (sensitivity + specificity - 1)` over the
     ///   source and the two rate columns (or the forward map when the
     ///   correction runs latent to measured). The division is guarded: the
-    ///   Youden index must stay above the contract's smallest licensed value on
+    ///   Youden index must stay above the contract's smallest supported value on
     ///   every row, and a corrected rate outside `[0, 1]` is refused, not
     ///   clipped.
     ///
@@ -656,10 +656,10 @@ fn map_correction(
 /// bridge source. `seed` selects the random stream of the mapping's coefficients.
 ///
 /// # Errors
-/// A contract that does not license a draws bridge, a source of draws that is not
+/// A contract that does not support a draws bridge, a source of draws that is not
 /// a posterior or a predictive law of the contract's quantity or has no row
 /// pairing, a source claim that is not about draws, draws outside the range the
-/// mapping is licensed for, a covariance no joint law has, or a mapped draw that
+/// mapping is supported for, a covariance no joint law has, or a mapped draw that
 /// is not finite.
 #[allow(
     clippy::too_many_lines,

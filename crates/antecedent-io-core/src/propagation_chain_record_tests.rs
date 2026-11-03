@@ -297,9 +297,9 @@ fn a_dependent_pool_counts_the_shared_evidence_once() {
 }
 
 #[test]
-fn an_independent_pool_of_distinct_evidence_is_licensed() {
+fn an_independent_pool_of_distinct_evidence_is_supported() {
     let record = PropagationChainRecordWire::seal(pool_draft(false, false), &ctx());
-    // The declared rows differ, so the pool is licensed as independent even though the
+    // The declared rows differ, so the pool is supported as independent even though the
     // arithmetic of these particular draws is the overlapping design.
     let record = record.expect("distinct declared evidence seals as an independent pool");
     let pooled = stage(&record, "pooled");

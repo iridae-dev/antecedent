@@ -2,7 +2,7 @@
 
 The conditioned experiment retains the joint draws and their posterior weights. A candidate
 study that runs in the observed regime is another sample of the observed estimand; one with its
-own regime measures a different functional through its own licensed bridge and its own paired
+own regime measures a different functional through its own supported bridge and its own paired
 per-draw affine mapping (here the study's mean is the source value divided by a slope of 2).
 Truth: a same-regime study is ranked exactly as ``rank_next_samples`` ranks it; a regime changes
 what each draw predicts the study will observe, so it is a different (and for a slope above one,

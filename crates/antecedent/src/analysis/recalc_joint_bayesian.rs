@@ -32,7 +32,7 @@ pub struct JointBayesianRequest {
     /// Native expected effect net-benefit rule, with calibration still unmeasured.
     pub utility: UtilitySpec,
 }
-/// Inspection-only candidate outcome. It is not a public licensed interval result.
+/// Inspection-only candidate outcome. It is not a public supported interval result.
 #[derive(Debug)]
 pub struct JointBayesianRecalcOutcome {
     /// Actual shared invalidation plan.

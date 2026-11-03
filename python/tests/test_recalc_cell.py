@@ -323,10 +323,10 @@ def test_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     assert work(second) == (0, FIRST_RUN_FITS, 1, 1, 1)
     assert second.law.ate == pytest.approx(rerun(changed).law.ate, abs=1e-12)
 
-    # An unlicensed route cannot be exported either.
+    # An unsupported route cannot be exported either.
     with pytest.raises(RecalcRefusal) as info:
         session.export_frozen_scores()
-    assert info.value.detail == "recalc.retarget_not_licensed"
+    assert info.value.detail == "recalc.retarget_not_supported"
     assert_registered_refusal(info.value)
 
 
@@ -585,7 +585,7 @@ def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
         resumed.retarget(TargetWeights(ones, ("a",)))
     assert resumed.identities == anchor and not resumed.has_run
 
-    # None of that poisoned the session: the licensed operation still runs.
+    # None of that poisoned the session: the supported operation still runs.
     good = resumed.retarget()
     assert work(good) == (1, 0, 0, 1, 1)
 

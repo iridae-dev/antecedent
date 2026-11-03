@@ -1,7 +1,7 @@
 //! Shared assembly of the Bayesian design-based routes: panel difference-in-differences,
 //! synthetic control and the fuzzy-jump / kink local ratio.
 //!
-//! These routes are explicitly unlicensed and uncalibrated. A posterior here is the declared
+//! These routes are explicitly unsupported and uncalibrated. A posterior here is the declared
 //! outcome model's belief about the same estimand the frequentist row estimates. It never
 //! supplies or tests an identifying premise: the design's premises stay declared in the
 //! result's assumptions, and no calibration or coverage evidence covers the credible interval.
@@ -150,7 +150,7 @@ pub(super) fn model_assumption(
     }
 }
 
-/// Finish a Bayesian design fit into the study's result: an unlicensed posterior whose
+/// Finish a Bayesian design fit into the study's result: an unsupported posterior whose
 /// declared identifying premises stay declared. The caller names the identifier and estimator
 /// its route ran; there is no default, so a route cannot inherit another design's label.
 pub(super) fn finish_design_posterior_as(
@@ -192,10 +192,10 @@ pub(super) fn finish_design_posterior_as(
     .with_n_obs(fit.n_obs);
     let mut diagnostics = vec![
         Diagnostic::new(
-            "estimate.quasi.bayesian.unlicensed",
+            "estimate.quasi.bayesian.unsupported",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "unlicensed and uncalibrated Bayesian route: no coverage or calibration evidence \
+            "unsupported and uncalibrated Bayesian route: no coverage or calibration evidence \
              covers this posterior, and the prior supplies no identifying premise",
         ),
         Diagnostic::new(

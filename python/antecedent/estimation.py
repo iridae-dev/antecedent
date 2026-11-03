@@ -443,7 +443,7 @@ def _wrap_prepared_response(
         identify_op = "identify.response"
         validation = None
     # Refuter states that ran on this response (derivative, temporal or class-aware
-    # intervention level, all unlicensed) replace the "skipped" placeholder.
+    # intervention level, all unsupported) replace the "skipped" placeholder.
     reports = raw.refutation_reports() if hasattr(raw, "refutation_reports") else []
     if reports:
         import math
@@ -559,8 +559,6 @@ def _wrap_prepared_response(
         envelope=envelope,
         validation=validation,
         evidence_status=getattr(raw, "evidence_status", None),
-        allowlist_reason=getattr(raw, "allowlist_reason", None),
-        allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
         missing_data=_missing_data_from_raw(raw, prepared),
         interval_bindings=_interval_bindings_from_raw(raw),
@@ -1006,7 +1004,7 @@ _PrepareRoute = importlib.import_module("._prepare_route", __package__)._Prepare
 def _check_response_observation(query: Any, inference: Any) -> None:
     """Observation mechanism and its assumptions on a response.
 
-    A declared target population is licensed by the Rust study builder, which
+    A declared target population is supported by the Rust study builder, which
     refuses it with ``population_not_estimable`` on every response route.
     """
     from .observation import Complete
@@ -1038,10 +1036,10 @@ ResultT = TypeVar("ResultT", covariant=True)
 
 
 class _PreparedEngine(Generic[ResultT]):
-    """Compile-once / re-estimate-many handle for licensed analysis cells.
+    """Compile-once / re-estimate-many handle for supported analysis cells.
 
     **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
-    or licensed graph-posterior atoms and weights; query identity; identifier;
+    or supported graph-posterior atoms and weights; query identity; identifier;
     estimator and its configuration; validation suite, custom validators and
     replicate / draw budgets; observation / transport / interference
     assumptions; panel, multi-environment, or event data layout.
@@ -1060,7 +1058,7 @@ class _PreparedEngine(Generic[ResultT]):
     the scalar ATE-shaped suite; Bayesian Dag InterventionResponse cheap/full
     run the Bayesian refuter state (plugin-level suite on the posterior-mean
     level plus predictive checks and, under full, prior sensitivity), which is
-    unlicensed.
+    unsupported.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
@@ -1248,7 +1246,7 @@ class _PreparedEngine(Generic[ResultT]):
         on_refusal: Literal["refuse", "describe"] = "refuse",
         evidence_candidates: Sequence[Any] | None = None,
     ) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
-        """Compile a durable plan for a licensed analysis cell.
+        """Compile a durable plan for a supported analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
         reason code; none is dropped. Omitted ``refute`` / ``bootstrap`` /
@@ -1278,7 +1276,7 @@ class _PreparedEngine(Generic[ResultT]):
         Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
         same ``latency`` tier for its shared circular-block replicates.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
-        ``GraphPosterior`` compiles the licensed graph-posterior cells
+        ``GraphPosterior`` compiles the supported graph-posterior cells
         (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate
         InterventionResponse on DAG, CPDAG, PAG, and ADMG atoms; Pulse /
         Sustained / TemporalMediationEffect / temporal ResponseCurve /
@@ -1298,7 +1296,7 @@ class _PreparedEngine(Generic[ResultT]):
 
         ``data`` may be a table, a series, or an ``antecedent.data`` panel /
         multi-environment / event frame; frames compile on the matching Rust
-        data modality for every query it licenses and are refused otherwise.
+        data modality for every query it supports and are refused otherwise.
 
         ``cancel`` / ``on_progress`` apply to prepare-time identification and to
         every estimate click; ``on_stage`` streams the stages of each click on
@@ -1307,7 +1305,7 @@ class _PreparedEngine(Generic[ResultT]):
 
         ``PolicyProgramValue(programs, outcome, n_draws=...)`` with ``graph=Dag(...)`` (or an
         edge list) prepares a policy question: the structural model is fitted on ``data`` once,
-        the program is compiled and the licence of each route resolved once, and every
+        the program is compiled and the support of each route resolved once, and every
         ``estimate`` reruns the policy value without compiling the program again
         (``handle.preparation`` is the receipt). Its result carries the support decision, the
         contract and the provenance record, and equals ``policy_value`` on the same model and
@@ -1952,18 +1950,8 @@ class _PreparedEngine(Generic[ResultT]):
 
     @property
     def evidence_status(self) -> str | None:
-        """`licensed` or `allowed_unlicensed`, or ``None`` if the query is off-axis."""
+        """`supported` or `not_supported`, or ``None`` if the query is off-axis."""
         raw = self._native.plan_summary().get("evidence_status")
-        return str(raw) if raw is not None else None
-
-    @property
-    def allowlist_reason(self) -> str | None:
-        raw = self._native.plan_summary().get("allowlist_reason")
-        return str(raw) if raw is not None else None
-
-    @property
-    def allowlist_parent(self) -> str | None:
-        raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
 
     @property
@@ -2510,7 +2498,7 @@ class _PreparedEngine(Generic[ResultT]):
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         import numpy as np
@@ -2544,7 +2532,7 @@ class _PreparedEngine(Generic[ResultT]):
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         raw = self._native.reexecute_retarget(
@@ -2559,7 +2547,7 @@ class _PreparedEngine(Generic[ResultT]):
         """Every column of ``data`` (encoded like a click, never projected onto the schema)."""
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         if self._treatment_labels is not None:
@@ -2607,7 +2595,7 @@ class _PreparedEngine(Generic[ResultT]):
 
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         raw = self._native.export_staleness_baseline(
@@ -2700,7 +2688,7 @@ class _PreparedEngine(Generic[ResultT]):
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         if self._kind == "response_curve":

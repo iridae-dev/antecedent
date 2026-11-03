@@ -1,9 +1,9 @@
 //! Matrix lookup: classification of a cell against the generated rules and
-//! licensed rows, refusal reasons, coordinates and licensed neighbors.
+//! supported rows, refusal reasons, coordinates and supported neighbors.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::{LicensedNeighbor, PremiseChange};
+use antecedent_contract::{PremiseChange, SupportedNeighbor};
 
 use crate::error::CausalError;
 use crate::strategy_table::EstimatorId;
@@ -12,7 +12,7 @@ use super::cell::{
     CellStatus, SupportCell, SupportGraphClass, SupportInference, SupportQuery, SupportRefusal,
     SupportStructure, SupportValidation,
 };
-use super::matrix_data::{self, Axis, CLOSED_RULES, LICENSED, LicensedCell, NA_RULES, NaRule};
+use super::matrix_data::{self, Axis, CLOSED_RULES, NA_RULES, NaRule, SUPPORTED, SupportedCell};
 
 fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
     allowed.is_none_or(|xs| xs.contains(&value))
@@ -27,39 +27,39 @@ fn rule_matches(rule: &NaRule, cell: SupportCell) -> bool {
         && axis_in(rule.validations, cell.validation.as_str())
 }
 
-/// Classify `cell` against the generated n/a rules and licensed set.
+/// Classify `cell` against the generated n/a rules and supported set.
 #[must_use]
 pub fn classify(cell: SupportCell) -> CellStatus {
     if let Some(rule) = NA_RULES.iter().find(|rule| rule_matches(rule, cell)) {
         return CellStatus::NotApplicable { reason: rule.reason };
     }
-    if licensed_row(cell).is_some() {
-        return CellStatus::Licensed;
+    if supported_row(cell).is_some() {
+        return CellStatus::Supported;
     }
-    CellStatus::Refused
+    CellStatus::NotSupported
 }
 
 /// Estimator wire-ids whose evidence ran for this geometric cell.
 ///
-/// Empty when the cell is not licensed, or when neither the compiler route nor
+/// Empty when the cell is not supported, or when neither the compiler route nor
 /// a calibration-record token named an estimator (do not guess one).
 #[must_use]
-pub fn licensed_estimators(cell: SupportCell) -> &'static [&'static str] {
-    licensed_row(cell).map_or(&[], |row| row.estimators)
+pub fn supported_estimators(cell: SupportCell) -> &'static [&'static str] {
+    supported_row(cell).map_or(&[], |row| row.estimators)
 }
 
-/// Compiler-plan estimator for this geometric cell (`parity/licensed_routes.toml`).
+/// Compiler-plan estimator for this geometric cell (`parity/supported_routes.toml`).
 ///
 /// This is the default unbound compile path; it is independent of how many
-/// additional estimators the cell's calibration records license.
+/// additional estimators the cell's calibration records support.
 #[must_use]
-pub fn licensed_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
-    let wire = licensed_row(cell)?.route_estimator?;
+pub fn supported_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
+    let wire = supported_row(cell)?.route_estimator?;
     wire.parse().ok()
 }
 
-fn licensed_row(cell: SupportCell) -> Option<&'static LicensedCell> {
-    matrix_data::licensed_cell([
+fn supported_row(cell: SupportCell) -> Option<&'static SupportedCell> {
+    matrix_data::supported_cell([
         cell.query.as_str(),
         cell.graph_class.as_str(),
         cell.structure.as_str(),
@@ -70,42 +70,40 @@ fn licensed_row(cell: SupportCell) -> Option<&'static LicensedCell> {
 
 /// Classify `cell` for a concrete estimator.
 ///
-/// [`CellStatus::Licensed`] only when the geometric cell is licensed and the
-/// row's evidence list contains `estimator`. Otherwise [`CellStatus::Refused`]
-/// (or the geometric n/a status). Never returns [`CellStatus::Allowlisted`]:
-/// that status is historical compatibility only, and unmeasured estimators
-/// must not ride it to stay runnable.
+/// [`CellStatus::Supported`] only when the geometric cell is supported and the
+/// row's evidence list contains `estimator`. Otherwise [`CellStatus::NotSupported`]
+/// (or the geometric n/a status)..
 #[must_use]
 pub fn classify_estimator(cell: SupportCell, estimator: EstimatorId) -> CellStatus {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => CellStatus::NotApplicable { reason },
-        CellStatus::Licensed => {
-            if licensed_estimators(cell).contains(&estimator.as_str()) {
-                CellStatus::Licensed
+        CellStatus::Supported => {
+            if supported_estimators(cell).contains(&estimator.as_str()) {
+                CellStatus::Supported
             } else {
-                CellStatus::Refused
+                CellStatus::NotSupported
             }
         }
-        CellStatus::Refused | CellStatus::Allowlisted { .. } => CellStatus::Refused,
+        CellStatus::NotSupported => CellStatus::NotSupported,
     }
 }
 
 /// Whether a score-table retarget may run on a prepared handle of `status` on `cell`.
 ///
 /// A retarget reweights the scores an estimator already kept and reports the handle's own
-/// status; it makes no claim of its own. So it runs wherever the cell itself is licensed and
+/// status; it makes no claim of its own. So it runs wherever the cell itself is supported and
 /// where no matrix cell is declared (`status` is `None`), and its result carries what the
-/// handle was built under: a licensed cell whose estimator or construction has no coverage
-/// record (a `Refused` status on a licensed cell) retargets and reports `refused`. It is
-/// blocked where the cell is not applicable, allowlisted, or itself refused. The operation
+/// handle was built under: a supported cell whose estimator or construction has no coverage
+/// record (a `NotSupported` status on a supported cell) retargets and reports `not_supported`. It is
+/// blocked where the cell is not applicable or itself refused. The operation
 /// report and the retarget gate both read this, so they cannot disagree.
 #[must_use]
 pub(crate) fn retarget_permitted(status: Option<CellStatus>, cell: Option<SupportCell>) -> bool {
     match status {
-        None | Some(CellStatus::Licensed) => true,
-        Some(CellStatus::NotApplicable { .. } | CellStatus::Allowlisted { .. }) => false,
-        Some(CellStatus::Refused) => {
-            cell.is_some_and(|cell| classify(cell) == CellStatus::Licensed)
+        None | Some(CellStatus::Supported) => true,
+        Some(CellStatus::NotApplicable { .. }) => false,
+        Some(CellStatus::NotSupported) => {
+            cell.is_some_and(|cell| classify(cell) == CellStatus::Supported)
         }
     }
 }
@@ -113,38 +111,19 @@ pub(crate) fn retarget_permitted(status: Option<CellStatus>, cell: Option<Suppor
 /// Closed-rule or default refusal text for a refused cell.
 #[must_use]
 pub fn refused_message(cell: SupportCell) -> &'static str {
-    refusal_reason(cell).unwrap_or(UNLICENSED)
+    refusal_reason(cell).unwrap_or(UNSUPPORTED)
 }
 
 pub(super) fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     CLOSED_RULES.iter().find(|rule| rule_matches(rule, cell)).map(|rule| rule.reason)
 }
 
-/// Whether a refused cell executes and stays unlicensed.
-///
-/// True only when the cell is refused (not licensed, not n/a) and the first
-/// `parity/support_closed.toml` rule that names it carries
-/// `executes_unlicensed = true`. Such a cell builds and runs; its result reports
-/// the support status `refused`, so no coverage or evidence row is implied. The
-/// default refuter suite is still downgraded on it (an implicit request keeps the
-/// licensed `none` cell); only an explicit request runs it.
-#[must_use]
-pub(crate) fn executes_unlicensed(cell: SupportCell) -> bool {
-    if !matches!(classify(cell), CellStatus::Refused) {
-        return false;
-    }
-    CLOSED_RULES
-        .iter()
-        .find(|rule| rule_matches(rule, cell))
-        .is_some_and(|rule| rule.executes_unlicensed)
-}
-
 /// The single static message every unmatched `Refused` cell reports. Cell
 /// coordinates vary at runtime — the caller's [`CausalError::Support`] already
 /// carries the offending cell in its own context — so this stays a fixed,
 /// shared string rather than one formatted per cell.
-const UNLICENSED: &str =
-    "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.";
+const UNSUPPORTED: &str =
+    "cell is not supported (parity/support_cells.toml) and is not n/a; it is refused.";
 
 /// Format a matrix coordinate as `query:graph:structure:inference:validation`.
 #[must_use]
@@ -159,7 +138,7 @@ pub fn cell_coordinate(cell: SupportCell) -> String {
     )
 }
 
-/// Reconstruct a cell from [`cell_coordinate`] by interning against licensed axes.
+/// Reconstruct a cell from [`cell_coordinate`] by interning against supported axes.
 #[must_use]
 pub fn support_cell_from_coordinate(coordinate: &str) -> Option<SupportCell> {
     let mut parts = coordinate.split(':');
@@ -178,18 +157,18 @@ pub fn support_cell_from_coordinate(coordinate: &str) -> Option<SupportCell> {
     Some(SupportCell { query, graph_class, structure, inference, validation })
 }
 
-/// Licensed alternatives that keep the requested graph class.
+/// Supported alternatives that keep the requested graph class.
 ///
 /// Neighbors are explicit changed-premise suggestions, never automatic
 /// fallbacks. Relabeling a class (`Cpdag` → `Dag`) is not a neighbor. An
-/// already-licensed cell has no neighbors. Every alternative is returned, nearest
+/// already-supported cell has no neighbors. Every alternative is returned, nearest
 /// first (fewest changed premises), in a deterministic order.
 #[must_use]
-pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
-    if matches!(classify(cell), CellStatus::Licensed) {
+pub fn supported_neighbors(cell: SupportCell) -> Vec<SupportedNeighbor> {
+    if matches!(classify(cell), CellStatus::Supported) {
         return Vec::new();
     }
-    let mut scored: Vec<(Vec<PremiseChange>, &'static LicensedCell)> = LICENSED
+    let mut scored: Vec<(Vec<PremiseChange>, &'static SupportedCell)> = SUPPORTED
         .iter()
         .filter_map(|row| {
             if row.graph_class != cell.graph_class.as_str() {
@@ -218,8 +197,8 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
         .into_iter()
         .map(|(changed, row)| {
             let required_action = neighbor_action(&changed);
-            LicensedNeighbor::new(
-                cell_coordinate(support_cell_from_licensed(row)),
+            SupportedNeighbor::new(
+                cell_coordinate(support_cell_from_supported(row)),
                 changed,
                 required_action,
             )
@@ -227,26 +206,26 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
         .collect()
 }
 
-/// Every licensed support-matrix coordinate.
-pub fn licensed_support_cells() -> impl Iterator<Item = SupportCell> {
-    LICENSED.iter().map(support_cell_from_licensed)
+/// Every supported support-matrix coordinate.
+pub fn supported_cells() -> impl Iterator<Item = SupportCell> {
+    SUPPORTED.iter().map(support_cell_from_supported)
 }
 
-fn support_cell_from_licensed(row: &LicensedCell) -> SupportCell {
+fn support_cell_from_supported(row: &SupportedCell) -> SupportCell {
     SupportCell {
-        query: SupportQuery::parse(row.query).expect("licensed query is a support axis"),
+        query: SupportQuery::parse(row.query).expect("supported query is a support axis"),
         graph_class: SupportGraphClass::parse(row.graph_class)
-            .expect("licensed graph class is a support axis"),
+            .expect("supported graph class is a support axis"),
         structure: SupportStructure::parse(row.structure)
-            .expect("licensed structure is a support axis"),
+            .expect("supported structure is a support axis"),
         inference: SupportInference::parse(row.inference)
-            .expect("licensed inference is a support axis"),
+            .expect("supported inference is a support axis"),
         validation: SupportValidation::parse(row.validation)
-            .expect("licensed validation is a support axis"),
+            .expect("supported validation is a support axis"),
     }
 }
 
-fn neighbor_changes(cell: SupportCell, row: &LicensedCell) -> Vec<PremiseChange> {
+fn neighbor_changes(cell: SupportCell, row: &SupportedCell) -> Vec<PremiseChange> {
     [
         ("query", cell.query.as_str(), row.query),
         ("structure", cell.structure.as_str(), row.structure),
@@ -273,27 +252,27 @@ fn neighbor_action(changed: &[PremiseChange]) -> &'static str {
     }
 }
 
-/// Refuse n/a cells and every unlicensed meaningful cell. Licensed cells pass.
-///
-/// Historical [`CellStatus::Allowlisted`] is refused the same way as
-/// [`CellStatus::Refused`]. [`classify`] does not produce it.
+/// Refuse n/a cells and every unsupported meaningful cell. Supported cells pass.
 ///
 /// # Errors
 ///
 /// [`CausalError::Support`] when the cell is n/a or refused. A refusal uses the
-/// reason from legacy-named `parity/support_closed.toml` when one matches,
+/// reason from legacy-named `parity/support_refusal_reasons.toml` when one matches,
 /// otherwise it uses the shared default-refusal message.
 pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
-        CellStatus::Refused | CellStatus::Allowlisted { .. } => {
+        CellStatus::NotSupported => {
             if let Some(reason) = refusal_reason(cell) {
-                return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
+                return Err(CausalError::Support {
+                    id: SupportRefusal::NotSupported,
+                    message: reason,
+                });
             }
-            Err(CausalError::Support { id: SupportRefusal::Refused, message: UNLICENSED })
+            Err(CausalError::Support { id: SupportRefusal::NotSupported, message: UNSUPPORTED })
         }
-        CellStatus::Licensed => Ok(CellStatus::Licensed),
+        CellStatus::Supported => Ok(CellStatus::Supported),
     }
 }

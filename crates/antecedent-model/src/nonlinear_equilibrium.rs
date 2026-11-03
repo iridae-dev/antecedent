@@ -1467,7 +1467,7 @@ mod tests {
         assert!((ll + 0.5 * (1.0 + (2.0 * std::f64::consts::PI).ln())).abs() < 1e-12);
     }
     #[test]
-    fn nonlinear_equilibrium_multiroots_do_not_gain_density_license() {
+    fn nonlinear_equilibrium_multiroots_do_not_gain_density_support() {
         let m = model(2.0, 2.0, Activation::Tanh);
         let ctx = ExecutionContext::for_tests(5);
         let p = SolvePolicy { require_contraction: false, ..SolvePolicy::default() };

@@ -8,7 +8,7 @@
 //!
 //! * [`PopulationErrorStructure::Invariant`] states that the named error parameters are
 //!   the same in the source and the target population. Every parameter the model's route
-//!   uses must be named, so a premise about specificity alone does not license a
+//!   uses must be named, so a premise about specificity alone does not support a
 //!   sensitivity-and-specificity correction. The premise is declared, never tested.
 //! * [`PopulationErrorStructure::Differential`] is a distinct declared case: the error
 //!   differs by population, so nothing is carried. Only a model established for the target
@@ -166,7 +166,7 @@ pub struct TransportReceipt {
     pub source_population: String,
     /// Population the parameters are applied to.
     pub target_population: String,
-    /// Why the application is licensed.
+    /// Why the application is supported.
     pub basis: TransportBasis,
     /// Evidence the parameters carry from their own population.
     pub evidence: ParameterEvidence,
@@ -205,7 +205,7 @@ impl TransportReceipt {
     }
 }
 
-/// A measurement model usable on a target population, with the receipt that licenses it.
+/// A measurement model usable on a target population, with the receipt that supports it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransportedMeasurementModel {
     model: MeasurementModel,

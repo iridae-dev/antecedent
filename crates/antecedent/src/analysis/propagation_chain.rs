@@ -51,7 +51,7 @@
 //!
 //! # What a value means
 //!
-//! A value under a licensed chain is labelled `point_only`; its spread is
+//! A value under a supported chain is labelled `point_only`; its spread is
 //! `uncalibrated_spread`; posterior draws are `posterior_propagation` only
 //! when every source is posterior draws; an enclosure is
 //! `propagation_enclosure`. No label is a coverage statement.

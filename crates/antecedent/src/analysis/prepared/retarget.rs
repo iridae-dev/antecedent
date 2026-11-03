@@ -21,21 +21,21 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// [`crate::error::RETARGET_REQUIRES_LICENSE`] where the cell is not applicable,
-    /// allowlisted, or refused.
-    fn require_retarget_license(&self) -> Result<(), CausalError> {
+    /// [`crate::error::RETARGET_REQUIRES_SUPPORT`] where the cell is not applicable
+    /// or refused.
+    fn require_retarget_support(&self) -> Result<(), CausalError> {
         let cell = crate::analysis::contract::matrix_coordinate(&self.analysis)
             .as_deref()
             .and_then(crate::support::support_cell_from_coordinate);
         if crate::support::retarget_permitted(self.analysis.support_status, cell) {
             Ok(())
         } else {
-            Err(CausalError::Unsupported { message: crate::error::RETARGET_REQUIRES_LICENSE }
+            Err(CausalError::Unsupported { message: crate::error::RETARGET_REQUIRES_SUPPORT }
                 .diagnosed(antecedent_estimate::RefusalFields {
                     stage: Some("retarget".to_string()),
-                    reason: Some("operation_unlicensed".to_string()),
+                    reason: Some("operation_unsupported".to_string()),
                     remedy: Some(
-                        "next attempt: prepare the study on a licensed support cell; a refused \
+                        "next attempt: prepare the study on a supported support cell; a refused \
                          or not-applicable cell keeps no retargetable claim"
                             .to_string(),
                     ),
@@ -48,10 +48,10 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// The licence refusal of [`Self::require_retarget_license`], or
+    /// The support refusal of [`Self::require_retarget_support`], or
     /// `score_table_unavailable` when prepare built none.
     fn retarget_score_table(&self) -> Result<&antecedent_estimate::ScoreTable, CausalError> {
-        self.require_retarget_license()?;
+        self.require_retarget_support()?;
         self.score_table.as_ref().ok_or_else(|| {
             crate::unsupported_reason!(
                 "score_table_unavailable",
@@ -187,7 +187,7 @@ impl PreparedStudy {
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<RetargetResult, CausalError> {
-        self.require_retarget_license()?;
+        self.require_retarget_support()?;
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -208,7 +208,7 @@ impl PreparedStudy {
         })?;
         if overlap_failed {
             let refusal = CausalError::Support {
-                id: crate::support::SupportRefusal::Refused,
+                id: crate::support::SupportRefusal::NotSupported,
                 message: antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str(),
             }
             .diagnosed(antecedent_estimate::weighted_overlap_fields(
@@ -483,7 +483,7 @@ impl PreparedStudy {
                 .primary_pair()
                 .ok_or(CausalError::Unsupported { message: "retarget response missing pair" }),
             _ => Err(CausalError::Unsupported {
-                message: "retarget is licensed for AverageEffect and InterventionResponse",
+                message: "retarget is supported for AverageEffect and InterventionResponse",
             }),
         }
     }
@@ -508,7 +508,7 @@ impl PreparedStudy {
         let (ate, se) = self.retarget_point_and_se(table, &out, n_thresholds)?;
         let cdf = self.score_table.as_ref().and_then(|t| exceedance_cdf_values(&out.summary, t));
         // Scores of whole-cluster folds or learner-supplied joint cells retarget to a point; their
-        // iid covariance is not a licensed sampling distribution, so no standard error, joint
+        // iid covariance is not a supported sampling distribution, so no standard error, joint
         // covariance or band.
         let cluster_df = out.cluster_reference_df;
         let interval_withheld =
@@ -682,7 +682,7 @@ fn retarget_diagnostics(
             "estimate.aipw.penalized_interval_withheld",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
-            "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is licensed for that construction",
+            "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is supported for that construction",
         ));
     }
     if flags.quantile {
@@ -727,7 +727,7 @@ fn declared_units(
 #[cfg(test)]
 mod tests {
     use crate::analysis::{RefuteSuite, Study};
-    use crate::error::{CausalError, RETARGET_REQUIRES_LICENSE};
+    use crate::error::{CausalError, RETARGET_REQUIRES_SUPPORT};
     use crate::support::CellStatus;
     use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
     use antecedent_data::TabularData;
@@ -771,14 +771,14 @@ mod tests {
         let mut prepared = prepared(&ctx);
         let n = prepared.score_table().expect("prepare keeps the table").n_rows;
         let weights = vec![1.0; n];
-        assert!(matches!(prepared.analysis.support_status, Some(CellStatus::Licensed)));
-        let licensed = prepared.retarget(&weights, &[], &ctx).expect("a licensed cell retargets");
-        assert_eq!(licensed.support_status, Some(CellStatus::Licensed));
+        assert!(matches!(prepared.analysis.support_status, Some(CellStatus::Supported)));
+        let supported = prepared.retarget(&weights, &[], &ctx).expect("a supported cell retargets");
+        assert_eq!(supported.support_status, Some(CellStatus::Supported));
 
-        // A licensed cell whose estimator has no coverage record still retargets, reporting it.
-        prepared.analysis.support_status = Some(CellStatus::Refused);
-        let reported = prepared.retarget(&weights, &[], &ctx).expect("the cell is licensed");
-        assert_eq!(reported.support_status, Some(CellStatus::Refused));
+        // A supported cell whose estimator has no coverage record still retargets, reporting it.
+        prepared.analysis.support_status = Some(CellStatus::NotSupported);
+        let reported = prepared.retarget(&weights, &[], &ctx).expect("the cell is supported");
+        assert_eq!(reported.support_status, Some(CellStatus::NotSupported));
 
         // No matrix claim: nothing refuses the operation, and the result claims nothing.
         prepared.analysis.support_status = None;
@@ -787,29 +787,25 @@ mod tests {
 
         let refused = |error: CausalError| {
             assert!(
-                matches!(error.peeled(), CausalError::Unsupported { message } if *message == RETARGET_REQUIRES_LICENSE),
+                matches!(error.peeled(), CausalError::Unsupported { message } if *message == RETARGET_REQUIRES_SUPPORT),
                 "{error:?}"
             );
             assert!(error.remedy().is_some_and(|remedy| remedy.contains("next attempt")));
             assert_eq!(
                 error.blocker_id().map(|blocker| blocker.id.to_string()),
-                Some("operation.unlicensed".to_string()),
+                Some("operation.unsupported".to_string()),
                 "{error:?}"
             );
         };
-        for status in [
-            CellStatus::NotApplicable { reason: "typed-impossible" },
-            CellStatus::Allowlisted { reason: "historical", parent: "none" },
-        ] {
-            prepared.analysis.support_status = Some(status);
-            refused(prepared.retarget(&weights, &[], &ctx).unwrap_err());
-            refused(
-                prepared
-                    .transform_capability(antecedent_contract::TransformIntent::Retarget)
-                    .unwrap_err(),
-            );
-            let table = prepared.score_table().unwrap().clone();
-            refused(prepared.retarget_table(&table, &weights, &[]).unwrap_err());
-        }
+        prepared.analysis.support_status =
+            Some(CellStatus::NotApplicable { reason: "typed-impossible" });
+        refused(prepared.retarget(&weights, &[], &ctx).unwrap_err());
+        refused(
+            prepared
+                .transform_capability(antecedent_contract::TransformIntent::Retarget)
+                .unwrap_err(),
+        );
+        let table = prepared.score_table().unwrap().clone();
+        refused(prepared.retarget_table(&table, &weights, &[]).unwrap_err());
     }
 }

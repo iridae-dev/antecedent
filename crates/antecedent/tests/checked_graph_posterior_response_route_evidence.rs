@@ -165,7 +165,7 @@ fn assert_identified_atoms_match_truth(
 }
 
 /// `InterventionResponse`/`ResponseCurve` × `Dag`/`Cpdag`/`Pag` ×
-/// `graph_posterior` × Frequentist/Bayesian × the licensed suites: the retained
+/// `graph_posterior` × Frequentist/Bayesian × the supported suites: the retained
 /// plan freezes the atoms, weights, identification flags, procedure and
 /// inference; the prepared click reproduces the one-shot run; every identified
 /// atom matches the linear truth; unidentified mass survives prepare, click and
@@ -255,7 +255,7 @@ fn graph_posterior_responses_body() {
                     for result in [&one_shot, &click] {
                         assert_eq!(
                             result.support_status().unwrap().as_str(),
-                            "licensed",
+                            "supported",
                             "{label}"
                         );
                         assert_eq!(

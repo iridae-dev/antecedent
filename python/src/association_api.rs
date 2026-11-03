@@ -3,7 +3,7 @@
 //! The description is computed by the compiled `Association` study (`Study.compile` and
 //! `prepare_association`); this module only carries the quantities and the evidence behind them
 //! to Python. An association is never the effect of an intervention and ranks no action: its
-//! standard errors, spreads and posteriors are unlicensed and their calibration is unmeasured.
+//! standard errors, spreads and posteriors are unsupported and their calibration is unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -82,7 +82,7 @@ pub struct AssociationSection {
     pub refused_after: Option<String>,
     pub uncertainty: String,
     pub calibration: String,
-    pub licensed: bool,
+    pub supported: bool,
     pub ranks_actions: bool,
     pub is_intervention_effect: bool,
 }
@@ -146,7 +146,7 @@ impl From<&AssociationPayload> for AssociationSection {
             refused_after: payload.refused_after.as_deref().map(str::to_owned),
             uncertainty: payload.uncertainty_label().to_owned(),
             calibration,
-            licensed: false,
+            supported: false,
             ranks_actions: false,
             is_intervention_effect: false,
         }

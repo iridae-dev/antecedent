@@ -2,19 +2,19 @@
 //! pre-action state, the new-period refresh, and the closed dependent interval.
 //!
 //! * **Initial state** (`antecedent.transport.temporal_initial_state`, point only,
-//!   licensed): the target two-step mean marginalized over a finite **target**
+//!   supported): the target two-step mean marginalized over a finite **target**
 //!   initial-state law, `sum_s0 P_target(s0) R(s0)`. A source law or a single state
 //!   cannot answer it, and fixing the state is a different estimand with its own
 //!   label. The result exports an independent artifact.
 //! * **New-period refresh** (`antecedent.transport.temporal_new_period_refresh`,
-//!   point only, licensed): a held result is re-evaluated, never copied, on a
+//!   point only, supported): a held result is re-evaluated, never copied, on a
 //!   replacement panel of a new period when the graph, horizon, lag alignment,
 //!   intervention history, selection targets, regimes and proof are unchanged. Anything
 //!   else is a typed invalidation. A stale interval never survives a refresh.
 //! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): a
 //!   calibrated claim whose calibration is unmeasured, so this
 //!   route is **closed**: it validates its arguments through the core and then refuses
-//!   with `cell_not_licensed` / `temporal_interval.route_frozen`. Its replay artifact
+//!   with `not_supported` / `temporal_interval.route_frozen`. Its replay artifact
 //!   exists at the io layer as an internal artifact.
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
@@ -521,7 +521,7 @@ fn validated_interval(
 }
 
 /// Prepare the original whole-unit candidate and independently replay its artifact.
-/// Internal acceptance preparation only: no measured or released interval license.
+/// Internal acceptance preparation only: no measured or released interval support.
 ///
 /// # Errors
 /// Original panel/design/history refusals or failed original engine/artifact replay.

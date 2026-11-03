@@ -167,7 +167,7 @@ class Evidence:
         route = str(child.get("route", ""))
         for part in route.split("."):
             if len(part) > 5 and part not in (
-                "licensed",
+                "supported",
                 "graphless",
                 "execution_only",
                 "closed",

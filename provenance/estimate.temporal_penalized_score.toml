@@ -40,7 +40,7 @@ record_sha256 = "90cb935103300686274124f8047e848bef71333000a55ccaa459c0d935906e8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
-sha256 = "1dd523bb2249aeac2fecfb5076a39b6994c82d97a94bab32266eba833a9e12d9"
+sha256 = "1fbf52285e4bfc32df7972d6dd9509472fed8a1d1186431df940cf32a8554fce"
 
 [[method_review.artifacts]]
 role = "assertion"

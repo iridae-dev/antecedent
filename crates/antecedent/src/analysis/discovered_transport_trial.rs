@@ -751,7 +751,7 @@ impl TrialCompatibleTransportConfidenceSet {
         Ok(writer.finish())
     }
     /// Export a receipt for replay **against the original report, query and datasets**.
-    /// This receipt is not a self-contained data container or a calibration license.
+    /// This receipt is not a self-contained data container or a calibration support.
     ///
     /// # Errors
     /// Encoding failure or the shared 16 MiB artifact bound is exceeded.

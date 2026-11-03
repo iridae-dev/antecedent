@@ -322,7 +322,7 @@ def test_eight_variable_artifacts_are_still_consumed_and_wider_ones_carry_wide_e
             execution=ant.Execution(seed=3),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     # The posterior mean effect is the atom-weighted mixture of the two regression readings:
     # atoms 1 and 3 leave the confounder z0 out (unadjusted slope), atom 2 adjusts for it.
     treatment, outcome, z0 = data["t"], data["y"], data["z0"]

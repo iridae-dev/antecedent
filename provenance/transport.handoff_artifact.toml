@@ -27,7 +27,7 @@ record_sha256 = "be575096a6a12486041d70bb50da1d53ef45f5751f806992c52c13d095465c1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
-sha256 = "8381056f9f971a26ac3d6f1a2138cab1b351d713bf15769937ac589d65290505"
+sha256 = "1db0f33e09e0dc8caa5c3bf1fc7df9fa26e08784cef8f267ef2230eb560e9bea"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

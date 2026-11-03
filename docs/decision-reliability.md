@@ -11,7 +11,7 @@ ranking or optimality probability, confidence set or selection-corrected
 interval is *published* only where a current coverage record measured that
 construction at the coordinate (candidate-set size, Monte Carlo budget,
 selection rule, coupling, serial dependence, level); every other request
-refuses with `cell_not_licensed`. The record is resolved from the shipped
+refuses with `not_supported`. The record is resolved from the shipped
 coverage table: a caller cannot supply or declare one.
 
 ## Assess a decision from draws
@@ -33,7 +33,7 @@ for candidate in result.report.monte_carlo_error.candidates:
     print(candidate.id, candidate.estimate.value, candidate.estimate.standard_error)
 result.inspect()
 result.report.to_dict()                 # independent JSON-safe copy
-result.publish("ranking_probability")   # raises cell_not_licensed outside a measured record
+result.publish("ranking_probability")   # raises not_supported outside a measured record
 ```
 
 `coupling` and `within_stream` default to `"unknown"` and are refused until
@@ -64,7 +64,7 @@ Producers that feed it: the cohort-decision route supplies per-draw cohort
 utilities (`producer = "cohort_decision"`), the sequential-evaluation route
 supplies per-draw policy values (`producer = "sequential_evaluation"`), and any
 decision or design run that kept its simulated utilities may supply them under
-its own label. Those routes stay point-only until this package licenses them at
+its own label. Those routes stay point-only until this package supports them at
 a named coordinate.
 
 ## Three uncertainties, reported separately
@@ -95,7 +95,7 @@ whole-procedure claim and needs its own calibration.
 A difference on a shared stream reports `variance_ratio_vs_independent`
 (`1 - rho` for equal variances) and the implied correlation. A weighted
 quantile or `CVaR`, and weights on dependent or independently drawn candidates,
-are refused: no weighted standard error is licensed there. The quantile error
+are refused: no weighted standard error is supported there. The quantile error
 converges at the slow `n^(-1/4)` rate; it is a standard error, not an interval.
 
 ## Ranking statements
@@ -146,7 +146,7 @@ An artifact retains its original closed-route snapshot when later calibration
 opens a route. Replay accepts this conservative historical snapshot only when
 its refusals are canonical and include every currently closed route. The stored
 digest and every other report field still compare exactly. Historical refusals
-do not grant licenses: publication checks the current calibration independently.
+do not grant supports: publication checks the current calibration independently.
 
 ## When a probability or interval is published
 
@@ -171,7 +171,7 @@ why the confidence set and the selection-corrected interval are separate routes:
 A statement is about the supplied law and the candidates as supplied: the
 probability that a candidate is best is per draw of the law, and the confidence
 set is for the best retained candidate. A recorded boundary (all candidates equal,
-a dominant leader) never licenses a route.
+a dominant leader) never supports a route.
 Autocorrelated streams, importance weights, adaptively generated candidates,
 more than 100 candidates, budgets outside the measured range and levels other
 than 0.95 are refused.
@@ -224,7 +224,7 @@ a joint law are refused.
 
 | Refused request | Reason code | Remedy |
 | --- | --- | --- |
-| Publishing a derived interval or set | `cell_not_licensed` | Report it labelled derived and unmeasured; a measured record at the coordinate is needed |
+| Publishing a derived interval or set | `not_supported` | Report it labelled derived and unmeasured; a measured record at the coordinate is needed |
 | Normal approximation below the minimum effective size | refusal at `MIN_NORMAL_ESS` | Increase the Monte Carlo budget |
 | Cohort mean as a law | `joint_law_required` | Keep per-draw utilities from one joint law |
 | Rollout or off-policy mean with no retained draws | `diagnostic_not_available` | Retain per-draw utilities |
@@ -241,7 +241,7 @@ a joint law are refused.
 | `uncertainty_components_not_combined` | one combined number requested |
 | `joint_law_required` | candidates compared by index although stream identities contradict the declared coupling |
 | `sampling_dependence_unknown` | candidate coupling or serial dependence undeclared |
-| `cell_not_licensed` | a published probability or interval requested at a coordinate no current coverage record measured |
+| `not_supported` | a published probability or interval requested at a coordinate no current coverage record measured |
 | `route_not_supported` | weighted quantile or `CVaR`, or weights on dependent or independent-candidate draws |
 
 ## Bounds

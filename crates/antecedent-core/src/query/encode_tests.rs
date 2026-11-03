@@ -207,7 +207,7 @@ fn catalog(reversed: bool) -> EvidenceCatalog {
         snapshot_identity: Arc::from("snap"),
         schema_names: labels(&["x", "y"]),
         sampling: SamplingDesign::Independent,
-        weights: Some(LicensedWeights { snapshot_identity: Arc::from("snap") }),
+        weights: Some(SupportedWeights { snapshot_identity: Arc::from("snap") }),
         dependence: DependenceGroup::IndependentStudies,
     };
     EvidenceCatalog {
@@ -1833,7 +1833,7 @@ fn the_association_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
             &|q| q.outcome_scale = AssociationOutcome::Binary,
             &|q| q.weight = None,
             &|q| q.refused_after = None,
-            &|q| q.refused_after = Some(Arc::from("cell_not_licensed")),
+            &|q| q.refused_after = Some(Arc::from("not_supported")),
         ],
     );
     assert_distinct(&[CausalQuery::IvBounds(iv_bounds()), CausalQuery::Association(association())]);

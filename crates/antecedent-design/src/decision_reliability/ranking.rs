@@ -8,7 +8,7 @@
 //! the search could have produced, and no interval is built from it.
 //!
 //! Draws are paired by index only when the carrier declared one shared simulation; that
-//! is checked against the stream identities by [`DecisionDraws::validate`] and licensed
+//! is checked against the stream identities by [`DecisionDraws::validate`] and supported
 //! by the propagation rule (a nonlinear functional of independently drawn candidates is
 //! refused, never paired by index). Ties split their probability equally, so the best
 //! probabilities of all candidates sum to one at every draw.
@@ -162,8 +162,8 @@ pub(crate) fn rank_validated(
         ));
     }
     // Rank statements pair the candidates' draws by index: the propagation rule decides
-    // whether the declared dependence licenses that.
-    draws.license_index_pairing()?;
+    // whether the declared dependence supports that.
+    draws.support_index_pairing()?;
     let _order = super::workspace::reserve::<usize>(ctx, n_candidates)?;
     let order = draws.canonical_order();
     if let Some(&k) = request.top_k.iter().find(|&&k| k == 0 || k as usize > n_candidates) {

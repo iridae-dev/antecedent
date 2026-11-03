@@ -4,7 +4,7 @@
 //!
 //! The section is optional on the result body and absent on every other result, so their bodies
 //! and digests are unchanged. A loader checks that the section belongs to its query, claims no
-//! licence or calibration, publishes no scalar interval beside it, that each pointwise interval
+//! support or calibration, publishes no scalar interval beside it, that each pointwise interval
 //! is the normal interval of its standard error and each band contains it, and re-derives the
 //! scalar summary from the reported effects wherever the design's aggregation defines it from
 //! them alone.
@@ -63,7 +63,7 @@ pub struct DesignEffectWire {
     pub comparison: usize,
 }
 
-/// A rollout design result with its whole-procedure uncertainty (unlicensed, calibration
+/// A rollout design result with its whole-procedure uncertainty (unsupported, calibration
 /// unmeasured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -91,7 +91,7 @@ pub struct QuasiRolloutWire {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagnostics: Vec<(String, f64)>,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 impl QuasiRolloutWire {
@@ -189,13 +189,13 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
     if bayesian != result.posterior_artifact.is_some() {
         return fail("a Bayesian rollout section needs its posterior, a frequentist one none");
     }
-    if rollout.licensed
+    if rollout.supported
         || rollout.calibration != "unmeasured"
         || (!bayesian && result.standard_error.is_some())
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
     {
-        return fail("a rollout result claims no licence, calibration or scalar interval");
+        return fail("a rollout result claims no support, calibration or scalar interval");
     }
     if bayesian && rollout.effects.iter().any(|effect| effect.standard_error.is_some()) {
         return fail("a credible interval carries no normal-interval standard error");

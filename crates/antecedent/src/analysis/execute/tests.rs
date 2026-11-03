@@ -522,11 +522,11 @@ mod identify_only_tests {
         assert!(
             matches!(
                 err,
-                CausalError::Support { id: SupportRefusal::Refused, message: m } if *m == message
+                CausalError::Support { id: SupportRefusal::NotSupported, message: m } if *m == message
             ),
             "{err:?}"
         );
-        assert_eq!(err.to_string(), format!("refused: {message}"));
+        assert_eq!(err.to_string(), format!("not_supported: {message}"));
     }
 
     #[test]
@@ -619,7 +619,7 @@ mod identify_only_tests {
         marginals[6] = weights[1]; // Z -> T only in the adjusted atom.
         marginals[7] = weights[1]; // Z -> Y only in the adjusted atom.
 
-        // Cover each licensed validation coordinate so cheap/full support is
+        // Cover each supported validation coordinate so cheap/full support is
         // demonstrated by the same known-truth staged mixture, not inferred
         // from a validation-none run.
         let mut report_counts = Vec::new();
@@ -668,7 +668,7 @@ mod identify_only_tests {
             );
             assert!(!fresh.estimate.as_effect().unwrap().ate.is_finite());
             assert!(!refreshed.estimate.as_effect().unwrap().ate.is_finite());
-            assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(click.support_status.unwrap().as_str(), "supported");
             let click_post = click.posterior.as_ref().expect("prepared graph mixture posterior");
             let eq = click_post.effect_column().expect("posterior effect column");
             assert!(
@@ -851,7 +851,7 @@ mod identify_only_tests {
             assert!(!click.estimate.as_effect().unwrap().se_analytic().is_finite());
             assert!(!fresh.estimate.as_effect().unwrap().ate.is_finite());
             assert!(!refreshed.estimate.as_effect().unwrap().ate.is_finite());
-            assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(click.support_status.unwrap().as_str(), "supported");
             assert!(click.posterior.is_none(), "Frequentist mixture must not attach a posterior");
             assert_eq!(click.identification.status, IdentificationStatus::GraphDependent);
             assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
@@ -1067,8 +1067,8 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn bidirected_admg_distribution_cheap_builds_as_a_licensed_functional_refuter_state() {
-        // The mixed-graph distribution and its cheap refuter state are licensed.
+    fn bidirected_admg_distribution_cheap_builds_as_a_supported_functional_refuter_state() {
+        // The mixed-graph distribution and its cheap refuter state are supported.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1082,7 +1082,7 @@ mod identify_only_tests {
             .refute(RefuteSuite::Cheap)
             .build()
             .unwrap();
-        assert_eq!(study.support_status, Some(crate::support::CellStatus::Licensed));
+        assert_eq!(study.support_status, Some(crate::support::CellStatus::Supported));
     }
 
     #[test]

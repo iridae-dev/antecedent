@@ -311,7 +311,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
     });
 
     // Exercise both the direct `Study::run` path and the prepared handle (which is
-    // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
+    // what the supported cell actually uses on the Python `PreparedAnalysis` surface),
     // on the explicit and the accepted structure axis, and pin every run against the
     // same fixture truth.
     let truth = fixture["contract"]["true_response"].as_f64().unwrap();
@@ -337,7 +337,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
         let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
         let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
         for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             let response = result.response().unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
             let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
@@ -484,7 +484,7 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         let fresh = study.clone().run(&ctx).unwrap();
         let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
         for curve in [&fresh, &click] {
-            assert_eq!(curve.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(curve.support_status().unwrap().as_str(), "supported");
             let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
                 &curve.response().unwrap().estimate
             else {
@@ -775,7 +775,7 @@ fn prepared_response_refute_is_refused() {
     let prior = prepared.estimate(&data, &ctx).unwrap();
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.starts_with("refused:"), "{msg}");
+    assert!(msg.starts_with("not_supported:"), "{msg}");
     assert!(msg.contains("AverageEffect and scalar InterventionResponse"), "{msg}");
 }
 

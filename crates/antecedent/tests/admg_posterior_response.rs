@@ -187,7 +187,7 @@ fn admg_graph_posterior_intervention_response_matches_identified_atom() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(mixed.support_status().unwrap().as_str(), "supported");
         for code in ["identify.response.general_id", "estimate.response.admg_graph_posterior"] {
             assert!(mixed.diagnostics.iter().any(|d| d.code.as_ref() == code), "missing {code}");
         }
@@ -229,7 +229,7 @@ fn admg_graph_posterior_response_curve_matches_identified_atom() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(mixed.support_status().unwrap().as_str(), "supported");
         let atom = response_values(&explicit);
         let got = response_values(&mixed);
         assert_eq!(got.len(), atom.len());
@@ -276,7 +276,7 @@ fn assert_plugin_level_ir(
     inference: &InferenceMode,
     suite: RefuteSuite,
 ) {
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{inference:?} {suite:?}");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{inference:?} {suite:?}");
     assert!(
         !result.refutations.is_empty(),
         "{inference:?} {suite:?} must run plugin-level refuters"
@@ -407,10 +407,10 @@ fn admg_graph_posterior_response_inspect_and_execute_agree() {
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0);
         let inspected = builder.clone().inspect().unwrap();
-        assert_eq!(inspected.support_status, Some(CellStatus::Licensed));
+        assert_eq!(inspected.support_status, Some(CellStatus::Supported));
         assert_eq!(
             builder.clone().capability().unwrap().applicability,
-            SemanticApplicability::Licensed
+            SemanticApplicability::Supported
         );
         let result = builder.build().unwrap().run(&ctx).unwrap();
         assert_eq!(result.support_status(), inspected.support_status);

@@ -199,7 +199,7 @@ impl SampleGrid {
     /// practical data size (tabular 300–1200 rows, series of 160–400 steps).
     pub const STANDARD: Self = Self { name: "standard", factors: [(1, 2), (1, 1), (2, 1)] };
     /// `3n/4, n, 2n`: short-series designs (base `n` ≤ 100 steps), whose base
-    /// point is already the shortest series the construction is licensed for;
+    /// point is already the shortest series the construction is supported for;
     /// halving it would measure a series the runtime warns on, not the design.
     pub const SHORT_SERIES: Self = Self { name: "short_series", factors: [(3, 4), (1, 1), (2, 1)] };
     /// `n/2, n, 3n/2`: designs whose cost grows faster than `n` and that

@@ -89,7 +89,7 @@ pub struct GraphAcceptance {
 /// # Errors
 ///
 /// A search that exhausted a bound, or a structure with unresolved edges and no declared
-/// completion. The refusal names every unresolved edge and what would license acceptance.
+/// completion. The refusal names every unresolved edge and what would support acceptance.
 pub fn accepted_graph_stage_identity(
     outcome: &DiscoveryOutcome,
     acceptance: &GraphAcceptance,

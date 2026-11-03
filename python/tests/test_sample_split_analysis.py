@@ -62,7 +62,7 @@ def test_an_explicit_rule_names_the_discovery_rows() -> None:
         np.testing.assert_array_equal(split.analysis[name], column[250:])
 
 
-def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_licenses() -> None:
+def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_supports() -> None:
     data = table(3)
     split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=6)
     binding = split.check_analysis_table(split.analysis)
@@ -106,8 +106,8 @@ def test_reusing_the_rows_that_selected_is_refused() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_licensed"
+    assert info.value.reason_code == "not_supported"
+    assert info.value.detail == "selective_discovery.downstream_interval_not_supported"
 
 
 @pytest.mark.parametrize(

@@ -72,8 +72,8 @@ fn bump(v: &Versions, stage: Stage) -> Versions {
     out
 }
 
-fn licensed() -> RecalcCapabilities {
-    RecalcCapabilities::in_process(RetargetSupport::Licensed)
+fn supported() -> RecalcCapabilities {
+    RecalcCapabilities::in_process(RetargetSupport::Supported)
 }
 
 fn run(prev: &Versions, req: &Versions, caps: &RecalcCapabilities) -> RecalcPlan {
@@ -85,7 +85,7 @@ fn table(plan: &RecalcPlan) -> Table {
 }
 
 fn reused_string(stage: Stage) -> String {
-    let dep = stage.dependencies(RetargetSupport::Licensed).first().copied().unwrap_or(stage);
+    let dep = stage.dependencies(RetargetSupport::Supported).first().copied().unwrap_or(stage);
     format!("reused({dep})")
 }
 
@@ -135,16 +135,16 @@ fn assert_reused_keep_identity(base: &RecalcPlan, plan: &RecalcPlan) {
 #[test]
 fn recalc_unchanged_request_reuses_every_stage() {
     let v = full_versions();
-    let plan = run(&v, &v, &licensed());
+    let plan = run(&v, &v, &supported());
     assert_eq!(table(&plan), expected(&v, &[]));
     assert!(plan.recomputed().is_empty() && plan.refused().is_empty());
-    assert_identity_consistency(&v, &v, &licensed(), &plan);
+    assert_identity_consistency(&v, &v, &supported(), &plan);
 }
 
 #[test]
 fn recalc_first_request_has_nothing_to_reuse() {
     let v = native_versions();
-    let plan = RecalcPlan::plan(&StageIdentities::new(), &identities(&v), &licensed());
+    let plan = RecalcPlan::plan(&StageIdentities::new(), &identities(&v), &supported());
     assert!(plan.reused().is_empty());
     assert_eq!(plan.recomputed().len(), v.len());
     assert_eq!(
@@ -167,16 +167,16 @@ fn target_cases() -> Vec<MutationCase> {
         (
             "utility only recomputes the decision",
             Stage::Utility,
-            licensed(),
+            supported(),
             vec![
                 (Stage::Utility, "recomputed(own:utility:modified)"),
                 (Stage::Decision, "recomputed(upstream:utility<-utility:modified)"),
             ],
         ),
         (
-            "licensed target-weight change reuses frozen scores",
+            "supported target-weight change reuses frozen scores",
             Stage::TargetPopulation,
-            licensed(),
+            supported(),
             vec![
                 (Stage::TargetPopulation, "recomputed(own:target_population:modified)"),
                 (Stage::Law, "recomputed(upstream:target_population<-target_population:modified)"),
@@ -217,7 +217,7 @@ fn input_cases() -> Vec<MutationCase> {
         (
             "external study 0 invalidates only its prior, provider and the decision",
             ext0,
-            licensed(),
+            supported(),
             vec![
                 (ext0, "recomputed(own:external_study.0:modified)"),
                 (
@@ -234,7 +234,7 @@ fn input_cases() -> Vec<MutationCase> {
         (
             "new outcomes (data snapshot) refit",
             Stage::DataSnapshot,
-            licensed(),
+            supported(),
             vec![
                 (Stage::DataSnapshot, "recomputed(own:data_snapshot:modified)"),
                 (
@@ -248,7 +248,7 @@ fn input_cases() -> Vec<MutationCase> {
         (
             "changed folds or RNG refit",
             Stage::LearnerFoldsRng,
-            licensed(),
+            supported(),
             vec![
                 (Stage::LearnerFoldsRng, "recomputed(own:learner_folds_rng:modified)"),
                 (
@@ -262,19 +262,19 @@ fn input_cases() -> Vec<MutationCase> {
         (
             "graph change re-identifies",
             Stage::Graph,
-            licensed(),
+            supported(),
             reidentify_overrides(Stage::Graph, "graph"),
         ),
         (
             "regime change re-identifies",
             Stage::Regime,
-            licensed(),
+            supported(),
             reidentify_overrides(Stage::Regime, "regime"),
         ),
         (
             "query change re-identifies",
             Stage::Query,
-            licensed(),
+            supported(),
             reidentify_overrides(Stage::Query, "query"),
         ),
     ]
@@ -293,7 +293,7 @@ fn recalc_mutation_tables_are_exact() {
         } else {
             native_versions()
         };
-        let base_plan = run(&base, &base, &licensed());
+        let base_plan = run(&base, &base, &supported());
         let changed = bump(&base, stage);
         let plan = run(&base, &changed, &caps);
         assert_eq!(table(&plan), expected(&base, &overrides), "{name}");
@@ -351,7 +351,7 @@ fn reidentify_overrides(stage: Stage, label: &'static str) -> Vec<(Stage, &'stat
 fn recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
     let base = full_versions();
     let changed = bump(&base, Stage::Evidence);
-    let plan = run(&base, &changed, &licensed());
+    let plan = run(&base, &changed, &supported());
     let overrides = [
         (Stage::Evidence, "recomputed(own:evidence:modified)"),
         (Stage::ProviderRequest(b(0)), "recomputed(upstream:evidence<-evidence:modified)"),
@@ -364,13 +364,13 @@ fn recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
         (Stage::Decision, "recomputed(upstream:law<-evidence:modified)"),
     ];
     assert_eq!(table(&plan), expected(&base, &overrides));
-    assert_identity_consistency(&base, &changed, &licensed(), &plan);
+    assert_identity_consistency(&base, &changed, &supported(), &plan);
 }
 
 #[test]
 fn recalc_external_requests_and_priors_bind_the_full_causal_request() {
     let base = full_versions();
-    let before = run(&base, &base, &licensed());
+    let before = run(&base, &base, &supported());
     for input in [
         Stage::Graph,
         Stage::Query,
@@ -381,7 +381,7 @@ fn recalc_external_requests_and_priors_bind_the_full_causal_request() {
         Stage::TreatmentGrid,
     ] {
         let changed = bump(&base, input);
-        let plan = run(&base, &changed, &licensed());
+        let plan = run(&base, &changed, &supported());
         for branch in [b(0), b(1)] {
             assert!(matches!(
                 plan.status(Stage::ExternalStudy(branch)),
@@ -395,7 +395,7 @@ fn recalc_external_requests_and_priors_bind_the_full_causal_request() {
                 assert_ne!(before.identity(stage), plan.identity(stage), "{input}: {stage}");
             }
         }
-        assert_identity_consistency(&base, &changed, &licensed(), &plan);
+        assert_identity_consistency(&base, &changed, &supported(), &plan);
     }
 }
 
@@ -408,7 +408,7 @@ fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
         ..ResumeContext::default()
     };
     assert!(!resume.supplied_data);
-    let caps = RecalcCapabilities::fresh_process(RetargetSupport::Licensed, resume);
+    let caps = RecalcCapabilities::fresh_process(RetargetSupport::Supported, resume);
     let plan = run(&base, &base, &caps);
     assert!(plan.is_executable());
     assert!(matches!(plan.status(Stage::DataSnapshot), Some(StageStatus::Reused { .. })));
@@ -417,7 +417,7 @@ fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
         plan.recomputed_computations(),
         vec![Stage::Identification, Stage::Law, Stage::Decision]
     );
-    // A bound digest only licenses those exact scores, not data for a refit.
+    // A bound digest only supports those exact scores, not data for a refit.
     for stage in [Stage::DataSnapshot, Stage::Query, Stage::LearnerFoldsRng] {
         let changed = run(&base, &bump(&base, stage), &caps);
         assert!(!changed.is_executable(), "{stage}");
@@ -428,9 +428,9 @@ fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
 #[test]
 fn recalc_external_study_change_leaves_unrelated_branches_identical() {
     let base = full_versions();
-    let base_plan = run(&base, &base, &licensed());
+    let base_plan = run(&base, &base, &supported());
     let changed = bump(&base, Stage::ExternalStudy(b(0)));
-    let plan = run(&base, &changed, &licensed());
+    let plan = run(&base, &changed, &supported());
     for stage in [
         Stage::ExternalStudy(b(1)),
         Stage::ProviderRequest(b(1)),
@@ -451,7 +451,7 @@ fn recalc_external_study_change_leaves_unrelated_branches_identical() {
         assert_ne!(plan.identity(stage), base_plan.identity(stage), "{stage}");
     }
     // Changing the other study changes the mirror-image set.
-    let other = run(&base, &bump(&base, Stage::ExternalStudy(b(1))), &licensed());
+    let other = run(&base, &bump(&base, Stage::ExternalStudy(b(1))), &supported());
     assert_eq!(
         other.recomputed(),
         vec![
@@ -470,11 +470,11 @@ fn recalc_added_and_removed_external_studies_reach_only_the_decision() {
     for stage in [Stage::ExternalStudy(b(1)), Stage::ProviderRequest(b(1)), Stage::Prior(b(1))] {
         without.remove(&stage);
     }
-    let removed = run(&base, &without, &licensed());
+    let removed = run(&base, &without, &supported());
     let overrides = [(Stage::Decision, "recomputed(upstream:prior.1<-prior.1:removed)")];
     assert_eq!(table(&removed), expected(&without, &overrides));
 
-    let added = run(&without, &base, &licensed());
+    let added = run(&without, &base, &supported());
     let overrides = [
         (Stage::ExternalStudy(b(1)), "recomputed(own:external_study.1:added)"),
         (Stage::ProviderRequest(b(1)), "recomputed(own:provider_request.1:added)"),
@@ -485,30 +485,30 @@ fn recalc_added_and_removed_external_studies_reach_only_the_decision() {
 }
 
 #[test]
-fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
+fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_supported_route() {
     let base = full_versions();
     let cases = [
         (
-            RequestSupport::OffGrid { licensed_route: None },
+            RequestSupport::OffGrid { supported_route: None },
             "refused(recalc.off_grid_request)",
             "recalc.off_grid_request",
             "route_not_supported",
         ),
         (
-            RequestSupport::OffGrid { licensed_route: Some("dose.smoothed_response".into()) },
+            RequestSupport::OffGrid { supported_route: Some("dose.smoothed_response".into()) },
             "refused(recalc.off_grid_request[dose.smoothed_response])",
             "recalc.off_grid_request",
             "route_not_supported",
         ),
         (
-            RequestSupport::Unsupported { licensed_route: None },
+            RequestSupport::Unsupported { supported_route: None },
             "refused(recalc.unsupported_request)",
             "recalc.unsupported_request",
             "route_not_supported",
         ),
     ];
     for (request, grid_text, detail, code) in cases {
-        let caps = RecalcCapabilities { request, ..licensed() };
+        let caps = RecalcCapabilities { request, ..supported() };
         let plan = run(&base, &base, &caps);
         let overrides = [
             (Stage::TreatmentGrid, grid_text),
@@ -541,8 +541,8 @@ fn recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code() 
         RefusalReason::Unavailable { missing: MissingDependency::Fit },
         RefusalReason::Unavailable { missing: MissingDependency::Data },
         RefusalReason::Unavailable { missing: MissingDependency::Provider },
-        RefusalReason::OffGrid { licensed_route: None },
-        RefusalReason::Unsupported { licensed_route: None },
+        RefusalReason::OffGrid { supported_route: None },
+        RefusalReason::Unsupported { supported_route: None },
         RefusalReason::RetargetIncompatible,
         RefusalReason::Blocked { by: Stage::Law },
     ];
@@ -562,7 +562,7 @@ fn fresh(retarget: RetargetSupport, resume: ResumeContext) -> RecalcCapabilities
 #[test]
 fn recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
     let v = full_versions();
-    let caps = fresh(RetargetSupport::Licensed, ResumeContext::default());
+    let caps = fresh(RetargetSupport::Supported, ResumeContext::default());
     let plan = run(&v, &v, &caps);
     let overrides = [
         (Stage::DataSnapshot, "refused(recalc.unavailable_data)"),
@@ -593,7 +593,7 @@ fn recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
 fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision() {
     let v = full_versions();
     let resume = ResumeContext { supplied_data: true, ..ResumeContext::default() };
-    let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &v, &fresh(RetargetSupport::Supported, resume));
     let overrides = [
         (Stage::ProviderRequest(b(0)), "refused(recalc.unavailable_provider)"),
         (Stage::ProviderRequest(b(1)), "refused(recalc.unavailable_provider)"),
@@ -609,7 +609,7 @@ fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the
 
     let resume =
         ResumeContext { supplied_data: true, supplied_provider: true, ..ResumeContext::default() };
-    let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &v, &fresh(RetargetSupport::Supported, resume));
     for entry in plan.entries() {
         let derived = !entry.stage.is_input();
         assert_eq!(
@@ -626,7 +626,7 @@ fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the
 fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision() {
     let v = native_versions();
     let resume = ResumeContext { portable_scores: true, ..ResumeContext::default() };
-    let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &v, &fresh(RetargetSupport::Supported, resume));
     let overrides = [
         (Stage::DataSnapshot, "refused(recalc.unavailable_data)"),
         (Stage::Identification, "recomputed(fresh_process)"),
@@ -637,7 +637,7 @@ fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decisio
 
     // Portable scores do not survive changed folds without data to refit on.
     let changed = bump(&v, Stage::LearnerFoldsRng);
-    let plan = run(&v, &changed, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &changed, &fresh(RetargetSupport::Supported, resume));
     assert_eq!(
         plan.status(Stage::ScoreArtifact),
         Some(&StageStatus::Refused {
@@ -647,7 +647,7 @@ fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decisio
 
     // A compatible target change still reweights portable scores.
     let retargeted = bump(&v, Stage::TargetPopulation);
-    let plan = run(&v, &retargeted, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &retargeted, &fresh(RetargetSupport::Supported, resume));
     assert_eq!(
         plan.status(Stage::ScoreArtifact),
         Some(&StageStatus::Reused { dependency: Stage::Identification })
@@ -672,7 +672,7 @@ fn recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
         (ResumeContext { portable_fit: true, ..ResumeContext::default() }, MissingDependency::Data),
     ];
     for (resume, missing) in cases {
-        let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
+        let plan = run(&v, &v, &fresh(RetargetSupport::Supported, resume));
         assert_eq!(
             plan.status(Stage::ScoreArtifact),
             Some(&StageStatus::Refused { reason: RefusalReason::Unavailable { missing } })
@@ -687,7 +687,7 @@ fn recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
     // A fit with supplied data is rebuilt, not reused.
     let resume =
         ResumeContext { portable_fit: true, supplied_data: true, ..ResumeContext::default() };
-    let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
+    let plan = run(&v, &v, &fresh(RetargetSupport::Supported, resume));
     assert_eq!(
         plan.status(Stage::ScoreArtifact),
         Some(&StageStatus::Recomputed { because: ChangedDependency::FreshProcess })
@@ -709,17 +709,17 @@ fn recalc_identity_is_canonical_and_order_independent() {
         backward.set(*stage, StageIdentity::of(&stage.label(), &[version.as_bytes()]));
     }
     assert_eq!(forward, backward);
-    let a = RecalcPlan::plan(&forward, &forward, &licensed());
-    let c = RecalcPlan::plan(&backward, &backward, &licensed());
+    let a = RecalcPlan::plan(&forward, &forward, &supported());
+    let c = RecalcPlan::plan(&backward, &backward, &supported());
     assert_eq!(a.canonical_identity(), c.canonical_identity());
-    let changed = run(&v, &bump(&v, Stage::Utility), &licensed());
+    let changed = run(&v, &bump(&v, Stage::Utility), &supported());
     assert_ne!(a.canonical_identity(), changed.canonical_identity());
-    // The retarget license is part of an effective identity: it changes which stages a target
+    // The retarget support is part of an effective identity: it changes which stages a target
     // change reaches.
-    let licensed_ids = forward.effective(RetargetSupport::Licensed);
+    let supported_ids = forward.effective(RetargetSupport::Supported);
     let undeclared_ids = forward.effective(RetargetSupport::NotDeclared);
-    assert_eq!(licensed_ids.get(&Stage::Graph), undeclared_ids.get(&Stage::Graph));
-    assert_ne!(licensed_ids.get(&Stage::ScoreArtifact), undeclared_ids.get(&Stage::ScoreArtifact));
+    assert_eq!(supported_ids.get(&Stage::Graph), undeclared_ids.get(&Stage::Graph));
+    assert_ne!(supported_ids.get(&Stage::ScoreArtifact), undeclared_ids.get(&Stage::ScoreArtifact));
 }
 
 #[test]
@@ -728,7 +728,7 @@ fn recalc_branch_indices_are_bounded() {
     assert!(Branch::new(antecedent_core::recalc::MAX_EXTERNAL_BRANCHES).is_none());
     assert_eq!(Branch::new(3).unwrap().index(), 3);
     let boundary = Boundary::InProcess;
-    assert_eq!(licensed().boundary, boundary);
+    assert_eq!(supported().boundary, boundary);
 }
 
 /// Native branch plus one declared standing input of each kind and two providers.
@@ -757,7 +757,7 @@ fn with_class(plan: &RecalcPlan, class: Revalidation) -> Vec<String> {
 #[test]
 fn undeclared_standing_inputs_do_not_reseal_existing_identities() {
     let ids = identities(&full_versions());
-    let effective = ids.effective(RetargetSupport::Licensed);
+    let effective = ids.effective(RetargetSupport::Supported);
     // Oracle: the law's identity is the digest of its label, own digest and exactly the two
     // dependencies a workflow without standing inputs always had.
     let score = effective[&Stage::ScoreArtifact];
@@ -777,7 +777,7 @@ fn undeclared_standing_inputs_do_not_reseal_existing_identities() {
     // Declaring the standing input is a visible, deliberate change of the identity.
     let mut declared = ids.clone();
     declared.set_calibration(&CalibrationInput::PointOnly);
-    let after = declared.effective(RetargetSupport::Licensed);
+    let after = declared.effective(RetargetSupport::Supported);
     assert_ne!(after[&Stage::Law], effective[&Stage::Law]);
     assert_ne!(after[&Stage::Decision], effective[&Stage::Decision]);
     assert_eq!(after[&Stage::Identification], effective[&Stage::Identification]);
@@ -788,7 +788,7 @@ fn undeclared_standing_inputs_do_not_reseal_existing_identities() {
 fn a_changed_calibration_record_recomputes_law_and_decision_only() {
     let prev = standing_versions();
     let req = bump(&prev, Stage::Calibration);
-    let plan = run(&prev, &req, &licensed());
+    let plan = run(&prev, &req, &supported());
     assert_eq!(
         table(&plan),
         expected(
@@ -800,8 +800,8 @@ fn a_changed_calibration_record_recomputes_law_and_decision_only() {
             ]
         )
     );
-    assert_identity_consistency(&prev, &req, &licensed(), &plan);
-    // the siblings that do not read the calibration keep their license
+    assert_identity_consistency(&prev, &req, &supported(), &plan);
+    // the siblings that do not read the calibration keep their support
     for stage in [Stage::Identification, Stage::ScoreArtifact, Stage::Prior(b(0))] {
         assert_eq!(plan.revalidation(stage), Some(Revalidation::StillValid), "{stage}");
     }
@@ -813,7 +813,7 @@ fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
     let prev = standing_versions();
     let mut req = prev.clone();
     req.remove(&Stage::Calibration);
-    let plan = run(&prev, &req, &licensed());
+    let plan = run(&prev, &req, &supported());
     assert_eq!(plan.status(Stage::Calibration), None);
     assert_eq!(
         plan.status(Stage::Law).map(ToString::to_string).as_deref(),
@@ -822,7 +822,7 @@ fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
     assert_eq!(with_class(&plan, Revalidation::Withdrawn), vec!["decision", "law"]);
     assert_eq!(plan.revalidation(Stage::ScoreArtifact), Some(Revalidation::StillValid));
     // a numerical change of the same record is not a withdrawal
-    let changed = run(&prev, &bump(&prev, Stage::Calibration), &licensed());
+    let changed = run(&prev, &bump(&prev, Stage::Calibration), &supported());
     assert!(with_class(&changed, Revalidation::Withdrawn).is_empty());
 }
 
@@ -830,7 +830,7 @@ fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
 fn a_representation_version_change_flows_through_scores_law_and_decision() {
     let prev = standing_versions();
     let req = bump(&prev, Stage::Representation);
-    let plan = run(&prev, &req, &licensed());
+    let plan = run(&prev, &req, &supported());
     assert_eq!(
         table(&plan),
         expected(
@@ -846,7 +846,7 @@ fn a_representation_version_change_flows_through_scores_law_and_decision() {
             ]
         )
     );
-    assert_identity_consistency(&prev, &req, &licensed(), &plan);
+    assert_identity_consistency(&prev, &req, &supported(), &plan);
     assert_eq!(plan.revalidation(Stage::Identification), Some(Revalidation::StillValid));
 }
 
@@ -854,7 +854,7 @@ fn a_representation_version_change_flows_through_scores_law_and_decision() {
 fn a_provider_standing_change_reaches_only_that_provider_and_the_decision() {
     let prev = standing_versions();
     let req = bump(&prev, Stage::ProviderStanding(b(0)));
-    let plan = run(&prev, &req, &licensed());
+    let plan = run(&prev, &req, &supported());
     assert_eq!(
         table(&plan),
         expected(
@@ -873,7 +873,7 @@ fn a_provider_standing_change_reaches_only_that_provider_and_the_decision() {
             ]
         )
     );
-    assert_identity_consistency(&prev, &req, &licensed(), &plan);
+    assert_identity_consistency(&prev, &req, &supported(), &plan);
     assert_eq!(plan.revalidation(Stage::ProviderRequest(b(1))), Some(Revalidation::StillValid));
     assert_eq!(plan.revalidation(Stage::Law), Some(Revalidation::StillValid));
 }
@@ -882,7 +882,7 @@ fn a_provider_standing_change_reaches_only_that_provider_and_the_decision() {
 fn a_coupling_change_recomputes_law_and_decision() {
     let prev = standing_versions();
     let req = bump(&prev, Stage::Coupling);
-    let plan = run(&prev, &req, &licensed());
+    let plan = run(&prev, &req, &supported());
     assert_eq!(plan.revalidation(Stage::Law), Some(Revalidation::Recompute));
     assert_eq!(plan.revalidation(Stage::Decision), Some(Revalidation::Recompute));
     assert_eq!(plan.revalidation(Stage::ScoreArtifact), Some(Revalidation::StillValid));
@@ -893,7 +893,7 @@ fn a_coupling_change_recomputes_law_and_decision() {
 fn refused_and_fresh_process_statuses_classify_in_the_same_vocabulary() {
     let prev = standing_versions();
     let caps =
-        RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
+        RecalcCapabilities::fresh_process(RetargetSupport::Supported, ResumeContext::default());
     let plan = RecalcPlan::plan(&identities(&prev), &identities(&prev), &caps);
     // nothing was supplied: the provider requests are refused, which is a withdrawal; a derived
     // stage that merely does not exist in this process recomputes

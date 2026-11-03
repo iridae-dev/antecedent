@@ -1156,7 +1156,7 @@ pub struct InverseQueryMeta {
     /// Independently consumed original source evidence; no executable-state authority.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_evidence: Vec<Vec<u8>>,
-    /// Where the point claim came from, when it came from a licensed forward source.
+    /// Where the point claim came from, when it came from a supported forward source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forward_origin: Option<ForwardOrigin>,
 }

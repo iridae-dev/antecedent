@@ -16,8 +16,8 @@
 # A story can read PASS only with registered story files AND an `evidence` list (route-evidence
 # test names that must be defined in a story file or an already-cited record fixture and must appear
 # as passed in the story's run log; pytest runs with -rA so passes are listed by name). An allocated
-# coverage id (any record of the story, carried_forward included) never passes without a
-# calibration reading. See STORY RULES in scripts/decision_exit_report.py.
+# coverage id (any record of the story) is reported PENDING_CALIBRATION until it has a
+# calibration reading (an annotation). See STORY RULES in scripts/decision_exit_report.py.
 # The stories are run here from the registry, the interval-coordinate check
 # (scripts/check_interval_coordinates.py, all records) runs with its refusal tests, and
 # decision_exit_report.py joins them.

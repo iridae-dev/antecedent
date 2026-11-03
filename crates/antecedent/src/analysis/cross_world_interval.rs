@@ -83,7 +83,7 @@ super::string_enum! {
 
 fn refused(detail: &str, offending: &str, remedy: &str) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
-        code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+        code: antecedent_core::reason_code!("not_supported").to_owned(),
         stage: "uncertainty".to_owned(),
         detail: detail.to_owned(),
         offending: Some(offending.to_owned()),
@@ -259,7 +259,7 @@ fn resolve(basis: &CalibrationBasis) -> (Option<String>, bool, Option<String>) {
 
 impl CrossWorldExecution {
     /// The interval of the executed quantity under a declared unit sampling,
-    /// licensed only by a currently attesting whole-path coverage record.
+    /// supported only by a currently attesting whole-path coverage record.
     ///
     /// The unqualified [`Self::interval`] stays closed; this reading names the
     /// declared unit sampling and is a statement conditional on the declared
@@ -269,7 +269,7 @@ impl CrossWorldExecution {
     /// Undeclared unit sampling or any refusal of
     /// [`Self::whole_path_uncertainty`]; a request outside the measured model
     /// class; a single unit under independent sampling; or no currently
-    /// attesting record (`cell_not_licensed`,
+    /// attesting record (`not_supported`,
     /// `cross_world_execution.interval_route_closed`).
     #[allow(
         clippy::result_large_err,

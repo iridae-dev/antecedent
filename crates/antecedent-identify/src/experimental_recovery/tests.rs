@@ -354,7 +354,7 @@ fn sample_full_column_rank_does_not_recover_a_weak_design() {
 }
 
 #[test]
-fn sample_full_column_rank_does_not_license_a_rank_on_an_uncovered_row() {
+fn sample_full_column_rank_does_not_support_a_rank_on_an_uncovered_row() {
     let nodes = three();
     let ranks =
         vec![DeclaredEquationRank { target: node(1), column_rank: 2, nullspace: Vec::new() }];

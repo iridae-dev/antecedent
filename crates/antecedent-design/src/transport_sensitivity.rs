@@ -37,7 +37,7 @@
 //!   grid points only. It is never a confidence interval, a credible interval or a
 //!   posterior, and no probability attaches to any shift;
 //! * the `bound` is the caller's declaration of how far the premise may fail; nothing in
-//!   the data licenses it, and the module does not choose it;
+//!   the data supports it, and the module does not choose it;
 //! * a sampling interval is not composed into the range (the surface withholds one with
 //!   its registered reason), and exact finite-law arithmetic supplies no calibration;
 //! * a route whose premise is a structural statement (a discovered graph) has no
@@ -702,7 +702,7 @@ impl TransportAssumptionRange {
                 },
                 identified_bound: None,
                 sampling: SamplingStatus::Withheld {
-                    reason_code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+                    reason_code: antecedent_core::reason_code!("not_supported").to_owned(),
                     detail: "transport_sensitivity.interval_not_composed".to_owned(),
                 },
             },

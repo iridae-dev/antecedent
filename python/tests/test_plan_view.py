@@ -133,8 +133,8 @@ def test_plan_view_reads_every_layer_before_any_estimate() -> None:
     assert view.physical.record is not None
     assert view.physical.record["estimated_peak_memory_bytes"] > 0
     assert (view.physical.quoted_width is None) == (view.physical.not_design_based is not None)
-    assert view.support.licensed is (view.support.status == "licensed")
-    assert view.support.status in ("licensed", "allowed_unlicensed")
+    assert view.support.supported is (view.support.status == "supported")
+    assert view.support.status in ("supported", "not_supported")
     assert view.mixture is None
     assert view.operation is not None and view.operation["kind"]
 
@@ -193,11 +193,11 @@ def test_bayesian_plan_view_states_its_posterior_plan() -> None:
     assert view.statistical.posterior is not None
     assert view.statistical.posterior["draws"] == 64
     assert view.statistical.estimator == "bayesian.gcomp"
-    # Preparation seals declarations only; the posterior operation is materialized by execution.
-    assert view.operation["kind"] == "estimator_route"
+    # Preparation seals the checked posterior declaration only; fitting is deferred to execution.
+    assert view.operation["kind"] == "bayesian_gcomp"
     outcome = ant.estimate(prepared)
     require_success(outcome)
-    assert prepared.plan_view().operation["kind"] == "estimator_route", "the source stays prepared"
+    assert prepared.plan_view().operation["kind"] == "bayesian_gcomp", "the source stays prepared"
     operation = outcome.study.plan_view().operation
     assert operation["kind"] == "bayesian_gcomp"
     assert operation["estimator"] == "bayesian.gcomp"

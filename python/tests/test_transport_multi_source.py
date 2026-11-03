@@ -279,7 +279,7 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
         transport.consume_multi_source_z_transport_artifact(artifact[:-3] + b"\x00\x00\x00")
 
 
-def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
+def test_the_unmeasured_interval_route_refuses_with_not_supported():
     """Counted laws return the point; the interval route is closed until its
     coverage records exist, so no interval is ever attached (live or consumed)."""
     with_studies = identified_stage(catalog(studies=True)).prepare_empirical(
@@ -290,7 +290,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     interval = result["interval"]
     assert interval["available"] is False
     assert interval["status"] == "withheld"
-    assert interval["reason"] == "cell_not_licensed"
+    assert interval["reason"] == "not_supported"
     assert interval["dependence_reason"] is None
     assert interval["mean_intervals"] == [] and interval["contrast_intervals"] == []
     assert interval["seed"] is None and interval["replicates_requested"] == 0
@@ -304,7 +304,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     undeclared = identified_stage().prepare_empirical(laws(sample_size=40_000), {"x": 1.0})
     withheld = json.loads(require_success(undeclared.estimate()))
     assert withheld["interval"]["available"] is False
-    assert withheld["interval"]["reason"] == "cell_not_licensed"
+    assert withheld["interval"]["reason"] == "not_supported"
     assert withheld["interval"]["dependence_reason"] == "sampling_dependence_unknown"
     assert risk(withheld) == pytest.approx(risk(result))
     # No public Python route builds or yields an interval.
@@ -315,7 +315,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
             if "bootstrap" in name.lower() or name.lower().startswith("interval")
         ]
     # An artifact that claims an interval is refused as the closed route by the
-    # consumer: `cell_not_licensed` with the `mz_transport.interval_withheld` detail.
+    # consumer: `not_supported` with the `mz_transport.interval_withheld` detail.
     exact = identified_stage().prepare_exact(laws(), {"x": 1.0})
     require_success(exact.estimate())
     artifact = bytes(exact.export())
@@ -326,7 +326,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     assert claimed != artifact
     with pytest.raises(CausalUnsupportedError) as refused:
         transport.consume_multi_source_z_transport_artifact(claimed)
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "not_supported"
     assert "mz_transport.interval_withheld" in str(refused.value)
 
 
@@ -400,7 +400,7 @@ def test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal():
     assert plan["compiled_plans"] == 2
     result = json.loads(require_success(retained_plan.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-12)
-    assert result["interval"]["reason"] == "cell_not_licensed"
+    assert result["interval"]["reason"] == "not_supported"
     assert retained_plan.seed == 5
 
 
@@ -680,7 +680,7 @@ def test_distinct_studies_are_the_declared_independence_the_interval_reports():
     same_study = identified_stage(catalog(studies=shared)).prepare_empirical(counted, {"x": 1.0})
     interval = json.loads(require_success(same_study.estimate()))["interval"]
     assert interval["dependence_reason"] == "sampling_dependence_unknown"
-    assert interval["reason"] == "cell_not_licensed"
+    assert interval["reason"] == "not_supported"
 
 
 def _pair(exc):

@@ -4,7 +4,7 @@ schema = 1
 
 [[capability]]
 id = "analysis.adaptive_inference.consume_adaptive_inference_result_artifact"
-rust = ["antecedent::analysis::adaptive_inference::consume_adaptive_inference_result_artifact", "export:antecedent::analysis::adaptive_inference::AdaptiveDesignDeclaration", "export:antecedent::analysis::adaptive_inference::InferenceParadigm", "export:antecedent::analysis::adaptive_inference::PolicyEpoch", "export:antecedent::analysis::adaptive_inference::licensed_routes", "export:antecedent::analysis::adaptive_inference::AdaptiveRequest"]
+rust = ["antecedent::analysis::adaptive_inference::consume_adaptive_inference_result_artifact", "export:antecedent::analysis::adaptive_inference::AdaptiveDesignDeclaration", "export:antecedent::analysis::adaptive_inference::InferenceParadigm", "export:antecedent::analysis::adaptive_inference::PolicyEpoch", "export:antecedent::analysis::adaptive_inference::supported_routes", "export:antecedent::analysis::adaptive_inference::AdaptiveRequest"]
 rust_types = ["antecedent::ConsumedAdaptiveResult"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::adaptive_inference"
@@ -50,7 +50,7 @@ assertion_contract = "Another retained identity refuses route_not_supported wron
 test = "python/tests/test_adaptive_inference.py::test_a_paradigm_the_design_may_not_use_cannot_be_exported"
 assertion_scopes = ["test_a_paradigm_the_design_may_not_use_cannot_be_exported"]
 dimensions = ["refusal"]
-assertion_contract = "A paradigm the design may not use refuses at sealing (adaptive_design_ignored, cell_not_licensed), so no such contract can be consumed."
+assertion_contract = "A paradigm the design may not use refuses at sealing (adaptive_design_ignored, not_supported), so no such contract can be consumed."
 
 [[capability]]
 id = "analysis.alignment_identity"
@@ -120,7 +120,7 @@ assertion_contract = "The boundary action meets the target within tolerance with
 test = "python/tests/test_inverse_outcome.py::test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint"
 assertion_scopes = ["_refused"]
 dimensions = ["refusal"]
-assertion_contract = "A chance constraint is refused cell_not_licensed with inverse.probability_target."
+assertion_contract = "A chance constraint is refused not_supported with inverse.probability_target."
 [[capability.evidence]]
 test = "python/tests/test_inverse_outcome.py::test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused"
 assertion_scopes = ["test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused", "_refused"]
@@ -343,10 +343,10 @@ assertion_scopes = ["test_export_binds_names_limits_and_snapshots_into_the_verif
 dimensions = ["refusal", "artifact", "controls"]
 assertion_contract = "Relabelled variable names are refused with variable names do not match and a consistently renamed snapshot is caught by the data identity."
 [[capability.evidence]]
-test = "python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed"
-assertion_scopes = ["test_the_unmeasured_interval_route_refuses_with_cell_not_licensed", "_edit_inner", "_replace_once", "identified_stage"]
+test = "python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_not_supported"
+assertion_scopes = ["test_the_unmeasured_interval_route_refuses_with_not_supported", "_edit_inner", "_replace_once", "identified_stage"]
 dimensions = ["refusal"]
-assertion_contract = "The unmeasured interval route refuses cell_not_licensed."
+assertion_contract = "The unmeasured interval route refuses not_supported."
 
 [[capability]]
 id = "analysis.api.consume_observation_recovery_artifact"
@@ -613,7 +613,7 @@ assertion_contract = "An empty cell is refused arm_not_populated with joint_cell
 test = "python/tests/test_derived_treatment.py::test_intervals_machine_learning_nuisance_and_lasso_are_closed"
 assertion_scopes = ["test_intervals_machine_learning_nuisance_and_lasso_are_closed", "refusal"]
 dimensions = ["refusal", "controls"]
-assertion_contract = "Intervals and ML nuisances refuse with penalized_interval_not_licensed and ml_nuisance_not_licensed."
+assertion_contract = "Intervals and ML nuisances refuse with penalized_interval_not_supported and ml_nuisance_not_supported."
 [[capability.evidence]]
 test = "python/tests/test_derived_treatment.py::test_a_cancelled_fit_is_never_a_result"
 assertion_scopes = ["test_a_cancelled_fit_is_never_a_result"]
@@ -638,7 +638,7 @@ assertion_contract = "Cell, ordering, conditional-stratum and fit counts equal t
 test = "python/tests/test_derived_treatment.py::test_the_joint_cell_cost_refuses_what_the_fit_refuses"
 assertion_scopes = ["test_the_joint_cell_cost_refuses_what_the_fit_refuses", "refusal"]
 dimensions = ["refusal"]
-assertion_contract = "Duplicate orderings and unknown nuisance names refuse invalid_argument and an unlicensed nuisance raises CausalValueError."
+assertion_contract = "Duplicate orderings and unknown nuisance names refuse invalid_argument and an unsupported nuisance raises CausalValueError."
 
 [[capability]]
 id = "analysis.api.estimate_with_rank_drop"
@@ -655,10 +655,10 @@ assertion_scopes = ["test_estimate_with_rank_drop_matches_numpy_and_records_the_
 dimensions = ["success", "inspection"]
 assertion_contract = "The reduced-design estimate equals NumPy least squares on the hand-built reduced design and records the dropped column, relation and design identity."
 [[capability.evidence]]
-test = "python/tests/test_preflight.py::test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators"
-assertion_scopes = ["test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators"]
+test = "python/tests/test_preflight.py::test_estimate_with_rank_drop_refuses_aliases_and_unsupported_estimators"
+assertion_scopes = ["test_estimate_with_rank_drop_refuses_aliases_and_unsupported_estimators"]
 dimensions = ["refusal"]
-assertion_contract = "A treatment alias refuses rank_drop_not_licensed and an unlicensed estimator refuses route_not_supported."
+assertion_contract = "A treatment alias refuses rank_drop_not_supported and an unsupported estimator refuses route_not_supported."
 
 [[capability]]
 id = "analysis.api.export_admg_conditional_obstruction"
@@ -765,7 +765,7 @@ python = "antecedent.preflight.plan_rank_drop"
 test = "python/tests/test_preflight.py::test_rank_drop_follows_the_declared_priority_and_refuses_query_columns"
 assertion_scopes = ["test_rank_drop_follows_the_declared_priority_and_refuses_query_columns"]
 dimensions = ["success", "controls", "refusal"]
-assertion_contract = "The drop follows the declared priority with hand coefficients 2.0 and 0.5, reversed priority drops the other column, and an incomplete priority or aliased query column refuses rank_drop_not_licensed."
+assertion_contract = "The drop follows the declared priority with hand coefficients 2.0 and 0.5, reversed priority drops the other column, and an incomplete priority or aliased query column refuses rank_drop_not_supported."
 [[capability.evidence]]
 test = "python/tests/test_preflight.py::test_a_prepared_plan_diagnoses_and_counts_its_cost"
 assertion_scopes = ["test_a_prepared_plan_diagnoses_and_counts_its_cost"]
@@ -895,7 +895,7 @@ assertion_contract = "The dependent interval refuses a panel without declared un
 test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_is_closed_after_real_validation"
 assertion_scopes = ["test_internal_candidate_route_is_closed_after_real_validation", "refusal_of"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "The internal candidate route is refused cell_not_licensed temporal_interval.route_frozen after real validation, for the default, fixed-initial-state and marginalized estimands alike."
+assertion_contract = "The internal candidate route is refused not_supported temporal_interval.route_frozen after real validation, for the default, fixed-initial-state and marginalized estimands alike."
 
 [[capability.evidence]]
 test = "python/tests/test_measured_temporal_public.py::test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"
@@ -1040,10 +1040,10 @@ behavior = "antecedent::analysis::closed_pilots::joint_bayesian_transport_refusa
 python = "antecedent.transport._closed_pilots.joint_bayesian_transport"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_closed_pilots.py::test_joint_bayesian_route_is_closed_with_cell_not_licensed"
+test = "python/tests/test_closed_pilots.py::test_joint_bayesian_route_is_closed_with_not_supported"
 assertion_scopes = ["assert_refused"]
 dimensions = ["refusal"]
-assertion_contract = "A request inside the pilot scope is refused as cell_not_licensed / bayesian_transport.route_frozen."
+assertion_contract = "A request inside the pilot scope is refused as not_supported / bayesian_transport.route_frozen."
 [[capability.evidence]]
 test = "python/tests/test_closed_pilots.py::test_joint_bayesian_scope_refusals_carry_their_own_details"
 assertion_scopes = ["assert_refused"]
@@ -1098,7 +1098,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_cohort_decision.py::test_a_declared_compact_export_is_point_only_with_its_own_detail"
 assertion_scopes = ["test_a_declared_compact_export_is_point_only_with_its_own_detail"]
 dimensions = ["success", "artifact"]
-assertion_contract = "A cohort source's exported bytes consume under the retained identity and units and the consumed source is point-only: its interval refuses cell_not_licensed cohort_decision.interval_requires_native_fit."
+assertion_contract = "A cohort source's exported bytes consume under the retained identity and units and the consumed source is point-only: its interval refuses not_supported cohort_decision.interval_requires_native_fit."
 [[capability.evidence]]
 test = "python/tests/test_cohort_decision.py::test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused"
 assertion_scopes = ["test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused"]
@@ -1159,13 +1159,13 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_cohort_decision.py::test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"
 assertion_scopes = ["test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"]
 dimensions = ["refusal", "branch", "controls"]
-assertion_contract = "A native OLS/HC3 fit either issues a measured cohort_interval with the interval bracketing the point or is refused cell_not_licensed measured_inference.record_not_attesting (never an unmeasured interval); the point contrast equals the hand value 1 + 0.5*mean(x) and a level of 1.0 raises CausalValueError."
+assertion_contract = "A native OLS/HC3 fit either issues a measured cohort_interval with the interval bracketing the point or is refused not_supported measured_inference.record_not_attesting (never an unmeasured interval); the point contrast equals the hand value 1 + 0.5*mean(x) and a level of 1.0 raises CausalValueError."
 
 [[capability.evidence]]
 test = "python/tests/test_cohort_decision.py::test_a_declared_compact_export_is_point_only_with_its_own_detail"
 assertion_scopes = ["test_a_declared_compact_export_is_point_only_with_its_own_detail"]
 dimensions = ["refusal"]
-assertion_contract = "A source reloaded from a declared compact export has no interval: cell_not_licensed cohort_decision.interval_requires_native_fit."
+assertion_contract = "A source reloaded from a declared compact export has no interval: not_supported cohort_decision.interval_requires_native_fit."
 
 [[capability]]
 id = "analysis.composition.consume"
@@ -1286,7 +1286,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_composition_verification.py::test_claim_freshness_is_withdrawal_supersession_or_a_moved_snapshot_and_offline_is_silent"
 assertion_scopes = ["test_claim_freshness_is_withdrawal_supersession_or_a_moved_snapshot_and_offline_is_silent"]
 dimensions = ["success", "branch", "refusal"]
-assertion_contract = "Freshness of one claim: offline and snapshot-matching receivers learn nothing; a withdrawn claim is withdrawn (claim.withdrawn) and outranks supersession; a successor recomputes (claim.superseded); a moved snapshot recomputes (claim.snapshot_changed); a withdrawn input withdraws the downstream claim and require_valid refuses claim_license_withdrawn (input_retired)."
+assertion_contract = "Freshness of one claim: offline and snapshot-matching receivers learn nothing; a withdrawn claim is withdrawn (claim.withdrawn) and outranks supersession; a successor recomputes (claim.superseded); a moved snapshot recomputes (claim.snapshot_changed); a withdrawn input withdraws the downstream claim and require_valid refuses claim_support_withdrawn (input_retired)."
 
 [[capability]]
 id = "analysis.composition_verification.invalidation_effects"
@@ -1339,7 +1339,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_transported_cohort.py::test_the_transported_value_is_a_composition_node_that_follows_its_identity"
 assertion_scopes = ["test_the_transported_value_is_a_composition_node_that_follows_its_identity"]
 dimensions = ["success", "inspection", "branch", "refusal"]
-assertion_contract = "The transported cohort value's composition node is a transported_result with route/assumption provenance, supported, no provider trust, point-only calibration; reweighting moves the node identity and not the coordinate, another target population moves the coordinate; an unchanged node is still_valid, a moved one recomputes with its decision, a record held at the old target is lost (withdrawn, calibration lost) and require_valid refuses cell_not_licensed; an empty key raises CausalTypeError."
+assertion_contract = "The transported cohort value's composition node is a transported_result with route/assumption provenance, supported, no provider trust, point-only calibration; reweighting moves the node identity and not the coordinate, another target population moves the coordinate; an unchanged node is still_valid, a moved one recomputes with its decision, a record held at the old target is lost (withdrawn, calibration lost) and require_valid refuses not_supported; an empty key raises CausalTypeError."
 
 [[capability]]
 id = "analysis.composition_verification.library_transported_standing"
@@ -1354,7 +1354,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_transported_cohort.py::test_the_transported_value_is_a_composition_node_that_follows_its_identity"
 assertion_scopes = ["test_the_transported_value_is_a_composition_node_that_follows_its_identity"]
 dimensions = ["success", "inspection", "branch", "refusal"]
-assertion_contract = "The transported cohort value's composition node is a transported_result with route/assumption provenance, supported, no provider trust, point-only calibration; reweighting moves the node identity and not the coordinate, another target population moves the coordinate; an unchanged node is still_valid, a moved one recomputes with its decision, a record held at the old target is lost (withdrawn, calibration lost) and require_valid refuses cell_not_licensed; an empty key raises CausalTypeError."
+assertion_contract = "The transported cohort value's composition node is a transported_result with route/assumption provenance, supported, no provider trust, point-only calibration; reweighting moves the node identity and not the coordinate, another target population moves the coordinate; an unchanged node is still_valid, a moved one recomputes with its decision, a record held at the old target is lost (withdrawn, calibration lost) and require_valid refuses not_supported; an empty key raises CausalTypeError."
 
 [[capability]]
 id = "analysis.composition_verification.query_revalidation"
@@ -1441,7 +1441,7 @@ assertion_contract = "A data-snapshot replacement over the fifteen-stage workflo
 test = "python/tests/test_composition_verification.py::test_a_plan_target_change_never_inherits_a_calibration_record_held_for_the_old_target"
 assertion_scopes = ["test_a_plan_target_change_never_inherits_a_calibration_record_held_for_the_old_target"]
 dimensions = ["success", "branch", "refusal"]
-assertion_contract = "A target-population change recomputes only the target, law and decision effects (the score artifact is reused under the licensed retarget); a calibration record held at the old target is lost on the law (withdrawn, calibration state lost, newly required, withdrawn for calibration) and require_valid refuses cell_not_licensed, while score_fit stays valid and the decision recomputes."
+assertion_contract = "A target-population change recomputes only the target, law and decision effects (the score artifact is reused under the supported retarget); a calibration record held at the old target is lost on the law (withdrawn, calibration state lost, newly required, withdrawn for calibration) and require_valid refuses not_supported, while score_fit stays valid and the decision recomputes."
 
 [[capability]]
 id = "analysis.composition_verification.stage_node"
@@ -1479,7 +1479,7 @@ assertion_contract = "A stated standing (unsupported coordinates, held trust) is
 test = "python/tests/test_composition_verification.py::test_a_plan_target_change_never_inherits_a_calibration_record_held_for_the_old_target"
 assertion_scopes = ["test_a_plan_target_change_never_inherits_a_calibration_record_held_for_the_old_target"]
 dimensions = ["success", "branch", "refusal"]
-assertion_contract = "A target-population change recomputes only the target, law and decision effects (the score artifact is reused under the licensed retarget); a calibration record held at the old target is lost on the law (withdrawn, calibration state lost, newly required, withdrawn for calibration) and require_valid refuses cell_not_licensed, while score_fit stays valid and the decision recomputes."
+assertion_contract = "A target-population change recomputes only the target, law and decision effects (the score artifact is reused under the supported retarget); a calibration record held at the old target is lost on the law (withdrawn, calibration state lost, newly required, withdrawn for calibration) and require_valid refuses not_supported, while score_fit stays valid and the decision recomputes."
 
 [[capability]]
 id = "analysis.composition_verification.unresolved_registry_calibrations"
@@ -1591,7 +1591,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.cross_world_interval.whole_path_interval_basis"
@@ -1608,7 +1608,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.decision_claims.atom_leaders"
@@ -1890,8 +1890,8 @@ assertion_scopes = ["test_cohort_utilities_reach_the_carrier_and_derive"]
 dimensions = ["success"]
 assertion_contract = "A cohort carrier derives from its own utility draws: the decision is treat, the treat-wait difference is 1.0 with standard error sqrt(0.5/39), and the carrier assesses."
 [[capability.evidence]]
-test = "python/tests/test_decision_reliability_derived.py::test_rollout_noise_decides_whether_ranking_is_licensed"
-assertion_scopes = ["test_rollout_noise_decides_whether_ranking_is_licensed"]
+test = "python/tests/test_decision_reliability_derived.py::test_rollout_noise_decides_whether_ranking_is_supported"
+assertion_scopes = ["test_rollout_noise_decides_whether_ranking_is_supported"]
 dimensions = ["success", "refusal"]
 assertion_contract = "A keyed-noise rollout carrier derives with no ranking probabilities and refuses a ranking request and an assessment with joint_law_required, while a structurally exogenous carrier derives ranking probabilities."
 [[capability.evidence]]
@@ -1912,12 +1912,12 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_decision_reliability_derived.py::test_derived_uncertainty_is_never_published"
 assertion_scopes = ["test_derived_uncertainty_is_never_published"]
 dimensions = ["refusal", "success"]
-assertion_contract = "A derived uncertainty is created with a standing of derived and each of the four ranking/interval routes refuses to publish with reason cell_not_licensed and detail decision_reliability.cell_not_licensed; the combined single uncertainty number refuses uncertainty_components_not_combined."
+assertion_contract = "A derived uncertainty is created with a standing of derived and each of the four ranking/interval routes refuses to publish with reason not_supported and detail decision_reliability.not_supported; the combined single uncertainty number refuses uncertainty_components_not_combined."
 [[capability.evidence]]
 test = "python/tests/test_decision_reliability.py::test_every_published_ranking_or_interval_route_is_closed"
 assertion_scopes = ["test_every_published_ranking_or_interval_route_is_closed"]
 dimensions = ["refusal"]
-assertion_contract = "At the coordinate of a 100-draw, two-candidate report every route is closed (4 closed routes), publication refuses cell_not_licensed by the result and by the module function, and an unknown route is a CausalValueError."
+assertion_contract = "At the coordinate of a 100-draw, two-candidate report every route is closed (4 closed routes), publication refuses not_supported by the result and by the module function, and an unknown route is a CausalValueError."
 
 [[capability]]
 id = "analysis.decision_reliability.reach_decision_carrier"
@@ -1939,8 +1939,8 @@ assertion_scopes = ["test_point_only_and_undeclared_outputs_refuse_with_typed_re
 dimensions = ["refusal"]
 assertion_contract = "Point-only mean decisions, point-only rollouts and off-policy returns, undeclared joint law, separate marginals and a disagreeing reported mean each refuse with their registered reason code or detail."
 [[capability.evidence]]
-test = "python/tests/test_decision_reliability_derived.py::test_rollout_noise_decides_whether_ranking_is_licensed"
-assertion_scopes = ["test_rollout_noise_decides_whether_ranking_is_licensed"]
+test = "python/tests/test_decision_reliability_derived.py::test_rollout_noise_decides_whether_ranking_is_supported"
+assertion_scopes = ["test_rollout_noise_decides_whether_ranking_is_supported"]
 dimensions = ["success"]
 assertion_contract = "Implementation-keyed noise reaches a marginal-only carrier, structurally exogenous noise a ranking-capable one."
 
@@ -2058,10 +2058,10 @@ behavior = "antecedent::analysis::design_ranking::rank_structural: public fn cap
 python = "antecedent.design.structural.rank_structural"
 required_dimensions = ["success", "branch"]
 [[capability.evidence]]
-test = "python/tests/test_design_ranking.py::test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed"
-assertion_scopes = ["test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed"]
+test = "python/tests/test_design_ranking.py::test_structural_order_is_preserved_when_no_probabilistic_model_is_supported"
+assertion_scopes = ["test_structural_order_is_preserved_when_no_probabilistic_model_is_supported"]
 dimensions = ["success", "branch"]
-assertion_contract = "Structural declarations keep their order and no numeric score is invented when no probabilistic model is licensed."
+assertion_contract = "Structural declarations keep their order and no numeric score is invented when no probabilistic model is supported."
 [[capability.evidence]]
 test = "python/tests/test_design_objectives.py::test_structural_declarations_use_shared_result_without_a_fake_score"
 assertion_scopes = ["test_structural_declarations_use_shared_result_without_a_fake_score"]
@@ -2530,7 +2530,7 @@ python = "antecedent.provider_callbacks.inspect_callback_result"
 test = "python/tests/test_provider_callbacks.py::test_exported_result_round_trips_and_mutations_are_refused"
 assertion_scopes = ["test_exported_result_round_trips_and_mutations_are_refused", "refusal_of"]
 dimensions = ["success", "inspection", "artifact", "refusal"]
-assertion_contract = "Inspection reads the computed stage, licensed_external standing and unmeasured calibration from the stored result without replay; another identity and mutated bytes are refused."
+assertion_contract = "Inspection reads the computed stage, supported_external standing and unmeasured calibration from the stored result without replay; another identity and mutated bytes are refused."
 [[capability.evidence]]
 test = "python/tests/test_provider_callbacks.py::test_untrusted_artifact_never_executes_code"
 assertion_scopes = ["test_untrusted_artifact_never_executes_code", "refusal_of"]
@@ -2656,7 +2656,7 @@ assertion_contract = "The cohort contrast tau(z)=2+0.5z over weights (0.2,0.3,0.
 test = "python/tests/test_inverse_sources.py::test_a_shifted_cohort_is_a_transported_source_only_when_accepted"
 assertion_scopes = ["test_a_shifted_cohort_is_a_transported_source_only_when_accepted"]
 dimensions = ["success", "refusal", "branch"]
-assertion_contract = "A shifted cohort refuses cell_not_licensed transported_not_accepted unless accepted, then is an extrapolative transported source for clinic_b with the same feasible action; an unshifted cohort is not transported."
+assertion_contract = "A shifted cohort refuses not_supported transported_not_accepted unless accepted, then is an extrapolative transported source for clinic_b with the same feasible action; an unshifted cohort is not transported."
 
 [[capability]]
 id = "analysis.inverse_sources.composed_source"
@@ -2687,7 +2687,7 @@ assertion_contract = "A finite outcome whose levels are not coded exactly once r
 test = "python/tests/test_inverse_sources.py::test_a_composition_with_admitted_mechanisms_is_a_transported_claim"
 assertion_scopes = ["test_a_composition_with_admitted_mechanisms_is_a_transported_claim"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A composition with admitted mechanisms refuses without a receipt (composed_response_invalid) and when not accepted (cell_not_licensed transported_not_accepted), and with both is an extrapolative transported source for population pop."
+assertion_contract = "A composition with admitted mechanisms refuses without a receipt (composed_response_invalid) and when not accepted (not_supported transported_not_accepted), and with both is an extrapolative transported source for population pop."
 
 [[capability]]
 id = "analysis.inverse_sources.evaluate_observational"
@@ -2744,7 +2744,7 @@ required_dimensions = ["success", "inspection"]
 test = "python/tests/test_inverse_sources.py::test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action"
 assertion_scopes = ["test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The inspected origin reports kind composed_mechanism, representation point_only, not transported, interval_region not_licensed and assumed mechanisms X, M, Y."
+assertion_contract = "The inspected origin reports kind composed_mechanism, representation point_only, not transported, interval_region not_supported and assumed mechanisms X, M, Y."
 [[capability.evidence]]
 test = "python/tests/test_inverse_sources.py::test_a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"
 assertion_scopes = ["test_a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"]
@@ -2758,7 +2758,7 @@ assertion_contract = "A cohort source's origin reports kind cohort_contrast, rep
 
 [[capability]]
 id = "analysis.inverse_sources.seal_per_action"
-rust = ["antecedent::analysis::inverse_sources::seal_per_action", "export:antecedent::analysis::inverse_sources::LicensedForwardSource"]
+rust = ["antecedent::analysis::inverse_sources::seal_per_action", "export:antecedent::analysis::inverse_sources::SupportedForwardSource"]
 status = "plumbing"
 owner = "Python API integration: antecedent::analysis::inverse_sources"
 behavior = "antecedent::analysis::inverse_sources::seal_per_action: public fn capability; trace its actual consuming workflow and invariant"
@@ -2863,13 +2863,13 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.dependence_label"
@@ -2886,13 +2886,13 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.resolve"
@@ -2910,13 +2910,13 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.claim_from_artifact"
@@ -2937,7 +2937,7 @@ assertion_contract = "The claim rebuilt from its sealed bytes yields coordinates
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A rebuilt envelope claim refuses a composed interval with cell_not_licensed spread_needs_licensed_dependence and has no coordinate."
+assertion_contract = "A rebuilt envelope claim refuses a composed interval with not_supported spread_needs_supported_dependence and has no coordinate."
 
 [[capability]]
 id = "analysis.input_alignment"
@@ -3146,7 +3146,7 @@ assertion_contract = "Uniform marginals give the Makarov sum-cdf range [0,1] at 
 test = "python/tests/test_joint_law_propagation.py::test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled"
 assertion_scopes = ["test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled"]
 dimensions = ["refusal"]
-assertion_contract = "An envelope's interval and posterior readings refuse cell_not_licensed (interval_route_closed, posterior_route_closed) and a value function without a verified sign structure refuses structure_not_verified."
+assertion_contract = "An envelope's interval and posterior readings refuse not_supported (interval_route_closed, posterior_route_closed) and a value function without a verified sign structure refuses structure_not_verified."
 [[capability.evidence]]
 test = "python/tests/test_route_evidence_joint_law_propagation.py::test_the_dependence_envelope_is_the_makarov_range_of_the_deciding_cell"
 assertion_scopes = ["test_the_dependence_envelope_is_the_makarov_range_of_the_deciding_cell"]
@@ -3301,10 +3301,10 @@ behavior = "antecedent::analysis::learned_joint_closed::learned_joint_transport_
 python = "antecedent.transport._learned_joint.learned_joint_transport"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_learned_joint_closed.py::test_learned_route_is_closed_with_cell_not_licensed"
-assertion_scopes = ["test_learned_route_is_closed_with_cell_not_licensed"]
+test = "python/tests/test_learned_joint_closed.py::test_learned_route_is_closed_with_not_supported"
+assertion_scopes = ["test_learned_route_is_closed_with_not_supported"]
 dimensions = ["refusal"]
-assertion_contract = "An in-scope learned joint request is cell_not_licensed / learned_joint_transport.route_frozen citing calibration evidence."
+assertion_contract = "An in-scope learned joint request is not_supported / learned_joint_transport.route_frozen citing calibration evidence."
 [[capability.evidence]]
 test = "python/tests/test_learned_joint_closed.py::test_learned_adjacent_graph_refuses_before_the_frozen_route"
 assertion_scopes = ["assert_refused"]
@@ -3441,7 +3441,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (cell_not_licensed, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (not_supported, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3466,7 +3466,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (cell_not_licensed, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (not_supported, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3527,7 +3527,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_program_claims.py::test_native_claim_exposes_coordinates_support_and_native_trust"
 assertion_scopes = ["test_native_claim_exposes_coordinates_support_and_native_trust"]
 dimensions = ["success", "inspection"]
-assertion_contract = "A native mean-curve claim exposes the program-derived coordinates and means 3.0 and 5.0 (1+2a) with native-licensed trust and unmeasured calibration."
+assertion_contract = "A native mean-curve claim exposes the program-derived coordinates and means 3.0 and 5.0 (1+2a) with native-supported trust and unmeasured calibration."
 [[capability.evidence]]
 test = "python/tests/test_program_claims.py::test_native_claim_refuses_a_response_for_another_request"
 assertion_scopes = ["test_native_claim_refuses_a_response_for_another_request", "_refusal"]
@@ -3542,7 +3542,7 @@ assertion_contract = "A native mean claim becomes a mean decision source whose e
 test = "python/tests/test_program_claims.py::test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_substitution"
 assertion_scopes = ["test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_substitution"]
 dimensions = ["branch", "refusal"]
-assertion_contract = "A Bayesian native response yields a 256 by 2 joint-draw decision source with causal_functional_posterior semantic and native_licensed trust, evaluated to the joint product expectation; a view whose uncertainty is replaced refuses native_claims.projection_mismatch."
+assertion_contract = "A Bayesian native response yields a 256 by 2 joint-draw decision source with causal_functional_posterior semantic and native_supported trust, evaluated to the joint product expectation; a view whose uncertainty is replaced refuses native_claims.projection_mismatch."
 [[capability.evidence]]
 test = "python/tests/test_program_claims.py::test_unsupported_coordinates_are_withheld_not_silently_used"
 assertion_scopes = ["test_unsupported_coordinates_are_withheld_not_silently_used"]
@@ -3708,7 +3708,7 @@ assertion_contract = "Retained counts redraw 4000 aligned Dirichlet draws whose 
 test = "python/tests/test_observation_query.py::test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record"
 assertion_scopes = ["test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record"]
 dimensions = ["refusal"]
-assertion_contract = "An interval over the redrawn parameters is refused as cell_not_licensed without a measured coverage record."
+assertion_contract = "An interval over the redrawn parameters is refused as not_supported without a measured coverage record."
 
 [[capability]]
 id = "analysis.observation_query.retain_regression"
@@ -3856,18 +3856,18 @@ dimensions = ["refusal", "controls"]
 assertion_contract = "Changed counts, identity, scope and sample are each refused by the arrival executor."
 
 [[capability]]
-id = "analysis.provider_callbacks.refuse_identification_licence"
-rust = ["antecedent::analysis::provider_callbacks::refuse_identification_licence"]
+id = "analysis.provider_callbacks.refuse_identification_evidence"
+rust = ["antecedent::analysis::provider_callbacks::refuse_identification_evidence"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::provider_callbacks"
-behavior = "antecedent::analysis::provider_callbacks::refuse_identification_licence: public fn capability; trace its actual consuming workflow and invariant"
-python = "antecedent.provider_callbacks.refuse_identification_licence"
+behavior = "antecedent::analysis::provider_callbacks::refuse_identification_evidence: public fn capability; trace its actual consuming workflow and invariant"
+python = "antecedent.provider_callbacks.refuse_identification_evidence"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_identification_licence raises a CallbackRefusal with the registered code cell_not_licensed, detail callback_protocol.identification_not_conferred and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_identification_evidence raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.identification_not_conferred and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.refuse_interval"
@@ -3881,7 +3881,7 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_interval raises a CallbackRefusal with the registered code cell_not_licensed, detail callback_protocol.interval_not_licensed and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_interval raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.interval_not_supported and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.refuse_joint_law"
@@ -3909,7 +3909,7 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_native_trust raises a CallbackRefusal with the registered code cell_not_licensed, detail callback_protocol.native_trust_not_conferred and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_native_trust raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.native_trust_not_conferred and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.refuse_posterior_guarantee"
@@ -3923,7 +3923,7 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_posterior_guarantee raises a CallbackRefusal with the registered code cell_not_licensed, detail callback_protocol.posterior_guarantee_not_licensed and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_posterior_guarantee raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.posterior_guarantee_not_supported and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.register_callback_source"
@@ -4193,7 +4193,7 @@ owner = "Python API integration: antecedent::analysis::recalc_joint_bayesian"
 behavior = "antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt: staged checked recalculation behind antecedent.recalc_bayesian.JointBayesianSession.execute (calibration-internal candidate)"
 python = "antecedent.recalc_bayesian.JointBayesianSession"
 required_dimensions = ["success", "refusal"]
-deferred_to = "the joint-transport recalculation law being measured and promoted out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
+deferred_to = "the joint-transport recalculation law being measured and moved out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
 deferred_dimensions = ["success"]
 legacy_internal = ["antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"]
 
@@ -4537,12 +4537,12 @@ assertion_contract = "The split effect adjusts for the treatment's parents (z1, 
 test = "python/tests/test_sample_split_effect.py::test_an_unresolved_structure_reports_no_interval"
 assertion_scopes = ["test_an_unresolved_structure_reports_no_interval"]
 dimensions = ["refusal"]
-assertion_contract = "An unresolved structure is cell_not_licensed / split_effect.structure_unresolved."
+assertion_contract = "An unresolved structure is not_supported / split_effect.structure_unresolved."
 [[capability.evidence]]
 test = "python/tests/test_sample_split_effect.py::test_a_table_outside_five_to_seven_variables_is_refused"
 assertion_scopes = ["test_a_table_outside_five_to_seven_variables_is_refused"]
 dimensions = ["refusal"]
-assertion_contract = "A three-variable table is cell_not_licensed / split_effect.variable_count_not_measured."
+assertion_contract = "A three-variable table is not_supported / split_effect.variable_count_not_measured."
 
 [[capability]]
 id = "analysis.sample_split_effect.measure_source"
@@ -4559,13 +4559,13 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_sample_split_effect.py::test_an_interval_outside_the_measured_row_range_is_never_attested"
 assertion_scopes = ["test_an_interval_outside_the_measured_row_range_is_never_attested"]
 dimensions = ["refusal"]
-assertion_contract = "Measuring a split effect outside the measured row range is refused cell_not_licensed measured_inference.record_not_attesting (registered refusal), never an attested interval."
+assertion_contract = "Measuring a split effect outside the measured row range is refused not_supported measured_inference.record_not_attesting (registered refusal), never an attested interval."
 
 [[capability.evidence]]
 test = "python/tests/test_sample_split_effect.py::test_an_unresolved_structure_reports_no_interval"
 assertion_scopes = ["test_an_unresolved_structure_reports_no_interval"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A structure the split leaves unresolved reports no interval: cell_not_licensed split_effect.structure_unresolved."
+assertion_contract = "A structure the split leaves unresolved reports no interval: not_supported split_effect.structure_unresolved."
 
 [[capability]]
 id = "analysis.sample_split_parent_set_effect.estimate_parent_set_effect"
@@ -4636,7 +4636,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_sample_split_parent_set_effect.py::test_an_unmeasured_variable_count_is_computed_and_never_attested"
 assertion_scopes = ["test_an_unmeasured_variable_count_is_computed_and_never_attested"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() is refused cell_not_licensed measured_inference.record_not_attesting rather than borrowing another count's record."
+assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() is refused not_supported measured_inference.record_not_attesting rather than borrowing another count's record."
 
 [[capability]]
 id = "analysis.selective_discovery.accepted_graph_stage_identity"
@@ -4791,7 +4791,7 @@ assertion_contract = "An msm-produced surface artifact is consumed under its ide
 
 [[capability]]
 id = "analysis.sensitivity_decision.decide"
-rust = ["antecedent::analysis::sensitivity_decision::decide", "export:antecedent::analysis::sensitivity_decision::ASSUMPTION_RANGE_STATEMENT", "export:antecedent::analysis::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionError", "export:antecedent::analysis::sensitivity_decision::SensitivityProvenance", "export:antecedent::analysis::sensitivity_decision::evaluate_sensitivity_decision", "export:antecedent::analysis::sensitivity_decision::ActionUtility", "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ACTIONS", "export:antecedent::analysis::sensitivity_decision::NoRobustReason", "export:antecedent::analysis::sensitivity_decision::SamplingInterval", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionResult", "export:antecedent::analysis::sensitivity_decision::SourceTipping", "export:antecedent::analysis::sensitivity_decision::AssumptionCoordinate", "export:antecedent::analysis::sensitivity_decision::PointSupport", "export:antecedent::analysis::sensitivity_decision::SamplingReport", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionSpec", "export:antecedent::analysis::sensitivity_decision::SurfaceQuantity", "export:antecedent::design::ConfounderPriorDeclaration", "export:antecedent::analysis::sensitivity_decision::DecisionSwitch", "export:antecedent::analysis::sensitivity_decision::ScenarioCoverage", "export:antecedent::analysis::sensitivity_decision::SensitivityOutcome", "export:antecedent::analysis::sensitivity_decision::UtilityTerm", "export:antecedent::analysis::sensitivity_decision::IdentifiedBound", "export:antecedent::analysis::sensitivity_decision::SENSITIVITY_DECISION_INTERPRETATION", "export:antecedent::analysis::sensitivity_decision::SensitivityParts", "export:antecedent::analysis::sensitivity_decision::AssumptionRangeStatement", "export:antecedent::analysis::sensitivity_decision::SamplingStatus", "export:antecedent::analysis::sensitivity_decision::SensitivityIdentity", "export:antecedent::analysis::sensitivity_decision::UncertaintyRelationship"]
+rust = ["antecedent::analysis::sensitivity_decision::decide", "export:antecedent::analysis::sensitivity_decision::ASSUMPTION_RANGE_STATEMENT", "export:antecedent::analysis::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionError", "export:antecedent::analysis::sensitivity_decision::SensitivityProvenance", "export:antecedent::analysis::sensitivity_decision::evaluate_sensitivity_decision", "export:antecedent::analysis::sensitivity_decision::ActionUtility", "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ACTIONS", "export:antecedent::analysis::sensitivity_decision::NoRobustReason", "export:antecedent::analysis::sensitivity_decision::SamplingInterval", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionResult", "export:antecedent::analysis::sensitivity_decision::SourceTipping", "export:antecedent::analysis::sensitivity_decision::AssumptionCoordinate", "export:antecedent::analysis::sensitivity_decision::PointSupport", "export:antecedent::analysis::sensitivity_decision::SamplingReport", "export:antecedent::analysis::sensitivity_decision::SensitivityDecisionSpec", "export:antecedent::analysis::sensitivity_decision::SurfaceQuantity", "export:antecedent::design::ConfounderPriorDeclaration", "export:antecedent::analysis::sensitivity_decision::DecisionSwitch", "export:antecedent::analysis::sensitivity_decision::ScenarioCoverage", "export:antecedent::analysis::sensitivity_decision::SensitivityOutcome", "export:antecedent::analysis::sensitivity_decision::UtilityTerm", "export:antecedent::analysis::sensitivity_decision::IdentifiedBound", "export:antecedent::analysis::sensitivity_decision::SENSITIVITY_DECISION_INTERPRETATION", "export:antecedent::analysis::sensitivity_decision::SensitivityParts", "export:antecedent::analysis::sensitivity_decision::AssumptionRangeStatement", "export:antecedent::analysis::sensitivity_decision::SamplingStatus", "export:antecedent::analysis::sensitivity_decision::SensitivityIdentity", "export:antecedent::analysis::sensitivity_decision::UncertaintyRelationship"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::sensitivity_decision"
 behavior = "antecedent::analysis::sensitivity_decision::decide: public fn capability; trace its actual consuming workflow and invariant"
@@ -5239,12 +5239,12 @@ required_dimensions = ["refusal", "inspection", "branch"]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate"
 assertion_scopes = ["test_transported_route_is_closed_with_every_missing_gate"]
 dimensions = ["refusal", "inspection"]
-assertion_contract = "With every gate missing the route refuses cell_not_licensed transported_counterfactual.route_frozen, offending transport_license_missing, retains all three missing gates and both missing factors, stage identify, with a remedy."
+assertion_contract = "With every gate missing the route refuses not_supported transported_counterfactual.route_frozen, offending transport_support_missing, retains all three missing gates and both missing factors, stage identify, with a remedy."
 [[capability.evidence]]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_reports_only_the_gates_still_missing"
 assertion_scopes = ["test_transported_route_reports_only_the_gates_still_missing"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "Supplying gates in turn moves the offending gate (fixed_population_temporal_license_missing, then cross_population_assumptions_missing) and shrinks missing_gates."
+assertion_contract = "Supplying gates in turn moves the offending gate (fixed_population_temporal_support_missing, then cross_population_assumptions_missing) and shrinks missing_gates."
 [[capability.evidence]]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_names_the_missing_regime_factor"
 assertion_scopes = ["test_transported_route_names_the_missing_regime_factor"]
@@ -5254,7 +5254,7 @@ assertion_contract = "With every gate passed and a factor absent the refusal is 
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"
 assertion_scopes = ["test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "With every gate and factor present the route still refuses cell_not_licensed route_frozen with no offending gate."
+assertion_contract = "With every gate and factor present the route still refuses not_supported route_frozen with no offending gate."
 [[capability.evidence]]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_refusal_names_the_successor_route_and_its_scope"
 assertion_scopes = ["test_transported_route_refusal_names_the_successor_route_and_its_scope"]
@@ -5420,7 +5420,7 @@ assertion_contract = "A changed trial evidence recomputes only the claims counti
 test = "python/tests/test_transport_revalidation.py::test_a_calibration_record_is_never_inherited_by_another_target"
 assertion_scopes = ["test_a_calibration_record_is_never_inherited_by_another_target", "refusal_of"]
 dimensions = ["success", "refusal", "branch"]
-assertion_contract = "A calibration record established at the earlier target is withdrawn when the target data change (calibration_from_another_target, cell_not_licensed refusal) while a point-only claim of the same scene is only recomputed."
+assertion_contract = "A calibration record established at the earlier target is withdrawn when the target data change (calibration_from_another_target, not_supported refusal) while a point-only claim of the same scene is only recomputed."
 [[capability.evidence]]
 test = "python/tests/test_transport_revalidation.py::test_an_unsupported_target_withdraws_every_transported_claim"
 assertion_scopes = ["test_an_unsupported_target_withdraws_every_transported_claim"]
@@ -5589,8 +5589,8 @@ assertion_scopes = ["test_schema_units_and_type_gates"]
 dimensions = ["refusal", "controls"]
 assertion_contract = "Feature schema, non-numeric cohort, empty units and undeclared shift type are refused."
 [[capability.evidence]]
-test = "python/tests/test_transported_cohort.py::test_interval_and_law_are_refused_with_the_licensing_evidence"
-assertion_scopes = ["test_interval_and_law_are_refused_with_the_licensing_evidence"]
+test = "python/tests/test_transported_cohort.py::test_interval_and_law_are_refused_with_the_support_evidence"
+assertion_scopes = ["test_interval_and_law_are_refused_with_the_support_evidence"]
 dimensions = ["refusal"]
 assertion_contract = "An interval, band, law and quantile each refuse with their typed codes and details."
 
@@ -5848,7 +5848,7 @@ assertion_contract = "Unknown units, too few units, too many replicates, too few
 test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_is_closed_after_real_validation"
 assertion_scopes = ["test_internal_candidate_route_is_closed_after_real_validation"]
 dimensions = ["refusal"]
-assertion_contract = "Valid requests for every estimand refuse cell_not_licensed temporal_interval.route_frozen after validation."
+assertion_contract = "Valid requests for every estimand refuse not_supported temporal_interval.route_frozen after validation."
 
 [[capability]]
 id = "callback_plan.mark_python_callback_plan"
@@ -5900,20 +5900,20 @@ python = "antecedent.analyze"
 composed_caller = "antecedent.analyze -> StudyBuilder::build finish -> support::classify / classify_estimator -> evidence_status"
 legacy_internal = ["antecedent::classify"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_licensed_average_effect_on_dag_frequentist"
-assertion_scopes = ["test_licensed_average_effect_on_dag_frequentist"]
+test = "python/tests/test_support_refusal_reasons.py::test_supported_average_effect_on_dag_frequentist"
+assertion_scopes = ["test_supported_average_effect_on_dag_frequentist"]
 dimensions = ["success"]
-assertion_contract = "A licensed DAG frequentist average effect is classified Licensed and reports evidence_status licensed."
+assertion_contract = "A supported DAG frequentist average effect is classified Supported and reports evidence_status supported."
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
-assertion_scopes = ["test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
+test = "python/tests/test_support_refusal_reasons.py::test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
+assertion_scopes = ["test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
 dimensions = ["branch"]
-assertion_contract = "Estimators with calibration evidence stay licensed while matching and forest estimators on the same cell are not licensed."
+assertion_contract = "Estimators with calibration evidence stay supported while matching and forest estimators on the same cell are not supported."
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_path_specific_graph_posterior_runs_and_is_licensed"
-assertion_scopes = ["test_path_specific_graph_posterior_runs_and_is_licensed"]
+test = "python/tests/test_support_refusal_reasons.py::test_path_specific_graph_posterior_runs_and_is_supported"
+assertion_scopes = ["test_path_specific_graph_posterior_runs_and_is_supported"]
 dimensions = ["branch"]
-assertion_contract = "A graph-posterior path-specific effect runs on its licensed cell and reports evidence_status licensed."
+assertion_contract = "A graph-posterior path-specific effect runs on its supported cell and reports evidence_status supported."
 
 [[capability]]
 id = "counterfactual_id.consume_counterfactual_id_artifact"
@@ -5972,7 +5972,7 @@ assertion_contract = "The front-door ETT point, outcome distribution and effect 
 test = "python/tests/test_counterfactual_id.py::test_refusals_carry_reason_codes"
 assertion_scopes = ["test_refusals_carry_reason_codes"]
 dimensions = ["refusal", "controls"]
-assertion_contract = "A bow graph refuses route_not_supported conflicting_subscripts, an interval request, unknown treatment, observed level, operation caps and budget each refuse with their own code and detail, a CPDAG is not licensed, a non-positive law refuses positivity_violation, and five levels are decided."
+assertion_contract = "A bow graph refuses route_not_supported conflicting_subscripts, an interval request, unknown treatment, observed level, operation caps and budget each refuse with their own code and detail, a CPDAG is not supported, a non-positive law refuses positivity_violation, and five levels are decided."
 [[capability.evidence]]
 test = "python/tests/test_counterfactual_id.py::test_prepare_decides_once_and_reports_the_search"
 assertion_scopes = ["test_prepare_decides_once_and_reports_the_search"]
@@ -6066,7 +6066,7 @@ assertion_contract = "The non-separable basis mechanism answers the per-unit str
 test = "python/tests/test_cross_world.py::test_structures_and_inference_outside_the_cell_are_refused"
 assertion_scopes = ["test_structures_and_inference_outside_the_cell_are_refused"]
 dimensions = ["refusal"]
-assertion_contract = "Latent-confounded, equivalence-class and accepted graphs refuse with cell_not_licensed, interval and Bayesian requests with estimator_inference_mismatch, and a degenerate intervention or unknown mechanism with CausalValueError."
+assertion_contract = "Latent-confounded, equivalence-class and accepted graphs refuse with not_supported, interval and Bayesian requests with estimator_inference_mismatch, and a degenerate intervention or unknown mechanism with CausalValueError."
 [[capability.evidence]]
 test = "python/tests/test_cross_world.py::test_unknown_names_raise_the_invalid_query_detail"
 assertion_scopes = ["test_unknown_names_raise_the_invalid_query_detail"]
@@ -6086,7 +6086,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_design_objectives.py::test_a_ranking_preview_reads_the_obligations_without_scoring"
 assertion_scopes = ["test_a_ranking_preview_reads_the_obligations_without_scoring"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The preview of a licensed prepared study lists the five ranking obligations as declared unrun checks, reports the 1/4 unidentified mass of the (3, 1) structure prior, the study's own target identity, and the Sampling plan as an unlicensed_candidate (a measurement without an unlock list likewise); nothing is scored."
+assertion_contract = "The preview of a supported prepared study lists the five ranking obligations as declared unrun checks, reports the 1/4 unidentified mass of the (3, 1) structure prior, the study's own target identity, and the Sampling plan as an unsupported_candidate (a measurement without an unlock list likewise); nothing is scored."
 [[capability.evidence]]
 test = "python/tests/test_design_objectives.py::test_a_width_ranking_is_bound_to_the_studys_own_target"
 assertion_scopes = ["test_a_width_ranking_is_bound_to_the_studys_own_target"]
@@ -6102,10 +6102,10 @@ behavior = "Rank plans through a prepared study's contract after previewing obli
 python = "antecedent.design.rank_designs"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_design_objectives.py::test_a_ranking_bound_to_a_study_reports_unlicensed_plans_and_keeps_declared_positions"
-assertion_scopes = ["test_a_ranking_bound_to_a_study_reports_unlicensed_plans_and_keeps_declared_positions"]
+test = "python/tests/test_design_objectives.py::test_a_ranking_bound_to_a_study_reports_unsupported_plans_and_keeps_declared_positions"
+assertion_scopes = ["test_a_ranking_bound_to_a_study_reports_unsupported_plans_and_keeps_declared_positions"]
 dimensions = ["success", "branch"]
-assertion_contract = "Bound to a licensed study, the unlock measurement scores 0.25 (identified mass 3/4 -> 1) at its declared position 1, the unrelated measurement scores 0, and the sampling plan is reported as an unlicensed_candidate violation and never scored, while the contract-free ranking scores it 0 with no violation."
+assertion_contract = "Bound to a supported study, the unlock measurement scores 0.25 (identified mass 3/4 -> 1) at its declared position 1, the unrelated measurement scores 0, and the sampling plan is reported as an unsupported_candidate violation and never scored, while the contract-free ranking scores it 0 with no violation."
 [[capability.evidence]]
 test = "python/tests/test_design_objectives.py::test_a_width_ranking_is_bound_to_the_studys_own_target"
 assertion_scopes = ["test_a_width_ranking_is_bound_to_the_studys_own_target"]
@@ -6130,12 +6130,12 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_evidence_plan.py::test_only_the_study_the_repair_search_verified_is_ranked_through_the_contract"
 assertion_scopes = ["test_only_the_study_the_repair_search_verified_is_ranked_through_the_contract"]
 dimensions = ["success", "branch"]
-assertion_contract = "Of a blind registry and a cohort measuring the back-door set, only the cohort is verified: it is ranked first at its declared position with gain 1/2 (identified mass 1/2 -> 1) and unlock (z); the registry is unverified with the checker's classification and an unlicensed_candidate violation."
+assertion_contract = "Of a blind registry and a cohort measuring the back-door set, only the cohort is verified: it is ranked first at its declared position with gain 1/2 (identified mass 1/2 -> 1) and unlock (z); the registry is unverified with the checker's classification and an unsupported_candidate violation."
 [[capability.evidence]]
 test = "python/tests/test_evidence_plan.py::test_without_a_verified_study_nothing_is_ranked_and_no_unlock_is_invented"
 assertion_scopes = ["test_without_a_verified_study_nothing_is_ranked_and_no_unlock_is_invented"]
 dimensions = ["branch", "refusal"]
-assertion_contract = "With only an insufficient study nothing is ranked, no unlock is invented and the study is an unlicensed_candidate violation."
+assertion_contract = "With only an insufficient study nothing is ranked, no unlock is invented and the study is an unsupported_candidate violation."
 [[capability.evidence]]
 test = "python/tests/test_evidence_plan.py::test_study_ranking_refuses_an_unknown_route_a_missing_study_and_bad_declarations"
 assertion_scopes = ["test_study_ranking_refuses_an_unknown_route_a_missing_study_and_bad_declarations"]
@@ -6722,24 +6722,24 @@ dimensions = ["refusal"]
 assertion_contract = "An out-of-range edge raises a CausalError."
 
 [[capability]]
-id = "licensed_neighbors"
-rust = ["antecedent::licensed_neighbors", "export:antecedent::LicensedNeighbor", "export:antecedent::analysis::api::OperationReadiness"]
+id = "supported_neighbors"
+rust = ["antecedent::supported_neighbors", "export:antecedent::SupportedNeighbor", "export:antecedent::analysis::api::OperationReadiness"]
 status = "covered"
 owner = "Python API integration: antecedent"
-behavior = "The nearest licensed cells, by changed premises, for a refused or not-applicable support cell: explicit alternatives of the same graph class, never an automatic fallback."
+behavior = "The nearest supported cells, by changed premises, for a refused or not-applicable support cell: explicit alternatives of the same graph class, never an automatic fallback."
 python = "antecedent.host.support_cell_report"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::licensed_neighbors"]
+legacy_internal = ["antecedent::supported_neighbors"]
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"
-assertion_scopes = ["test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"]
+test = "python/tests/test_host_operation_record.py::test_an_unsupported_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"
+assertion_scopes = ["test_an_unsupported_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A cell one axis away from a licensed cell and not licensed is refused with blocker text; its neighbors are licensed cells of the same graph class ordered by changed premises, each change names the axis with from/to values, the undo of the moved axis is exactly one changed premise, and the report is a pure read."
+assertion_contract = "A cell one axis away from a supported cell and not supported is refused with blocker text; its neighbors are supported cells of the same graph class ordered by changed premises, each change names the axis with from/to values, the undo of the moved axis is exactly one changed premise, and the report is a pure read."
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_licensed_with_no_neighbors"
-assertion_scopes = ["test_every_listed_support_cell_reports_licensed_with_no_neighbors"]
+test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_supported_with_no_neighbors"
+assertion_scopes = ["test_every_listed_support_cell_reports_supported_with_no_neighbors"]
 dimensions = ["success"]
-assertion_contract = "Every listed coordinate has five axes and reports status licensed, no blocker message and no neighbors; the list has no duplicates."
+assertion_contract = "Every listed coordinate has five axes and reports status supported, no blocker message and no neighbors; the list has no duplicates."
 [[capability.evidence]]
 test = "python/tests/test_host_operation_record.py::test_a_malformed_or_off_matrix_coordinate_is_refused"
 assertion_scopes = ["test_a_malformed_or_off_matrix_coordinate_is_refused"]
@@ -6747,24 +6747,24 @@ dimensions = ["refusal"]
 assertion_contract = "A short coordinate and an off-matrix axis value raise a value error and a non-text coordinate a type error."
 
 [[capability]]
-id = "licensed_support_cells"
-rust = ["antecedent::licensed_support_cells"]
+id = "supported_cells"
+rust = ["antecedent::supported_cells"]
 status = "covered"
 owner = "Python API integration: antecedent"
-behavior = "Enumerate every licensed support-matrix coordinate; a prepared study is licensed exactly when its coordinate is listed."
+behavior = "Enumerate every supported support-matrix coordinate; a prepared study is supported exactly when its coordinate is listed."
 python = "antecedent.host.support_cells"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::licensed_support_cells"]
+legacy_internal = ["antecedent::supported_cells"]
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_licensed_with_no_neighbors"
-assertion_scopes = ["test_every_listed_support_cell_reports_licensed_with_no_neighbors"]
+test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_supported_with_no_neighbors"
+assertion_scopes = ["test_every_listed_support_cell_reports_supported_with_no_neighbors"]
 dimensions = ["success"]
-assertion_contract = "Every listed coordinate has five axes and reports status licensed, no blocker message and no neighbors; the list has no duplicates."
+assertion_contract = "Every listed coordinate has five axes and reports status supported, no blocker message and no neighbors; the list has no duplicates."
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_a_prepared_study_is_licensed_exactly_when_its_cell_is_listed"
-assertion_scopes = ["test_a_prepared_study_is_licensed_exactly_when_its_cell_is_listed"]
+test = "python/tests/test_host_operation_record.py::test_a_prepared_study_is_supported_exactly_when_its_cell_is_listed"
+assertion_scopes = ["test_a_prepared_study_is_supported_exactly_when_its_cell_is_listed"]
 dimensions = ["inspection"]
-assertion_contract = "A prepared static ATE study inspects as licensed and its matrix coordinate is one of the listed cells, with no neighbors."
+assertion_contract = "A prepared static ATE study inspects as supported and its matrix coordinate is one of the listed cells, with no neighbors."
 [[capability.evidence]]
 test = "python/tests/test_host_operation_record.py::test_a_malformed_or_off_matrix_coordinate_is_refused"
 assertion_scopes = ["test_a_malformed_or_off_matrix_coordinate_is_refused"]
@@ -6797,15 +6797,15 @@ python = "antecedent.host.support_cell_report"
 required_dimensions = ["success", "refusal"]
 legacy_internal = ["antecedent::refused_message"]
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"
-assertion_scopes = ["test_an_unlicensed_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"]
+test = "python/tests/test_host_operation_record.py::test_an_unsupported_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"
+assertion_scopes = ["test_an_unsupported_cell_reports_its_blocker_and_same_class_changed_premise_neighbors"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A cell one axis away from a licensed cell and not licensed is refused with blocker text; its neighbors are licensed cells of the same graph class ordered by changed premises, each change names the axis with from/to values, the undo of the moved axis is exactly one changed premise, and the report is a pure read."
+assertion_contract = "A cell one axis away from a supported cell and not supported is refused with blocker text; its neighbors are supported cells of the same graph class ordered by changed premises, each change names the axis with from/to values, the undo of the moved axis is exactly one changed premise, and the report is a pure read."
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_licensed_with_no_neighbors"
-assertion_scopes = ["test_every_listed_support_cell_reports_licensed_with_no_neighbors"]
+test = "python/tests/test_host_operation_record.py::test_every_listed_support_cell_reports_supported_with_no_neighbors"
+assertion_scopes = ["test_every_listed_support_cell_reports_supported_with_no_neighbors"]
 dimensions = ["success"]
-assertion_contract = "Every listed coordinate has five axes and reports status licensed, no blocker message and no neighbors; the list has no duplicates."
+assertion_contract = "Every listed coordinate has five axes and reports status supported, no blocker message and no neighbors; the list has no duplicates."
 [[capability.evidence]]
 test = "python/tests/test_host_operation_record.py::test_a_malformed_or_off_matrix_coordinate_is_refused"
 assertion_scopes = ["test_a_malformed_or_off_matrix_coordinate_is_refused"]
@@ -6852,17 +6852,17 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_report.py::test_report_carries_every_section_and_the_claim_of_the_execution"
 assertion_scopes = ["test_report_carries_every_section_and_the_claim_of_the_execution"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The markdown report of an executed licensed study has exactly the ten ordered sections, its Value equals the result ATE to 1e-9, support is licensed, claim kind point and the adjustment is named."
+assertion_contract = "The markdown report of an executed supported study has exactly the ten ordered sections, its Value equals the result ATE to 1e-9, support is supported, claim kind point and the adjustment is named."
 [[capability.evidence]]
 test = "python/tests/test_report.py::test_report_before_an_estimate_reads_the_contract_and_executes_nothing"
 assertion_scopes = ["test_report_before_an_estimate_reads_the_contract_and_executes_nothing"]
 dimensions = ["lifecycle", "branch"]
 assertion_contract = "A report before estimate reads the contract without executing (stage stays prepared), has no Claim section, is stable on rereading, and the estimated branch reports a Claim while the prepared branch still does not."
 [[capability.evidence]]
-test = "python/tests/test_report.py::test_the_unlicensed_route_states_that_no_licence_applies"
-assertion_scopes = ["test_the_unlicensed_route_states_that_no_licence_applies"]
+test = "python/tests/test_report.py::test_the_unsupported_route_states_that_no_support_applies"
+assertion_scopes = ["test_the_unsupported_route_states_that_no_support_applies"]
 dimensions = ["success", "inspection"]
-assertion_contract = "An unlicensed dose-response study reports a support status other than licensed and a Refusals and limits section."
+assertion_contract = "An unsupported dose-response study reports a support status other than supported and a Refusals and limits section."
 [[capability.evidence]]
 test = "python/tests/test_report.py::test_an_unknown_format_is_a_typed_refusal"
 assertion_scopes = ["test_an_unknown_format_is_a_typed_refusal"]
@@ -7256,7 +7256,7 @@ assertion_contract = "A CPDAG ResponseCurve runs under generalized.adjustment wi
 test = "python/tests/test_class_aware_response_numeric_pins.py::test_class_aware_curve_pins"
 assertion_scopes = ["test_class_aware_curve_pins", "_values"]
 dimensions = ["success"]
-assertion_contract = "ResponseCurve over the licensed CPDAG reproduces the pinned curve means and contrast to the ATE for explicit and accepted structure."
+assertion_contract = "ResponseCurve over the supported CPDAG reproduces the pinned curve means and contrast to the ATE for explicit and accepted structure."
 
 [[capability]]
 id = "strategy_table.validate_response_pair"
@@ -7290,10 +7290,10 @@ composed_caller = "analyze/prepare -> builder::finish::classify_support -> suppo
 required_dimensions = ["success", "branch"]
 legacy_internal = ["antecedent::support::classify_estimator"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
-assertion_scopes = ["test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
+test = "python/tests/test_support_refusal_reasons.py::test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
+assertion_scopes = ["test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
 dimensions = ["success", "branch"]
-assertion_contract = "On the licensed Dag/Frequentist cell the route estimators aipw and propensity.weighting report licensed while distance.matching and the causal forest do not inherit the license."
+assertion_contract = "On the supported Dag/Frequentist cell the route estimators aipw and propensity.weighting report supported while distance.matching and the causal forest do not inherit the support."
 
 [[capability]]
 id = "support.is_declared_off_axis"
@@ -7317,46 +7317,46 @@ dimensions = ["success", "branch"]
 assertion_contract = "A cluster-assignment design runs through analyze and reports evidence_status off_axis."
 
 [[capability]]
-id = "support.licensed_estimators"
-rust = ["antecedent::support::licensed_estimators"]
+id = "support.supported_estimators"
+rust = ["antecedent::support::supported_estimators"]
 status = "plumbing"
 owner = "Python API integration: antecedent::support"
-behavior = "antecedent::support::licensed_estimators: public fn capability; trace its actual consuming workflow and invariant"
+behavior = "antecedent::support::supported_estimators: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
-composed_caller = "analyze/prepare -> builder::finish::classify_support -> support::classify_estimator -> support::licensed_estimators"
+composed_caller = "analyze/prepare -> builder::finish::classify_support -> support::classify_estimator -> support::supported_estimators"
 required_dimensions = ["success", "branch"]
-legacy_internal = ["antecedent::support::licensed_estimators"]
+legacy_internal = ["antecedent::support::supported_estimators"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
-assertion_scopes = ["test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
+test = "python/tests/test_support_refusal_reasons.py::test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"
+assertion_scopes = ["test_a_supported_cell_is_not_inherited_by_an_estimator_without_calibration_evidence"]
 dimensions = ["success", "branch"]
-assertion_contract = "The calibration-named estimators of the licensed Dag/Frequentist cell (aipw, propensity.weighting) classify licensed and unnamed estimators do not."
+assertion_contract = "The calibration-named estimators of the supported Dag/Frequentist cell (aipw, propensity.weighting) classify supported and unnamed estimators do not."
 
 [[capability]]
-id = "support.licensed_route_estimator"
-rust = ["antecedent::support::licensed_route_estimator"]
+id = "support.supported_route_estimator"
+rust = ["antecedent::support::supported_route_estimator"]
 status = "plumbing"
 owner = "Python API integration: antecedent::support"
-behavior = "antecedent::support::licensed_route_estimator: public fn capability; trace its actual consuming workflow and invariant"
+behavior = "antecedent::support::supported_route_estimator: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
-composed_caller = "analyze/prepare -> builder::finish::classify_support -> support::licensed_route_estimator"
+composed_caller = "analyze/prepare -> builder::finish::classify_support -> support::supported_route_estimator"
 required_dimensions = ["success", "branch"]
-legacy_internal = ["antecedent::support::licensed_route_estimator"]
+legacy_internal = ["antecedent::support::supported_route_estimator"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_licensed_average_effect_on_dag_frequentist"
-assertion_scopes = ["test_licensed_average_effect_on_dag_frequentist"]
+test = "python/tests/test_support_refusal_reasons.py::test_supported_average_effect_on_dag_frequentist"
+assertion_scopes = ["test_supported_average_effect_on_dag_frequentist"]
 dimensions = ["success"]
-assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status licensed."
+assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status supported."
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_licensed_pag_ate_runs"
-assertion_scopes = ["test_licensed_pag_ate_runs"]
+test = "python/tests/test_support_refusal_reasons.py::test_supported_pag_ate_runs"
+assertion_scopes = ["test_supported_pag_ate_runs"]
 dimensions = ["success"]
-assertion_contract = "A PAG AverageEffect runs on its licensed route estimator and reports evidence_status licensed."
+assertion_contract = "A PAG AverageEffect runs on its supported route estimator and reports evidence_status supported."
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_admg_bayesian_average_effect_uses_functional_estimator"
+test = "python/tests/test_support_refusal_reasons.py::test_admg_bayesian_average_effect_uses_functional_estimator"
 assertion_scopes = ["test_admg_bayesian_average_effect_uses_functional_estimator"]
 dimensions = ["success", "branch"]
-assertion_contract = "An Admg AverageEffect with Bayesian inference runs through the cell's licensed functional.effect route rather than the Bayesian g-computation default."
+assertion_contract = "An Admg AverageEffect with Bayesian inference runs through the cell's supported functional.effect route rather than the Bayesian g-computation default."
 
 [[capability]]
 id = "support.query_axis_name"
@@ -7387,10 +7387,10 @@ composed_caller = "analyze/prepare -> builder::finish::classify_support -> suppo
 required_dimensions = ["success", "refusal"]
 legacy_internal = ["antecedent::support::refuse_if_not_applicable"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_licensed_average_effect_on_dag_frequentist"
-assertion_scopes = ["test_licensed_average_effect_on_dag_frequentist"]
+test = "python/tests/test_support_refusal_reasons.py::test_supported_average_effect_on_dag_frequentist"
+assertion_scopes = ["test_supported_average_effect_on_dag_frequentist"]
 dimensions = ["success"]
-assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status licensed."
+assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status supported."
 [[capability.evidence]]
 test = "python/tests/test_prepared_analysis.py::test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable"
 assertion_scopes = ["test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable"]
@@ -7463,10 +7463,10 @@ composed_caller = "analyze/prepare -> builder::finish::classify_support -> suppo
 required_dimensions = ["success", "refusal"]
 legacy_internal = ["antecedent::support::support_cell_named"]
 [[capability.evidence]]
-test = "python/tests/test_support_closed.py::test_licensed_average_effect_on_dag_frequentist"
-assertion_scopes = ["test_licensed_average_effect_on_dag_frequentist"]
+test = "python/tests/test_support_refusal_reasons.py::test_supported_average_effect_on_dag_frequentist"
+assertion_scopes = ["test_supported_average_effect_on_dag_frequentist"]
 dimensions = ["success"]
-assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status licensed."
+assertion_contract = "An AverageEffect over an explicit Dag with Frequentist inference runs to a finite ATE and reports evidence_status supported."
 [[capability.evidence]]
 test = "python/tests/test_prepared_analysis.py::test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable"
 assertion_scopes = ["test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable"]
@@ -7476,7 +7476,7 @@ assertion_contract = "A ResponseCurve with refute cheap, a cell the matrix marks
 test = "python/tests/test_lag_zero_average_effect.py::test_the_lag_zero_average_effect_is_the_explicit_pulse"
 assertion_scopes = ["test_the_lag_zero_average_effect_is_the_explicit_pulse"]
 dimensions = ["branch", "inspection"]
-assertion_contract = "A cell the closed rules mark as executing unlicensed reports matrix_status refused with evidence_status None and a disclosure diagnostic, unlike the licensed pulse cell."
+assertion_contract = "A cell the closed rules mark as executing unsupported reports matrix_status refused with evidence_status None and a disclosure diagnostic, unlike the supported pulse cell."
 
 [[capability]]
 id = "AdaptiveInferenceSession"
@@ -7599,10 +7599,10 @@ behavior = "antecedent::gcm::PreparedPolicy: public type capability; trace its a
 python = "antecedent.intervention_programs.PreparedPolicy"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_policy_workflows.py::test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results"
-assertion_scopes = ["test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results"]
+test = "python/tests/test_policy_workflows.py::test_a_prepared_policy_reuses_one_support_and_equals_the_one_shot_results"
+assertion_scopes = ["test_a_prepared_policy_reuses_one_support_and_equals_the_one_shot_results"]
 dimensions = ["success", "inspection", "controls"]
-assertion_contract = "A prepared policy fixes its licence (simulation and counterfactual licensed, identification refused policy_route_not_licensed), carries the program identity, and its sample, counterfactual and value runs equal the one-shot results bit for bit; the value matches 0.8*0.15*mean(price) within tolerance."
+assertion_contract = "A prepared policy fixes its support (simulation and counterfactual supported, identification refused policy_route_not_supported), carries the program identity, and its sample, counterfactual and value runs equal the one-shot results bit for bit; the value matches 0.8*0.15*mean(price) within tolerance."
 [[capability.evidence]]
 test = "python/tests/test_policy_workflows.py::test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_one_shot_result"
 assertion_scopes = ["test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_one_shot_result"]
@@ -7697,7 +7697,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_transport_counterfactual.py::test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouched"
 assertion_scopes = ["test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouched"]
 dimensions = ["success", "lifecycle", "branch", "refusal"]
-assertion_contract = "An unbound derivation refuses to estimate (transport_missing_provider); binding laws gives the enumerated probability to the exact tolerance, rebinding shifted laws gives the shifted truth without re-searching, earlier branches keep their numbers, and a counted law is refused cell_not_licensed leaving the bound state alone."
+assertion_contract = "An unbound derivation refuses to estimate (transport_missing_provider); binding laws gives the enumerated probability to the exact tolerance, rebinding shifted laws gives the shifted truth without re-searching, earlier branches keep their numbers, and a counted law is refused not_supported leaving the bound state alone."
 [[capability.evidence]]
 test = "python/tests/test_transport_counterfactual.py::test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_disposal"
 assertion_scopes = ["test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_disposal"]
@@ -7870,10 +7870,10 @@ assertion_scopes = ["test_consumer_recomputes_points_and_contrasts_after_builder
 dimensions = ["success", "lifecycle"]
 assertion_contract = "The prepared multi-source stage estimates points and contrasts that an independent consumer recomputes after the builder is disposed."
 [[capability.evidence]]
-test = "python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed"
-assertion_scopes = ["test_the_unmeasured_interval_route_refuses_with_cell_not_licensed", "_edit_inner", "_replace_once", "identified_stage"]
+test = "python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_not_supported"
+assertion_scopes = ["test_the_unmeasured_interval_route_refuses_with_not_supported", "_edit_inner", "_replace_once", "identified_stage"]
 dimensions = ["refusal"]
-assertion_contract = "The unmeasured interval route of the prepared stage refuses cell_not_licensed."
+assertion_contract = "The unmeasured interval route of the prepared stage refuses not_supported."
 
 [[capability]]
 id = "PreparedObservationRecovery"
@@ -7905,10 +7905,10 @@ assertion_scopes = ["test_export_binds_names_and_the_consumer_recomputes_after_b
 dimensions = ["artifact"]
 assertion_contract = "The exported plan is consumed independently and recomputes the same probabilities, effects and derivation identity."
 [[capability.evidence]]
-test = "python/tests/test_observation_recovery.py::test_counted_laws_are_not_licensed_on_the_recovery_route"
-assertion_scopes = ["test_counted_laws_are_not_licensed_on_the_recovery_route"]
+test = "python/tests/test_observation_recovery.py::test_counted_laws_are_not_supported_on_the_recovery_route"
+assertion_scopes = ["test_counted_laws_are_not_supported_on_the_recovery_route"]
 dimensions = ["refusal"]
-assertion_contract = "Counted laws refuse cell_not_licensed on the recovery route."
+assertion_contract = "Counted laws refuse not_supported on the recovery route."
 [[capability.evidence]]
 test = "python/tests/test_observation_recovery.py::test_self_censoring_is_nonrecoverable_with_a_verified_witness"
 assertion_scopes = ["test_self_censoring_is_nonrecoverable_with_a_verified_witness"]
@@ -7968,7 +7968,7 @@ assertion_contract = "Derivation is deterministic, the claim identity binds the 
 test = "python/tests/test_scientific_bridge.py::test_a_refused_derivation_or_replacement_leaves_the_prepared_bridge_unchanged"
 assertion_scopes = ["test_a_refused_derivation_or_replacement_leaves_the_prepared_bridge_unchanged"]
 dimensions = ["refusal", "lifecycle"]
-assertion_contract = "A source beyond the validated range and a replacement with too-high R^2 requirement refuse with registered codes; the prepared bridge is unchanged and a licensed replacement is another bridge."
+assertion_contract = "A source beyond the validated range and a replacement with too-high R^2 requirement refuse with registered codes; the prepared bridge is unchanged and a supported replacement is another bridge."
 [[capability.evidence]]
 test = "python/tests/test_scientific_bridge.py::test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_identity"
 assertion_scopes = ["test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_identity"]
@@ -7990,10 +7990,10 @@ assertion_scopes = ["test_a_bridge_of_draws_keeps_the_alignment_and_the_declared
 dimensions = ["success", "inspection"]
 assertion_contract = "A bridge of draws keeps the alignment and the declared uncertainty."
 [[capability.evidence]]
-test = "python/tests/test_scientific_bridge_draws.py::test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them"
-assertion_scopes = ["test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them", "refused"]
+test = "python/tests/test_scientific_bridge_draws.py::test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them"
+assertion_scopes = ["test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them", "refused"]
 dimensions = ["refusal"]
-assertion_contract = "The refusals of a bridge of draws name what would license them."
+assertion_contract = "The refusals of a bridge of draws name what would support them."
 [[capability.evidence]]
 test = "python/tests/test_scientific_bridge_draws.py::test_the_artifact_carries_the_draws_and_a_fresh_consumer_replays_them_bit_for_bit"
 assertion_scopes = ["test_the_artifact_carries_the_draws_and_a_fresh_consumer_replays_them_bit_for_bit"]
@@ -8479,7 +8479,7 @@ owner = "Python API integration: antecedent::analysis::recalc_joint_bayesian"
 behavior = "antecedent::analysis::recalc_joint_bayesian::JointBayesianSession: retained joint checked fit behind antecedent.recalc_bayesian.JointBayesianSession (calibration-internal candidate)"
 python = "antecedent.recalc_bayesian.JointBayesianSession"
 required_dimensions = ["success", "refusal"]
-deferred_to = "the joint-transport recalculation law being measured and promoted out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
+deferred_to = "the joint-transport recalculation law being measured and moved out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
 deferred_dimensions = ["success"]
 
 [[capability.evidence]]
@@ -8627,7 +8627,7 @@ assertion_contract = "102,400 history rows give the 640-unit means and a 1 MB me
 test = "python/tests/test_recalc_temporal.py::test_temporal_unmeasured_history_protocol_preserves_source_state"
 assertion_scopes = ["test_temporal_unmeasured_history_protocol_preserves_source_state"]
 dimensions = ["refusal", "lifecycle"]
-assertion_contract = "The dependent interval refuses cell_not_licensed temporal_interval.route_frozen and leaves identities and reuse unchanged."
+assertion_contract = "The dependent interval refuses not_supported temporal_interval.route_frozen and leaves identities and reuse unchanged."
 [[capability.evidence]]
 test = "python/tests/test_recalc_temporal.py::test_temporal_source_artifact_independent_fresh_process_rebuild"
 assertion_scopes = ["test_temporal_source_artifact_independent_fresh_process_rebuild"]
@@ -8682,7 +8682,7 @@ assertion_contract = "The finite composition's exact means 0.18 and 0.72 and lef
 test = "python/tests/test_inverse_sources.py::test_a_point_composition_refuses_laws_intervals_and_the_wrong_family"
 assertion_scopes = ["test_a_point_composition_refuses_laws_intervals_and_the_wrong_family"]
 dimensions = ["refusal"]
-assertion_contract = "A point composition refuses a quantile constraint (decision_contract_unsatisfied, composed_law_not_materialized, with remedy) and an interval region (cell_not_licensed interval_not_licensed)."
+assertion_contract = "A point composition refuses a quantile constraint (decision_contract_unsatisfied, composed_law_not_materialized, with remedy) and an interval region (not_supported interval_not_supported)."
 
 [[capability]]
 id = "analysis.inverse_sources.seal"
@@ -8830,12 +8830,12 @@ composed_caller = "antecedent.analyze(Bayesian inference over matching) -> prepa
 required_dimensions = ["refusal"]
 legacy_internal = ["antecedent::analysis::matching_posterior_refusal::matching_posterior_refusal"]
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_bayesian_matching_is_the_typed_boundary"
+test = "python/tests/test_unsupported_design_routes.py::test_bayesian_matching_is_the_typed_boundary"
 assertion_scopes = ["test_bayesian_matching_is_the_typed_boundary"]
 dimensions = ["refusal"]
 assertion_contract = "Bayesian inference over a period-history match refuses CausalUnsupportedError route_not_supported with 'no likelihood' and the next attempt 'declare a Bayesian outcome model', and propensity and distance matching refuse the same boundary."
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_history_outcome_model_refusals_are_typed_and_name_the_next_attempt"
+test = "python/tests/test_unsupported_design_routes.py::test_history_outcome_model_refusals_are_typed_and_name_the_next_attempt"
 assertion_scopes = ["test_history_outcome_model_refusals_are_typed_and_name_the_next_attempt"]
 dimensions = ["refusal"]
 assertion_contract = "A Bayesian period-history match names bayesian.period_history_outcome_model as the next attempt with route_not_supported."
@@ -8849,15 +8849,15 @@ behavior = "antecedent::analysis::posterior_boundaries::require_ordinary_tempora
 python = "antecedent.temporal.require_ordinary_temporal_curve_posterior"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_posterior_boundaries.py::test_attested_independent_innovations_license_the_ordinary_reading"
-assertion_scopes = ["test_attested_independent_innovations_license_the_ordinary_reading"]
+test = "python/tests/test_posterior_boundaries.py::test_attested_independent_innovations_support_the_ordinary_reading"
+assertion_scopes = ["test_attested_independent_innovations_support_the_ordinary_reading"]
 dimensions = ["success", "refusal"]
-assertion_contract = "Attested independent innovations license the ordinary reading (None) and an unknown serial_error_model is a value error."
+assertion_contract = "Attested independent innovations support the ordinary reading (None) and an unknown serial_error_model is a value error."
 [[capability.evidence]]
 test = "python/tests/test_posterior_boundaries.py::test_unmodeled_serial_dependence_refuses_the_ordinary_reading"
 assertion_scopes = ["test_unmodeled_serial_dependence_refuses_the_ordinary_reading"]
 dimensions = ["refusal"]
-assertion_contract = "Unmodeled serial dependence is refused with cell_not_licensed and the temporal_curve.ordinary_posterior_not_licensed detail naming the autoregressive innovation law as the next attempt."
+assertion_contract = "Unmodeled serial dependence is refused with not_supported and the temporal_curve.ordinary_posterior_not_supported detail naming the autoregressive innovation law as the next attempt."
 
 [[capability]]
 id = "analysis.posterior_boundaries.trajectory_hazard_credible_interval"
@@ -8871,7 +8871,7 @@ required_dimensions = ["refusal", "inspection"]
 test = "python/tests/test_posterior_boundaries.py::test_credible_interval_always_refuses_and_names_the_missing_likelihood"
 assertion_scopes = ["test_credible_interval_always_refuses_and_names_the_missing_likelihood"]
 dimensions = ["refusal", "inspection"]
-assertion_contract = "The credible interval is always refused with cell_not_licensed and the trajectory_survival.credible_interval_not_licensed detail naming the joint likelihood and g-formula as the next attempt; invalid trajectories raise a data error instead of the boundary refusal."
+assertion_contract = "The credible interval is always refused with not_supported and the trajectory_survival.credible_interval_not_supported detail naming the joint likelihood and g-formula as the next attempt; invalid trajectories raise a data error instead of the boundary refusal."
 
 [[capability]]
 id = "analysis.posterior_boundaries.trajectory_survival_bootstrap"
@@ -8943,7 +8943,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_adaptive_repeated_measures.py::test_the_posterior_artifact_round_trips_and_refuses_a_forgery"
 assertion_scopes = ["test_the_posterior_artifact_round_trips_and_refuses_a_forgery"]
 dimensions = ["success", "refusal", "artifact"]
-assertion_contract = "A re-declared procedure loads the artifact and recomputes the same contrast; an edited licensed flag and a different declared procedure are each AdaptiveInferenceRefusal."
+assertion_contract = "A re-declared procedure loads the artifact and recomputes the same contrast; an edited supported flag and a different declared procedure are each AdaptiveInferenceRefusal."
 
 [[capability]]
 id = "analysis.composition_verification.load_decision"
@@ -8968,7 +8968,7 @@ assertion_contract = "A utility change refits nothing (all work counters zero), 
 test = "python/tests/test_mixed_decision.py::test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"
 assertion_scopes = ["test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"]
 dimensions = ["success", "lifecycle", "artifact", "refusal", "branch"]
-assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_license_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
+assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_support_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
 
 [[capability]]
 id = "analysis.composition_verification.replay_decision"
@@ -8987,7 +8987,7 @@ assertion_contract = "An exported decision loads against current authority repro
 test = "python/tests/test_mixed_decision.py::test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"
 assertion_scopes = ["test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"]
 dimensions = ["success", "lifecycle", "artifact", "refusal", "branch"]
-assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_license_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
+assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_support_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
 
 [[capability]]
 id = "analysis.api.route_missing_support"
@@ -9302,25 +9302,25 @@ assertion_contract = "The schema's host_status enumeration is exactly supported,
 
 [[capability]]
 id = "host.operation_record"
-rust = ["antecedent::host::operation_record", "export:antecedent::OperationReadiness", "export:antecedent::analysis::OperationReadiness", "export:antecedent::analysis::api::SemanticApplicability", "export:antecedent::BlockedOperation", "export:antecedent::analysis::LicensedNeighbor", "export:antecedent::analysis::SemanticApplicability", "export:antecedent::analysis::api::OperationKind", "export:antecedent::OperationReport", "export:antecedent::SemanticApplicability"]
+rust = ["antecedent::host::operation_record", "export:antecedent::OperationReadiness", "export:antecedent::analysis::OperationReadiness", "export:antecedent::analysis::api::SemanticApplicability", "export:antecedent::BlockedOperation", "export:antecedent::analysis::SupportedNeighbor", "export:antecedent::analysis::SemanticApplicability", "export:antecedent::analysis::api::OperationKind", "export:antecedent::OperationReport", "export:antecedent::SemanticApplicability"]
 status = "covered"
 owner = "Python API integration: antecedent::host"
 behavior = "antecedent::host::operation_record: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.host.operation_record"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_a_licensed_executable_operation_is_supported_and_carries_every_field"
-assertion_scopes = ["test_a_licensed_executable_operation_is_supported_and_carries_every_field"]
+test = "python/tests/test_host_operation_record.py::test_a_supported_executable_operation_is_supported_and_carries_every_field"
+assertion_scopes = ["test_a_supported_executable_operation_is_supported_and_carries_every_field"]
 dimensions = ["success"]
-assertion_contract = "A licensed executable report becomes the exact eight-field record with status supported."
+assertion_contract = "A supported executable report becomes the exact eight-field record with status supported."
 [[capability.evidence]]
 test = "python/tests/test_host_operation_record.py::test_blockers_actions_neighbors_and_obligations_are_carried_with_the_status"
 assertion_scopes = ["test_blockers_actions_neighbors_and_obligations_are_carried_with_the_status"]
 dimensions = ["success", "inspection"]
 assertion_contract = "Blockers (scientific coerced to bool), next actions, neighbours and unmet obligations are carried unchanged and the status follows applicability and readiness."
 [[capability.evidence]]
-test = "python/tests/test_host_operation_record.py::test_an_unlicensed_operation_is_never_supported_and_a_missing_readiness_is_none"
-assertion_scopes = ["test_an_unlicensed_operation_is_never_supported_and_a_missing_readiness_is_none"]
+test = "python/tests/test_host_operation_record.py::test_an_unsupported_operation_is_never_supported_and_a_missing_readiness_is_none"
+assertion_scopes = ["test_an_unsupported_operation_is_never_supported_and_a_missing_readiness_is_none"]
 dimensions = ["success"]
 assertion_contract = "An impossible operation keeps None readiness and coordinate and is never supported."
 [[capability.evidence]]
@@ -9334,7 +9334,7 @@ id = "host.neighbor_records"
 rust = ["antecedent::host::neighbor_records", "export:antecedent::PremiseChange", "export:antecedent::analysis::api::PremiseChange", "export:antecedent::analysis::PremiseChange"]
 status = "plumbing"
 owner = "Python API integration: antecedent::host"
-behavior = "antecedent::host::neighbor_records: Formats licensed-neighbor rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
+behavior = "antecedent::host::neighbor_records: Formats supported-neighbor rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
 python = "antecedent.repair.FailureContract.capability_report"
 composed_caller = "repair.FailureContract.capability_report -> _native EvidencePlanStage.capability_report (evidence_plan_api) -> host::neighbor_records"
 required_dimensions = ["success", "inspection"]
@@ -10023,13 +10023,13 @@ rust = ["<antecedent::AcceptedGraph>::temporal_admg", "<antecedent::AcceptedGrap
 rust_types = ["antecedent::analysis::CachedTemporalIdentification"]
 status = "covered"
 owner = "Python temporal graph integration"
-behavior = "Public temporal ADMG pulse executes counted conditional window contrast and discloses its unlicensed support."
+behavior = "Public temporal ADMG pulse executes counted conditional window contrast and discloses its unsupported support."
 python = "antecedent.analyze"
 composed_caller = "TemporalAdmg.from_lagged_edges -> _prepare_route temporal class -> native prepare_temporal_effect -> actual temporal ADMG window executor"
 required_dimensions = ["success", "inspection", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_temporal_admg_window.py::test_a_pulse_is_the_counted_contrast_and_stays_unlicensed"
-assertion_scopes = ["test_a_pulse_is_the_counted_contrast_and_stays_unlicensed"]
+test = "python/tests/test_temporal_admg_window.py::test_a_pulse_is_the_counted_contrast_and_stays_unsupported"
+assertion_scopes = ["test_a_pulse_is_the_counted_contrast_and_stays_unsupported"]
 dimensions = ["success", "inspection"]
 assertion_contract = "Numerical contrast equals independent conditional counts, differs from unadjusted counts, discloses TemporalAdmg refused matrix coordinate and no evidence status."
 [[capability.evidence]]
@@ -10081,7 +10081,7 @@ assertion_contract = "Both incompatible caller identifiers refuse before tiered 
 test = "python/tests/test_tiered_identification.py::test_unknown_joint_and_nonhard_interventions_are_refused"
 assertion_scopes = ["test_unknown_joint_and_nonhard_interventions_are_refused"]
 dimensions = ["refusal"]
-assertion_contract = "Unknown-tier joint geometry remains scientifically unlicensed with stable cell_not_licensed, and nonhard joint intervention refuses before native work."
+assertion_contract = "Unknown-tier joint geometry remains scientifically unsupported with stable not_supported, and nonhard joint intervention refuses before native work."
 
 [[capability]]
 id = "retained_refresh.spill_reload"
@@ -10412,32 +10412,32 @@ assertion_scopes = ["test_checked_static_dag_response_python_lifecycle"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "A response-curve and an intervention-response study read kind static_dag_response with the MeanCurve or InterventionResponse query, identifier response.backdoor, the chosen response estimator, validation none and grid members [-0.5, 0.0, 0.5] (empty for the intervention), for explicit and accepted graphs, from a handle whose builder was deleted."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_licensed_graph_posterior_frequentist_prepare_matches_analyze"
-assertion_scopes = ["test_licensed_graph_posterior_frequentist_prepare_matches_analyze"]
+test = "python/tests/test_supported_staged.py::test_supported_graph_posterior_frequentist_prepare_matches_analyze"
+assertion_scopes = ["test_supported_graph_posterior_frequentist_prepare_matches_analyze"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The frequentist graph-posterior study reads kind graph_posterior_effect with estimator linear.adjustment.ate, validation none, the posterior weights equal to the fixture's and three graph keys with three identified flags, and its estimate matches the one-shot analysis."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_checked_static_mediation_retains_contrast_and_refresh"
+test = "python/tests/test_supported_staged.py::test_checked_static_mediation_retains_contrast_and_refresh"
 assertion_scopes = ["test_checked_static_mediation_retains_contrast_and_refresh"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "The mediation study reads kind static_mediation with treatment a, outcome y, mediators [m], contrast NaturalDirect, estimator mediation.linear and three graph edges; the natural direct effect is 0.3 within 1e-9 and a rebound dataset recomputes it."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_checked_bayesian_dag_ate_retains_prior_and_refresh"
+test = "python/tests/test_supported_staged.py::test_checked_bayesian_dag_ate_retains_prior_and_refresh"
 assertion_scopes = ["test_checked_bayesian_dag_ate_retains_prior_and_refresh"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "The Bayesian g-computation study reads kind bayesian_gcomp with treatment t, outcome y, estimator bayesian.gcomp, 64 draws, prior scale 30, no transferred prior and adjustment set [z]; the effect is 2.0 within 0.2 and survives refresh."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_checked_conditional_effect_retains_interaction_target_and_refresh"
+test = "python/tests/test_supported_staged.py::test_checked_conditional_effect_retains_interaction_target_and_refresh"
 assertion_scopes = ["test_checked_conditional_effect_retains_interaction_target_and_refresh"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "The conditional-effect study reads kind conditional_effect with treatment t, outcome y, modifier w, estimator conditional.linear.adjustment, procedure linear_interaction_plugin, design roles {t, y, w} and one source row per observation; the averaged contrast is 3.0 within 1e-8, 3.4 after rebinding changed data, and the source rows are unchanged by the refresh."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_checked_temporal_effect_retains_policy_and_refresh"
+test = "python/tests/test_supported_staged.py::test_checked_temporal_effect_retains_policy_and_refresh"
 assertion_scopes = ["test_checked_temporal_effect_retains_policy_and_refresh"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "The temporal effect study reads kind temporal_dag_effect with the Pulse or Sustained policy, one horizon step, estimator temporal.linear.adjustment, identifier temporal.backdoor.unfolded and a graph signature; the effect is 0.5 within 1e-6 and 0.6 after the refresh."
 [[capability.evidence]]
-test = "python/tests/test_licensed_staged.py::test_checked_temporal_response_grid_survives_preparation_and_refresh"
+test = "python/tests/test_supported_staged.py::test_checked_temporal_response_grid_survives_preparation_and_refresh"
 assertion_scopes = ["test_checked_temporal_response_grid_survives_preparation_and_refresh"]
 dimensions = ["success", "inspection", "lifecycle"]
 assertion_contract = "The temporal response study reads kind temporal_dag_response with grid members [-0.5, 0, 0.5], horizons [1] and estimator temporal.response.gcomp; the response is [-0.25, 0, 0.25] within 0.03 and shifts by exactly 0.3 after the refresh."
@@ -10480,7 +10480,7 @@ assertion_contract = "Under Thompson allocation with outcome lag and posterior-p
 test = "python/tests/test_adaptive_procedure.py::test_every_paradigm_whose_premise_fails_is_refused"
 assertion_scopes = ["refused"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "Fixed-sample, group-sequential, decision-theoretic, Bayesian, anytime and weighting requests on a procedure whose premise fails refuse with the premise's own detail (design adaptive, assignment adaptive, rule mismatch, outcome-dependent delay) under cell_not_licensed."
+assertion_contract = "Fixed-sample, group-sequential, decision-theoretic, Bayesian, anytime and weighting requests on a procedure whose premise fails refuse with the premise's own detail (design adaptive, assignment adaptive, rule mismatch, outcome-dependent delay) under not_supported."
 [[capability.evidence]]
 test = "python/tests/test_adaptive_procedure.py::test_a_single_look_stagewise_inference_is_the_normal_interval"
 assertion_scopes = ["test_a_single_look_stagewise_inference_is_the_normal_interval"]
@@ -10565,7 +10565,7 @@ assertion_contract = "Reusing a structural derivation after data replacement rec
 test = "python/tests/test_composition_verification.py::test_a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers"
 assertion_scopes = ["test_a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers", "refused"]
 dimensions = ["success", "refusal"]
-assertion_contract = "A withdrawn provider trust withdraws the seven dependent nodes with no numerical staleness, and require_valid refuses claim_license_withdrawn with provider_trust_withdrawn."
+assertion_contract = "A withdrawn provider trust withdraws the seven dependent nodes with no numerical staleness, and require_valid refuses claim_support_withdrawn with provider_trust_withdrawn."
 [[capability.evidence]]
 test = "python/tests/test_composition_verification.py::test_an_unsupported_target_withdraws_only_the_claim_resting_on_its_support"
 assertion_scopes = ["test_an_unsupported_target_withdraws_only_the_claim_resting_on_its_support", "refused"]
@@ -10605,7 +10605,7 @@ assertion_contract = "An uncertainty requirement a point cannot meet refuses, an
 test = "python/tests/test_transported_decision.py::test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label"
 assertion_scopes = ["test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label"]
 dimensions = ["refusal", "controls"]
-assertion_contract = "Law and interval demands refuse their own transported_decision details and the default support policy refuses the extrapolative label with cell_not_licensed."
+assertion_contract = "Law and interval demands refuse their own transported_decision details and the default support policy refuses the extrapolative label with not_supported."
 
 [[capability]]
 id = "analysis.transport_grid.response_grid"
@@ -10657,8 +10657,8 @@ behavior = "antecedent::analysis::DeferredStatisticalTransport: an empirical-tab
 python = "antecedent.transport.advanced.evaluate_statistical_grid"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_license"
-assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_license"]
+test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_support"
+assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_support"]
 dimensions = ["success", "inspection", "artifact"]
 assertion_contract = "Preparation reports identification available and the interval not_executed; estimation gives mean 0.8, a pointwise percentile_bootstrap interval, and a loaded export keeps probabilities and uncertainty."
 [[capability.evidence]]
@@ -10743,7 +10743,7 @@ rust = ["export:antecedent::SyntheticControlQuery", "export:antecedent::query::S
 rust_types = ["antecedent::SyntheticControlEstimate"]
 status = "plumbing"
 owner = "Python API integration: antecedent::SyntheticControlEstimate"
-behavior = "antecedent::SyntheticControlEstimate: the synthetic-control route recovers a known effect from convex donor weights and reports point-only, unlicensed uncertainty."
+behavior = "antecedent::SyntheticControlEstimate: the synthetic-control route recovers a known effect from convex donor weights and reports point-only, unsupported uncertainty."
 python = "antecedent.quasi.SyntheticControlEstimate"
 composed_caller = "antecedent.analyze(query=SyntheticControl) -> _native analyze -> SyntheticControlSection (python/src/quasi_api.rs) -> quasi.SyntheticControlEstimate"
 required_dimensions = ["success", "refusal"]
@@ -10751,7 +10751,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_synthetic_control.py::test_native_synthetic_control_recovers_known_effect_and_reports_diagnostics"
 assertion_scopes = ["test_native_synthetic_control_recovers_known_effect_and_reports_diagnostics"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The estimate is 5.0 within 1e-5 with pre-treatment RMSE below 1e-5, donor weights {a: 0.2, b: 0.3, c: 0.5}, 3 donors, 4 pre and 2 post periods, effective donors 1/sum(w^2), three placebo effects, uncertainty point_only_with_unlicensed_placebo_rank and support_status unlicensed_point_utility."
+assertion_contract = "The estimate is 5.0 within 1e-5 with pre-treatment RMSE below 1e-5, donor weights {a: 0.2, b: 0.3, c: 0.5}, 3 donors, 4 pre and 2 post periods, effective donors 1/sum(w^2), three placebo effects, uncertainty point_only_with_unsupported_placebo_rank and support_status unsupported_point_utility."
 [[capability.evidence]]
 test = "python/tests/test_synthetic_control.py::test_synthetic_control_refuses_insufficient_donor_pool"
 assertion_scopes = ["test_synthetic_control_refuses_insufficient_donor_pool"]
@@ -10759,20 +10759,20 @@ dimensions = ["refusal"]
 assertion_contract = "Removing a donor leaves fewer than three and the route refuses with the at-least-three-donor-units message."
 
 [[capability]]
-id = "analysis.unlicensed_design.period_history_match"
+id = "analysis.unsupported_design.period_history_match"
 rust = ["export:antecedent::HistoryMatchQuery"]
 rust_types = ["antecedent::HistoryMatchEstimate"]
 status = "plumbing"
 owner = "Python API integration: antecedent::HistoryMatchEstimate"
-behavior = "antecedent::HistoryMatchEstimate: period-history matching returns the matched contrast with an Abadie-Imbens standard error and no licensed interval."
+behavior = "antecedent::HistoryMatchEstimate: period-history matching returns the matched contrast with an Abadie-Imbens standard error and no supported interval."
 python = "antecedent.quasi.PeriodHistoryMatchEstimate"
-composed_caller = "antecedent.analyze(query=PeriodHistoryMatch) -> _native analyze -> HistoryMatchSection (python/src/unlicensed_design_api.rs) -> quasi.PeriodHistoryMatchEstimate"
+composed_caller = "antecedent.analyze(query=PeriodHistoryMatch) -> _native analyze -> HistoryMatchSection (python/src/unsupported_design_api.rs) -> quasi.PeriodHistoryMatchEstimate"
 required_dimensions = ["success", "inspection"]
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
+test = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 assertion_scopes = ["test_period_history_match_matches_the_brute_force_reference"]
 dimensions = ["success", "controls", "inspection"]
-assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unlicensed with the abadie_imbens_and_newey_west_period_interval_calibration_unmeasured uncertainty label."
+assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_unmeasured uncertainty label."
 
 [[capability]]
 id = "analysis.batch.retarget"
@@ -10892,7 +10892,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_dose_grid_posterior.py::test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"
 assertion_scopes = ["test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The level posterior's exact mean and covariance equal an independent numpy conjugate ridge posterior to 1e-9, the Monte Carlo moments agree, cross-grid covariance is retained, and the row is unlicensed, uncalibrated, estimator bayesian.dose_grid with exported bytes."
+assertion_contract = "The level posterior's exact mean and covariance equal an independent numpy conjugate ridge posterior to 1e-9, the Monte Carlo moments agree, cross-grid covariance is retained, and the row is unsupported, uncalibrated, estimator bayesian.dose_grid with exported bytes."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid_posterior.py::test_derivative_and_contrast_use_the_same_joint_draws"
 assertion_scopes = ["test_derivative_and_contrast_use_the_same_joint_draws"]
@@ -10981,7 +10981,7 @@ assertion_contract = "Reordering claims and contrast terms leaves the family id,
 test = "python/tests/test_batch_retarget.py::test_a_partial_family_lists_the_failed_members_and_is_never_complete"
 assertion_scopes = ["test_a_partial_family_lists_the_failed_members_and_is_never_complete"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A spiked-weight, a short-weight and a dependent contrast are listed as failed members with refusal codes, the family is never complete, and complete_family refuses cell_not_licensed naming them."
+assertion_contract = "A spiked-weight, a short-weight and a dependent contrast are listed as failed members with refusal codes, the family is never complete, and complete_family refuses not_supported naming them."
 [[capability.evidence]]
 test = "python/tests/test_batch_retarget.py::test_a_malformed_family_is_refused_with_a_registered_reason"
 assertion_scopes = ["test_a_malformed_family_is_refused_with_a_registered_reason"]
@@ -11005,7 +11005,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_randomized_experiment.py::test_bayesian_finite_population_is_the_default_and_matches_enumeration"
 assertion_scopes = ["test_bayesian_finite_population_is_the_default_and_matches_enumeration"]
 dimensions = ["success", "branch"]
-assertion_contract = "The finite-population posterior mean and sd equal an independent Beta-Binomial enumeration within 5e-3 and 6e-3, are not licensed, and report estimand finite_population."
+assertion_contract = "The finite-population posterior mean and sd equal an independent Beta-Binomial enumeration within 5e-3 and 6e-3, are not supported, and report estimand finite_population."
 [[capability.evidence]]
 test = "python/tests/test_randomized_experiment.py::test_bayesian_superpopulation_is_selected_by_estimator_id"
 assertion_scopes = ["test_bayesian_superpopulation_is_selected_by_estimator_id"]
@@ -11025,12 +11025,12 @@ assertion_contract = "A Bayesian randomized route without a design_model refuses
 test = "python/tests/test_randomized_experiment.py::test_bayesian_switchback_matches_the_whitened_least_squares_reference"
 assertion_scopes = ["test_bayesian_switchback_matches_the_whitened_least_squares_reference"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The switchback model posterior equals the whitened least-squares location, scale and 95 percent quantiles within the pinned tolerances and is unlicensed."
+assertion_contract = "The switchback model posterior equals the whitened least-squares location, scale and 95 percent quantiles within the pinned tolerances and is unsupported."
 [[capability.evidence]]
 test = "python/tests/test_randomized_experiment.py::test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_dependence"
 assertion_scopes = ["test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_dependence"]
 dimensions = ["refusal"]
-assertion_contract = "Unrestricted carryover and undeclared dependence refuse cell_not_licensed naming the washout and sensitivity next attempts."
+assertion_contract = "Unrestricted carryover and undeclared dependence refuse not_supported naming the washout and sensitivity next attempts."
 
 [[capability]]
 id = "analysis.learned_trial.PreparedLearnedTrial"
@@ -11067,14 +11067,14 @@ id = "result.quasi_rollout_estimate"
 rust_types = ["antecedent::QuasiRolloutEstimate"]
 status = "covered"
 owner = "Python API integration: antecedent::result"
-behavior = "analyze on a StaggeredRollout query returns the heterogeneity-robust rollout effects, aggregation and resampled intervals as an unlicensed, uncalibrated QuasiRolloutEstimate that exports and loads."
+behavior = "analyze on a StaggeredRollout query returns the heterogeneity-robust rollout effects, aggregation and resampled intervals as an unsupported, uncalibrated QuasiRolloutEstimate that exports and loads."
 python = "antecedent.quasi.StaggeredRollout"
 required_dimensions = ["success", "refusal", "artifact"]
 [[capability.evidence]]
 test = "python/tests/test_quasi_rollout.py::test_callaway_santanna_recovers_the_simple_aggregate_the_two_way_coefficient_misses"
 assertion_scopes = ["test_callaway_santanna_recovers_the_simple_aggregate_the_two_way_coefficient_misses"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The simple aggregate is 3.5 within 0.4 while the two-way fixed-effects diagnostic is more than 1.0 away, and the result is unlicensed, unmeasured and point-only."
+assertion_contract = "The simple aggregate is 3.5 within 0.4 while the two-way fixed-effects diagnostic is more than 1.0 away, and the result is unsupported, unmeasured and point-only."
 [[capability.evidence]]
 test = "python/tests/test_quasi_rollout.py::test_cluster_multiplier_refit_reports_intervals_and_simultaneous_bands"
 assertion_scopes = ["test_cluster_multiplier_refit_reports_intervals_and_simultaneous_bands"]
@@ -11106,10 +11106,10 @@ assertion_scopes = ["test_a_fresh_consumer_rederives_the_dynamic_summary_from_th
 dimensions = ["artifact"]
 assertion_contract = "The loaded overall estimate equals the mean of the loaded non-negative event-time effects to 1e-12."
 [[capability.evidence]]
-test = "python/tests/test_quasi_rollout.py::test_rollout_answer_is_structured_unlicensed_and_unmeasured"
-assertion_scopes = ["test_rollout_answer_is_structured_unlicensed_and_unmeasured"]
+test = "python/tests/test_quasi_rollout.py::test_rollout_answer_is_structured_unsupported_and_unmeasured"
+assertion_scopes = ["test_rollout_answer_is_structured_unsupported_and_unmeasured"]
 dimensions = ["inspection"]
-assertion_contract = "The answer is a structured unlicensed_quasi_rollout record with calibration unmeasured, licensed false, design staggered_did and the overall effect first."
+assertion_contract = "The answer is a structured unsupported_quasi_rollout record with calibration unmeasured, supported false, design staggered_did and the overall effect first."
 
 [[capability]]
 id = "result.synthetic_did_estimate"
@@ -11124,7 +11124,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_quasi_synthetic_did_augmentation.py::test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects"
 assertion_scopes = ["test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects"]
 dimensions = ["success", "inspection"]
-assertion_contract = "On an exactly additive panel the estimate is 7.0, donor and time weights each sum to 1, three donors and pre-periods are counted, and the result is point-only with unlicensed point utility."
+assertion_contract = "On an exactly additive panel the estimate is 7.0, donor and time weights each sum to 1, three donors and pre-periods are counted, and the result is point-only with unsupported point utility."
 [[capability.evidence]]
 test = "python/tests/test_quasi_synthetic_did_augmentation.py::test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights"
 assertion_scopes = ["test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights"]
@@ -11170,8 +11170,8 @@ behavior = "StatisticalTransportQuery prepares a checked statistical transport p
 python = "antecedent.transport._impl.statistical.StatisticalTransportQuery"
 required_dimensions = ["success", "lifecycle", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_license"
-assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_license"]
+test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_support"
+assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_support"]
 dimensions = ["success", "inspection", "artifact"]
 assertion_contract = "Preparation reports identification without an interval, the estimate gives mean y 0.8 with a pointwise percentile-bootstrap interval, and the loaded export keeps the probabilities and uncertainty."
 [[capability.evidence]]
@@ -11208,12 +11208,12 @@ assertion_contract = "The point equals the hand posterior-mean conditional 31/42
 test = "python/tests/test_observation_query.py::test_count_fitted_draw_count_is_supported_from_the_minimum"
 assertion_scopes = ["test_count_fitted_draw_count_is_supported_from_the_minimum"]
 dimensions = ["controls", "refusal"]
-assertion_contract = "Draw counts 2000, 3000 and 8000 keep the point 31/42, while 1999 and 100001 draws refuse cell_not_licensed."
+assertion_contract = "Draw counts 2000, 3000 and 8000 keep the point 31/42, while 1999 and 100001 draws refuse not_supported."
 [[capability.evidence]]
 test = "python/tests/test_observation_query.py::test_count_fitted_interval_is_measured_or_a_typed_refusal"
 assertion_scopes = ["test_count_fitted_interval_is_measured_or_a_typed_refusal"]
 dimensions = ["refusal"]
-assertion_contract = "The interval is either a measured scalar bracketing the point or a cell_not_licensed refusal with a record detail, and an unmeasured level refuses."
+assertion_contract = "The interval is either a measured scalar bracketing the point or a not_supported refusal with a record detail, and an unmeasured level refuses."
 
 [[capability]]
 id = "analysis.nonlinear_mediation.mediation_effects"
@@ -11391,7 +11391,7 @@ assertion_contract = "Changing only the response value changes the claim identit
 
 [[capability]]
 id = "analysis.array_fits.ArrayFit"
-rust = ["export:antecedent::analysis::array_fits::ARRAY_FIT_CALIBRATION", "export:antecedent::analysis::array_fits::ArrayFitResultWire", "export:antecedent::analysis::array_fits::PropensityDesignWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_LICENSING", "export:antecedent::analysis::array_fits::ID_BAYESIAN_PROPENSITY", "export:antecedent::analysis::array_fits::PropensityPosteriorWire", "export:antecedent::analysis::array_fits::ArrayFitArtifactWire", "export:antecedent::analysis::array_fits::ID_BAYESIAN_TEMPORAL_PROPENSITY", "export:antecedent::analysis::array_fits::PropensityScorePosteriorWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_FEATURE", "export:antecedent::analysis::array_fits::ArrayFitError", "export:antecedent::analysis::array_fits::NamedValueWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_VERSION", "export:antecedent::analysis::array_fits::ArrayFitRequestWire", "export:antecedent::analysis::array_fits::PenalizedScoreWire", "export:antecedent::analysis::array_fits::ArrayFitConsumeLimits", "export:antecedent::analysis::array_fits::ID_TEMPORAL_PROPENSITY"]
+rust = ["export:antecedent::analysis::array_fits::ARRAY_FIT_CALIBRATION", "export:antecedent::analysis::array_fits::ArrayFitResultWire", "export:antecedent::analysis::array_fits::PropensityDesignWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_SUPPORT", "export:antecedent::analysis::array_fits::ID_BAYESIAN_PROPENSITY", "export:antecedent::analysis::array_fits::PropensityPosteriorWire", "export:antecedent::analysis::array_fits::ArrayFitArtifactWire", "export:antecedent::analysis::array_fits::ID_BAYESIAN_TEMPORAL_PROPENSITY", "export:antecedent::analysis::array_fits::PropensityScorePosteriorWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_FEATURE", "export:antecedent::analysis::array_fits::ArrayFitError", "export:antecedent::analysis::array_fits::NamedValueWire", "export:antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_VERSION", "export:antecedent::analysis::array_fits::ArrayFitRequestWire", "export:antecedent::analysis::array_fits::PenalizedScoreWire", "export:antecedent::analysis::array_fits::ArrayFitConsumeLimits", "export:antecedent::analysis::array_fits::ID_TEMPORAL_PROPENSITY"]
 rust_types = ["antecedent::analysis::array_fits::ArrayFit", "antecedent::analysis::array_fits::RetainedArrayFitEncoding"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::array_fits"
@@ -11437,7 +11437,7 @@ required_dimensions = ["success", "controls", "refusal"]
 test = "python/tests/test_nuisance_scores.py::test_the_product_matches_newton_and_a_laplace_sample"
 assertion_scopes = ["test_the_product_matches_newton_and_a_laplace_sample"]
 dimensions = ["success", "controls"]
-assertion_contract = "For two prior scales the declared summary rows' at-mode scores equal an independent Newton logistic mode to 1e-5, the posterior mean, sd and outside-band mass match a large Laplace sample, the estimator id is bayesian.propensity.coefficient_posterior and the product is unlicensed with unmeasured calibration."
+assertion_contract = "For two prior scales the declared summary rows' at-mode scores equal an independent Newton logistic mode to 1e-5, the posterior mean, sd and outside-band mass match a large Laplace sample, the estimator id is bayesian.propensity.coefficient_posterior and the product is unsupported with unmeasured calibration."
 [[capability.evidence]]
 test = "python/tests/test_nuisance_scores.py::test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean"
 assertion_scopes = ["test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean"]
@@ -11482,7 +11482,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_association_compiled.py::test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"
 assertion_scopes = ["test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with an HC1 sandwich standard error, is unlicensed with unmeasured calibration, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
+assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with an HC1 sandwich standard error, is unsupported with unmeasured calibration, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
 [[capability.evidence]]
 test = "python/tests/test_association_compiled.py::test_correlations_and_a_scored_predictive_model"
 assertion_scopes = ["test_correlations_and_a_scored_predictive_model"]
@@ -11548,12 +11548,12 @@ assertion_contract = "A complete family reports estimated scores, a symmetric co
 test = "python/tests/test_batch_retarget.py::test_a_partial_family_lists_the_failed_members_and_is_never_complete"
 assertion_scopes = ["test_a_partial_family_lists_the_failed_members_and_is_never_complete"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A family with a spiked and a short-weight member is not complete, lists failed members spiked, short and good_minus_spiked with cell_not_licensed or invalid_argument refusal codes, complete_family raises CausalUnsupportedError naming them, and tidy rows mark every failed member."
+assertion_contract = "A family with a spiked and a short-weight member is not complete, lists failed members spiked, short and good_minus_spiked with not_supported or invalid_argument refusal codes, complete_family raises CausalUnsupportedError naming them, and tidy rows mark every failed member."
 [[capability.evidence]]
 test = "python/tests/test_batch_retarget.py::test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal"
 assertion_scopes = ["test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal"]
 dimensions = ["success", "refusal", "controls"]
-assertion_contract = "The declared level, seed and draws (0.9, 5, 20000) are echoed, the critical value lies in (1.6448, 2.4), members equal value +/- critical value times standard error and exceed marginal bands; a partial family has no band (cell_not_licensed, partial_family) and an invalid level refuses max_t_invalid_level."
+assertion_contract = "The declared level, seed and draws (0.9, 5, 20000) are echoed, the critical value lies in (1.6448, 2.4), members equal value +/- critical value times standard error and exceed marginal bands; a partial family has no band (not_supported, partial_family) and an invalid level refuses max_t_invalid_level."
 [[capability.evidence]]
 test = "python/tests/test_batch_retarget.py::test_the_tidy_export_carries_identity_provenance_and_failed_members"
 assertion_scopes = ["test_the_tidy_export_carries_identity_provenance_and_failed_members"]
@@ -12164,7 +12164,7 @@ assertion_contract = "Levels for a continuous model, conditioning and intervenin
 test = "python/tests/test_observation_query.py::test_interval_and_calibrated_probability_are_closed"
 assertion_scopes = ["test_interval_and_calibrated_probability_are_closed"]
 dimensions = ["refusal"]
-assertion_contract = "A declared-model claim refuses interval and calibrated-probability readings with cell_not_licensed and their closed details."
+assertion_contract = "A declared-model claim refuses interval and calibrated-probability readings with not_supported and their closed details."
 
 [[capability]]
 id = "cyclic.system_and_family_lifecycle"
@@ -12212,14 +12212,14 @@ rust = ["export:antecedent::analysis::RecoveredDrawOriginWire"]
 rust_types = ["antecedent::analysis::cyclic_evidence::CyclicEvidence", "antecedent::analysis::cyclic_evidence::CyclicEvidenceColumn", "antecedent::analysis::cyclic_evidence::CyclicEvidenceReport", "antecedent::analysis::cyclic_evidence::CyclicEvidenceSchema", "antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector", "antecedent::analysis::cyclic_evidence::CyclicSystemBridgeProvenance", "antecedent::analysis::cyclic_evidence::CyclicSystemFamilyBridge"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::cyclic_evidence"
-behavior = "Cyclic results and prepared families publish typed CyclicEvidence columns from declared schemas and selectors, retain native recovery origins and the system-to-family bridge provenance, refuse an unlicensed joint law, and export evidence a fresh consumer re-derives."
+behavior = "Cyclic results and prepared families publish typed CyclicEvidence columns from declared schemas and selectors, retain native recovery origins and the system-to-family bridge provenance, refuse an unsupported joint law, and export evidence a fresh consumer re-derives."
 python = "antecedent.cyclic.CyclicResult.evidence"
 required_dimensions = ["success", "inspection", "refusal", "artifact", "lifecycle", "branch"]
 [[capability.evidence]]
 test = "python/tests/test_cyclic.py::test_native_cyclic_evidence_decision_and_fresh_process_replay"
 assertion_scopes = ["test_native_cyclic_evidence_decision_and_fresh_process_replay"]
 dimensions = ["success", "inspection", "artifact", "lifecycle", "refusal"]
-assertion_contract = "An OU mean selector gives a one-sample mean column of 3.0 with its quantity, a decision over it reports the model-conditional scope, the evidence replays in a fresh process and under a changed population identity, another identity refuses, and an unlicensed joint law refuses joint_law_required."
+assertion_contract = "An OU mean selector gives a one-sample mean column of 3.0 with its quantity, a decision over it reports the model-conditional scope, the evidence replays in a fresh process and under a changed population identity, another identity refuses, and an unsupported joint law refuses joint_law_required."
 [[capability.evidence]]
 test = "python/tests/test_cyclic.py::test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings"
 assertion_scopes = ["test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings"]
@@ -12259,7 +12259,7 @@ assertion_contract = "The p0 versus p1 contrast has difference -1 and se 0.5 und
 test = "python/tests/test_effect_constancy_review.py::test_original_catalog_filtering_does_not_turn_preference_into_transfer_authority"
 assertion_scopes = ["test_original_catalog_filtering_does_not_turn_preference_into_transfer_authority"]
 dimensions = ["success", "branch"]
-assertion_contract = "Ranking drops the entry whose outcome differs, orders near before far with the oracle score, marks data-dependent selection and licenses no posterior transfer."
+assertion_contract = "Ranking drops the entry whose outcome differs, orders near before far with the oracle score, marks data-dependent selection and supports no posterior transfer."
 [[capability.evidence]]
 test = "python/tests/test_effect_constancy_review.py::test_original_point_policy_handles_disagreement_ties_and_semantic_refusals"
 assertion_scopes = ["test_original_point_policy_handles_disagreement_ties_and_semantic_refusals"]
@@ -12344,7 +12344,7 @@ required_dimensions = ["success", "inspection", "refusal", "artifact", "lifecycl
 test = "python/tests/test_whole_path_account.py::test_the_account_is_the_enumerated_spread_bound_to_its_execution"
 assertion_scopes = ["test_the_account_is_the_enumerated_spread_bound_to_its_execution"]
 dimensions = ["success", "inspection", "refusal"]
-assertion_contract = "The account of three units equals the enumerated values 5/7, 1 and 0.7 with variances 10/49, 0 and 0.21, mean 169/210, realized variance 2029/44100 and sampling variance 2526/264600 to 1e-12, binds the execution receipt digest, lists four sources and keeps interval and posterior closed cell_not_licensed."
+assertion_contract = "The account of three units equals the enumerated values 5/7, 1 and 0.7 with variances 10/49, 0 and 0.21, mean 169/210, realized variance 2029/44100 and sampling variance 2526/264600 to 1e-12, binds the execution receipt digest, lists four sources and keeps interval and posterior closed not_supported."
 [[capability.evidence]]
 test = "python/tests/test_whole_path_account.py::test_a_fresh_consumer_derives_the_same_account_from_the_artifact"
 assertion_scopes = ["test_a_fresh_consumer_derives_the_same_account_from_the_artifact"]
@@ -12381,7 +12381,7 @@ required_dimensions = ["success", "refusal", "branch", "inspection"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.stage.progressive_events"
@@ -12473,8 +12473,8 @@ behavior = "A statistical transport study prepares a checked plan from regime sa
 python = "antecedent.transport._impl.statistical.StatisticalTransportQuery"
 required_dimensions = ["success", "inspection", "lifecycle", "branch", "artifact", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_license"
-assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_license"]
+test = "python/tests/test_transport_statistical.py::test_statistical_prepare_estimate_and_inspect_support"
+assertion_scopes = ["test_statistical_prepare_estimate_and_inspect_support"]
 dimensions = ["success", "inspection", "artifact"]
 assertion_contract = "Preparation retains the checked derivation with uncertainty not_executed, estimation gives mean 0.8 with a pointwise percentile-bootstrap row, and the loaded result equals the live probabilities and uncertainty."
 [[capability.evidence]]
@@ -12586,7 +12586,7 @@ assertion_contract = "The simultaneous band refuses dose_grid.simultaneous_band_
 test = "python/tests/test_dose_grid.py::test_unsupported_doses_refuse_and_the_support_table_labels_them"
 assertion_scopes = ["test_unsupported_doses_refuse_and_the_support_table_labels_them"]
 dimensions = ["refusal", "inspection"]
-assertion_contract = "The support table labels outside_empirical_support, supported and weak_overlap, and an unsupported dose or insufficient local weight refuses cell_not_licensed."
+assertion_contract = "The support table labels outside_empirical_support, supported and weak_overlap, and an unsupported dose or insufficient local weight refuses not_supported."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid.py::test_export_consume_round_trip_recomputes_the_result"
 assertion_scopes = ["test_export_consume_round_trip_recomputes_the_result"]
@@ -12636,7 +12636,7 @@ required_dimensions = ["success", "inspection", "refusal", "branch"]
 test = "python/tests/test_temporal_designs.py::test_the_two_arm_excursion_recovers_the_effect_in_both_modes"
 assertion_scopes = ["test_the_two_arm_excursion_recovers_the_effect_in_both_modes"]
 dimensions = ["success", "inspection", "branch"]
-assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, is unlicensed with unmeasured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
+assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, is unsupported with unmeasured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
 [[capability.evidence]]
 test = "python/tests/test_temporal_designs.py::test_the_local_quadratic_dose_grid_needs_its_curvature_bound"
 assertion_scopes = ["test_the_local_quadratic_dose_grid_needs_its_curvature_bound"]
@@ -12654,21 +12654,21 @@ rust = ["export:antecedent::query::SequentialContrastQuery", "export:antecedent:
 rust_types = ["antecedent::SequentialContrastEstimate"]
 status = "covered"
 owner = "Python API integration: antecedent::result"
-behavior = "A sequential contrast query cross-fits two regimes into a SequentialContrastEstimate with scores and an unlicensed normal interval or a modular Dirichlet posterior, and refuses an estimator/inference mismatch and a positivity violation."
+behavior = "A sequential contrast query cross-fits two regimes into a SequentialContrastEstimate with scores and an unsupported normal interval or a modular Dirichlet posterior, and refuses an estimator/inference mismatch and a positivity violation."
 python = "antecedent.regimes.SequentialContrast"
 required_dimensions = ["success", "inspection", "refusal", "branch"]
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_sequential_contrast_normal_interval_matches_the_pinned_reference"
+test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_normal_interval_matches_the_pinned_reference"
 assertion_scopes = ["test_sequential_contrast_normal_interval_matches_the_pinned_reference"]
 dimensions = ["success", "inspection"]
-assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the estimate is unlicensed with unmeasured calibration."
+assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the estimate is unsupported with unmeasured calibration."
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"
+test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"
 assertion_scopes = ["test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
 dimensions = ["branch", "success"]
 assertion_contract = "The Bayesian estimator has no interval or standard error, its draws have mean near the contrast within 0.05 and standard deviation within 8 percent of the modular Dirichlet value."
 [[capability.evidence]]
-test = "python/tests/test_unlicensed_design_routes.py::test_sequential_contrast_refusals_and_estimator_ids_are_typed"
+test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_refusals_and_estimator_ids_are_typed"
 assertion_scopes = ["test_sequential_contrast_refusals_and_estimator_ids_are_typed"]
 dimensions = ["refusal"]
 assertion_contract = "A Bayesian estimator without Bayesian inference refuses estimator_inference_mismatch and a probability floor above the observed action probability refuses positivity_violated."
@@ -12686,7 +12686,7 @@ required_dimensions = ["success", "inspection", "branch", "lifecycle"]
 test = "python/tests/test_plan_view.py::test_plan_view_reads_every_layer_before_any_estimate"
 assertion_scopes = ["test_plan_view_reads_every_layer_before_any_estimate"]
 dimensions = ["success", "inspection", "lifecycle"]
-assertion_contract = "A prepared linear-adjustment average effect states route StaticAteDag, family static_effect, depth complete, a 64-digit identity, a nonparametrically identified retained static product with estimand adjustment set [z], its listed assumptions and no unresolved obligations, the frequentist realization and estimator, a sampling uncertainty reading, a physical record with positive peak memory, a licensed support cell and no mixture; reading it leaves the handle prepared and a second read has the same identity."
+assertion_contract = "A prepared linear-adjustment average effect states route StaticAteDag, family static_effect, depth complete, a 64-digit identity, a nonparametrically identified retained static product with estimand adjustment set [z], its listed assumptions and no unresolved obligations, the frequentist realization and estimator, a sampling uncertainty reading, a physical record with positive peak memory, a supported support cell and no mixture; reading it leaves the handle prepared and a second read has the same identity."
 [[capability.evidence]]
 test = "python/tests/test_plan_view.py::test_plan_view_identity_is_the_executed_program"
 assertion_scopes = ["test_plan_view_identity_is_the_executed_program"]
@@ -12884,7 +12884,7 @@ assertion_contract = "Three claims and a contrast give a symmetric covariance bo
 test = "python/tests/test_batch_retarget.py::test_a_partial_family_lists_the_failed_members_and_is_never_complete"
 assertion_scopes = ["test_a_partial_family_lists_the_failed_members_and_is_never_complete"]
 dimensions = ["branch", "refusal"]
-assertion_contract = "A spiked weight and a short weight vector fail with cell_not_licensed and invalid_argument, the dependent contrast fails with no value, the family is not complete and complete_family refuses."
+assertion_contract = "A spiked weight and a short weight vector fail with not_supported and invalid_argument, the dependent contrast fails with no value, the family is not complete and complete_family refuses."
 [[capability.evidence]]
 test = "python/tests/test_batch_retarget.py::test_a_malformed_family_is_refused_with_a_registered_reason"
 assertion_scopes = ["test_a_malformed_family_is_refused_with_a_registered_reason"]
@@ -13017,7 +13017,7 @@ required_dimensions = ["success", "refusal", "lifecycle"]
 test = "python/tests/test_continuous_dose_response.py::test_stratified_continuous_dose_response_recovers_known_linear_truth"
 assertion_scopes = ["test_stratified_continuous_dose_response_recovers_known_linear_truth"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The stratified responses equal the known linear truth (control 1 and 2, treated 10 and 11), each point has 3 local rows, the effective sample size 1682/769 and minimum density 0.5, no policy value is estimated, uncertainty is point_only_no_interval and support is unlicensed_point_utility."
+assertion_contract = "The stratified responses equal the known linear truth (control 1 and 2, treated 10 and 11), each point has 3 local rows, the effective sample size 1682/769 and minimum density 0.5, no policy value is estimated, uncertainty is point_only_no_interval and support is unsupported_point_utility."
 [[capability.evidence]]
 test = "python/tests/test_continuous_dose_response.py::test_continuous_dose_response_refuses_zero_density_and_unsupported_targets"
 assertion_scopes = ["test_continuous_dose_response_refuses_zero_density_and_unsupported_targets"]
@@ -13032,7 +13032,7 @@ assertion_contract = "A bad density provenance and a bad bandwidth refuse."
 test = "python/tests/test_continuous_dose_response.py::test_retained_continuous_dose_matches_direct_kernel_and_artifact"
 assertion_scopes = ["test_retained_continuous_dose_matches_direct_kernel_and_artifact"]
 dimensions = ["lifecycle", "artifact"]
-assertion_contract = "The prepared, rebound, analyzed and loaded estimates equal the direct kernel grid and the loaded artifact answer keeps the response 11 at the last point and the unlicensed point-utility status."
+assertion_contract = "The prepared, rebound, analyzed and loaded estimates equal the direct kernel grid and the loaded artifact answer keeps the response 11 at the last point and the unsupported point-utility status."
 [[capability.evidence]]
 test = "python/tests/test_continuous_dose_response.py::test_retained_continuous_dose_refuses_support_and_row_rebinding"
 assertion_scopes = ["test_retained_continuous_dose_refuses_support_and_row_rebinding"]
@@ -13078,7 +13078,7 @@ required_dimensions = ["success", "refusal", "lifecycle"]
 test = "python/tests/test_local_polynomial_rd.py::test_fuzzy_rd_local_quadratic_recovers_known_local_effect"
 assertion_scopes = ["test_fuzzy_rd_local_quadratic_recovers_known_local_effect"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The ratio estimate is 3 to 1e-10 with first-stage jump 0.5, reduced-form jump 1.5, 316 observations per side, a positive standard error, an interval containing the estimate, the rbc fixed-bandwidth uncertainty label, licensed support and the listed assumptions and diagnostics."
+assertion_contract = "The ratio estimate is 3 to 1e-10 with first-stage jump 0.5, reduced-form jump 1.5, 316 observations per side, a positive standard error, an interval containing the estimate, the rbc fixed-bandwidth uncertainty label, supported support and the listed assumptions and diagnostics."
 [[capability.evidence]]
 test = "python/tests/test_local_polynomial_rd.py::test_fuzzy_regression_kink_recovers_known_local_effect"
 assertion_scopes = ["test_fuzzy_regression_kink_recovers_known_local_effect"]
@@ -13107,7 +13107,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_dose_grid_posterior.py::test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"
 assertion_scopes = ["test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The posterior row is estimator bayesian.dose_grid, posterior, unmeasured and unlicensed, its exact mean and covariance equal the conjugate reference to 1e-9, the Monte Carlo mean is within 0.01 and the joint covariance within 5 percent of the exact one and positively correlated across doses."
+assertion_contract = "The posterior row is estimator bayesian.dose_grid, posterior, unmeasured and unsupported, its exact mean and covariance equal the conjugate reference to 1e-9, the Monte Carlo mean is within 0.01 and the joint covariance within 5 percent of the exact one and positively correlated across doses."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid_posterior.py::test_derivative_and_contrast_use_the_same_joint_draws"
 assertion_scopes = ["test_derivative_and_contrast_use_the_same_joint_draws"]
@@ -13291,7 +13291,7 @@ rust = ["export:antecedent::CounterfactualQuery", "export:antecedent::gcm::neste
 rust_types = ["antecedent::gcm::NestedCounterfactualOperation"]
 status = "covered"
 owner = "Python API integration: gcm"
-behavior = "Prepare and estimate a nested counterfactual (natural direct effect) on the licensed three-node DAG with shared exogenous draws, as a staged study with query and result artifacts and an explicit rebind."
+behavior = "Prepare and estimate a nested counterfactual (natural direct effect) on the supported three-node DAG with shared exogenous draws, as a staged study with query and result artifacts and an explicit rebind."
 python = "antecedent.prepare"
 required_dimensions = ["success", "artifact", "lifecycle"]
 [[capability.evidence]]
@@ -13373,7 +13373,7 @@ required_dimensions = ["success", "inspection", "artifact", "refusal"]
 test = "python/tests/test_longitudinal_retained.py::test_known_truth_regime_value_prepare_analyze_and_artifact"
 assertion_scopes = ["test_known_truth_regime_value_prepare_analyze_and_artifact"]
 dimensions = ["success", "inspection", "artifact", "lifecycle"]
-assertion_contract = "With p = 0.5 over two periods the regime value is 4.0 with effective sample size 1, matched fraction 0.25, maximum weight 4, point-only uncertainty with its interval reason, known sequential randomization and unlicensed support; analyze equals prepare, the artifact and query round-trip, and a misaligned rebind is refused."
+assertion_contract = "With p = 0.5 over two periods the regime value is 4.0 with effective sample size 1, matched fraction 0.25, maximum weight 4, point-only uncertainty with its interval reason, known sequential randomization and unsupported support; analyze equals prepare, the artifact and query round-trip, and a misaligned rebind is refused."
 [[capability.evidence]]
 test = "python/tests/test_longitudinal_retained.py::test_retained_ipw_interval_on_independent_subject_histories_round_trips"
 assertion_scopes = ["test_retained_ipw_interval_on_independent_subject_histories_round_trips"]
@@ -13518,7 +13518,7 @@ assertion_contract = "Reordering claims and contrast coefficients leaves the fam
 test = "python/tests/test_batch_retarget.py::test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal"
 assertion_scopes = ["test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal"]
 dimensions = ["controls", "refusal"]
-assertion_contract = "The 0.9 band with seed 5 and 20000 draws has a critical value between 1.6448 and 2.4 and member bounds value +/- c*se; a partial family refuses its band with cell_not_licensed and partial_family, and level 1.5 is refused as max_t_invalid_level."
+assertion_contract = "The 0.9 band with seed 5 and 20000 draws has a critical value between 1.6448 and 2.4 and member bounds value +/- c*se; a partial family refuses its band with not_supported and partial_family, and level 1.5 is refused as max_t_invalid_level."
 
 [[capability]]
 id = "transport.exact.PreparedExactTransport"
@@ -13573,7 +13573,7 @@ assertion_contract = "Moving target mass from z=1 to z=0 changes the NDE by exac
 test = "python/tests/test_transported_counterfactual.py::test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"
 assertion_scopes = ["test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"]
 dimensions = ["refusal"]
-assertion_contract = "Each undeclared premise is refused as cell_not_licensed with its own detail (nonadditive_mechanism, noise_law_not_shared, cross_world_independence_missing)."
+assertion_contract = "Each undeclared premise is refused as not_supported with its own detail (nonadditive_mechanism, noise_law_not_shared, cross_world_independence_missing)."
 [[capability.evidence]]
 test = "python/tests/test_transported_counterfactual.py::test_x8t_artifact_round_trips_and_replays"
 assertion_scopes = ["test_x8t_artifact_round_trips_and_replays"]
@@ -13693,7 +13693,7 @@ assertion_contract = "A period change recomputes the temporal score stage, reuse
 test = "python/tests/test_mixed_decision.py::test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"
 assertion_scopes = ["test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims"]
 dimensions = ["success", "lifecycle", "artifact", "refusal", "branch"]
-assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_license_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
+assertion_contract = "Withdrawing the cluster trial withdraws trial, margin bridge and decision (authority not retained) and keeps the temporal and cost claims valid, require_valid refuses claim_support_withdrawn, decision, export, utility, prior, period and load all refuse evidence_ledger.*, the historical replay numbers and the other routes are unchanged, and the sealed classification replays in a fresh consumer."
 
 [[capability]]
 id = "unrouted.03"
@@ -14322,7 +14322,7 @@ assertion_contract = "One-hot terms select the level with hand values 3.5, 2.0 a
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Queries outside the support, missing, unknown, non-finite or mistyped refuse with cell_not_licensed and the exact compact_export details."
+assertion_contract = "Queries outside the support, missing, unknown, non-finite or mistyped refuse with not_supported and the exact compact_export details."
 
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_verifier_round_trip_matches_the_producer"
@@ -14607,7 +14607,7 @@ assertion_contract = "With reliability 0.8, regression calibration moves the nai
 test = "python/tests/test_continuous_measurement.py::test_logistic_calibration_recovers_the_slope_reproducibly"
 assertion_scopes = ["test_logistic_calibration_recovers_the_slope_reproducibly"]
 dimensions = ["success", "controls", "refusal"]
-assertion_contract = "Logistic regression calibration recovers the true slope 1.0 within 0.15 and closer than the naive slope, repeats identically under the same seed, reports uncalibrated_standard_error inference and refuses an interval with cell_not_licensed."
+assertion_contract = "Logistic regression calibration recovers the true slope 1.0 within 0.15 and closer than the naive slope, repeats identically under the same seed, reports uncalibrated_standard_error inference and refuses an interval with not_supported."
 
 [[capability.evidence]]
 test = "python/tests/test_continuous_measurement.py::test_outcome_error_under_an_identity_link_needs_no_correction"
@@ -14619,7 +14619,7 @@ assertion_contract = "Outcome error under an identity link returns the least-squ
 test = "python/tests/test_continuous_measurement.py::test_unidentified_error_variance_and_binary_outcome_error_are_refused"
 assertion_scopes = ["test_unidentified_error_variance_and_binary_outcome_error_are_refused"]
 dimensions = ["refusal"]
-assertion_contract = "Unidentified error variance refuses measurement_not_identified asking for replicates or a validation sample, binary outcome error refuses route_not_supported naming misclassification, and the nonlinear outcome operation stays cell_not_licensed."
+assertion_contract = "Unidentified error variance refuses measurement_not_identified asking for replicates or a validation sample, binary outcome error refuses route_not_supported naming misclassification, and the nonlinear outcome operation stays not_supported."
 
 [[capability.evidence]]
 test = "python/tests/test_continuous_measurement.py::test_declaration_errors_are_input_errors"
@@ -14723,7 +14723,7 @@ assertion_contract = "One-hot terms select the queried level with the hand point
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details", "refused"]
 dimensions = ["refusal"]
-assertion_contract = "Out-of-support queries refuse cell_not_licensed with the exact detail and offending subject, and a mistyped query raises a type error."
+assertion_contract = "Out-of-support queries refuse not_supported with the exact detail and offending subject, and a mistyped query raises a type error."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_masked_region_refuses_even_inside_the_support"
 assertion_scopes = ["test_compact_masked_region_refuses_even_inside_the_support", "refused"]
@@ -15035,7 +15035,7 @@ assertion_contract = "Every estimate is labelled model_based_sqrt_phi_v_phi with
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse cell_not_licensed with their exact compact_export details."
+assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse not_supported with their exact compact_export details."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_verifier_round_trip_matches_the_producer"
 assertion_scopes = ["test_compact_verifier_round_trip_matches_the_producer"]
@@ -15057,7 +15057,7 @@ id = "discovery.fci_run"
 rust = ["export:antecedent::discovery::Fci"]
 status = "covered"
 owner = "Python API integration: antecedent::discovery"
-behavior = "FCI over tabular data with background knowledge places arrowheads and tails only where tiers or required links license them."
+behavior = "FCI over tabular data with background knowledge places arrowheads and tails only where tiers or required links support them."
 python = "antecedent.discovery.FCI"
 required_dimensions = ["success", "controls"]
 [[capability.evidence]]
@@ -15126,12 +15126,12 @@ assertion_contract = "A law no response-type distribution can reproduce raises C
 test = "python/tests/test_iv_bounds_compiled.py::test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"
 assertion_scopes = ["test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The analyze section reproduces the frozen bounds within 1e-9, is unlicensed with unmeasured calibration, carries no interval or posterior and counts 20000 rows."
+assertion_contract = "The analyze section reproduces the frozen bounds within 1e-9, is unsupported with unmeasured calibration, carries no interval or posterior and counts 20000 rows."
 [[capability.evidence]]
 test = "python/tests/test_iv_bounds_compiled.py::test_the_answer_is_an_identified_set_never_a_point"
 assertion_scopes = ["test_the_answer_is_an_identified_set_never_a_point"]
 dimensions = ["inspection"]
-assertion_contract = "The answer kind is bounds with lower below upper, no point value and an unlicensed_iv_bounds detail."
+assertion_contract = "The answer kind is bounds with lower below upper, no point value and an unsupported_iv_bounds detail."
 [[capability.evidence]]
 test = "python/tests/test_iv_bounds_compiled.py::test_perfect_compliance_point_identifies_the_effect"
 assertion_scopes = ["test_perfect_compliance_point_identifies_the_effect"]
@@ -15179,7 +15179,7 @@ required_dimensions = ["success", "refusal", "controls"]
 test = "python/tests/test_white_innovation_route.py::test_a_declared_premise_gives_the_untempered_least_squares_posterior"
 assertion_scopes = ["test_a_declared_premise_gives_the_untempered_least_squares_posterior"]
 dimensions = ["success", "controls"]
-assertion_contract = "With white residuals the posterior mean equals the least-squares effect within the draw tolerance and the posterior sd equals the least-squares se within 6 percent, with an unlicensed standing."
+assertion_contract = "With white residuals the posterior mean equals the least-squares effect within the draw tolerance and the posterior sd equals the least-squares se within 6 percent, with an unsupported standing."
 [[capability.evidence]]
 test = "python/tests/test_white_innovation_route.py::test_autocorrelated_innovations_refuse_the_declaration_and_name_the_next_attempt"
 assertion_scopes = ["test_autocorrelated_innovations_refuse_the_declaration_and_name_the_next_attempt"]
@@ -15387,7 +15387,7 @@ assertion_contract = "The result and the body scope state point prediction with 
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse with cell_not_licensed and the exact compact_export details and offending quantity."
+assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse with not_supported and the exact compact_export details and offending quantity."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_masked_region_refuses_even_inside_the_support"
 assertion_scopes = ["test_compact_masked_region_refuses_even_inside_the_support"]
@@ -15581,7 +15581,7 @@ assertion_contract = "A violated instrumental inequality is named."
 test = "python/tests/test_iv_bounds_compiled.py::test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"
 assertion_scopes = ["test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The compiled study reproduces the frozen bounds to 1e-9, unlicensed and unmeasured."
+assertion_contract = "The compiled study reproduces the frozen bounds to 1e-9, unsupported and unmeasured."
 [[capability.evidence]]
 test = "python/tests/test_iv_bounds_compiled.py::test_the_answer_is_an_identified_set_never_a_point"
 assertion_scopes = ["test_the_answer_is_an_identified_set_never_a_point"]
@@ -15799,7 +15799,7 @@ assertion_contract = "A transport_estimate payload (ipw, aipw, selection and tre
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
 assertion_scopes = ["test_route_transport_tabular_explicit"]
 dimensions = ["success", "inspection", "lifecycle"]
-assertion_contract = "The licensed transport cell retains its study and reports treatment overlap 0.5/0.5 and a selection minimum equal to the supplied trial minimum."
+assertion_contract = "The supported transport cell retains its study and reports treatment overlap 0.5/0.5 and a selection minimum equal to the supplied trial minimum."
 
 [[capability]]
 id = "unrouted.34"
@@ -16283,15 +16283,15 @@ id = "policy.support.route"
 rust = ["export:antecedent::gcm::PolicyRoute"]
 status = "plumbing"
 owner = "Python API integration: antecedent::gcm"
-behavior = "The licence of a policy on each execution route (simulation, counterfactual execution, observational identification)."
+behavior = "The support of a policy on each execution route (simulation, counterfactual execution, observational identification)."
 python = "antecedent.intervention_programs.policy_support"
 composed_caller = "intervention_programs.policy_support -> _native.policy_support -> support_dict -> PolicySupport::decision(PolicyRoute::{Simulation, CounterfactualExecution, ObservationalIdentification})"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_intervention_programs.py::test_policy_support_licenses_each_execution_route_separately"
-assertion_scopes = ["test_policy_support_licenses_each_execution_route_separately"]
+test = "python/tests/test_intervention_programs.py::test_policy_support_supports_each_execution_route_separately"
+assertion_scopes = ["test_policy_support_supports_each_execution_route_separately"]
 dimensions = ["success", "branch", "refusal"]
-assertion_contract = "A transform of the generated value is licensed for simulation and counterfactual execution and refused for observational identification with policy_route_not_licensed; a hard level is licensed on all three routes with no reason code; an assignment reading another variable is simulation-only."
+assertion_contract = "A transform of the generated value is supported for simulation and counterfactual execution and refused for observational identification with policy_route_not_supported; a hard level is supported on all three routes with no reason code; an assignment reading another variable is simulation-only."
 
 [[capability]]
 id = "policy.temporal_plan"
@@ -16373,24 +16373,24 @@ dimensions = ["inspection", "refusal"]
 assertion_contract = "With no evidence regime the proof graph's factors all name a binding failure and no supplier."
 
 [[capability]]
-id = "support.graphless_license"
+id = "support.graphless_support"
 rust = ["export:antecedent::support::GraphlessSupportKey"]
 status = "plumbing"
 owner = "Python API integration: antecedent::support"
-behavior = "The exact graphless design/method/inference license every graph-free checked analysis is classified under before it publishes an interval."
+behavior = "The exact graphless design/method/inference support every graph-free checked analysis is classified under before it publishes an interval."
 python = "antecedent.analyze"
 composed_caller = "antecedent.analyze(PanelDifferenceInDifferences / MultiActionPolicyValue) -> checked_* graphless executors -> classify_graphless(GraphlessSupportKey) -> support_status"
 required_dimensions = ["success", "refusal"]
 [[capability.evidence]]
-test = "python/tests/test_quasi_did.py::test_supported_repeated_cross_section_did_has_exact_graphless_license"
-assertion_scopes = ["test_supported_repeated_cross_section_did_has_exact_graphless_license"]
+test = "python/tests/test_quasi_did.py::test_supported_repeated_cross_section_did_has_exact_graphless_support"
+assertion_scopes = ["test_supported_repeated_cross_section_did_has_exact_graphless_support"]
 dimensions = ["success", "artifact"]
-assertion_contract = "A supported repeated cross-section DID recovers the effect 2.0 with a published interval, reports support_status licensed, and the loaded artifact states graphless_support_status licensed."
+assertion_contract = "A supported repeated cross-section DID recovers the effect 2.0 with a published interval, reports support_status supported, and the loaded artifact states graphless_support_status supported."
 [[capability.evidence]]
 test = "python/tests/test_doubly_robust_policy.py::test_retained_multi_action_cate_interval_and_sparse_refusal"
 assertion_scopes = ["test_retained_multi_action_cate_interval_and_sparse_refusal"]
 dimensions = ["success", "branch", "refusal", "artifact"]
-assertion_contract = "A well-supported multi-action CATE is licensed with pointwise 95% intervals covering the truths 1.0 and 3.0 and the loaded artifact states licensed; the same query on 299 rows is outside the license and publishes point-only values with no interval."
+assertion_contract = "A well-supported multi-action CATE is supported with pointwise 95% intervals covering the truths 1.0 and 3.0 and the loaded artifact states supported; the same query on 299 rows is outside the support and publishes point-only values with no interval."
 
 [[capability]]
 id = "identify.envelope.probability_mass"
@@ -16574,7 +16574,7 @@ assertion_contract = "A capacity 4, cost 0.25, budget 1.0 policy over the availa
 test = "python/tests/test_doubly_robust_policy.py::test_retained_finite_class_regret_has_simultaneous_bound_and_artifact"
 assertion_scopes = ["test_retained_finite_class_regret_has_simultaneous_bound_and_artifact"]
 dimensions = ["branch", "artifact", "refusal"]
-assertion_contract = "The finite-class regret against the best of four prespecified candidates is positive with an interval containing it and a licensed support status, the loaded artifact keeps the selected index 1, and regret training ids that overlap the evaluation ids are refused."
+assertion_contract = "The finite-class regret against the best of four prespecified candidates is positive with an interval containing it and a supported support status, the loaded artifact keeps the selected index 1, and regret training ids that overlap the evaluation ids are refused."
 
 # --- surface items claimed by the rows that execute them ---
 

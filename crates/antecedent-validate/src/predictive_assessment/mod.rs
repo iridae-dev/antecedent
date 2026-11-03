@@ -34,7 +34,7 @@
 //! * No interval for a score or a score difference outside a measured design: the
 //!   interval of an expected score ([`expected_score_interval`]) is published only for a
 //!   held-out or unfitted predictor, under a declared dependence, where a current
-//!   coverage record measured the construction (`cell_not_licensed` elsewhere).
+//!   coverage record measured the construction (`not_supported` elsewhere).
 //!   An exact finite-law expected score has no sampling interval to report.
 //! * No calibration guarantee for the assessed law and no causal validity: a good
 //!   score says the law predicted these observations well, not that any model

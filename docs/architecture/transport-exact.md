@@ -57,7 +57,7 @@ standardizer is checked as a supplementary do-calculus rule and requires
 observed nondescendants of treatment. It considers at most 20 candidate
 coordinates. Diagnostics report searched alternatives, missing factors,
 exhaustion, and proposed future experiments separately from missing existing
-evidence. Successful binding does not license arbitrary finite-catalog
+evidence. Successful binding does not support arbitrary finite-catalog
 completeness. Memo keys include graph, selections, query, current kernel,
 population and evidence scope; step, depth, memory and cancellation controls
 apply to solving and verification.
@@ -153,7 +153,7 @@ across every leaf and treatment-grid point. The grid is evaluated within one
 outer resampling transaction; original replicate IDs align contrasts. Unknown, linked-unit, and clustered
 dependence keep identification and withhold the interval. Failed replicates
 are counted; intervals are pointwise percentile intervals of the plug-in
-functional. Trial IPW stays the separately licensed Dahabreh cell and does not
+functional. Trial IPW stays the separately supported Dahabreh cell and does not
 evaluate recursive sID.
 
 `examples/python/transport_statistical.py` is the mixed-sample walkthrough:

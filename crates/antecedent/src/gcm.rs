@@ -429,7 +429,7 @@ pub(crate) fn world_levels(
 }
 
 /// Frozen ITE target and mechanism-fitting procedure.
-/// The licensed high-level counterfactual route uses heterogeneity-capable
+/// The supported high-level counterfactual route uses heterogeneity-capable
 /// mechanism selection and shared abducted disturbances for both worlds.
 ///
 /// One outcome under one hard `Set` is the single form; several outcomes, several simultaneous
@@ -644,7 +644,7 @@ impl CheckedCounterfactualOperation {
 /// cancels out of the direct effect; under a non-separable outcome it does not.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NestedOutcomeMechanism {
-    /// Separable linear-Gaussian additive-noise outcome (the licensed
+    /// Separable linear-Gaussian additive-noise outcome (the supported
     /// point-only cell). The natural direct effect is `a·(active − control)`,
     /// which does not read the abducted disturbance, so a shared and an
     /// independent exogenous draw yield the identical value.
@@ -677,7 +677,7 @@ impl NestedOutcomeMechanism {
     }
 }
 
-/// Complete checked operation for the licensed natural direct effect route.
+/// Complete checked operation for the supported natural direct effect route.
 ///
 /// The operation fixes the graph, cross-world target roles, treatment levels,
 /// and shared-exogenous execution procedure at preparation time.
@@ -749,7 +749,7 @@ impl NestedCounterfactualOperation {
     /// the fitted outcome mechanism differs. This is the variant under which the
     /// shared abduced exogenous draw is observable: the direct effect reads the
     /// frozen mediator's disturbance because the outcome is non-additive in its
-    /// parents. The licensed linear-Gaussian path (used by the staged Study
+    /// parents. The supported linear-Gaussian path (used by the staged Study
     /// route) is untouched.
     #[must_use]
     pub fn with_non_separable_outcome(mut self) -> Self {
@@ -1095,7 +1095,7 @@ pub fn replay_noise(
 }
 
 /// Model-based value of a policy on one outcome, with the unintervened outcome on the same
-/// noise, and the per-route licence the policy was run under.
+/// noise, and the per-route support the policy was run under.
 ///
 /// The means are properties of the fitted model, not of the population: they are as good as the
 /// structure and the mechanisms are. Only the simulation error is quantified here
@@ -1117,7 +1117,7 @@ pub struct PolicyValue {
     pub policy_simulation_stderr: f64,
     /// Monte Carlo standard error of `mean_difference` (paired, so common noise cancels).
     pub difference_simulation_stderr: f64,
-    /// The licence of each route for this policy.
+    /// The support of each route for this policy.
     pub support: PolicySupport,
 }
 
@@ -1163,7 +1163,7 @@ fn policy_value_request(
     })
 }
 
-/// The executor of [`policy_value`] on an already compiled overlay and resolved licence, shared
+/// The executor of [`policy_value`] on an already compiled overlay and resolved support, shared
 /// by the one-shot call and [`PreparedPolicy`].
 fn policy_value_on(
     model: &CompiledCausalModel,
@@ -1201,14 +1201,14 @@ fn policy_value_on(
     })
 }
 
-/// A policy program compiled and licensed once against one fitted model, rerun without being
+/// A policy program compiled and supported once against one fitted model, rerun without being
 /// compiled again: the retained form of [`policy_value`].
 ///
 /// [`Self::prepare`] validates the program against the model (a refused program is refused
-/// there, with the registered reason code), compiles its overlay and resolves the licence of
+/// there, with the registered reason code), compiles its overlay and resolves the support of
 /// every route. [`Self::value`] then runs the executor [`policy_value`] runs, on the retained
 /// overlay, so it equals the one-shot value bit for bit at the same context.
-/// [`Self::rebind`] carries the program to a refitted model: the overlay and licence are
+/// [`Self::rebind`] carries the program to a refitted model: the overlay and support are
 /// resolved against that model, and the program itself is not compiled again.
 #[derive(Clone, Debug)]
 pub struct PreparedPolicy {
@@ -1221,7 +1221,7 @@ pub struct PreparedPolicy {
 }
 
 impl PreparedPolicy {
-    /// Compile `interventions` against `model` and resolve the licence of each route.
+    /// Compile `interventions` against `model` and resolve the support of each route.
     ///
     /// # Errors
     ///
@@ -1244,7 +1244,7 @@ impl PreparedPolicy {
     }
 
     /// The same program bound to `model` (for example the model refitted on refreshed data):
-    /// the overlay and licence are resolved against it; [`Self::program_compilations`] is
+    /// the overlay and support are resolved against it; [`Self::program_compilations`] is
     /// unchanged and [`Self::model_bindings`] grows by one.
     ///
     /// # Errors
@@ -1272,7 +1272,7 @@ impl PreparedPolicy {
         &self.interventions
     }
 
-    /// The licence of each route, fixed at preparation.
+    /// The support of each route, fixed at preparation.
     #[must_use]
     pub fn support(&self) -> &PolicySupport {
         &self.support
@@ -1284,7 +1284,7 @@ impl PreparedPolicy {
         self.program_compilations
     }
 
-    /// How many models the program's overlay and licence were resolved against.
+    /// How many models the program's overlay and support were resolved against.
     #[must_use]
     pub fn model_bindings(&self) -> u64 {
         self.model_bindings
@@ -2394,7 +2394,7 @@ mod tests {
         );
     }
 
-    /// Negative control: under the licensed *separable* linear-Gaussian outcome
+    /// Negative control: under the supported *separable* linear-Gaussian outcome
     /// the direct effect is `a·(active − control)` and never reads the frozen
     /// mediator, so the shared and disturbance-free values coincide even though
     /// the mediator carries a real abduced disturbance. This is why the linear
@@ -2451,7 +2451,7 @@ mod tests {
     /// Adversarial mechanism-underdetermination: the non-separable outcome basis
     /// cannot be fit from too few rows, and the route refuses with a typed error
     /// rather than fabricating a direct effect. This is distinct from the
-    /// graph-shape scope refusal (the graph here is the licensed nested DAG).
+    /// graph-shape scope refusal (the graph here is the supported nested DAG).
     #[test]
     fn nested_non_separable_outcome_refuses_when_basis_underdetermined() {
         let n = 8usize;
@@ -2481,7 +2481,7 @@ mod tests {
             .unwrap()
             .with_non_separable_outcome();
         let err = operation.execute(&data, &ExecutionContext::for_tests(7)).unwrap_err();
-        // The linear-Gaussian licensed path fits the same tiny sample fine, so
+        // The linear-Gaussian supported path fits the same tiny sample fine, so
         // the refusal is specific to the non-separable outcome basis.
         assert!(
             matches!(err, CausalError::Unsupported { .. } | CausalError::Model(_)),

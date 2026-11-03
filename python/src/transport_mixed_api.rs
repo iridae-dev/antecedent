@@ -369,7 +369,7 @@ impl MixedSourceStage {
         })
     }
 
-    /// Counted laws are not licensed on this route: no sampling theory backs an
+    /// Counted laws are not supported on this route: no sampling theory backs an
     /// empirical plug-in of a searched formula, so preparation refuses.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
@@ -383,8 +383,8 @@ impl MixedSourceStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedMixedSourceStage> {
         Err(crate::refusal(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "counted laws are not licensed on the mixed-source route: it publishes exact-law points only",
+            antecedent_core::reason_code!("not_supported"),
+            "counted laws are not supported on the mixed-source route: it publishes exact-law points only",
         ))
     }
 }

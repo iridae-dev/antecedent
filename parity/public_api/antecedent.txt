@@ -125,8 +125,12 @@ impl !core::marker::Freeze for antecedent::AssociationalFallback [auto]
 impl !core::marker::Freeze for antecedent::DiscoveredStructure [auto]
 impl !core::marker::Freeze for antecedent::DiscoveryPayload [auto]
 impl !core::marker::Freeze for antecedent::StudyBuilder [auto]
+impl !core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl !core::marker::Freeze for antecedent::analysis::discovered_transport::DiscoveredTransportRun [auto]
 impl !core::marker::Freeze for antecedent::analysis::file_table::FileGaussianSummary [auto]
+impl !core::marker::Freeze for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl !core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl !core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl !core::marker::Freeze for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
 impl !core::marker::Freeze for antecedent::planner::PhysicalExecutionPlan [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::AnalysisWithFallback [auto]
@@ -151,6 +155,8 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::cyclic_e
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::cyclic_evidence::CyclicEvidence [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::cyclic_evidence::CyclicSystemFamilyBridge [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::FileTableError [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::IdentifiedReferenceAttempt [auto]
@@ -201,6 +207,8 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::cyclic_evid
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::cyclic_evidence::CyclicEvidence [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::cyclic_evidence::CyclicSystemFamilyBridge [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::FileTableError [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::IdentifiedReferenceAttempt [auto]
@@ -642,6 +650,9 @@ impl core::clone::Clone for antecedent::analysis::association::AssociationPayloa
 impl core::clone::Clone for antecedent::analysis::association::PredictionScores
 impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
+impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest
+impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
+impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
 impl core::clone::Clone for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -744,6 +755,8 @@ impl core::clone::Clone for antecedent::analysis::fallback::FailureCapabilityPar
 impl core::clone::Clone for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::clone::Clone for antecedent::analysis::file_table::RowFault
 impl core::clone::Clone for antecedent::analysis::file_table::SummaryMissing
+impl core::clone::Clone for antecedent::analysis::graph_imputation::GraphImputationExpectation
+impl core::clone::Clone for antecedent::analysis::graph_imputation::GraphImputationSpec
 impl core::clone::Clone for antecedent::analysis::horizon_composition::ComposedHorizons
 impl core::clone::Clone for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -857,6 +870,8 @@ impl core::clone::Clone for antecedent::analysis::latent_class_effects::LatentCl
 impl core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 impl core::clone::Clone for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::clone::Clone for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+impl core::clone::Clone for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
+impl core::clone::Clone for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift
 impl core::clone::Clone for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::clone::Clone for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::clone::Clone for antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -1215,6 +1230,7 @@ impl core::cmp::Eq for antecedent::analysis::InterfaceContractRefusal
 impl core::cmp::Eq for antecedent::analysis::JointLawPropagationRefusal
 impl core::cmp::Eq for antecedent::analysis::MissingCarrier
 impl core::cmp::Eq for antecedent::analysis::ResolvedLatencyBudget
+impl core::cmp::Eq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::cmp::Eq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::cmp::Eq for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::cmp::Eq for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
@@ -1242,6 +1258,7 @@ impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::PriorPa
 impl core::cmp::Eq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::cmp::Eq for antecedent::analysis::file_table::RowFault
 impl core::cmp::Eq for antecedent::analysis::file_table::SummaryMissing
+impl core::cmp::Eq for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::cmp::Eq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::cmp::Eq for antecedent::analysis::joint_panel::DesignArtifactLimits
 impl core::cmp::Eq for antecedent::analysis::joint_panel::JointDesignWorldBinding
@@ -1261,6 +1278,7 @@ impl core::cmp::Eq for antecedent::analysis::joint_panel::ReferenceObligation
 impl core::cmp::Eq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 impl core::cmp::Eq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::Eq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+impl core::cmp::Eq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::cmp::Eq for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 impl core::cmp::Eq for antecedent::analysis::observation_query::ObservationQueryRefusal
 impl core::cmp::Eq for antecedent::analysis::proposal_arrival::ArrivalLimits
@@ -1596,6 +1614,7 @@ impl core::cmp::PartialEq for antecedent::analysis::array_fits::TreatmentScoreSp
 impl core::cmp::PartialEq for antecedent::analysis::association::AssociationPayload
 impl core::cmp::PartialEq for antecedent::analysis::association::PredictionScores
 impl core::cmp::PartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
+impl core::cmp::PartialEq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::cmp::PartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -1659,6 +1678,7 @@ impl core::cmp::PartialEq for antecedent::analysis::evidence_ledger::PooledInter
 impl core::cmp::PartialEq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::cmp::PartialEq for antecedent::analysis::file_table::RowFault
 impl core::cmp::PartialEq for antecedent::analysis::file_table::SummaryMissing
+impl core::cmp::PartialEq for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
 impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -1706,6 +1726,7 @@ impl core::cmp::PartialEq for antecedent::analysis::latent_class_effects::Latent
 impl core::cmp::PartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 impl core::cmp::PartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::PartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+impl core::cmp::PartialEq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::cmp::PartialEq for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::cmp::PartialEq for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::cmp::PartialEq for antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -1903,6 +1924,7 @@ impl core::cmp::PartialOrd for antecedent::analysis::recalc_receipt::RecalcSessi
 impl core::convert::From<alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<f64>)>> for antecedent::analysis::recalc_receipt::Columns
 impl core::convert::From<antecedent::BatchRetargetError> for antecedent::MemberFailure
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::FlagshipError
+impl core::convert::From<antecedent::CausalError> for antecedent::analysis::graph_imputation::GraphImputationError
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::recalc_design::DesignRunError
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::recalc_receipt::RecalcRunError
 impl core::convert::From<antecedent::CompileCause> for antecedent::CompileFailure
@@ -2109,6 +2131,7 @@ impl core::error::Error for antecedent::analysis::effect_constancy_consumers::Co
 impl core::error::Error for antecedent::analysis::evidence_plan::EvidencePlanFacadeError
 impl core::error::Error for antecedent::analysis::file_table::FileTableError
 impl core::error::Error for antecedent::analysis::file_table::PushdownCheckError
+impl core::error::Error for antecedent::analysis::graph_imputation::GraphImputationError
 impl core::error::Error for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::error::Error for antecedent::analysis::joint_panel::JointPanelError
 impl core::error::Error for antecedent::analysis::observation_query::ObservationQueryRefusal
@@ -2526,6 +2549,9 @@ impl core::fmt::Debug for antecedent::analysis::association::AssociationPayload
 impl core::fmt::Debug for antecedent::analysis::association::PredictionScores
 impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
+impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest
+impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
+impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
 impl core::fmt::Debug for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -2635,6 +2661,9 @@ impl core::fmt::Debug for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::fmt::Debug for antecedent::analysis::file_table::PushdownCheckError
 impl core::fmt::Debug for antecedent::analysis::file_table::RowFault
 impl core::fmt::Debug for antecedent::analysis::file_table::SummaryMissing
+impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputationError
+impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputationExpectation
+impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputationSpec
 impl core::fmt::Debug for antecedent::analysis::horizon_composition::ComposedHorizons
 impl core::fmt::Debug for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -2751,6 +2780,7 @@ impl core::fmt::Debug for antecedent::analysis::latent_class_effects::LatentClas
 impl core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 impl core::fmt::Debug for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::fmt::Debug for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+impl core::fmt::Debug for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::fmt::Debug for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::fmt::Debug for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::fmt::Debug for antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -3081,6 +3111,7 @@ impl core::fmt::Display for antecedent::analysis::evidence_plan::EvidencePlanFac
 impl core::fmt::Display for antecedent::analysis::file_table::FileTableError
 impl core::fmt::Display for antecedent::analysis::file_table::PushdownCheckError
 impl core::fmt::Display for antecedent::analysis::file_table::SummaryMissing
+impl core::fmt::Display for antecedent::analysis::graph_imputation::GraphImputationError
 impl core::fmt::Display for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::fmt::Display for antecedent::analysis::joint_panel::JointPanelError
 impl core::fmt::Display for antecedent::analysis::observation_query::ObservationQueryRefusal
@@ -3215,6 +3246,7 @@ impl core::marker::Copy for antecedent::analysis::ResolvedLatencyBudget
 impl core::marker::Copy for antecedent::analysis::Retention
 impl core::marker::Copy for antecedent::analysis::ScoredDecision
 impl core::marker::Copy for antecedent::analysis::UtilityReplay
+impl core::marker::Copy for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::marker::Copy for antecedent::analysis::conditional_study_ranking::ConditionalRankingLimits
 impl core::marker::Copy for antecedent::analysis::cross_world_interval::IntervalScalar
 impl core::marker::Copy for antecedent::analysis::cross_world_interval::RouteClosure
@@ -3231,6 +3263,7 @@ impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::Tr
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialRandomization
 impl core::marker::Copy for antecedent::analysis::file_table::RowFault
 impl core::marker::Copy for antecedent::analysis::file_table::SummaryMissing
+impl core::marker::Copy for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::marker::Copy for antecedent::analysis::joint_panel::DesignArtifactLimits
 impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelDesignOutcome
@@ -3245,6 +3278,7 @@ impl core::marker::Copy for antecedent::analysis::joint_panel::PanelUnitDrop
 impl core::marker::Copy for antecedent::analysis::joint_panel::ReferenceArtifactLimits
 impl core::marker::Copy for antecedent::analysis::joint_panel::ReferenceObligation
 impl core::marker::Copy for antecedent::analysis::matching_posterior_refusal::MatchingSetting
+impl core::marker::Copy for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelRowsWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
@@ -3716,6 +3750,9 @@ impl core::marker::Freeze for antecedent::analysis::association::AssociationPayl
 impl core::marker::Freeze for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -3822,6 +3859,9 @@ impl core::marker::Freeze for antecedent::analysis::file_table::FileTableError [
 impl core::marker::Freeze for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::marker::Freeze for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -3938,6 +3978,8 @@ impl core::marker::Freeze for antecedent::analysis::latent_class_effects::Latent
 impl core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Freeze for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::marker::Freeze for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::marker::Freeze for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::marker::Freeze for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Freeze for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::marker::Freeze for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -4649,6 +4691,10 @@ impl core::marker::Send for antecedent::analysis::association::AssociationPayloa
 impl core::marker::Send for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
+impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Send for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -4757,6 +4803,12 @@ impl core::marker::Send for antecedent::analysis::file_table::FileTableError [au
 impl core::marker::Send for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Send for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::marker::Send for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
+impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Send for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::marker::Send for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -4873,6 +4925,8 @@ impl core::marker::Send for antecedent::analysis::latent_class_effects::LatentCl
 impl core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::marker::Send for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Send for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::marker::Send for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::marker::Send for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::marker::Send for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Send for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::marker::Send for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -5426,6 +5480,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::Tem
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::association::AssociationPayload
 impl core::marker::StructuralPartialEq for antecedent::analysis::association::PredictionScores
+impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -5489,6 +5544,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::evidence_ledger
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::RowFault
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::SummaryMissing
+impl core::marker::StructuralPartialEq for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
 impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -5536,6 +5592,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::latent_class_ef
 impl core::marker::StructuralPartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::marker::StructuralPartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+impl core::marker::StructuralPartialEq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::marker::StructuralPartialEq for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::marker::StructuralPartialEq for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::marker::StructuralPartialEq for antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -6130,6 +6187,10 @@ impl core::marker::Sync for antecedent::analysis::association::AssociationPayloa
 impl core::marker::Sync for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
+impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -6238,6 +6299,12 @@ impl core::marker::Sync for antecedent::analysis::file_table::FileTableError [au
 impl core::marker::Sync for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
+impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Sync for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::marker::Sync for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -6354,6 +6421,8 @@ impl core::marker::Sync for antecedent::analysis::latent_class_effects::LatentCl
 impl core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Sync for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::marker::Sync for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::marker::Sync for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::marker::Sync for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Sync for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::marker::Sync for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -7067,6 +7136,10 @@ impl core::marker::Unpin for antecedent::analysis::association::AssociationPaylo
 impl core::marker::Unpin for antecedent::analysis::association::PredictionScores [auto]
 impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
+impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -7175,6 +7248,12 @@ impl core::marker::Unpin for antecedent::analysis::file_table::FileTableError [a
 impl core::marker::Unpin for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::CompiledGraphImputation [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
+impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::marker::Unpin for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -7291,6 +7370,8 @@ impl core::marker::Unpin for antecedent::analysis::latent_class_effects::LatentC
 impl core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Unpin for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::marker::Unpin for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::marker::Unpin for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::marker::Unpin for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Unpin for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::marker::Unpin for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -7999,6 +8080,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::associati
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::association::PredictionScores [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -8099,6 +8184,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_tabl
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -8203,6 +8292,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::latent_cl
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -8886,6 +8977,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::association:
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::association::PredictionScores [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -8986,6 +9081,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::PushdownCheckError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -9090,6 +9189,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::latent_class
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::multi_level_treatment::LevelRowsWire [auto]
@@ -9973,6 +10074,7 @@ pub enum antecedent::analysis::discovered_transport_trial::TrialLogicalBoundReas
 pub enum antecedent::analysis::discovered_transport_trial::TrialRandomization
 pub enum antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 pub enum antecedent::analysis::file_table::SummaryMissing
+pub enum antecedent::analysis::graph_imputation::GraphImputationError
 pub enum antecedent::analysis::joint_law_composed_basis::Resolution
 pub enum antecedent::analysis::joint_panel::IdentifiedReferenceAttempt
 pub enum antecedent::analysis::joint_panel::JointPanelContrastUncertainty
@@ -10765,11 +10867,11 @@ pub field antecedent::QuasiRolloutEstimate::critical_value: core::option::Option
 pub field antecedent::QuasiRolloutEstimate::design: alloc::sync::Arc<str>
 pub field antecedent::QuasiRolloutEstimate::diagnostics: alloc::sync::Arc<[(alloc::sync::Arc<str>, f64)]>
 pub field antecedent::QuasiRolloutEstimate::effects: alloc::sync::Arc<[antecedent_estimate::rollout_resampling::DesignEffect]>
-pub field antecedent::QuasiRolloutEstimate::licensed: bool
 pub field antecedent::QuasiRolloutEstimate::method: alloc::sync::Arc<str>
 pub field antecedent::QuasiRolloutEstimate::replicates_failed: u32
 pub field antecedent::QuasiRolloutEstimate::replicates_ok: u32
 pub field antecedent::QuasiRolloutEstimate::replicates_requested: u32
+pub field antecedent::QuasiRolloutEstimate::supported: bool
 pub field antecedent::QuasiRolloutEstimate::uncertainty: alloc::sync::Arc<str>
 pub field antecedent::RandomizedEffectEstimate::assignment_design: alloc::sync::Arc<str>
 pub field antecedent::RandomizedEffectEstimate::assignment_units: alloc::sync::Arc<[alloc::sync::Arc<str>]>
@@ -11010,13 +11112,13 @@ pub field antecedent::TemporalDesignEstimate::draws: core::option::Option<u64>
 pub field antecedent::TemporalDesignEstimate::estimate: alloc::sync::Arc<[f64]>
 pub field antecedent::TemporalDesignEstimate::functional: alloc::sync::Arc<str>
 pub field antecedent::TemporalDesignEstimate::holm_adjusted_p: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent::TemporalDesignEstimate::licensed: bool
 pub field antecedent::TemporalDesignEstimate::lower: alloc::sync::Arc<[f64]>
 pub field antecedent::TemporalDesignEstimate::minimum_probability: f64
 pub field antecedent::TemporalDesignEstimate::pairs: u64
 pub field antecedent::TemporalDesignEstimate::replicates: core::option::Option<(u64, u64)>
 pub field antecedent::TemporalDesignEstimate::smoothing_bias_bound: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent::TemporalDesignEstimate::standard_error: alloc::sync::Arc<[f64]>
+pub field antecedent::TemporalDesignEstimate::supported: bool
 pub field antecedent::TemporalDesignEstimate::uncertainty: alloc::sync::Arc<str>
 pub field antecedent::TemporalDesignEstimate::unpaired: u64
 pub field antecedent::TemporalDesignEstimate::upper: alloc::sync::Arc<[f64]>
@@ -11456,6 +11558,11 @@ pub field antecedent::analysis::association::PredictionScores::cases: usize
 pub field antecedent::analysis::association::PredictionScores::mean_crps: core::option::Option<f64>
 pub field antecedent::analysis::association::PredictionScores::mean_score: f64
 pub field antecedent::analysis::association::PredictionScores::score: &'static str
+pub field antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest::data: antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest
+pub field antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest::posterior: antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+pub field antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest::sampling: antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
+pub field antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise::design: antecedent_core::sampling_design::SamplingDesign
+pub field antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise::subject_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::code: &'static str
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::detail: alloc::string::String
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::message: alloc::string::String
@@ -11730,7 +11837,7 @@ pub field antecedent::analysis::effect_constancy_consumers::ConstancyPolicyRevie
 pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::compatibility: alloc::vec::Vec<antecedent_io_core::prior_bank::CompatibilityReport>
 pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::data_dependent_selection: bool
 pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::evidence: antecedent::analysis::effect_constancy_consumers::ConstancyEvidence
-pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::posterior_transfer_licensed: bool
+pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::posterior_transfer_supported: bool
 pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::ranked: alloc::vec::Vec<antecedent_io_core::prior_bank::CompatibilityReport>
 pub field antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking::scores: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding::artifact_id: alloc::string::String
@@ -11768,7 +11875,7 @@ pub field antecedent::analysis::evidence_plan::StudyValueWire::label: alloc::str
 pub field antecedent::analysis::evidence_plan::StudyValueWire::provider: antecedent::analysis::design_ranking::ProviderDeclWire
 pub field antecedent::analysis::evidence_plan::StudyValueWire::reused_observation_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::analysis::evidence_plan::StudyValueWire::signal: antecedent::analysis::design_ranking::SignalDeclWire
-pub field antecedent::analysis::fallback::FailureCapabilityParts::neighbors: alloc::vec::Vec<antecedent_contract::capability::LicensedNeighbor>
+pub field antecedent::analysis::fallback::FailureCapabilityParts::neighbors: alloc::vec::Vec<antecedent_contract::capability::SupportedNeighbor>
 pub field antecedent::analysis::fallback::FailureCapabilityParts::next_actions: alloc::vec::Vec<antecedent_contract::capability::NextAction>
 pub field antecedent::analysis::fallback::FailureCapabilityParts::unmet_obligations: alloc::vec::Vec<antecedent_contract::obligation::ObligationRecord>
 pub field antecedent::analysis::file_table::FileGaussianSummary::design_columns: alloc::vec::Vec<alloc::string::String>
@@ -11783,6 +11890,21 @@ pub field antecedent::analysis::file_table::GaussianSummarySpec::intercept: bool
 pub field antecedent::analysis::file_table::GaussianSummarySpec::missing: antecedent::analysis::file_table::SummaryMissing
 pub field antecedent::analysis::file_table::GaussianSummarySpec::response: alloc::string::String
 pub field antecedent::analysis::file_table::GaussianSummarySpec::weight: core::option::Option<alloc::string::String>
+pub field antecedent::analysis::graph_imputation::GraphImputationExpectation::program: [u8; 32]
+pub field antecedent::analysis::graph_imputation::GraphImputationExpectation::receipt: [u8; 32]
+pub field antecedent::analysis::graph_imputation::GraphImputationExpectation::source: [u8; 32]
+pub field antecedent::analysis::graph_imputation::GraphImputationPoint::diagnostic_sd: f64
+pub field antecedent::analysis::graph_imputation::GraphImputationPoint::mean: f64
+pub field antecedent::analysis::graph_imputation::GraphImputationPoint::receipt: [u8; 32]
+pub field antecedent::analysis::graph_imputation::GraphImputationPoint::unidentified_by_table: alloc::vec::Vec<f64>
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::domains: alloc::sync::Arc<[u8]>
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::execution_seed: u64
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::imputation: antecedent_data::sample_policy::ImputationSpec
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::outcome: antecedent_core::ids::VariableId
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::posterior_draws: u32
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::prior_scale: f64
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::support: antecedent_core::graph_imputation_contract::GraphSupport
+pub field antecedent::analysis::graph_imputation::GraphImputationSpec::treatment: antecedent_core::ids::VariableId
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::coordinate: antecedent_contract::joint_law_rule::ComposedCoordinate
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::draws: alloc::vec::Vec<f64>
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::label: &'static str
@@ -12142,6 +12264,9 @@ pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::varyi
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::code: &'static str
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::detail: alloc::string::String
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::message: alloc::string::String
+pub field antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift::lowered_program: [u8; 32]
+pub field antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift::result: [u8; 32]
+pub field antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift::source: antecedent_io::mnar_candidate_source::ExpectedMnarSource
 pub field antecedent::analysis::multi_level_treatment::AdjustmentColumn::name: alloc::string::String
 pub field antecedent::analysis::multi_level_treatment::AdjustmentColumn::values: alloc::vec::Vec<f64>
 pub field antecedent::analysis::multi_level_treatment::LevelMeanWire::level: f64
@@ -12555,7 +12680,6 @@ pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeas
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::credible_level: f64
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::estimand: alloc::string::String
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::estimator_id: alloc::string::String
-pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::licensed: bool
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::likelihood: alloc::string::String
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::minus: u64
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::plus: u64
@@ -12564,6 +12688,7 @@ pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeas
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::route: alloc::string::String
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::selection: alloc::string::String
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::selection_premise: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::supported: bool
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::uncertainty: alloc::string::String
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::unit_arms: alloc::vec::Vec<u64>
 pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::unit_measurements: alloc::vec::Vec<alloc::vec::Vec<f64>>
@@ -13197,8 +13322,6 @@ pub fn <antecedent::CausalError>::fn route_diagnostics(&self) -> alloc::vec::Vec
 pub fn <antecedent::CausalError>::fn unsupported_inference(summary: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::CellFamilyContrast>::const fn as_str(self) -> &'static str
 pub fn <antecedent::CellFamilyContrast>::fn from_name(name: &str) -> core::option::Option<Self>
-pub fn <antecedent::CellStatus>::const fn allowlist_parent(self) -> core::option::Option<&'static str>
-pub fn <antecedent::CellStatus>::const fn allowlist_reason(self) -> core::option::Option<&'static str>
 pub fn <antecedent::CellStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent::CheckedStudyClaim>::fn claim(&self) -> &antecedent_contract::claim::ClaimEnvelope
 pub fn <antecedent::CheckedStudyClaim>::fn parents(&self) -> &[antecedent_core::identity::SemanticDigest]
@@ -13392,6 +13515,7 @@ pub fn <antecedent::GraphClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent::GraphClass>::const fn is_incomplete_temporal(self) -> bool
 pub fn <antecedent::GraphRef<'_>>::const fn class(&self) -> antecedent::GraphClass
 pub fn <antecedent::GraphRef<'_>>::fn projected_admg(&self) -> core::result::Result<core::option::Option<antecedent_graph::admg::Admg>, antecedent::CausalError>
+pub fn <antecedent::GraphSelectionPerImputation>::fn interval() -> core::result::Result<core::convert::Infallible, antecedent::CausalError>
 pub fn <antecedent::GraphSelectionPerImputation>::fn new(params: antecedent::discovery::BayesianDiscoverParams, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
 pub fn <antecedent::GraphSelectionPerImputation>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent::GraphSelectionPerImputation>::fn with_domains(self, domains: impl core::convert::Into<alloc::sync::Arc<[(alloc::sync::Arc<str>, antecedent_data::sample_policy::ImputationDomain)]>>) -> Self
@@ -13581,8 +13705,8 @@ pub fn <antecedent::PreparedMechanismComposition>::fn finite_law(&self, interven
 pub fn <antecedent::PreparedMechanismComposition>::fn interval(&self) -> core::result::Result<core::convert::Infallible, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn intervene_on(&self, outcome: &str, interventions: &[(alloc::string::String, alloc::string::String)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn intervention_law(&self, interventions: &[(&str, f64)]) -> core::result::Result<antecedent_model::compose::gaussian::JointGaussian, antecedent::MechanismCompositionRefusal>
-pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>
+pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn mean_contrast(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<f64, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::gaussian::MeanContrast) -> core::result::Result<antecedent_model::compose::gaussian::FunctionalUncertainty, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn observe(&self, request: &antecedent::analysis::observation_query::ObservationRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
@@ -14038,6 +14162,7 @@ pub fn <antecedent::Study>::fn prepare_joint_panel(data: antecedent_data::panel:
 pub fn <antecedent::Study>::fn prepare_joint_panel_imputed(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, spec: antecedent_data::sample_policy::ImputationSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PreparedJointPanelImputation, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::Study>::fn prepare_joint_panel_imputed_with_domains(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, spec: antecedent_data::sample_policy::ImputationSpec, domains: &[(alloc::sync::Arc<str>, antecedent_data::sample_policy::ImputationDomain)], _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PreparedJointPanelImputation, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::Study>::fn prepare_joint_panel_with_policy(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, missing: antecedent::analysis::joint_panel::PanelMissingPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState>, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::Study>::fn prepare_mnar_fixed_shift(source: antecedent_core::mnar_fixed_shift::FixedShiftSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift, antecedent::CausalError>
 pub fn <antecedent::Study>::fn prepare_posterior_row(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::Study>::fn prepare_recovered_linear(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::Study>::fn run(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
@@ -14472,6 +14597,7 @@ pub fn <antecedent::analysis::TransportGridResult>::fn points(&self) -> &[antece
 pub fn <antecedent::analysis::TransportGridResult>::fn reasoning(&self) -> antecedent_contract::reasoning::ReasoningView
 pub fn <antecedent::analysis::TransportGridResult>::fn scalar_projection(&self, point: usize, outcome: antecedent_core::ids::VariableId) -> core::result::Result<(f64, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::TransportGridResult>::fn variable_names(&self) -> &[alloc::string::String]
+pub fn <antecedent::analysis::TransportGridResult>::fn with_variable_names(self, variable_names: &[alloc::string::String]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::const fn spec(&self) -> &antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresSpec
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn cell(&self) -> antecedent_stats::adaptive_inference::procedure_repeated_measures::CellLabel
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn declare(declaration: antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresDeclaration) -> core::result::Result<Self, alloc::vec::Vec<antecedent::AdaptiveInferenceRefusal>>
@@ -14508,6 +14634,15 @@ pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn 
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn execution_facts(&self) -> core::option::Option<&antecedent_core::execution_facts::ExecutionFacts>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export_with_context(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt>::const fn program(&self) -> [u8; 32]
+pub fn <antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt>::const fn source(&self) -> [u8; 32]
+pub fn <antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt>::fn from_bytes(bytes: &[u8]) -> core::result::Result<Self, antecedent::CausalError>
+pub fn <antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt>::fn to_bytes(self) -> [u8; 65]
+pub fn <antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate>::const fn receipt(&self) -> antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
+pub fn <antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate>::fn export_source(&self) -> alloc::vec::Vec<u8>
+pub fn <antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate>::fn interval(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate>::fn measured_interval(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate>::fn program(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn artifact(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
@@ -14729,6 +14864,14 @@ pub fn <antecedent::analysis::file_table::GaussianSummarySpec>::fn design_column
 pub fn <antecedent::analysis::file_table::GaussianSummarySpec>::fn new(covariates: alloc::vec::Vec<alloc::string::String>, response: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::file_table::SummaryMissing>::const fn as_str(self) -> &'static str
 pub fn <antecedent::analysis::file_table::SummaryMissing>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn compile(source: antecedent_data::dataset::TabularData, spec: &antecedent::analysis::graph_imputation::GraphImputationSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::graph_imputation::GraphImputationError>
+pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
+pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn export(&self, point: &antecedent::analysis::graph_imputation::GraphImputationPoint, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationArtifact, antecedent::CausalError>
+pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn replay(&self, expected: [u8; 32], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
+pub fn <antecedent::analysis::graph_imputation::GraphImputationArtifact>::fn bytes(&self) -> &[u8]
+pub fn <antecedent::analysis::graph_imputation::GraphImputationArtifact>::fn expectation(&self) -> antecedent::analysis::graph_imputation::GraphImputationExpectation
+pub fn <antecedent::analysis::graph_imputation::GraphImputationPoint>::fn interval(&self) -> core::result::Result<(f64, f64), antecedent::analysis::graph_imputation::GraphImputationError>
+pub fn <antecedent::analysis::graph_imputation::GraphImputationPoint>::fn measured(&self) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::inverse_sources::ComposedSourceRefusal>::fn action_id(&self) -> core::option::Option<&str>
 pub fn <antecedent::analysis::inverse_sources::ComposedSourceRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent::analysis::inverse_sources::ComposedSourceRefusal>::fn detail(&self) -> alloc::string::String
@@ -14943,6 +15086,9 @@ pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn resu
 pub fn <antecedent::analysis::learned_joint_closed::LearnedJointRefusal>::fn text(&self) -> alloc::string::String
 pub fn <antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal>::fn from_artifact_error(error: &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError) -> Self
 pub fn <antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal>::fn from_estimation(error: &antecedent_estimate::error::EstimationError) -> Self
+pub fn <antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift>::fn measured_interval(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift>::fn source(&self) -> &antecedent_core::mnar_fixed_shift::FixedShiftSource
 pub fn <antecedent::analysis::multi_level_treatment::MultiLevelTreatment>::fn evaluate(request: &antecedent::analysis::multi_level_treatment::MultiLevelTreatmentRequest) -> core::result::Result<antecedent::analysis::multi_level_treatment::MultiLevelReportWire, antecedent::CausalError>
 pub fn <antecedent::analysis::native_claims::NativeResponseClaim>::const fn calibration(&self) -> antecedent_io_core::distribution_artifact::DistributionCalibration
 pub fn <antecedent::analysis::native_claims::NativeResponseClaim>::const fn has_joint_law(&self) -> bool
@@ -15584,9 +15730,9 @@ pub fn <antecedent::planner::lowered::PlanningProgram>::fn request(&self) -> &an
 pub fn <antecedent::planner::lowered::ProgramIdentityScope>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn data(&self) -> antecedent_contract::plan::DataClassification
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn graph_class(&self) -> &'static str
-pub fn <antecedent::planner::lowered::ScientificProblem>::const fn licensed(&self) -> bool
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn source_digest(&self) -> core::option::Option<[u8; 32]>
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn support_status(&self) -> core::option::Option<antecedent::CellStatus>
+pub fn <antecedent::planner::lowered::ScientificProblem>::const fn supported(&self) -> bool
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn target(&self) -> &antecedent::planner::lowered::ProblemTarget
 pub fn <antecedent::planner::lowered::ScientificProblem>::fn plan_id(&self) -> &str
 pub fn <antecedent::planner::lowered::ScientificProblem>::fn query_variables(&self) -> &[antecedent_core::ids::VariableId]
@@ -15684,8 +15830,8 @@ pub fn <antecedent::planner::plan_view::ReuseView>::const fn retention_key(&self
 pub fn <antecedent::planner::plan_view::ReuseView>::fn design_dependencies(&self) -> &[u64]
 pub fn <antecedent::planner::plan_view::ReuseView>::fn frozen_fit_reuse(&self) -> &[(&'static str, &'static str)]
 pub fn <antecedent::planner::plan_view::ReuseView>::fn source_dependencies(&self) -> &[u64]
-pub fn <antecedent::planner::plan_view::SupportView>::const fn licensed(&self) -> bool
 pub fn <antecedent::planner::plan_view::SupportView>::const fn status(&self) -> core::option::Option<antecedent::CellStatus>
+pub fn <antecedent::planner::plan_view::SupportView>::const fn supported(&self) -> bool
 pub fn <antecedent::planner::plan_view::SupportView>::fn coordinate(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn claim_kind(&self) -> core::option::Option<antecedent_contract::claim::ClaimKind>
 pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn decision_request(&self) -> core::option::Option<antecedent_contract::evidence_ports::DecisionRequest>
@@ -15823,6 +15969,9 @@ pub fn antecedent::analysis::api::route_missing_support(cell: antecedent::Missin
 pub fn antecedent::analysis::api::scientific_bridge_artifact_shape(bytes: &[u8]) -> core::result::Result<&'static str, antecedent::ScientificBridgeRefusal>
 pub fn antecedent::analysis::api::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::tier_diagnostics(result: &antecedent::StudyResult, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::TierDiagnostics, antecedent::TierDiagnosticsError>
+pub fn antecedent::analysis::categorical_posterior_candidate::consume_source(bytes: &[u8], expected: antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate, antecedent::CausalError>
+pub fn antecedent::analysis::categorical_posterior_candidate::prepare(request: antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate, antecedent::CausalError>
+pub fn antecedent::analysis::categorical_posterior_candidate::replay(request: antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest, expected: antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate, antecedent::CausalError>
 pub fn antecedent::analysis::check_callback_connection(declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::connection::Connection, alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>>
 pub fn antecedent::analysis::check_claim_to_callback(producer: &antecedent_contract::interface_contract::declaration::InterfaceContract, produced_port: &str, declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, input: &str) -> core::result::Result<antecedent_contract::interface_contract::connection::Connection, alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>>
 pub fn antecedent::analysis::check_interface_composition(components: &[antecedent_contract::interface_contract::declaration::InterfaceContract], connections: &[antecedent_contract::interface_contract::composition::ComponentConnection]) -> core::result::Result<antecedent_contract::interface_contract::composition::ComposedInterfaces, alloc::vec::Vec<antecedent::analysis::InterfaceContractRefusal>>
@@ -15916,6 +16065,7 @@ pub fn antecedent::analysis::file_table::checked_push_filter(closure: &anteceden
 pub fn antecedent::analysis::file_table::summarize_weighted_gaussian(file: &antecedent_data::file_source::TableFile, spec: &antecedent::analysis::file_table::GaussianSummarySpec, control: antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityControl, options: &antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::file_table::FileGaussianSummary, antecedent::analysis::file_table::FileTableError>
 pub fn antecedent::analysis::finite_discrete_contrast(counts: [u64; 8], draws: impl core::iter::traits::collect::IntoIterator<Item = ([u64; 8], f64)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::FiniteDiscreteContrast, antecedent::CausalError>
 pub fn antecedent::analysis::forecast_law_from_sample(output: &antecedent_contract::callback_protocol::query::ValidatedOutput) -> core::result::Result<antecedent_validate::predictive_assessment::law::ForecastLaw, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::graph_imputation::consume(bytes: &[u8], expected: antecedent::analysis::graph_imputation::GraphImputationExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn antecedent::analysis::horizon_composition::compose_horizons(draws: &antecedent::analysis::horizon_composition::HorizonDraws, coefficients: &[f64], operation: antecedent_contract::joint_law_rule::PropagationOperation) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::horizon_composition::compose_horizons_with(draws: &antecedent::analysis::horizon_composition::HorizonDraws, operation: antecedent_contract::joint_law_rule::PropagationOperation, map: &dyn core::ops::function::Fn(&[f64]) -> f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::horizon_composition::horizon_draws(response: &antecedent_core::response::CausalResponse, dose_index: usize) -> core::result::Result<antecedent::analysis::horizon_composition::HorizonDraws, antecedent_contract::external_refusal::ExternalRefusal>
@@ -15926,15 +16076,15 @@ pub fn antecedent::analysis::inspect_interface_contract_artifact(bytes: &[u8]) -
 pub fn antecedent::analysis::inverse_query::consume(bytes: &[u8], expected: core::option::Option<&antecedent_design::inverse_query_artifact::InverseQueryIdentity>) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::inverse_query::export(artifact: &antecedent_design::inverse_query_artifact::InverseQueryArtifact, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::inverse_query::seal(query: antecedent_design::inverse_query::InverseQuery, evidence: antecedent_design::inverse_query::ForwardEvidence) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_query::InverseQueryError>
-pub fn antecedent::analysis::inverse_sources::cohort_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent::analysis::inverse_sources::composed_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent::analysis::inverse_sources::evaluate(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::cohort_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::composed_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::evaluate(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent::analysis::inverse_sources::evaluate_observational(query: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery, law: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult, antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>
 pub fn antecedent::analysis::inverse_sources::inspect_observational(result: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult) -> antecedent::analysis::inverse_sources::ObservationalScenarioInspection
 pub fn antecedent::analysis::inverse_sources::inspect_origin(origin: &antecedent_design::inverse_forward_source::ForwardOrigin) -> antecedent::analysis::inverse_sources::ForwardSourceInspection
-pub fn antecedent::analysis::inverse_sources::seal(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent::analysis::inverse_sources::seal_per_action(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
-pub fn antecedent::analysis::inverse_sources::transported_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::seal(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::seal_per_action(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
+pub fn antecedent::analysis::inverse_sources::transported_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent::analysis::inverse_sources::verify_observational(result: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioResult, query: &antecedent_design::inverse_observational_scenarios::ObservationalScenarioQuery, law: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<(), antecedent_design::inverse_observational_scenarios::ObservationalScenarioError>
 pub fn antecedent::analysis::joint_law_composed_basis::composed_basis(coordinate_id: &str, route: &str, dependence: &antecedent_contract::joint_law_rule::PropagationDependence, construction: &str, evidence_rows: u64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent::analysis::joint_law_composed_basis::dependence_label(dependence: &antecedent_contract::joint_law_rule::PropagationDependence) -> &'static str
@@ -16007,7 +16157,7 @@ pub fn antecedent::analysis::posterior_boundaries::trajectory_survival_contrast(
 pub fn antecedent::analysis::predictive_law_source(declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, verification_confirmed: bool) -> core::result::Result<antecedent_validate::predictive_assessment::law::LawSource, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::propagation_chain::compile_propagation_chain(draft: antecedent_io_core::propagation_chain_record::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::propagation_chain::PropagationChainPlan, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::proposal_arrival::execute_with_limits(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::proposal_arrival::ArrivalLimits) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>
-pub fn antecedent::analysis::provider_callbacks::refuse_identification_licence() -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn antecedent::analysis::provider_callbacks::refuse_identification_evidence() -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn antecedent::analysis::provider_callbacks::refuse_interval() -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn antecedent::analysis::provider_callbacks::refuse_joint_law() -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn antecedent::analysis::provider_callbacks::refuse_native_trust() -> antecedent_contract::external_refusal::ExternalRefusal
@@ -16174,7 +16324,7 @@ pub fn antecedent::host::evidence_obligation_record(obligation: &antecedent_cont
 pub fn antecedent::host::fallback_response(fallback: &antecedent::AnalysisWithFallback) -> serde_json::value::Value
 pub fn antecedent::host::fallback_unavailable_record(unavailable: &antecedent::FallbackUnavailable) -> serde_json::value::Value
 pub fn antecedent::host::host_schema() -> core::result::Result<serde_json::value::Value, serde_json::error::Error>
-pub fn antecedent::host::neighbor_records(neighbors: &[antecedent_contract::capability::LicensedNeighbor]) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn antecedent::host::neighbor_records(neighbors: &[antecedent_contract::capability::SupportedNeighbor]) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn antecedent::host::operation_record(report: &antecedent_contract::capability::OperationReport) -> serde_json::value::Value
 pub fn antecedent::host::refusal_code(error: &antecedent::CausalError) -> core::option::Option<&str>
 pub fn antecedent::host::refusal_record(error: &antecedent::CausalError) -> serde_json::value::Value
@@ -16185,8 +16335,6 @@ pub fn antecedent::inference::mapped_posterior_transfer_with(bytes: &[u8], spec:
 pub fn antecedent::inference::resolve_bayesian_prior_with_conflict(cfg: &antecedent::BayesianConfig, prep: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<(core::option::Option<antecedent_prob::prior::PriorSet>, core::option::Option<antecedent_prob::diagnostics::ConflictSummary>), antecedent::CausalError>
 pub fn antecedent::io::decode_model_bundle_bytes(bytes: &[u8]) -> core::result::Result<antecedent_io::model_bundle::ModelBundle, antecedent::CausalError>
 pub fn antecedent::io::encode_model_bundle_bytes(input: &antecedent_io::model_bundle::ModelBundleEncode<'_>) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
-pub fn antecedent::licensed_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::LicensedNeighbor>
-pub fn antecedent::licensed_support_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
 pub fn antecedent::period_refresh::window_factor_changes(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> alloc::collections::btree::set::BTreeSet<antecedent_state::invalidation::TemporalFactor>
 pub fn antecedent::planner::reject_dag_only_on_pag(structure: &antecedent::AcceptedGraph, identifier: antecedent::IdentifierId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str
@@ -16215,8 +16363,6 @@ pub fn antecedent::strategy_table::validate_class_response_pair(identifier: ante
 pub fn antecedent::strategy_table::validate_response_pair(identifier: antecedent::IdentifierId, estimator: antecedent::EstimatorId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::support::classify_estimator(cell: antecedent::SupportCell, estimator: antecedent::EstimatorId) -> antecedent::CellStatus
 pub fn antecedent::support::is_declared_off_axis(query: &antecedent_core::query::variants::CausalQuery) -> bool
-pub fn antecedent::support::licensed_estimators(cell: antecedent::SupportCell) -> &'static [&'static str]
-pub fn antecedent::support::licensed_route_estimator(cell: antecedent::SupportCell) -> core::option::Option<antecedent::EstimatorId>
 pub fn antecedent::support::query_axis_name(query: &antecedent_core::query::variants::CausalQuery, graph_class: antecedent::GraphClass) -> core::option::Option<&'static str>
 pub fn antecedent::support::refuse_if_not_applicable(cell: antecedent::SupportCell) -> core::result::Result<antecedent::CellStatus, antecedent::CausalError>
 pub fn antecedent::support::refuse_undeclared_off_axis(query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<(), antecedent::CausalError>
@@ -16224,6 +16370,10 @@ pub fn antecedent::support::support_cell(query: &antecedent_core::query::variant
 pub fn antecedent::support::support_cell_from_coordinate(coordinate: &str) -> core::option::Option<antecedent::SupportCell>
 pub fn antecedent::support::support_cell_named(query: &antecedent_core::query::variants::CausalQuery, graph_class: &'static str, structure: antecedent::StructureSource, inference: &antecedent::InferenceMode, refute: antecedent::RefuteSuite) -> core::option::Option<antecedent::SupportCell>
 pub fn antecedent::support::support_cell_named_for_data(query: &antecedent_core::query::variants::CausalQuery, graph_class: &'static str, structure: antecedent::StructureSource, inference: &antecedent::InferenceMode, refute: antecedent::RefuteSuite, series: bool) -> core::option::Option<antecedent::SupportCell>
+pub fn antecedent::support::supported_estimators(cell: antecedent::SupportCell) -> &'static [&'static str]
+pub fn antecedent::support::supported_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::SupportedNeighbor>
+pub fn antecedent::support::supported_route_estimator(cell: antecedent::SupportCell) -> core::option::Option<antecedent::EstimatorId>
+pub fn antecedent::support::supported_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
 pub mod antecedent::accepted
 pub mod antecedent::analysis
 pub mod antecedent::analysis::adaptive_inference
@@ -16235,6 +16385,7 @@ pub mod antecedent::analysis::api::tier_diagnostics
 pub mod antecedent::analysis::array_fits
 pub mod antecedent::analysis::association
 pub mod antecedent::analysis::bayesian_posterior_row
+pub mod antecedent::analysis::categorical_posterior_candidate
 pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::checked_claim_composition
 pub mod antecedent::analysis::choice_inference
@@ -16267,6 +16418,7 @@ pub mod antecedent::analysis::evidence_ledger
 pub mod antecedent::analysis::evidence_plan
 pub mod antecedent::analysis::fallback
 pub mod antecedent::analysis::file_table
+pub mod antecedent::analysis::graph_imputation
 pub mod antecedent::analysis::horizon_composition
 pub mod antecedent::analysis::interface_contract
 pub mod antecedent::analysis::inverse_query
@@ -16284,6 +16436,7 @@ pub mod antecedent::analysis::measurement_model
 pub mod antecedent::analysis::mechanism_composition
 pub mod antecedent::analysis::mechanism_discrepancy
 pub mod antecedent::analysis::missing_support
+pub mod antecedent::analysis::mnar_fixed_shift
 pub mod antecedent::analysis::mnar_sensitivity
 pub mod antecedent::analysis::msm_sensitivity
 pub mod antecedent::analysis::multi_level_treatment
@@ -16800,6 +16953,12 @@ pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow has private fields
 pub struct antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
 pub struct antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState has private fields
+pub struct antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest
+pub struct antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
+pub struct antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt has private fields
+pub struct antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
+pub struct antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate
+pub struct antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate has private fields
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment has private fields
 pub struct antecedent::analysis::closed_pilots::ClosedPilotRefusal
@@ -16920,6 +17079,14 @@ pub struct antecedent::analysis::evidence_plan::StudyValueWire
 pub struct antecedent::analysis::fallback::FailureCapabilityParts
 pub struct antecedent::analysis::file_table::FileGaussianSummary
 pub struct antecedent::analysis::file_table::GaussianSummarySpec
+pub struct antecedent::analysis::graph_imputation::CompiledGraphImputation
+pub struct antecedent::analysis::graph_imputation::CompiledGraphImputation has private fields
+pub struct antecedent::analysis::graph_imputation::GraphImputationArtifact
+pub struct antecedent::analysis::graph_imputation::GraphImputationArtifact has private fields
+pub struct antecedent::analysis::graph_imputation::GraphImputationExpectation
+pub struct antecedent::analysis::graph_imputation::GraphImputationPoint
+pub struct antecedent::analysis::graph_imputation::GraphImputationPoint has private fields
+pub struct antecedent::analysis::graph_imputation::GraphImputationSpec
 pub struct antecedent::analysis::horizon_composition::ComposedHorizons
 pub struct antecedent::analysis::horizon_composition::HorizonDraws
 pub struct antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -17043,6 +17210,9 @@ pub struct antecedent::analysis::latent_class_effects::LatentClassEffects has pr
 pub struct antecedent::analysis::learned_joint_closed::LearnedJointRefusal
 pub struct antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
 pub struct antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
+pub struct antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
+pub struct antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift
+pub struct antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift has private fields
 pub struct antecedent::analysis::multi_level_treatment::AdjustmentColumn
 pub struct antecedent::analysis::multi_level_treatment::LevelMeanWire
 pub struct antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -17470,7 +17640,6 @@ pub use antecedent::IvBoundsEstimate = antecedent_estimate::IvBoundsEstimate
 pub use antecedent::IvBoundsInterval = antecedent_estimate::IvBoundsInterval
 pub use antecedent::IvBoundsPosterior = antecedent_estimate::IvBoundsPosterior
 pub use antecedent::IvBoundsQuery = query::IvBoundsQuery
-pub use antecedent::LicensedNeighbor = super::LicensedNeighbor
 pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery
 pub use antecedent::LongitudinalRegimeQuery = query::LongitudinalRegimeQuery
 pub use antecedent::MechanismChangeQuery = query::MechanismChangeQuery
@@ -17503,6 +17672,7 @@ pub use antecedent::SequentialContrastQuery = query::SequentialContrastQuery
 pub use antecedent::SimulateQuery = query::SimulateQuery
 pub use antecedent::SuppliedClaim = super::SuppliedClaim
 pub use antecedent::SupportShortfall = super::SupportShortfall
+pub use antecedent::SupportedNeighbor = super::SupportedNeighbor
 pub use antecedent::SyntheticControlQuery = query::SyntheticControlQuery
 pub use antecedent::SyntheticPanelMethod = query::SyntheticPanelMethod
 pub use antecedent::TemporalAssignment = query::TemporalAssignment
@@ -17697,7 +17867,6 @@ pub use antecedent::analysis::LearnedTrialResult = antecedent::LearnedTrialResul
 pub use antecedent::analysis::LearnedTrialState = antecedent::LearnedTrialState
 pub use antecedent::analysis::LedgerExport = antecedent::LedgerExport
 pub use antecedent::analysis::LedgerRefresh = antecedent::LedgerRefresh
-pub use antecedent::analysis::LicensedNeighbor = antecedent_contract::LicensedNeighbor
 pub use antecedent::analysis::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding
 pub use antecedent::analysis::MeasurementDetail = antecedent::MeasurementDetail
 pub use antecedent::analysis::MeasurementEstimate = antecedent::MeasurementEstimate
@@ -17803,6 +17972,7 @@ pub use antecedent::analysis::SuppliedClaim = decision_contract_facade::Supplied
 pub use antecedent::analysis::SupportBasis = antecedent::SupportBasis
 pub use antecedent::analysis::SupportPolicy = decision_contract_facade::SupportPolicy
 pub use antecedent::analysis::SupportShortfall = decision_contract_facade::SupportShortfall
+pub use antecedent::analysis::SupportedNeighbor = antecedent_contract::SupportedNeighbor
 pub use antecedent::analysis::SynthesisOutcome = antecedent::SynthesisOutcome
 pub use antecedent::analysis::SynthesisValue = antecedent::SynthesisValue
 pub use antecedent::analysis::TargetDirection = antecedent::TargetDirection
@@ -17862,9 +18032,9 @@ pub use antecedent::analysis::adaptive_inference::SpendingKind = antecedent_cont
 pub use antecedent::analysis::adaptive_inference::StoppingRuleDeclaration = antecedent_contract::adaptive_design::StoppingRuleDeclaration
 pub use antecedent::analysis::adaptive_inference::StoppingRuleKind = antecedent_contract::adaptive_design::StoppingRuleKind
 pub use antecedent::analysis::adaptive_inference::StoppingSpec = antecedent_contract::adaptive_design::StoppingSpec
-pub use antecedent::analysis::adaptive_inference::licensed_routes = antecedent_contract::adaptive_design::licensed_routes
 pub use antecedent::analysis::adaptive_inference::procedure_cells = antecedent_contract::adaptive_design::procedure_cells
 pub use antecedent::analysis::adaptive_inference::procedure_status = antecedent_contract::adaptive_design::procedure_status
+pub use antecedent::analysis::adaptive_inference::supported_routes = antecedent_contract::adaptive_design::supported_routes
 pub use antecedent::analysis::adaptive_participant_procedure::ParticipantHistoryReport = antecedent::analysis::ParticipantHistoryReport
 pub use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure = antecedent::analysis::ParticipantProcedure
 pub use antecedent::analysis::adaptive_participant_procedure::ParticipantRunReport = antecedent::analysis::ParticipantRunReport
@@ -18054,7 +18224,6 @@ pub use antecedent::analysis::api::LearnedTrialResult = antecedent::LearnedTrial
 pub use antecedent::analysis::api::LearnedTrialState = antecedent::LearnedTrialState
 pub use antecedent::analysis::api::LedgerExport = antecedent::LedgerExport
 pub use antecedent::analysis::api::LedgerRefresh = antecedent::LedgerRefresh
-pub use antecedent::analysis::api::LicensedNeighbor = super::LicensedNeighbor
 pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding
 pub use antecedent::analysis::api::MeasurementDetail = antecedent::MeasurementDetail
 pub use antecedent::analysis::api::MeasurementEstimate = antecedent::MeasurementEstimate
@@ -18163,6 +18332,7 @@ pub use antecedent::analysis::api::StudySummary = antecedent::StudySummary
 pub use antecedent::analysis::api::SuppliedClaim = super::SuppliedClaim
 pub use antecedent::analysis::api::SupportBasis = antecedent::SupportBasis
 pub use antecedent::analysis::api::SupportShortfall = super::SupportShortfall
+pub use antecedent::analysis::api::SupportedNeighbor = super::SupportedNeighbor
 pub use antecedent::analysis::api::SynthesisOutcome = antecedent::SynthesisOutcome
 pub use antecedent::analysis::api::SynthesisValue = antecedent::SynthesisValue
 pub use antecedent::analysis::api::TargetDirection = antecedent::TargetDirection
@@ -18207,7 +18377,7 @@ pub use antecedent::analysis::api::utility_interval = super::utility_interval
 pub use antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_FEATURE = antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_FEATURE
 pub use antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_VERSION = antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_VERSION
 pub use antecedent::analysis::array_fits::ARRAY_FIT_CALIBRATION = antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION
-pub use antecedent::analysis::array_fits::ARRAY_FIT_LICENSING = antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING
+pub use antecedent::analysis::array_fits::ARRAY_FIT_SUPPORT = antecedent_io::array_fit_artifact::ARRAY_FIT_SUPPORT
 pub use antecedent::analysis::array_fits::ArrayFitArtifactWire = antecedent_io::array_fit_artifact::ArrayFitArtifactWire
 pub use antecedent::analysis::array_fits::ArrayFitConsumeLimits = antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
 pub use antecedent::analysis::array_fits::ArrayFitError = antecedent_io::array_fit_artifact::ArrayFitError
@@ -18822,6 +18992,7 @@ pub use antecedent::analysis::file_table::chunk_local_index = antecedent_data::f
 pub use antecedent::analysis::file_table::write_table_file = antecedent_data::file_source::write_table_file
 pub use antecedent::analysis::fit_declaration_from_ledger = antecedent::analysis::api::fit_declaration_from_ledger
 pub use antecedent::analysis::fit_diagnostics_design = antecedent::analysis::api::fit_diagnostics_design
+pub use antecedent::analysis::graph_imputation::GraphImputationSupport = antecedent_core::graph_imputation_contract::GraphSupport
 pub use antecedent::analysis::interface_contract::CalibrationRequirement = antecedent_contract::interface_contract::CalibrationRequirement
 pub use antecedent::analysis::interface_contract::CalibrationStatus = antecedent_contract::interface_contract::CalibrationStatus
 pub use antecedent::analysis::interface_contract::ComponentConnection = antecedent_contract::interface_contract::ComponentConnection
@@ -18901,7 +19072,6 @@ pub use antecedent::analysis::inverse_sources::ForwardRepresentation = super::de
 pub use antecedent::analysis::inverse_sources::ForwardSourceKind = super::design_exports::design_crate::inverse_forward_source::ForwardSourceKind
 pub use antecedent::analysis::inverse_sources::ForwardSourceRefusal = super::design_exports::design_crate::inverse_forward_source::ForwardSourceRefusal
 pub use antecedent::analysis::inverse_sources::InverseDemand = super::design_exports::design_crate::inverse_forward_source::InverseDemand
-pub use antecedent::analysis::inverse_sources::LicensedForwardSource = super::design_exports::design_crate::inverse_forward_source::LicensedForwardSource
 pub use antecedent::analysis::inverse_sources::OBSERVATIONAL_SCENARIO_SCOPE_NOTE = super::design_exports::design_crate::inverse_observational_scenarios::OBSERVATIONAL_SCENARIO_SCOPE_NOTE
 pub use antecedent::analysis::inverse_sources::OBSERVATIONAL_SCENARIO_VERSION = super::design_exports::design_crate::inverse_observational_scenarios::OBSERVATIONAL_SCENARIO_VERSION
 pub use antecedent::analysis::inverse_sources::ObservationalScenarioError = super::design_exports::design_crate::inverse_observational_scenarios::ObservationalScenarioError
@@ -18912,6 +19082,7 @@ pub use antecedent::analysis::inverse_sources::ScenarioCell = super::design_expo
 pub use antecedent::analysis::inverse_sources::ScenarioCondition = super::design_exports::design_crate::inverse_observational_scenarios::ScenarioCondition
 pub use antecedent::analysis::inverse_sources::ScenarioReport = super::design_exports::design_crate::inverse_observational_scenarios::ScenarioReport
 pub use antecedent::analysis::inverse_sources::SourcedInverseResult = super::design_exports::design_crate::inverse_forward_source::SourcedInverseResult
+pub use antecedent::analysis::inverse_sources::SupportedForwardSource = super::design_exports::design_crate::inverse_forward_source::SupportedForwardSource
 pub use antecedent::analysis::inverse_sources::TransportDeclaration = super::design_exports::design_crate::decision_transported_source::TransportDeclaration
 pub use antecedent::analysis::inverse_sources::TransportReceipt = super::design_exports::design_crate::decision_transported_source::TransportReceipt
 pub use antecedent::analysis::inverse_sources::TransportedInputPolicy = antecedent_contract::provider_transport::TransportedInputPolicy
@@ -19350,7 +19521,7 @@ pub use antecedent::analysis::recovery_chain::RecoveryChainArtifactWire = antece
 pub use antecedent::analysis::recovery_chain::decide_chain_recovery = antecedent_identify::decide_chain_recovery
 pub use antecedent::analysis::recovery_chain::evaluate_chain_recovery = antecedent_estimate::evaluate_chain_recovery
 pub use antecedent::analysis::recovery_chain::verify_chain_witness = antecedent_identify::verify_chain_witness
-pub use antecedent::analysis::refuse_identification_licence = antecedent::analysis::provider_callbacks::refuse_identification_licence
+pub use antecedent::analysis::refuse_identification_evidence = antecedent::analysis::provider_callbacks::refuse_identification_evidence
 pub use antecedent::analysis::refuse_interval = antecedent::analysis::provider_callbacks::refuse_interval
 pub use antecedent::analysis::refuse_joint_law = antecedent::analysis::provider_callbacks::refuse_joint_law
 pub use antecedent::analysis::refuse_native_trust = antecedent::analysis::provider_callbacks::refuse_native_trust
@@ -19472,7 +19643,6 @@ pub use antecedent::analysis::sensitivity_decision::AssumptionCoordinate = antec
 pub use antecedent::analysis::sensitivity_decision::AssumptionRangeStatement = antecedent_design::sensitivity_decision::AssumptionRangeStatement
 pub use antecedent::analysis::sensitivity_decision::DecisionSwitch = antecedent_design::sensitivity_decision::DecisionSwitch
 pub use antecedent::analysis::sensitivity_decision::IdentifiedBound = antecedent_design::sensitivity_decision::IdentifiedBound
-pub use antecedent::analysis::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS = antecedent_design::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS
 pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ACTIONS = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_ACTIONS
 pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ARTIFACT_BYTES = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_ARTIFACT_BYTES
 pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_GRID_POINTS = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_GRID_POINTS
@@ -19485,6 +19655,7 @@ pub use antecedent::analysis::sensitivity_decision::SENSITIVITY_ARTIFACT_FEATURE
 pub use antecedent::analysis::sensitivity_decision::SENSITIVITY_ARTIFACT_VERSION = antecedent_io::sensitivity_artifact::SENSITIVITY_ARTIFACT_VERSION
 pub use antecedent::analysis::sensitivity_decision::SENSITIVITY_DECISION_INTERPRETATION = antecedent_design::sensitivity_decision::SENSITIVITY_DECISION_INTERPRETATION
 pub use antecedent::analysis::sensitivity_decision::SENSITIVITY_INFERENCE_CLAIM = antecedent_io::sensitivity_artifact::SENSITIVITY_INFERENCE_CLAIM
+pub use antecedent::analysis::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS = antecedent_design::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS
 pub use antecedent::analysis::sensitivity_decision::SamplingInterval = antecedent_design::sensitivity_decision::SamplingInterval
 pub use antecedent::analysis::sensitivity_decision::SamplingReport = antecedent_design::sensitivity_decision::SamplingReport
 pub use antecedent::analysis::sensitivity_decision::SamplingStatus = antecedent_design::sensitivity_decision::SamplingStatus
@@ -20638,10 +20809,10 @@ pub use antecedent::support::SupportValidation = antecedent::SupportValidation
 pub use antecedent::support::cell_coordinate = antecedent::cell_coordinate
 pub use antecedent::support::classify = antecedent::classify
 pub use antecedent::support::classify_graphless = antecedent_io::graphless_support::classify_graphless
-pub use antecedent::support::licensed_neighbors = antecedent::licensed_neighbors
-pub use antecedent::support::licensed_support_cells = antecedent::licensed_support_cells
 pub use antecedent::support::refused_message = antecedent::refused_message
 pub use antecedent::support_cell_from_coordinate = antecedent::support::support_cell_from_coordinate
+pub use antecedent::supported_neighbors = antecedent::support::supported_neighbors
+pub use antecedent::supported_cells = antecedent::support::supported_cells
 pub use antecedent::temporal_dependent_interval = antecedent::analysis::api::temporal_dependent_interval
 pub use antecedent::temporal_dependent_interval_candidate = antecedent::analysis::temporal_dependent_interval_candidate
 pub use antecedent::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
@@ -20718,10 +20889,9 @@ pub variant antecedent::CausalError::Unsupported { message: &'static str }
 pub variant antecedent::CausalError::Validate(antecedent_validate::error::ValidationError)
 pub variant antecedent::CellFamilyContrast::CellMinusControl
 pub variant antecedent::CellFamilyContrast::Interaction
-pub variant antecedent::CellStatus::Allowlisted { reason: &'static str, parent: &'static str }
-pub variant antecedent::CellStatus::Licensed
 pub variant antecedent::CellStatus::NotApplicable { reason: &'static str }
-pub variant antecedent::CellStatus::Refused
+pub variant antecedent::CellStatus::NotSupported
+pub variant antecedent::CellStatus::Supported
 pub variant antecedent::ColumnPriority::AdjustmentOrder
 pub variant antecedent::ColumnPriority::Declared(alloc::vec::Vec<antecedent_core::ids::VariableId>)
 pub variant antecedent::CompileCause::Attribution(antecedent_attribution::error::AttributionError)
@@ -21094,7 +21264,7 @@ pub variant antecedent::SupportQuery::TemporalConditionalSustained
 pub variant antecedent::SupportQuery::TemporalMediationEffect
 pub variant antecedent::SupportQuery::TransportQuery
 pub variant antecedent::SupportRefusal::NotApplicable
-pub variant antecedent::SupportRefusal::Refused
+pub variant antecedent::SupportRefusal::NotSupported
 pub variant antecedent::SupportStructure::Accepted
 pub variant antecedent::SupportStructure::Discovered
 pub variant antecedent::SupportStructure::Explicit
@@ -21341,6 +21511,14 @@ pub variant antecedent::analysis::file_table::RowFault::DropRow(u64)
 pub variant antecedent::analysis::file_table::RowFault::DuplicateRow(u64)
 pub variant antecedent::analysis::file_table::SummaryMissing::CompleteCase
 pub variant antecedent::analysis::file_table::SummaryMissing::Refuse
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::AtomFailures { table: u32, failed_mass: f64, skipped_mass: f64, reasons: alloc::vec::Vec<(u64, alloc::string::String)> }
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::Engine(antecedent::CausalError)
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::IntervalUnavailable
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::PointUnavailable
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::SearchStopped(antecedent_core::search::SearchReceipt)
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::SupportedGraphNotIdentified { mask: u64 }
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::Unidentified { table: u32, mass: f64 }
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::Unscorable { table: u32, count: u64 }
 pub variant antecedent::analysis::inverse_sources::ComposedSourceRefusal::Composition { action_id: alloc::string::String, refusal: antecedent::MechanismCompositionRefusal }
 pub variant antecedent::analysis::inverse_sources::ComposedSourceRefusal::Source(antecedent_design::inverse_forward_source::ForwardSourceRefusal)
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::Calibrated { record_id: alloc::string::String }
@@ -21509,7 +21687,7 @@ pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::JointBayesi
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::MemoryBudgetExceeded
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::MzInvalidRequest
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::PrimaryResultIsNotAnEffect
-pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::RetargetNotLicensed
+pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::RetargetNotSupported
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::RowCountMismatch
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::RowIdsMismatch
 pub variant antecedent::analysis::recalc_receipt::RecalcRequestCode::ScoreStageUndeclared
@@ -21572,6 +21750,7 @@ pub variant antecedent::period_refresh::PeriodRefreshOutcome::Extended { contigu
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Restarted { invalidated: alloc::vec::Vec<antecedent_estimate::temporal_refresh::WindowProduct> }
 pub variant antecedent::planner::PlanRoute::AssociationStatic
 pub variant antecedent::planner::PlanRoute::AssociationTemporal
+pub variant antecedent::planner::PlanRoute::CategoricalPosteriorCandidate
 pub variant antecedent::planner::PlanRoute::CodeterminedJoint
 pub variant antecedent::planner::PlanRoute::ConditionalCpdag
 pub variant antecedent::planner::PlanRoute::ConditionalDag
@@ -21590,6 +21769,7 @@ pub variant antecedent::planner::PlanRoute::GcmDag
 pub variant antecedent::planner::PlanRoute::GcmSimulateDag
 pub variant antecedent::planner::PlanRoute::GcmTemporal
 pub variant antecedent::planner::PlanRoute::GcmTemporalClass
+pub variant antecedent::planner::PlanRoute::GraphImputation
 pub variant antecedent::planner::PlanRoute::GraphPosterior(antecedent::planner::plan_view::GraphPosteriorCell)
 pub variant antecedent::planner::PlanRoute::HistoryMatch
 pub variant antecedent::planner::PlanRoute::InterferenceDag
@@ -21597,6 +21777,7 @@ pub variant antecedent::planner::PlanRoute::IvBounds
 pub variant antecedent::planner::PlanRoute::LocalPolynomialRatio
 pub variant antecedent::planner::PlanRoute::LongitudinalRegime
 pub variant antecedent::planner::PlanRoute::MixedAdmgResponse
+pub variant antecedent::planner::PlanRoute::MnarFixedShift
 pub variant antecedent::planner::PlanRoute::MultiEnvTemporalEffect
 pub variant antecedent::planner::PlanRoute::PanelDid
 pub variant antecedent::planner::PlanRoute::PanelTemporalEffectClass
@@ -21639,9 +21820,11 @@ pub variant antecedent::planner::PlanRoute::TransportMixed
 pub variant antecedent::planner::PlanStage::Compiled
 pub variant antecedent::planner::PlanStage::Prepared
 pub variant antecedent::planner::RouteFamily::Associational
+pub variant antecedent::planner::RouteFamily::CategoricalPosteriorCandidate
 pub variant antecedent::planner::RouteFamily::Cyclic
 pub variant antecedent::planner::RouteFamily::DesignBased
 pub variant antecedent::planner::RouteFamily::Discovery
+pub variant antecedent::planner::RouteFamily::GraphImputation
 pub variant antecedent::planner::RouteFamily::GraphPosterior
 pub variant antecedent::planner::RouteFamily::Planning
 pub variant antecedent::planner::RouteFamily::PropagationChain
@@ -21671,6 +21854,7 @@ pub variant antecedent::planner::lowered::FunctionalKind::ChangeAttribution
 pub variant antecedent::planner::lowered::FunctionalKind::Counterfactual
 pub variant antecedent::planner::lowered::FunctionalKind::EffectOnTreated
 pub variant antecedent::planner::lowered::FunctionalKind::ExposureContrast
+pub variant antecedent::planner::lowered::FunctionalKind::GraphImputationEffect
 pub variant antecedent::planner::lowered::FunctionalKind::HistoryMatch
 pub variant antecedent::planner::lowered::FunctionalKind::IdentifiedSet
 pub variant antecedent::planner::lowered::FunctionalKind::InterventionContrast
@@ -21728,10 +21912,12 @@ pub variant antecedent::planner::statistical::PosteriorAlgorithm::Enumeration
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::Hmc
 pub variant antecedent::planner::statistical::PosteriorAlgorithm::Laplace
 pub variant antecedent::planner::statistical::Realization::Bayesian(antecedent_core::inference_realization::OrdinaryBayesianLikelihood)
+pub variant antecedent::planner::statistical::Realization::CategoricalPosteriorCandidateV1
 pub variant antecedent::planner::statistical::Realization::Envelope(antecedent_core::inference_realization::PartialIdentificationEnvelope)
 pub variant antecedent::planner::statistical::Realization::ExactPoint { evaluator: alloc::sync::Arc<str> }
 pub variant antecedent::planner::statistical::Realization::Frequentist(antecedent_core::inference_realization::ScoreFrequentist)
 pub variant antecedent::planner::statistical::Realization::GeneralizedBayes(antecedent_core::inference_realization::GeneralizedBayes)
+pub variant antecedent::planner::statistical::Realization::GraphImputationV1
 pub variant antecedent::planner::statistical::ResampleUnit::CalendarBlock
 pub variant antecedent::planner::statistical::ResampleUnit::Cluster
 pub variant antecedent::planner::statistical::ResampleUnit::Row

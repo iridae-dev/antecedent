@@ -156,7 +156,7 @@ fn numerical(detail: &str, message: &str, fields: RefusalFields) -> EstimationEr
 #[must_use]
 pub fn refuse_public_interval_route() -> EstimationError {
     EstimationError::refused_detail(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         ROUTE_FROZEN,
         "the binary nested-Markov pilot is a closed research route; calibration is unmeasured \
          and no interval or posterior is published",

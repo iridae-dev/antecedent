@@ -234,7 +234,7 @@ pub fn evaluate_structural(
         && matches!(inner.criterion, DecisionCriterion::Quantile { .. } | DecisionCriterion::Regret)
     {
         // Quantiles and suprema of a mixture are not weighted averages of the
-        // component functionals. No mixture-law evaluator is licensed here.
+        // component functionals. No mixture-law evaluator is supported here.
         return Err(StructuralError::Contract(DecisionContractError::InvalidParameter(
             "structural_criterion",
         )));

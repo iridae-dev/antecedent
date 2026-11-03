@@ -412,7 +412,7 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_licensed_for_dependent_design",
+        "predictive_assessment.iid_not_supported_for_dependent_design",
     )
     n = 40
     error = refused(lambda: rolling_result(pa.Dependence.serial(list(range(n)), 0), horizon=4))
@@ -429,7 +429,7 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_licensed_for_dependent_design",
+        "predictive_assessment.iid_not_supported_for_dependent_design",
     )
 
 
@@ -488,8 +488,8 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
     assert result.report.interval == "not reported"
     expect(
         refused(result.score_interval),
-        "cell_not_licensed",
-        "predictive_assessment.interval_not_licensed",
+        "not_supported",
+        "predictive_assessment.interval_not_supported",
     )
     expect(
         refused(result.causal_validity),
@@ -510,7 +510,7 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
             score_interval=(0.95, "stationary bootstrap"),
         )
     )
-    expect(error, "cell_not_licensed", "predictive_assessment.interval_not_licensed")
+    expect(error, "not_supported", "predictive_assessment.interval_not_supported")
 
 
 @pytest.mark.requires_calibration
@@ -537,8 +537,8 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
     # An unscoped request is still the closed route.
     expect(
         refused(result.score_interval),
-        "cell_not_licensed",
-        "predictive_assessment.interval_not_licensed",
+        "not_supported",
+        "predictive_assessment.interval_not_supported",
     )
     # Below the measured number of cases, and at another level: the typed out-of-scope refusal.
     small = pa.assess(
@@ -550,12 +550,12 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
     )
     expect(
         refused(lambda: small.score_interval("a", "crps")),
-        "cell_not_licensed",
+        "not_supported",
         "predictive_assessment.interval_scope_outside_measured",
     )
     expect(
         refused(lambda: result.score_interval("a", "crps", level=0.9)),
-        "cell_not_licensed",
+        "not_supported",
         "predictive_assessment.interval_scope_outside_measured",
     )
     # No declared dependence: independence is never assumed.

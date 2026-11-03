@@ -435,7 +435,7 @@ def test_internal_candidate_route_is_closed_after_real_validation():
             interval_panel(), sequence=SEQUENCE, replicates=40
         )
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "temporal_interval.route_frozen"
     assert "temporal_interval.route_frozen" in str(error)
     # The internal candidate diagnostic remains closed for every estimand.

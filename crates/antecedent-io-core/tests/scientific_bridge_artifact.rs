@@ -232,7 +232,7 @@ fn seal(contract: BridgeContract, value: f64, units: &str) -> Sealed {
     let quantity = contract.source.quantity.clone();
     let bridged =
         derive_bridged_claim(&contract, &BridgeSource { claim: &source, quantity: &quantity })
-            .expect("licensed bridge");
+            .expect("supported bridge");
     let (artifact, meta) = ScientificBridgeArtifact::seal(
         &bridged,
         &BridgeSource { claim: &source, quantity: &quantity },
@@ -407,7 +407,7 @@ fn a_resealed_edit_of_the_declaration_changes_the_derivation_or_is_refused() {
     law.contract.target_value = "predictive_law".into();
     let error = ScientificBridgeArtifact::from_meta(&reseal(law), None).expect_err("law");
     let (code, detail, _) = error.refusal().expect("registered refusal");
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert_eq!(detail, "scientific_bridge.value_kind_not_carried");
 }
 
@@ -520,7 +520,7 @@ fn a_stored_value_kind_that_is_not_a_mean_is_refused_on_replay() {
         same.contract.target_value = kind.into();
         let error = ScientificBridgeArtifact::from_meta(&reseal(same), None).expect_err("law");
         let (code, detail, _) = error.refusal().expect("registered refusal");
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert_eq!(detail, "scientific_bridge.value_kind_not_carried");
 
         // A mean held and a different object required is a substitution.
@@ -541,12 +541,12 @@ fn a_stored_value_kind_that_is_not_a_mean_is_refused_on_replay() {
 }
 
 #[test]
-fn a_consumed_bridge_has_no_interval_license() {
+fn a_consumed_bridge_has_no_interval_support() {
     let s = surrogate();
     let artifact = ScientificBridgeArtifact::from_meta(&s.meta, Some(&s.identity)).expect("replay");
     let refusal = artifact.bridged().request_interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "scientific_bridge.interval_not_supported");
     // The replayed claim reports no uncertainty and names what it cannot offer.
     assert!(!artifact.bridged().claim.reasoning.uncertainty.is_available());
     assert!(artifact.bridged().receipt.unavailable_operations.iter().any(|op| &**op == "interval"));

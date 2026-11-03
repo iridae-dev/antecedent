@@ -10,7 +10,7 @@
 1.0 preparation requires closing or explicitly scoping every parity manifest
 item, stabilizing artifact schemas, completing the Python wheel matrix,
 generating docs from conformance, stabilizing benchmark baselines, and
-recording security/licensing/unsafe/dependency review — without treating
+recording security/support/unsafe/dependency review — without treating
 performance as a deferred rewrite (ADR 0011).
 
 ## Decision

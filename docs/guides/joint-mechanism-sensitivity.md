@@ -5,15 +5,15 @@ This note derives the exact joint assumption range that
 states what it claims and what it does not. It also records the sampling
 composition for the range. Two historical coverage records measure its zero-box
 two-sided and positive-box one-sided targets. The Rust and Python public interval
-routes are now promoted for the named level and replicate bounds; the current
+routes are now supported for the named level and replicate bounds; the current
 branch wrapper has not been re-attested. The version-3 range artifact remains
 range-only and carries no sampling endpoints.
 
-Two records in `parity/promotion.toml` cover this page:
+Two records in `parity/capability_records.toml` cover this page:
 
-- `sensitivity.joint_mechanism` (promoted): the exact assumption range
+- `sensitivity.joint_mechanism` (supported): the exact assumption range
   only. It offers no sampling uncertainty.
-- `sensitivity.joint_uncertainty` (promoted): the conservative endpoint
+- `sensitivity.joint_uncertainty` (supported): the conservative endpoint
   bootstrap returned by Rust and Python tuple APIs, plus two historical coverage
   ids. Their tests were measured by the registered calibration gate; those
   records do not attest the current branch wrapper.
@@ -196,9 +196,9 @@ cancelled frontier is not exported, because it does not replay.
   covers the range only. Sampling uncertainty is not offered by the range
   record, and the sampling method below is paper-inherited.
 
-## Sampling uncertainty (historical measurements; public tuple route promoted)
+## Sampling uncertainty (historical measurements; public tuple route supported)
 
-Record `sensitivity.joint_uncertainty` now has licensed Rust and Python
+Record `sensitivity.joint_uncertainty` now has supported Rust and Python
 functions returning the endpoint interval directly. The existing coverage
 records were measured by `scripts/gate_calibration.sh` (`run_js`, over the
 sample-size grid) at the historical source cut. The current public wrapper is

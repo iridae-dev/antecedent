@@ -46,6 +46,7 @@ impl core::clone::Clone for antecedent_state::OlsRefresh
 impl core::clone::Clone for antecedent_state::OlsSnapshot
 impl core::clone::Clone for antecedent_state::ParentSetOp
 impl core::clone::Clone for antecedent_state::ParticleFilterState
+impl core::clone::Clone for antecedent_state::PrunedHistory
 impl core::clone::Clone for antecedent_state::PublishedLineage
 impl core::clone::Clone for antecedent_state::QueryRecord
 impl core::clone::Clone for antecedent_state::QueryStore
@@ -62,6 +63,7 @@ impl core::clone::Clone for antecedent_state::SpillHandle
 impl core::clone::Clone for antecedent_state::SpillStats
 impl core::clone::Clone for antecedent_state::StateError
 impl core::clone::Clone for antecedent_state::StateEvent
+impl core::clone::Clone for antecedent_state::StateLimits
 impl core::clone::Clone for antecedent_state::StreamingCovariance
 impl core::clone::Clone for antecedent_state::SuffStatStore
 impl core::clone::Clone for antecedent_state::TemporalDisposition
@@ -90,6 +92,7 @@ impl core::cmp::Eq for antecedent_state::LagIndexCacheEntry
 impl core::cmp::Eq for antecedent_state::LagIndexCacheKey
 impl core::cmp::Eq for antecedent_state::OlsLedgerState
 impl core::cmp::Eq for antecedent_state::ParentSetOp
+impl core::cmp::Eq for antecedent_state::PrunedHistory
 impl core::cmp::Eq for antecedent_state::PublishedLineage
 impl core::cmp::Eq for antecedent_state::RefreshChange
 impl core::cmp::Eq for antecedent_state::RefreshDisposition
@@ -98,6 +101,7 @@ impl core::cmp::Eq for antecedent_state::RefreshRoute
 impl core::cmp::Eq for antecedent_state::RetentionPolicy
 impl core::cmp::Eq for antecedent_state::SpillStats
 impl core::cmp::Eq for antecedent_state::StateError
+impl core::cmp::Eq for antecedent_state::StateLimits
 impl core::cmp::Eq for antecedent_state::TemporalDisposition
 impl core::cmp::Eq for antecedent_state::TemporalFactor
 impl core::cmp::Eq for antecedent_state::TemporalProduct
@@ -132,6 +136,7 @@ impl core::cmp::PartialEq for antecedent_state::OlsLedgerState
 impl core::cmp::PartialEq for antecedent_state::OlsSnapshot
 impl core::cmp::PartialEq for antecedent_state::ParentSetOp
 impl core::cmp::PartialEq for antecedent_state::ParticleFilterState
+impl core::cmp::PartialEq for antecedent_state::PrunedHistory
 impl core::cmp::PartialEq for antecedent_state::PublishedLineage
 impl core::cmp::PartialEq for antecedent_state::RefreshChange
 impl core::cmp::PartialEq for antecedent_state::RefreshDisposition
@@ -141,6 +146,7 @@ impl core::cmp::PartialEq for antecedent_state::RefreshRow
 impl core::cmp::PartialEq for antecedent_state::RetentionPolicy
 impl core::cmp::PartialEq for antecedent_state::SpillStats
 impl core::cmp::PartialEq for antecedent_state::StateError
+impl core::cmp::PartialEq for antecedent_state::StateLimits
 impl core::cmp::PartialEq for antecedent_state::StreamingCovariance
 impl core::cmp::PartialEq for antecedent_state::TemporalDisposition
 impl core::cmp::PartialEq for antecedent_state::TemporalFactor
@@ -164,9 +170,11 @@ impl core::default::Default for antecedent_state::LgssmParams
 impl core::default::Default for antecedent_state::ModelStore
 impl core::default::Default for antecedent_state::QueryStore
 impl core::default::Default for antecedent_state::ResultStore
+impl core::default::Default for antecedent_state::StateLimits
 impl core::default::Default for antecedent_state::SuffStatStore
 impl core::default::Default for antecedent_state::disk_retention::SpillEncoder
 impl core::default::Default for antecedent_state::retention::RetentionMode
+impl core::error::Error for antecedent_state::PrunedHistory
 impl core::error::Error for antecedent_state::StateError
 impl core::error::Error for antecedent_state::retention::RetentionRefusal
 impl core::fmt::Debug for antecedent_state::CachedResult
@@ -206,6 +214,7 @@ impl core::fmt::Debug for antecedent_state::OlsRefresh
 impl core::fmt::Debug for antecedent_state::OlsSnapshot
 impl core::fmt::Debug for antecedent_state::ParentSetOp
 impl core::fmt::Debug for antecedent_state::ParticleFilterState
+impl core::fmt::Debug for antecedent_state::PrunedHistory
 impl core::fmt::Debug for antecedent_state::PublishedLineage
 impl core::fmt::Debug for antecedent_state::QueryRecord
 impl core::fmt::Debug for antecedent_state::QueryStore
@@ -223,6 +232,7 @@ impl core::fmt::Debug for antecedent_state::SpillRegistry
 impl core::fmt::Debug for antecedent_state::SpillStats
 impl core::fmt::Debug for antecedent_state::StateError
 impl core::fmt::Debug for antecedent_state::StateEvent
+impl core::fmt::Debug for antecedent_state::StateLimits
 impl core::fmt::Debug for antecedent_state::StreamingCovariance
 impl core::fmt::Debug for antecedent_state::SuffStatStore
 impl core::fmt::Debug for antecedent_state::TemporalDisposition
@@ -237,6 +247,7 @@ impl core::fmt::Debug for antecedent_state::retention::RetainedOperation
 impl core::fmt::Debug for antecedent_state::retention::RetentionMode
 impl core::fmt::Debug for antecedent_state::retention::RetentionRefusal
 impl core::fmt::Display for antecedent_state::InvalidationReason
+impl core::fmt::Display for antecedent_state::PrunedHistory
 impl core::fmt::Display for antecedent_state::StateError
 impl core::fmt::Display for antecedent_state::retention::RetainedOperation
 impl core::fmt::Display for antecedent_state::retention::RetentionMode
@@ -260,6 +271,7 @@ impl core::marker::Copy for antecedent_state::GraphScoreFamily
 impl core::marker::Copy for antecedent_state::InvalidationReason
 impl core::marker::Copy for antecedent_state::LgssmParams
 impl core::marker::Copy for antecedent_state::OlsLedgerState
+impl core::marker::Copy for antecedent_state::PrunedHistory
 impl core::marker::Copy for antecedent_state::PublishedLineage
 impl core::marker::Copy for antecedent_state::RefreshChange
 impl core::marker::Copy for antecedent_state::RefreshDisposition
@@ -268,6 +280,7 @@ impl core::marker::Copy for antecedent_state::RefreshRoute
 impl core::marker::Copy for antecedent_state::ResultPublication
 impl core::marker::Copy for antecedent_state::RetentionPolicy
 impl core::marker::Copy for antecedent_state::SpillStats
+impl core::marker::Copy for antecedent_state::StateLimits
 impl core::marker::Copy for antecedent_state::TemporalFactor
 impl core::marker::Copy for antecedent_state::TemporalProduct
 impl core::marker::Copy for antecedent_state::WeightedLedger
@@ -311,6 +324,7 @@ impl core::marker::Freeze for antecedent_state::OlsRefresh [auto]
 impl core::marker::Freeze for antecedent_state::OlsSnapshot [auto]
 impl core::marker::Freeze for antecedent_state::ParentSetOp [auto]
 impl core::marker::Freeze for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Freeze for antecedent_state::PrunedHistory [auto]
 impl core::marker::Freeze for antecedent_state::PublishedLineage [auto]
 impl core::marker::Freeze for antecedent_state::QueryRecord [auto]
 impl core::marker::Freeze for antecedent_state::QueryStore [auto]
@@ -327,6 +341,7 @@ impl core::marker::Freeze for antecedent_state::SpillHandle [auto]
 impl core::marker::Freeze for antecedent_state::SpillStats [auto]
 impl core::marker::Freeze for antecedent_state::StateError [auto]
 impl core::marker::Freeze for antecedent_state::StateEvent [auto]
+impl core::marker::Freeze for antecedent_state::StateLimits [auto]
 impl core::marker::Freeze for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Freeze for antecedent_state::SuffStatStore [auto]
 impl core::marker::Freeze for antecedent_state::TemporalDisposition [auto]
@@ -377,6 +392,7 @@ impl core::marker::Send for antecedent_state::OlsRefresh [auto]
 impl core::marker::Send for antecedent_state::OlsSnapshot [auto]
 impl core::marker::Send for antecedent_state::ParentSetOp [auto]
 impl core::marker::Send for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Send for antecedent_state::PrunedHistory [auto]
 impl core::marker::Send for antecedent_state::PublishedLineage [auto]
 impl core::marker::Send for antecedent_state::QueryRecord [auto]
 impl core::marker::Send for antecedent_state::QueryStore [auto]
@@ -394,6 +410,7 @@ impl core::marker::Send for antecedent_state::SpillRegistry [auto]
 impl core::marker::Send for antecedent_state::SpillStats [auto]
 impl core::marker::Send for antecedent_state::StateError [auto]
 impl core::marker::Send for antecedent_state::StateEvent [auto]
+impl core::marker::Send for antecedent_state::StateLimits [auto]
 impl core::marker::Send for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Send for antecedent_state::SuffStatStore [auto]
 impl core::marker::Send for antecedent_state::TemporalDisposition [auto]
@@ -430,6 +447,7 @@ impl core::marker::StructuralPartialEq for antecedent_state::LinearOlsSuffStats
 impl core::marker::StructuralPartialEq for antecedent_state::OlsLedgerState
 impl core::marker::StructuralPartialEq for antecedent_state::OlsSnapshot
 impl core::marker::StructuralPartialEq for antecedent_state::ParentSetOp
+impl core::marker::StructuralPartialEq for antecedent_state::PrunedHistory
 impl core::marker::StructuralPartialEq for antecedent_state::PublishedLineage
 impl core::marker::StructuralPartialEq for antecedent_state::RefreshChange
 impl core::marker::StructuralPartialEq for antecedent_state::RefreshDisposition
@@ -439,6 +457,7 @@ impl core::marker::StructuralPartialEq for antecedent_state::RefreshRow
 impl core::marker::StructuralPartialEq for antecedent_state::RetentionPolicy
 impl core::marker::StructuralPartialEq for antecedent_state::SpillStats
 impl core::marker::StructuralPartialEq for antecedent_state::StateError
+impl core::marker::StructuralPartialEq for antecedent_state::StateLimits
 impl core::marker::StructuralPartialEq for antecedent_state::StreamingCovariance
 impl core::marker::StructuralPartialEq for antecedent_state::TemporalDisposition
 impl core::marker::StructuralPartialEq for antecedent_state::TemporalFactor
@@ -486,6 +505,7 @@ impl core::marker::Sync for antecedent_state::OlsRefresh [auto]
 impl core::marker::Sync for antecedent_state::OlsSnapshot [auto]
 impl core::marker::Sync for antecedent_state::ParentSetOp [auto]
 impl core::marker::Sync for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Sync for antecedent_state::PrunedHistory [auto]
 impl core::marker::Sync for antecedent_state::PublishedLineage [auto]
 impl core::marker::Sync for antecedent_state::QueryRecord [auto]
 impl core::marker::Sync for antecedent_state::QueryStore [auto]
@@ -503,6 +523,7 @@ impl core::marker::Sync for antecedent_state::SpillRegistry [auto]
 impl core::marker::Sync for antecedent_state::SpillStats [auto]
 impl core::marker::Sync for antecedent_state::StateError [auto]
 impl core::marker::Sync for antecedent_state::StateEvent [auto]
+impl core::marker::Sync for antecedent_state::StateLimits [auto]
 impl core::marker::Sync for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Sync for antecedent_state::SuffStatStore [auto]
 impl core::marker::Sync for antecedent_state::TemporalDisposition [auto]
@@ -553,6 +574,7 @@ impl core::marker::Unpin for antecedent_state::OlsRefresh [auto]
 impl core::marker::Unpin for antecedent_state::OlsSnapshot [auto]
 impl core::marker::Unpin for antecedent_state::ParentSetOp [auto]
 impl core::marker::Unpin for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Unpin for antecedent_state::PrunedHistory [auto]
 impl core::marker::Unpin for antecedent_state::PublishedLineage [auto]
 impl core::marker::Unpin for antecedent_state::QueryRecord [auto]
 impl core::marker::Unpin for antecedent_state::QueryStore [auto]
@@ -570,6 +592,7 @@ impl core::marker::Unpin for antecedent_state::SpillRegistry [auto]
 impl core::marker::Unpin for antecedent_state::SpillStats [auto]
 impl core::marker::Unpin for antecedent_state::StateError [auto]
 impl core::marker::Unpin for antecedent_state::StateEvent [auto]
+impl core::marker::Unpin for antecedent_state::StateLimits [auto]
 impl core::marker::Unpin for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Unpin for antecedent_state::SuffStatStore [auto]
 impl core::marker::Unpin for antecedent_state::TemporalDisposition [auto]
@@ -621,6 +644,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::OlsRefresh [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::OlsSnapshot [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ParentSetOp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ParticleFilterState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::PrunedHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::PublishedLineage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::QueryRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::QueryStore [auto]
@@ -638,6 +662,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::SpillRegistry
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::SpillStats [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StateError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StateEvent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StateLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StreamingCovariance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::SuffStatStore [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::TemporalDisposition [auto]
@@ -688,6 +713,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_state::OlsRefresh [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::OlsSnapshot [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ParentSetOp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ParticleFilterState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::PrunedHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::PublishedLineage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::QueryRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::QueryStore [auto]
@@ -705,6 +731,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_state::SpillRegistry [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::SpillStats [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateEvent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StreamingCovariance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::SuffStatStore [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::TemporalDisposition [auto]
@@ -734,13 +761,17 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LinearOls
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_state::disk_retention::SpillDecoder<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_state::LinearOlsDelta<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_state::disk_retention::SpillDecoder<'a> [auto]
+pub const <antecedent_state::InvalidationLog>::PRUNED_GENESIS: antecedent_core::identity::SemanticDigest
 pub const <antecedent_state::RefreshChange>::ALL: [Self; 10]
 pub const <antecedent_state::RefreshRoute>::ALL: [Self; 6]
+pub const <antecedent_state::StateLimits>::MAX_AUDIT_WINDOW_ENTRIES: usize
+pub const <antecedent_state::StateLimits>::MIN_AUDIT_WINDOW_ENTRIES: usize
 pub const <antecedent_state::TemporalProduct>::ALL: [Self; 5]
 pub const <antecedent_state::retention::RetainedOperation>::ALL: [Self; 8]
 pub const <antecedent_state::retention::RetentionMode>::ALL: [Self; 3]
 pub const antecedent_state::DEFAULT_LOCAL_SCORE_CACHE_BYTES: u64
 pub const antecedent_state::DEFAULT_PARTICLE_BYTE_BUDGET: u64
+pub const antecedent_state::MAX_OLS_COLUMNS: usize
 pub const antecedent_state::MERGE_ABS_TOL: f64
 pub const antecedent_state::MERGE_REL_TOL: f64
 pub const antecedent_state::PARTICLE_BYTES: u64
@@ -770,6 +801,7 @@ pub field antecedent_state::CausalState::data_catalog: antecedent_state::DataCat
 pub field antecedent_state::CausalState::graph_evidence: antecedent_state::GraphEvidenceStore
 pub field antecedent_state::CausalState::interventions: alloc::vec::Vec<antecedent_state::InterventionRecord>
 pub field antecedent_state::CausalState::invalidations: antecedent_state::InvalidationLog
+pub field antecedent_state::CausalState::limits: antecedent_state::StateLimits
 pub field antecedent_state::CausalState::models: antecedent_state::ModelStore
 pub field antecedent_state::CausalState::queries: antecedent_state::QueryStore
 pub field antecedent_state::CausalState::suff_stats: antecedent_state::SuffStatStore
@@ -841,6 +873,10 @@ pub field antecedent_state::OlsSnapshot::xtx: alloc::vec::Vec<f64>
 pub field antecedent_state::OlsSnapshot::xty: alloc::vec::Vec<f64>
 pub field antecedent_state::OlsSnapshot::yty: f64
 pub field antecedent_state::ParticleFilterState::n_obs: u64
+pub field antecedent_state::PrunedHistory::head: antecedent_core::identity::SemanticDigest
+pub field antecedent_state::PrunedHistory::pruned_entries: u64
+pub field antecedent_state::PrunedHistory::pruned_through: antecedent_core::ids::StateVersion
+pub field antecedent_state::PrunedHistory::requested_after: antecedent_core::ids::StateVersion
 pub field antecedent_state::PublishedLineage::data_snapshot: antecedent_core::identity::SemanticDigest
 pub field antecedent_state::PublishedLineage::data_version: antecedent_state::DataVersion
 pub field antecedent_state::PublishedLineage::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
@@ -877,9 +913,12 @@ pub field antecedent_state::RollingMechanismDiagnostics::window: usize
 pub field antecedent_state::SpillStats::budget_bytes: u64
 pub field antecedent_state::SpillStats::entries: usize
 pub field antecedent_state::SpillStats::evictions: u64
+pub field antecedent_state::SpillStats::orphaned_files: usize
+pub field antecedent_state::SpillStats::recovered_files: u64
 pub field antecedent_state::SpillStats::reloads: u64
 pub field antecedent_state::SpillStats::spills: u64
 pub field antecedent_state::SpillStats::used_bytes: u64
+pub field antecedent_state::StateLimits::audit_window_entries: usize
 pub field antecedent_state::SuffStatStore::cov: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::StreamingCovariance>
 pub field antecedent_state::SuffStatStore::graph_scores: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::LocalScoreCache>
 pub field antecedent_state::SuffStatStore::lag_indexes: std::collections::hash::map::HashMap<antecedent_state::LagIndexCacheKey, antecedent_state::LagIndexCacheEntry>
@@ -907,12 +946,13 @@ pub fn <antecedent_state::CausalState>::fn data_version(&self) -> antecedent_sta
 pub fn <antecedent_state::CausalState>::fn input_identities(&self) -> antecedent_core::recalc::StageIdentities
 pub fn <antecedent_state::CausalState>::fn is_stale(&self, query: antecedent_core::ids::QueryId) -> bool
 pub fn <antecedent_state::CausalState>::fn new(cache_budget: antecedent_core::execution::budget::CacheBudget) -> Self
-pub fn <antecedent_state::CausalState>::fn publish_results(&mut self, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn publish_results(&mut self, _updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn publish_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
-pub fn <antecedent_state::CausalState>::fn refresh_results(&mut self, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn refresh_results(&mut self, _updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn refresh_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn revalidation(&self, query: antecedent_core::ids::QueryId) -> core::option::Option<antecedent_core::recalc::Revalidation>
 pub fn <antecedent_state::CausalState>::fn stale_queries(&self) -> alloc::vec::Vec<antecedent_core::ids::QueryId>
+pub fn <antecedent_state::CausalState>::fn with_limits(cache_budget: antecedent_core::execution::budget::CacheBudget, limits: antecedent_state::StateLimits) -> Self
 pub fn <antecedent_state::ChangedInput>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::ConjugateBlockRefresh>::const fn prior(&self) -> &antecedent_state::ConjugateOlsPrior
 pub fn <antecedent_state::ConjugateBlockRefresh>::const fn recomputes(&self) -> u64
@@ -975,14 +1015,20 @@ pub fn <antecedent_state::DataVersion>::const fn next(self) -> Self
 pub fn <antecedent_state::DataVersion>::const fn raw(self) -> u64
 pub fn <antecedent_state::GraphScoreData>::const fn fingerprint(&self) -> u64
 pub fn <antecedent_state::GraphScoreData>::fn new(n_rows: usize, n_vars: usize, columns: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::InvalidationEntry>::fn chained_onto(&self, head: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_state::InvalidationEntry>::fn revalidation(&self) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_state::InvalidationLog>::fn entries_after(&self, since: antecedent_core::ids::StateVersion) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = &antecedent_state::InvalidationEntry> + '_, antecedent_state::PrunedHistory>
 pub fn <antecedent_state::InvalidationLog>::fn new() -> Self
+pub fn <antecedent_state::InvalidationLog>::fn pruned_entries(&self) -> u64
+pub fn <antecedent_state::InvalidationLog>::fn pruned_head(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_state::InvalidationLog>::fn pruned_through(&self) -> core::option::Option<antecedent_core::ids::StateVersion>
 pub fn <antecedent_state::InvalidationLog>::fn push(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>)
 pub fn <antecedent_state::InvalidationLog>::fn push_input(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>, input: antecedent_state::ChangedInput)
 pub fn <antecedent_state::InvalidationLog>::fn push_temporal_change(&mut self, at_version: antecedent_core::ids::StateVersion, changes: &alloc::collections::btree::set::BTreeSet<antecedent_state::TemporalFactor>, period_invariant: bool, reason: &str) -> antecedent_state::TemporalDisposition
 pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
 pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::InvalidationLog>::fn temporal_product_reusable_since(&self, product: antecedent_state::TemporalProduct, since: antecedent_core::ids::StateVersion) -> bool
+pub fn <antecedent_state::InvalidationLog>::fn trim_audit(&mut self, keep: usize)
 pub fn <antecedent_state::InvalidationReason>::const fn as_str(self) -> &'static str
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn is_invalidated(&self) -> bool
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn n(&self) -> u64
@@ -993,6 +1039,7 @@ pub fn <antecedent_state::LinearOlsSuffStats>::fn append_row(&mut self, row: &[f
 pub fn <antecedent_state::LinearOlsSuffStats>::fn apply_delta(&mut self, delta: antecedent_state::LinearOlsDelta<'_>) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn merge(&mut self, other: &Self) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_sum_of_squares(&self, beta: &[f64]) -> core::option::Option<f64>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_variance(&self, beta: &[f64]) -> core::option::Option<f64>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn solve_beta(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn xtx(&self) -> &[f64]
@@ -1073,6 +1120,7 @@ pub fn <antecedent_state::SpillRegistry>::fn reload<T: antecedent_state::Spillab
 pub fn <antecedent_state::SpillRegistry>::fn remove(&self, key: &str) -> bool
 pub fn <antecedent_state::SpillRegistry>::fn spill<T: antecedent_state::Spillable>(self: &alloc::sync::Arc<Self>, key: &str, value: &T) -> core::result::Result<antecedent_state::SpillHandle, antecedent_state::StateError>
 pub fn <antecedent_state::SpillRegistry>::fn stats(&self) -> antecedent_state::SpillStats
+pub fn <antecedent_state::StateLimits>::fn for_cache_budget(budget: antecedent_core::execution::budget::CacheBudget) -> Self
 pub fn <antecedent_state::StreamingCovariance>::fn append(&mut self, x: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::StreamingCovariance>::fn dim(&self) -> usize
 pub fn <antecedent_state::StreamingCovariance>::fn m2(&self) -> &[f64]
@@ -1188,6 +1236,7 @@ pub struct antecedent_state::GraphScoreData has private fields
 pub struct antecedent_state::InterventionRecord
 pub struct antecedent_state::InvalidationEntry
 pub struct antecedent_state::InvalidationLog
+pub struct antecedent_state::InvalidationLog has private fields
 pub struct antecedent_state::LagIndexCacheEntry
 pub struct antecedent_state::LagIndexCacheEntry has private fields
 pub struct antecedent_state::LagIndexCacheKey
@@ -1206,6 +1255,7 @@ pub struct antecedent_state::OlsRefresh has private fields
 pub struct antecedent_state::OlsSnapshot
 pub struct antecedent_state::ParticleFilterState
 pub struct antecedent_state::ParticleFilterState has private fields
+pub struct antecedent_state::PrunedHistory
 pub struct antecedent_state::PublishedLineage
 pub struct antecedent_state::QueryRecord
 pub struct antecedent_state::QueryStore
@@ -1220,6 +1270,7 @@ pub struct antecedent_state::SpillHandle has private fields
 pub struct antecedent_state::SpillRegistry
 pub struct antecedent_state::SpillRegistry has private fields
 pub struct antecedent_state::SpillStats
+pub struct antecedent_state::StateLimits
 pub struct antecedent_state::StreamingCovariance
 pub struct antecedent_state::StreamingCovariance has private fields
 pub struct antecedent_state::SuffStatStore
@@ -1265,6 +1316,7 @@ pub use antecedent_state::invalidation::InvalidationEntry = antecedent_state::In
 pub use antecedent_state::invalidation::InvalidationLog = antecedent_state::InvalidationLog
 pub use antecedent_state::invalidation::InvalidationReason = antecedent_state::InvalidationReason
 pub use antecedent_state::invalidation::InvalidationTarget = antecedent_state::InvalidationTarget
+pub use antecedent_state::invalidation::PrunedHistory = antecedent_state::PrunedHistory
 pub use antecedent_state::invalidation::TemporalDisposition = antecedent_state::TemporalDisposition
 pub use antecedent_state::invalidation::TemporalFactor = antecedent_state::TemporalFactor
 pub use antecedent_state::invalidation::TemporalProduct = antecedent_state::TemporalProduct
@@ -1287,6 +1339,7 @@ pub use antecedent_state::retention::RetentionPolicy = antecedent_state::Retenti
 pub use antecedent_state::route_contract = antecedent_state::refresh_contract::route_contract
 pub use antecedent_state::state::CausalState = antecedent_state::CausalState
 pub use antecedent_state::state::ResultPublication = antecedent_state::ResultPublication
+pub use antecedent_state::state::StateLimits = antecedent_state::StateLimits
 pub use antecedent_state::store::CachedResult = antecedent_state::CachedResult
 pub use antecedent_state::store::ConstraintId = antecedent_state::ConstraintId
 pub use antecedent_state::store::DataBatchRef = antecedent_state::DataBatchRef
@@ -1307,6 +1360,7 @@ pub use antecedent_state::suff_stats::LagIndexCacheEntry = antecedent_state::Lag
 pub use antecedent_state::suff_stats::LagIndexCacheKey = antecedent_state::LagIndexCacheKey
 pub use antecedent_state::suff_stats::LinearOlsDelta = antecedent_state::LinearOlsDelta
 pub use antecedent_state::suff_stats::LinearOlsSuffStats = antecedent_state::LinearOlsSuffStats
+pub use antecedent_state::suff_stats::MAX_OLS_COLUMNS = antecedent_state::MAX_OLS_COLUMNS
 pub use antecedent_state::suff_stats::MERGE_ABS_TOL = antecedent_state::MERGE_ABS_TOL
 pub use antecedent_state::suff_stats::MERGE_REL_TOL = antecedent_state::MERGE_REL_TOL
 pub use antecedent_state::suff_stats::StreamingCovariance = antecedent_state::StreamingCovariance

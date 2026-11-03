@@ -109,7 +109,7 @@ fn msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
     let SamplingStatus::Withheld { reason_code, detail } = &uncertainty.sampling else {
         panic!("the sampling interval must be withheld");
     };
-    assert_eq!(reason_code, "cell_not_licensed");
+    assert_eq!(reason_code, "not_supported");
     assert_eq!(detail, "msm_sensitivity.interval_withheld");
     let provenance = built.provenance();
     assert_eq!(provenance.source_kind, MSM_SOURCE_KIND);
@@ -188,9 +188,9 @@ fn msm_artifact_refuses_a_sampling_composition() {
     });
     let error = SensitivityArtifact::new(parts).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(
-        message.starts_with("sensitivity_decision_composition.composition_not_licensed"),
+        message.starts_with("sensitivity_decision_composition.composition_not_supported"),
         "{message}"
     );
 }

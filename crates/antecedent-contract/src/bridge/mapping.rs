@@ -1,6 +1,6 @@
 //! The mappings that carry one point value across a bridge.
 //!
-//! * [`BridgeMapping::Identity`] leaves the value unchanged; it is licensed only
+//! * [`BridgeMapping::Identity`] leaves the value unchanged; it is supported only
 //!   where the declared assumptions make the target quantity *equal* to the
 //!   source (a predictive quantity under identification, a stated preference
 //!   under a declared behavioral linkage).

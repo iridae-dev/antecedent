@@ -880,11 +880,11 @@ fn prepared_body() {
 }
 
 #[test]
-fn a_weighted_or_dependent_joint_cell_does_not_inherit_the_unweighted_cells_license() {
-    on_large_stack("cells-04-license", license_body);
+fn a_weighted_or_dependent_joint_cell_does_not_inherit_the_unweighted_cells_support() {
+    on_large_stack("cells-04-support", support_body);
 }
 
-fn license_body() {
+fn support_body() {
     let reference = reference();
     let plain = dependent_study(reference_table(&reference, false), None, None).unwrap();
     let weighted = dependent_study(reference_table(&reference, true), None, None).unwrap();
@@ -894,9 +894,9 @@ fn license_body() {
         Some(ScoreDependence::clusters((0..60u32).map(|i| i / 5).collect::<Vec<_>>())),
     )
     .unwrap();
-    assert_eq!(format!("{:?}", plain.support_status()), "Some(Licensed)");
+    assert_eq!(format!("{:?}", plain.support_status()), "Some(Supported)");
     assert_ne!(weighted.support_status(), plain.support_status());
     assert_ne!(clustered.support_status(), plain.support_status());
-    assert_eq!(format!("{:?}", weighted.support_status()), "Some(Refused)");
-    assert_eq!(format!("{:?}", clustered.support_status()), "Some(Refused)");
+    assert_eq!(format!("{:?}", weighted.support_status()), "Some(NotSupported)");
+    assert_eq!(format!("{:?}", clustered.support_status()), "Some(NotSupported)");
 }

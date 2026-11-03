@@ -206,9 +206,9 @@ pub struct ScientificProblem {
     pub(crate) query_variables: Arc<[VariableId]>,
     pub(crate) source_digest: Option<[u8; 32]>,
     pub(crate) support_coordinate: Option<Arc<str>>,
-    pub(crate) licensed: bool,
+    pub(crate) supported: bool,
     /// Evidence status of the coordinate, read from the study at lowering. Not part of the
-    /// program identity: the identity binds the coordinate and whether it is licensed.
+    /// program identity: the identity binds the coordinate and whether it is supported.
     pub(crate) support_status: Option<crate::support::CellStatus>,
 }
 
@@ -255,10 +255,10 @@ impl ScientificProblem {
         self.support_coordinate.as_deref()
     }
 
-    /// Whether the study's coordinate is a licensed cell.
+    /// Whether the study's coordinate is a supported cell.
     #[must_use]
-    pub const fn licensed(&self) -> bool {
-        self.licensed
+    pub const fn supported(&self) -> bool {
+        self.supported
     }
 
     /// Evidence status of the study's support-matrix cell.
@@ -297,7 +297,7 @@ impl ScientificProblem {
         writer
             .opt_text(self.source_digest.as_ref().map(hex).as_deref())
             .opt_text(self.support_coordinate.as_deref())
-            .word(u64::from(self.licensed));
+            .word(u64::from(self.supported));
     }
 }
 
@@ -994,7 +994,7 @@ pub(crate) enum ProgramCell {
 }
 
 impl ProgramCell {
-    /// Stable name, written to the licensed-route record.
+    /// Stable name, written to the supported-route record.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Route(cell) => cell.as_str(),

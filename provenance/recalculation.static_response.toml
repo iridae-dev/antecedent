@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 # Original retention and exact identity binding over existing checked ADMG response and finite multi-source transport engines. Statistical and identification derivations remain owned by their existing engine provenance.
 papers = []
-implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty license."]
+implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty support."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_static.rs", "python/tests/test_recalc_static.py"]
 
@@ -16,12 +16,12 @@ kind = "wrapper"
 rationale = "Shared-plan retention and identity binding over the checked finite ADMG response and multi-source transport engines."
 no_independent_algorithm = "recalc_static.rs binds conditional probability tables and transport factors, checks support and memory bounds, and reports the contrast of two supplied response means (a single subtraction with a finiteness check); the responses are the covered engines'. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
 covered_by = ["identify.id", "identify.transport_sid", "estimate.response.intervention_gcomp"]
-record_sha256 = "6d9f713b99eb396ba3ef19e8f6f297c421e57be0f7016f6b7bec3a284452e59f"
+record_sha256 = "0f642e624c0e9cc1d99afc59d4fb241bd7ed5478fc12c6a8075bfc5afa89afe0"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_static.rs"
-sha256 = "45ccc5775789106a50f6c33e9836c6b577867a1551f3cbe9916f02389e6e4a71"
+sha256 = "4170c9ad6aa3f8f823e10e962f5c8e3daba595862537654ed2ceba53138b8a43"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

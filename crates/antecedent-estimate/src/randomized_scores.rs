@@ -159,7 +159,7 @@ pub struct ComplierWaldEffect {
 /// normal ratio interval into a weak-instrument-robust confidence set. The
 /// interval matches the retained
 /// analyze route's published interval exactly;
-/// the support license itself is granted only on that route.
+/// the support itself is granted only on that route.
 #[must_use]
 pub fn complier_wald_effect(
     outcomes: &[f64],

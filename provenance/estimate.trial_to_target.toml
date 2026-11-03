@@ -38,7 +38,7 @@ record_sha256 = "68862f0fba503a6f14690cbad4dc273ce8d803b8af1dfb1152330e018d1e093
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "23044e46b1f77ac46a9e42eac14311b9bf34a4c59237232e1103ebbdd7f1f67f"
+sha256 = "415ca5b17cad401b182cc7646e2d0bc1d9673953f63182b5b023451a2266ac6c"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -48,4 +48,4 @@ sha256 = "089de73aee88340733381410eb355960a2b8d6354bb21a4d617516d63328ce4c"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/trial_transport/expected.json"
-sha256 = "61ddb4577ca08f0a57cc204a078aa139139b42e096c112af080e06ddb190b731"
+sha256 = "7784d6ccdfbf4e9c18b59f2693e38f3ae0f3de409fb1e4684926747943347455"

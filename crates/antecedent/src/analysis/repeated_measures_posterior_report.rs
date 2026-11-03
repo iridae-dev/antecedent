@@ -17,14 +17,14 @@
 //! probabilities of the realized assignments are retained as selection evidence and are not used
 //! by the posterior. This is a property of the posterior only: the frequentist analysis of the
 //! same trial is calibrated to the whole procedure and is a separate report. An assignment that
-//! depends on an unobserved quantity is refused with `cell_not_licensed`
+//! depends on an unobserved quantity is refused with `not_supported`
 //! (`adaptive_inference.selection_not_ignorable`).
 //!
 //! # What it does not say
 //!
 //! The within-unit variance and correlation are declared, not estimated, and the arm-mean priors
 //! are declared, not defaulted: a prior alone never identifies the contrast, and an arm without a
-//! completed unit is refused. The report is unlicensed and its repeated-sampling calibration is
+//! completed unit is refused. The report is unsupported and its repeated-sampling calibration is
 //! unmeasured; both facts are retained in the artifact.
 //!
 //! The retained report carries the completed units, so the loader recomputes every reported
@@ -166,8 +166,8 @@ pub struct RepeatedMeasuresPosteriorReport {
     pub unit_arms: Vec<u64>,
     /// Measurements of each completed unit.
     pub unit_measurements: Vec<Vec<f64>>,
-    /// Always `false`: no support license covers this estimator.
-    pub licensed: bool,
+    /// Always `false`: no support covers this estimator.
+    pub supported: bool,
     /// Always `false`: repeated-sampling calibration is unmeasured.
     pub calibration_measured: bool,
     /// Calibration standing; `unmeasured`.
@@ -274,7 +274,7 @@ impl RepeatedMeasuresProcedure {
     /// within-unit structure.
     ///
     /// # Errors
-    /// `cell_not_licensed` with `adaptive_inference.selection_not_ignorable` for an assignment
+    /// `not_supported` with `adaptive_inference.selection_not_ignorable` for an assignment
     /// that depends on an unobserved quantity, `adaptive_inference.arm_not_observed` for a
     /// contrast arm without a completed unit, and `adaptive_inference.structure_incomplete` for
     /// an inadmissible declared structure; `invalid_argument` for malformed units, priors, level
@@ -327,7 +327,7 @@ impl RepeatedMeasuresProcedure {
             assignment_probabilities: posterior.evidence.assignment_probabilities,
             unit_arms: spec.units.iter().map(|u| u.arm as u64).collect(),
             unit_measurements: spec.units.iter().map(|u| u.measurements.clone()).collect(),
-            licensed: false,
+            supported: false,
             calibration_measured: false,
             calibration: UNCALIBRATED_STANDING.to_owned(),
         })
@@ -339,7 +339,7 @@ impl RepeatedMeasuresPosteriorReport {
     ///
     /// # Errors
     /// An `invalid_argument` refusal naming the first inconsistency: another estimator or
-    /// procedure, a claimed license or measured calibration, or a number the retained units do
+    /// procedure, a claimed support or measured calibration, or a number the retained units do
     /// not reproduce.
     pub fn validate(
         &self,
@@ -348,8 +348,9 @@ impl RepeatedMeasuresPosteriorReport {
         if self.estimator_id != REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID {
             return Err(invalid("not a repeated-measures posterior report"));
         }
-        if self.licensed || self.calibration_measured || self.calibration != UNCALIBRATED_STANDING {
-            return Err(invalid("a repeated-measures posterior is unlicensed and uncalibrated"));
+        if self.supported || self.calibration_measured || self.calibration != UNCALIBRATED_STANDING
+        {
+            return Err(invalid("a repeated-measures posterior is unsupported and uncalibrated"));
         }
         if self.procedure_identity != procedure.identity() {
             return Err(invalid("the report was computed under a different declared procedure"));
@@ -424,7 +425,7 @@ pub fn encode_repeated_measures_posterior_report(
 /// Load a retained repeated-measures posterior artifact and recompute it under `procedure`.
 ///
 /// # Errors
-/// A refusal of the envelope (format, version, estimator, digest, claimed license) or of the
+/// A refusal of the envelope (format, version, estimator, digest, claimed support) or of the
 /// report validation (another procedure, numbers the retained units do not reproduce).
 pub fn load_repeated_measures_posterior_report(
     text: &str,
@@ -510,18 +511,18 @@ struct Envelope {
     format: String,
     version: u32,
     estimator_id: String,
-    licensed: bool,
+    supported: bool,
     calibration_measured: bool,
     payload: serde_json::Value,
     digest: String,
 }
 
-fn digest_of(licensed: bool, calibration_measured: bool, payload: &serde_json::Value) -> String {
+fn digest_of(supported: bool, calibration_measured: bool, payload: &serde_json::Value) -> String {
     let mut hasher = blake3::Hasher::new();
     hasher.update(REPEATED_MEASURES_POSTERIOR_ARTIFACT_FORMAT.as_bytes());
     hasher.update(&REPEATED_MEASURES_POSTERIOR_ARTIFACT_VERSION.to_le_bytes());
     hasher.update(REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID.as_bytes());
-    hasher.update(&[u8::from(licensed), u8::from(calibration_measured)]);
+    hasher.update(&[u8::from(supported), u8::from(calibration_measured)]);
     hasher.update(payload.to_string().as_bytes());
     hasher.finalize().to_hex().to_string()
 }
@@ -554,7 +555,7 @@ pub fn seal_report_without_validation(
         format: REPEATED_MEASURES_POSTERIOR_ARTIFACT_FORMAT.to_owned(),
         version: REPEATED_MEASURES_POSTERIOR_ARTIFACT_VERSION,
         estimator_id: REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID.to_owned(),
-        licensed: false,
+        supported: false,
         calibration_measured: false,
         payload,
         digest,
@@ -571,12 +572,12 @@ fn open_envelope(text: &str) -> Result<RepeatedMeasuresPosteriorReport, Adaptive
     {
         return Err(invalid("artifact is not a repeated-measures posterior of this layout"));
     }
-    if envelope.licensed || envelope.calibration_measured {
+    if envelope.supported || envelope.calibration_measured {
         return Err(invalid(
-            "an uncalibrated artifact cannot claim a license or a measured calibration",
+            "an uncalibrated artifact cannot claim support or a measured calibration",
         ));
     }
-    if digest_of(envelope.licensed, envelope.calibration_measured, &envelope.payload)
+    if digest_of(envelope.supported, envelope.calibration_measured, &envelope.payload)
         != envelope.digest
     {
         return Err(invalid("artifact digest does not match its payload"));

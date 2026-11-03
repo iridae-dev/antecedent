@@ -56,7 +56,7 @@ identification result establishes that equality for the same graph, population,
 selection, regime, conditioning, time and support. The distribution tag or an
 external provider's attestation cannot establish the equality by itself.
 
-`native_licensed`, `external_attested`, `verified_extension` and `unverified`
+`native_supported`, `external_attested`, `verified_extension` and `unverified`
 are separate trust labels. Loading preserves the label; it never upgrades one
 label to another. The artifact does not by itself certify a provider, an
 identified causal estimand or an inferential guarantee.
@@ -79,7 +79,7 @@ For an unweighted parameter or causal-functional posterior, an equal-tailed
 interval can be recomputed from loaded draws with the type-7 quantile
 rule. That interval describes posterior draw mass, not coverage.
 The converted artifact is marked `unverified` and `unmeasured`; the conversion
-cannot inherit a `CausalPosterior` provider or interval license. The `CausalPosterior` wire does not carry
+cannot inherit a `CausalPosterior` provider or interval support. The `CausalPosterior` wire does not carry
 population, regime or snapshot identities, so the caller must establish those
 in the independently retained causal contract before conversion.
 
@@ -105,6 +105,6 @@ row `(1, -1)` with response `3`, under `N(0, I)` and known residual variance
 `1`. A four-draw quadrature artifact has the exact first two moments of the
 batch A Gaussian posterior. With target columns reversed, sequential and
 pooled conjugate fits both produce mean `(-2/3, 4/3)` and covariance `I/3`.
-This licenses a point-only transfer calculation. Upstream posterior trust and
+This supports a point-only transfer calculation. Upstream posterior trust and
 causal identification still come from the independently checked source
 contract; the artifact's trust label is not such proof.

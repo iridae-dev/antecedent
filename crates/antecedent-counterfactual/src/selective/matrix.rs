@@ -379,13 +379,13 @@ boundary and does not abduce a target-population factual unit.",
         coupling: CouplingKind::SharedAbducedExogenous,
         status: CapabilityStatus::Closed,
         route: "none",
-        theorem: "No joint theorem composes a transport license with factual abduction in a \
+        theorem: "No joint theorem composes a transport support with factual abduction in a \
 target population: a transport identification supplies no abduction, shared-noise or per-world \
 receipts, and abduction in the source population is not abduction of a target unit.",
-        refusal_code: Some("cell_not_licensed"),
+        refusal_code: Some("not_supported"),
         refusal_detail: Some("cross_world_execution.transported_row_closed"),
-        remedy: "supply a transport license for the quantity, a fixed-population cross-world \
-license, and the cross-population invariance of the exogenous law with target-population \
+        remedy: "supply a transport support for the quantity, a fixed-population cross-world \
+support, and the cross-population invariance of the exogenous law with target-population \
 factual evidence; the static additive linear case has its own theorem-scoped route",
     },
     MatrixRow {
@@ -588,13 +588,13 @@ pub struct MatrixRefusal {
     pub missing: Vec<String>,
 }
 
-/// A licensed row or a typed refusal.
+/// A supported row or a typed refusal.
 pub type MatrixDecision = Result<&'static MatrixRow, MatrixRefusal>;
 
 fn closed(id: &'static str) -> MatrixRefusal {
     let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
-        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("cell_not_licensed")),
+        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("not_supported")),
         detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
         subject: row.id,
         remedy: row.remedy,
@@ -604,7 +604,7 @@ fn closed(id: &'static str) -> MatrixRefusal {
 
 fn transported_refusal() -> MatrixRefusal {
     let prerequisites = TransportedCounterfactualPrerequisites {
-        fixed_population_license: true,
+        fixed_population_support: true,
         ..TransportedCounterfactualPrerequisites::default()
     };
     let mut missing: Vec<String> =
@@ -753,10 +753,10 @@ mod tests {
             ..finite(QuantityClass::TransportedCrossWorld)
         };
         let refused = decide(&request).unwrap_err();
-        assert_eq!(refused.code, "cell_not_licensed");
+        assert_eq!(refused.code, "not_supported");
         assert_eq!(refused.detail, "cross_world_execution.transported_row_closed");
         for gate in [
-            "transport_license_missing",
+            "transport_support_missing",
             "cross_population_assumptions_missing",
             "target_population_abduction_receipt",
             "shared_exogenous_invariance_across_populations",

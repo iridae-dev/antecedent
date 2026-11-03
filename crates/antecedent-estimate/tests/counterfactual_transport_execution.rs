@@ -270,7 +270,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
     let error = evaluate(&derivation, &swapped).unwrap_err();
     assert!(matches!(error, EstimationError::Refused { .. }), "{error:?}");
 
-    // An empirical plug-in is not licensed: sampled inference is a separate route.
+    // An empirical plug-in is not supported: sampled inference is a separate route.
     let mut laws: Vec<ExactDiscreteLaw> = data.laws().to_vec();
     let law = &laws[0];
     laws[0] = ExactDiscreteLaw::try_empirical(
@@ -285,7 +285,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
     .unwrap();
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = evaluate(&derivation, &empirical).unwrap_err();
-    assert_eq!(refusal_code(&error), "cell_not_licensed");
+    assert_eq!(refusal_code(&error), "not_supported");
 }
 
 #[test]

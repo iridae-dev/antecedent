@@ -76,7 +76,7 @@ class InspectionReport(BaseModel):
     #: A not-identified contract adds ``measure_variable:<name>``, ``run_experiment:<target>``,
     #: ``find_instrument`` and ``collect_panel``.
     next_actions: tuple[Mapping[str, Any], ...] = ()
-    #: Licensed alternatives that change named premises; an explicit choice, never a fallback.
+    #: Supported alternatives that change named premises; an explicit choice, never a fallback.
     neighbors: tuple[Mapping[str, Any], ...] = ()
     #: Unresolved obligations of the contract.
     unmet_obligations: tuple[Mapping[str, Any], ...] = ()

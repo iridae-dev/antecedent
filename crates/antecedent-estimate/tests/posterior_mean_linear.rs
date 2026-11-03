@@ -199,7 +199,7 @@ fn quadratic_posterior_refuses_an_unmeasured_band() {
         )
         .unwrap_err(),
     );
-    assert!(message.contains("cell_not_licensed"), "{message}");
+    assert!(message.contains("not_supported"), "{message}");
     assert!(message.contains("quadratic_posterior.unmeasured_band"), "{message}");
 }
 

@@ -3,7 +3,7 @@
 ``prepared.report(format)`` renders Markdown or one self-contained HTML page from the
 records the handle holds: the executed claim and contract, or the prepared contract alone,
 with the plan view. The renderer is the Rust one; Python only selects the format. Golden
-files pin the output for a licensed static effect, a route that executes without a licence,
+files pin the output for a supported static effect, a route that executes without support,
 a Bayesian effect and a temporal effect; regenerate them deliberately with
 ``ANTECEDENT_REGENERATE_REPORTS=1 python -m pytest python/tests/test_report.py`` and review
 the diff. A cell the support matrix refuses raises at prepare, so no handle exists to report
@@ -35,7 +35,7 @@ _SECTIONS = [
     "Assumptions",
     "Diagnostics and evidence",
     "Uncertainty",
-    "Support and licence",
+    "Support",
     "Refusals and limits",
     "Program plan",
     "Identities",
@@ -52,7 +52,7 @@ def _table(n: int = 240, names: tuple[str, str, str] = ("t", "y", "z")) -> dict[
     return {t_name: t, y_name: y, z_name: z}
 
 
-def _licensed_outcome():
+def _supported_outcome():
     prepared = ant.prepare(
         _table(),
         graph=_EDGES,
@@ -64,8 +64,8 @@ def _licensed_outcome():
     return ant.estimate(prepared)
 
 
-def _licensed():
-    return _licensed_outcome().study
+def _supported():
+    return _supported_outcome().study
 
 
 def _bayesian():
@@ -96,7 +96,7 @@ def _dose_data():
     }
 
 
-def _unlicensed():
+def _unsupported():
     prepared = ant.prepare(
         _dose_data(),
         query=ConditionalDoseResponse(
@@ -137,8 +137,8 @@ def _temporal():
 
 
 SCENARIOS: dict[str, Callable[[], ant.PreparedAnalysis]] = {
-    "licensed_static_effect": _licensed,
-    "unlicensed_executing_route": _unlicensed,
+    "supported_static_effect": _supported,
+    "unsupported_executing_route": _unsupported,
     "bayesian_effect": _bayesian,
     "temporal_effect": _temporal,
 }
@@ -185,12 +185,12 @@ def test_report_is_deterministic_from_the_study_to_the_bytes(name: str) -> None:
 
 
 def test_report_carries_every_section_and_the_claim_of_the_execution() -> None:
-    outcome = _licensed_outcome()
+    outcome = _supported_outcome()
     markdown = outcome.study.report("markdown")
     assert re.findall(r"^## (.+)$", markdown, re.MULTILINE) == _SECTIONS
     result = require_success(outcome)
     assert float(_fact(markdown, "Value")) == pytest.approx(result.ate, abs=1e-9)
-    assert _fact(markdown, "Support status") == "licensed"
+    assert _fact(markdown, "Support status") == "supported"
     assert _fact(markdown, "Claim kind") == "point"
     assert "adjustment" in markdown.lower() or "backdoor" in markdown.lower()
 
@@ -226,9 +226,9 @@ def test_bayesian_report_states_its_posterior_plan_and_calibration() -> None:
     assert _fact(markdown, "Governing record")
 
 
-def test_the_unlicensed_route_states_that_no_licence_applies() -> None:
-    markdown = _unlicensed().report("markdown")
-    assert _fact(markdown, "Support status") != "licensed"
+def test_the_unsupported_route_states_that_no_support_applies() -> None:
+    markdown = _unsupported().report("markdown")
+    assert _fact(markdown, "Support status") != "supported"
     assert "## Refusals and limits" in markdown
 
 
@@ -245,7 +245,7 @@ def test_a_refused_cell_raises_at_prepare_so_no_handle_reports_on_it() -> None:
 
 
 def test_an_unknown_format_is_a_typed_refusal() -> None:
-    prepared = _licensed()
+    prepared = _supported()
     with pytest.raises(CausalValueError, match="unknown report format"):
         prepared.report("pdf")  # type: ignore[arg-type]
 

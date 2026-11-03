@@ -22,7 +22,7 @@ What the ledger decides, and what it does not:
 
 * **Overlap first.** Every combination is registered with the ledger *before* any number is
   computed. Shared or unknown overlap declared independent, duplicate and re-entered evidence, and
-  a retired source are refused with a typed reason and the declaration that would license the
+  a retired source are refused with a typed reason and the declaration that would support the
   request (:class:`EvidenceLedgerRefusal`). Overlap that is not declared is ``unknown``, never
   independent.
 * **Point-only.** Pooling is inverse-variance or generalized least squares (a declared covariance
@@ -32,7 +32,7 @@ What the ledger decides, and what it does not:
   ``assumption_range``. An interval is reported only by :meth:`EvidenceLedger.pooled_interval`,
   bound to a currently attesting coverage record of the exact construction (fixed effect,
   declared covariance, or random effects by Hartung-Knapp); anything else raises
-  ``cell_not_licensed``.
+  ``not_supported``.
 * **Atomic.** A refused request leaves the session exactly as it was; so does a refused
   :meth:`EvidenceLedger.refresh`, which applies a batch of added and retired evidence to a copy.
 * **No stale use.** Retiring a source reclassifies every result that rested on it as
@@ -123,7 +123,7 @@ class EvidenceLedgerRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``evidence_double_counted``, ``evidence_overlap_unknown``,
-    ``evidence_source_withdrawn``, ``cell_not_licensed``) and an ``evidence_ledger.*`` ``detail``;
+    ``evidence_source_withdrawn``, ``not_supported``) and an ``evidence_ledger.*`` ``detail``;
     ``sources`` names the sources the refusal is about.
     """
 
@@ -487,7 +487,7 @@ class EqualStudyGaussian:
     """Equal-study mean and empirical variance of the mean.
 
     Independent Gaussian study estimates share a marginal mean but may have
-    arbitrary unequal variances. The study-level Student interval, when licensed,
+    arbitrary unequal variances. The study-level Student interval, when supported,
     has at least 95% coverage; this is not a fitted between-study variance model.
     """
 
@@ -607,7 +607,7 @@ class SynthesisOutcome(ScientificResult):
     """A registered combination and its numbers.
 
     ``claim_class`` and ``claim_label`` are ``"point_only"`` or ``"assumption_range"``: the ledger
-    licenses nothing stronger.
+    supports nothing stronger.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -920,7 +920,7 @@ class EvidenceLedger(ScientificResult):
         """Pool the summaries of two or more studies.
 
         The ledger decides first: independent pooling needs every pair known and disjoint; a
-        declared row-major ``covariance`` (in the order of ``summaries``) is licensed when it has
+        declared row-major ``covariance`` (in the order of ``summaries``) is supported when it has
         cross terms or the sources are known and disjoint, and is preserved by generalized least
         squares. Point-only.
         """
@@ -1090,7 +1090,7 @@ class EvidenceLedger(ScientificResult):
         Fixed-effect and declared-covariance pooling report the Wald ``z`` interval; random
         effects reports the Hartung-Knapp-Sidik-Jonkman ``t`` interval. The returned mapping
         carries ``lower``, ``upper``, ``level`` and the governing coverage record under
-        ``calibration``. Raises ``cell_not_licensed`` (:class:`EvidenceLedgerRefusal`) for a
+        ``calibration``. Raises ``not_supported`` (:class:`EvidenceLedgerRefusal`) for a
         result with no numbers, a hierarchical borrowing or dependence range, or a
         construction, study count or sample size with no currently attesting coverage record.
         """

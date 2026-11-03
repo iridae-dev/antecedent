@@ -372,7 +372,7 @@ fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
         ),
         ("limits", Box::new(|w| w.body.perturbation.operations = 50_000), premises.clone()),
         ("method", Box::new(|w| w.body.receipt.method.push('!')), premises.clone()),
-        ("claim", Box::new(|w| w.body.inference_claim = "calibrated".into()), premises.clone()),
+        ("claim", Box::new(|w| w.body.inference_claim = "interval".into()), premises.clone()),
         (
             "sampling",
             Box::new(|w| w.body.sampling.method = "percentile_bootstrap".into()),
@@ -500,7 +500,7 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
         (
             "interval",
             Box::new(|w| w.body.sampling.interval = Some([0.1, 0.9])),
-            ("cell_not_licensed", "joint_sensitivity.interval_withheld".to_owned()),
+            ("not_supported", "joint_sensitivity.interval_withheld".to_owned()),
         ),
         (
             "claim",
@@ -820,16 +820,13 @@ fn the_range_artifact_refuses_a_forged_sampling_interval() {
     drop(built);
     let ctx = ExecutionContext::for_tests(1);
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
-    assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
+    assert_eq!(result.uncertainty.reason_code, "not_supported");
     assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
     let error = consume(&wire).unwrap_err();
-    assert_eq!(
-        refused(&error),
-        ("cell_not_licensed", "joint_sensitivity.interval_withheld".into())
-    );
+    assert_eq!(refused(&error), ("not_supported", "joint_sensitivity.interval_withheld".into()));
 }
 
 #[test]

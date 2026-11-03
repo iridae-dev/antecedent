@@ -104,24 +104,20 @@ pub(super) fn matrix_applicability(
     cell: Option<crate::support::SupportCell>,
 ) -> (SemanticApplicability, Vec<antecedent_contract::BlockedOperation>) {
     match status {
-        Some(CellStatus::Licensed) => (SemanticApplicability::Licensed, Vec::new()),
-        Some(CellStatus::Refused) => {
+        Some(CellStatus::Supported) => (SemanticApplicability::Supported, Vec::new()),
+        Some(CellStatus::NotSupported) => {
             let reason = cell.map_or(
-                "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.",
+                "cell is not supported (parity/support_cells.toml) and is not n/a; it is refused.",
                 crate::support::refused_message,
             );
             (
-                SemanticApplicability::Unlicensed,
+                SemanticApplicability::Unsupported,
                 vec![antecedent_contract::BlockedOperation::refused(reason)],
             )
         }
         Some(CellStatus::NotApplicable { reason }) => (
             SemanticApplicability::Impossible,
             vec![antecedent_contract::BlockedOperation::not_applicable(reason)],
-        ),
-        Some(CellStatus::Allowlisted { reason, .. }) => (
-            SemanticApplicability::Unlicensed,
-            vec![antecedent_contract::BlockedOperation::refused(reason)],
         ),
         None => (
             SemanticApplicability::Unknown,
@@ -145,8 +141,8 @@ pub(super) fn operation_report(
         .unwrap_or_default();
     let (applicability, mut blockers) = matrix_applicability(contract.support_status, cell);
     let neighbors = match contract.support_status {
-        Some(CellStatus::Refused | CellStatus::NotApplicable { .. }) => {
-            cell.map(crate::support::licensed_neighbors).unwrap_or_default()
+        Some(CellStatus::NotSupported | CellStatus::NotApplicable { .. }) => {
+            cell.map(crate::support::supported_neighbors).unwrap_or_default()
         }
         _ => Vec::new(),
     };
@@ -155,18 +151,18 @@ pub(super) fn operation_report(
         OperationKind::Retarget => {
             crate::support::retarget_permitted(contract.support_status, cell)
         }
-        _ => applicability == SemanticApplicability::Licensed,
+        _ => applicability == SemanticApplicability::Supported,
     };
     if operation == OperationKind::Retarget && permitted {
         blockers.clear();
     } else if !operation.uses_matrix_row() && !permitted {
         let reason = match operation {
-            OperationKind::RankDesigns => crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
-            OperationKind::Retarget => crate::error::RETARGET_REQUIRES_LICENSE,
-            OperationKind::Export => crate::error::EXPORT_REQUIRES_LICENSE,
-            _ => crate::error::OPERATION_REQUIRES_LICENSE,
+            OperationKind::RankDesigns => crate::error::RANK_DESIGNS_REQUIRES_SUPPORT,
+            OperationKind::Retarget => crate::error::RETARGET_REQUIRES_SUPPORT,
+            OperationKind::Export => crate::error::EXPORT_REQUIRES_SUPPORT,
+            _ => crate::error::OPERATION_REQUIRES_SUPPORT,
         };
-        blockers = vec![antecedent_contract::BlockedOperation::operation_unlicensed(reason)];
+        blockers = vec![antecedent_contract::BlockedOperation::operation_unsupported(reason)];
     } else if operation == OperationKind::RankDesigns
         && contract.identities.identification_product.is_none()
     {
@@ -190,17 +186,17 @@ pub(super) fn operation_report(
     };
 
     let mut next_actions: Vec<NextAction> =
-        if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
+        if applicability == SemanticApplicability::Supported && blockers.is_empty() {
             Vec::new()
         } else if neighbors.is_empty() {
             vec![NextAction::new(
-                "no_licensed_neighbor",
-                "no justified licensed neighbor; do not relabel the graph class",
+                "no_supported_neighbor",
+                "no justified supported neighbor; do not relabel the graph class",
             )]
         } else {
             vec![NextAction::new(
-                "consider_licensed_neighbor",
-                "choose an explicit licensed neighbor; never an automatic fallback",
+                "consider_supported_neighbor",
+                "choose an explicit supported neighbor; never an automatic fallback",
             )]
         };
     // Evidence-gathering actions follow the existing ones; a contract without a
@@ -208,7 +204,7 @@ pub(super) fn operation_report(
     next_actions.extend(contract.evidence_actions.iter().cloned());
 
     let (preserved, invalidated) =
-        if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
+        if applicability == SemanticApplicability::Supported && blockers.is_empty() {
             (
                 vec![
                     SemanticLayer::Target,

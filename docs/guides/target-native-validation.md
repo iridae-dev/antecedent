@@ -9,7 +9,7 @@ the quantity a result actually reports, and the sensitivity analyses that state
 how far an untestable assumption can be relaxed before that quantity changes.
 
 Every number here is a diagnostic. Pass thresholds are conventions with no
-measured error rate, and none of these checks licenses an interval.
+measured error rate, and none of these checks supports an interval.
 
 ## The target a refutation speaks to
 

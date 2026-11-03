@@ -25,7 +25,7 @@ design.rank_designs(
 Claim labels: every value is **point-only**. A Monte Carlo value (when a signal has
 no exact integral) is a `monte_carlo_estimate` with no coverage claim. The Monte
 Carlo error, `rank_uncertain` and the whole ranking's `calibration == "unmeasured"`
-are diagnostics, not licensed intervals. A ranking recommends an action; it does
+are diagnostics, not supported intervals. A ranking recommends an action; it does
 not run it.
 
 A candidate's sample size can come from a plan: `design.plan_experiment` (see
@@ -217,7 +217,7 @@ plan"). Identifiability is a gate, not a score: it never mixes into the value.
 ## Binding a ranking to a prepared study, and previewing it
 
 Pass a prepared study as `study=` to bind the ranking to that study's identification contract. A
-plan that leaves the study structurally unidentified is reported as an `unlicensed_candidate`
+plan that leaves the study structurally unidentified is reported as an `unsupported_candidate`
 violation, is never scored, and keeps the position it was declared at. `decision_target=` must name
 the study's own target digest. `design.preview_ranking(study, plans, prior=...)` reads the same
 obligations and violations without scoring or fitting anything.
@@ -387,7 +387,7 @@ ranking = design.rank_designs(
 
 The utility returns a contiguous flat `float64` action-by-outcome array and must be
 deterministic. Native callback refusals retain the original exception as their
-cause. Only native-licensed plans are scored; unsupported candidates appear in
+cause. Only native-supported plans are scored; unsupported candidates appear in
 `violations`. `DecisionRegret` scores EVSI before cost, without subtracting or
 converting study costs. For affine utilities and portable signal-provider study
 artifacts, continue using `decision=DesignDecision(...)` and `cost_map=`.
@@ -451,8 +451,8 @@ design.consume_plan(plan.export())           # independent replay of every route
 `rank_designs(variable_unlocks=...)`, derived from the studies a repair search verified
 sufficient on their own; a study that merely names a variable, or only adds rows, is
 listed unverified and never credited. In Rust, `design::rank_studies_bound` does the same
-for a prepared contract: unverified studies are reported as `unlicensed_candidate`
-violations, so a `Measure` candidate is licensed by the verified obligation instead of a
+for a prepared contract: unverified studies are reported as `unsupported_candidate`
+violations, so a `Measure` candidate is supported by the verified obligation instead of a
 hand-written list. `design.StructurePrior.from_graphs(...)` derives the `identified` flags
 of a graph posterior by running the complete ID algorithm on each structure, and
 `identified_under_intervention` on each structure's mutilated graph (every edge into the
@@ -562,7 +562,7 @@ under an unknown continuous posterior. Calibration remains `unmeasured`.
 Population, physical units, affine transfer and historical observation/lineage
 identities are explicit scientific declarations: legacy posterior artifacts do not
 carry enough information to independently authenticate those declarations. Catalog
-compatibility does not issue a new causal identification license. The ranking's
+compatibility does not issue a new causal identification evidence. The ranking's
 source digests bind original artifact bytes and transfer declarations, and retained
 expectations detect a changed source binding. Export/consume independently replays
 the embedded numerical prior and signal law; it does not independently reauthenticate

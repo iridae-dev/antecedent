@@ -341,7 +341,7 @@ pub enum IdentityDomain {
     /// Concrete identification products (status, estimands, arena, derivation).
     IdentificationProduct,
     /// Target (including its population), premises, identification
-    /// products, and licensed inferential commitments. A different graph or a
+    /// products, and supported inferential commitments. A different graph or a
     /// different target population is a different program.
     Program,
     /// Resolved prior contents, backend and likelihood, numeric
@@ -519,7 +519,7 @@ pub struct ContractIdentities {
     pub identification: SemanticDigest,
     /// Cached identification products, when preparation produced them.
     pub identification_product: Option<SemanticDigest>,
-    /// Program: target + premises + products + licensed inferential commitments.
+    /// Program: target + premises + products + supported inferential commitments.
     ///
     /// `None` on a cheap structural inspection: it runs no identification, so
     /// the products the program covers do not exist yet and the program

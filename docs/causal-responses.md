@@ -96,8 +96,8 @@ print(view.provenance)
 print(view.evidence_status)
 ```
 
-Every successful analysis has `evidence_status == "licensed"`.
-A licensed cell can still carry
+Every successful analysis has `evidence_status == "supported"`.
+A supported cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
 the curve as a claim.
 
@@ -146,7 +146,7 @@ When the accepted graph is a DAG, this is the same response identification and
 estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
-`Cpdag` and `Pag` response queries are licensed through the same completion
+`Cpdag` and `Pag` response queries are supported through the same completion
 envelope as ATE: `analyze()` and prepared studies mass-weight identified
 completions and keep the runtime class. Each completion is identified by
 (generalized) adjustment first. A single-treatment response on a completion
@@ -161,13 +161,13 @@ is mixed only when every completion is identified and every contributing
 atom supplies an aligned IF; unidentified mass NaNs the envelope SE
 rather than publishing a primary-atom interval. That is not
 PAG-native response identification. `Admg` response, `TemporalCpdag`/`TemporalPag` response, and mixtures over
-graph posteriors are licensed on the cells the
+graph posteriors are supported on the cells the
 [support matrix](support-matrix.md) lists, each with its own evidence row;
 everything not listed there is refused.
 
 ## Validation on a function-valued response
 
-Response queries license validation `none` only. Leave the query's default
+Response queries support validation `none` only. Leave the query's default
 unchanged or pass `refute="none"`. Requesting `cheap`, `full`, or another scalar
 refuter suite raises `CausalUnsupportedError`; these suite names do not denote
 function-valued validation. The returned support diagnostics still describe
@@ -195,7 +195,7 @@ assert loaded.answer == result.answer
 repeated = antecedent.estimate(study)
 ```
 
-Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
+Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are supported for
 `ResponseCurve` and `InterventionResponse` under the documented Gaussian
 additive forms. Static responses use `response.bayesian`; temporal responses
 use `response.temporal.bayesian` and retain identification and support per
@@ -352,7 +352,7 @@ factor nor longer blocks under that factor repaired it. The fixed-b factor carri
 block, so independent rows are not over-covered.
 
 The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
-misses `O(1/ℓ)` of a persistent influence's long-run variance at any licensed
+misses `O(1/ℓ)` of a persistent influence's long-run variance at any supported
 length (46% kept at `ℓ = 13`, 82% at `ℓ = n/3` for an AR(1) ρ = 0.9 influence at
 n = 160), and the fixed-b ratio corrects the estimation noise of the block
 variance, not its truncation. Lengthening alone does not close the gap: on the
@@ -455,7 +455,7 @@ Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses are described under
 [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
-Graph-posterior response mixtures are licensed only on the cells listed in the
+Graph-posterior response mixtures are supported only on the cells listed in the
 [support matrix](support-matrix.md); multi-step temporal response policies are
 refused here.
 
@@ -546,12 +546,12 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The six derivative query types are licensed on explicit or accepted DAGs at
+The six derivative query types are supported on explicit or accepted DAGs at
 validation `none`, under Frequentist and Bayesian inference; see the
 [support matrix](support-matrix.md), which carries each cell's evidence.
 Derivatives on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` (the
 contemporaneous projection over rows, or the unrolled window of its template over
-a series) execute through the compiler and stay unlicensed: each identified
+a series) execute through the compiler and stay unsupported: each identified
 completion, or the ADMG itself, is identified by one adjustment set valid for every
 treatment/outcome pair; where no adjustment set exists the front-door criterion is
 searched and the derivative is estimated with the outcome additive in the treatment, the
@@ -563,7 +563,7 @@ row influence, and a TemporalAdmg derivative over a series is identified per hor
 unrolled window of its template and may be prepared as a handle.
 Graph-posterior, observation-adjusted, and cheap/full coordinates remain refused.
 Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
-licensed forms, not a license to run every constructor argument. Repeated-
+supported forms, not support to run every constructor argument. Repeated-
 sampling coverage of every published derivative interval is measured in
 `crates/antecedent/tests/derivative_calibration.rs`.
 
@@ -589,12 +589,12 @@ sampling coverage of every published derivative interval is measured in
   Frequentist interval treats the cross-fitted pseudo-outcome as data and
   conditions on the caller bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
-  law; only observed-law weighting is licensed, via the Gaussian-score Riesz
+  law; only observed-law weighting is supported, via the Gaussian-score Riesz
   representer. The representer assumes the treatment is homoskedastic Gaussian
   given the adjustment set (additive mean). That assumption is load-bearing:
   on a skewed, heteroskedastic treatment law with a nonlinear outcome the
   interval's measured coverage collapses (shown by
-  `ade_skewed_heteroskedastic_treatment_probe`, which is not a licensed coordinate).
+  `ade_skewed_heteroskedastic_treatment_probe`, which is not a supported coordinate).
 - `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
   positive, and the fitted response at that point must be positive.
   Like `PointDerivative`, it requires an explicit bandwidth. The Frequentist
@@ -796,7 +796,7 @@ with explicit Frequentist AIPW on a DAG or CoDetermined closure. Its uncertainty
 conditions on the finite CDF grid and excludes interpolation bias and grid
 selection. Inversion refuses unsupported, flat, or projection-altered crossings;
 the request must use `refute="none"` because mean-effect refuters do not validate
-quantiles. The licensed query families are:
+quantiles. The supported query families are:
 
 | Query | Quantile meaning | Estimation contract |
 | --- | --- | --- |
@@ -878,8 +878,8 @@ zero treatment level; it is not an active-minus-control quantile contrast.
 The population response in this simulation is 3.5 because `E[z]=0`; a finite
 sample estimate need not equal it. `cell.aipw` fits joint-cell propensities and
 per-cell outcome models. Empty training cells and inadequate support refuse.
-CoDetermined tier backgrounds also license joint cells when their closure is
-certified; Unknown tiers do not. `continuous_cell` does not license a point
+CoDetermined tier backgrounds also support joint cells when their closure is
+certified; Unknown tiers do not. `continuous_cell` does not support a point
 intervention on a continuous mediator.
 
 See the [support matrix](support-matrix.md) for the current scope and per-cell evidence, and the [artifact guide](artifacts.md#score-tables-and-distribution-payloads) for saved payload semantics.
@@ -937,8 +937,8 @@ query = antecedent.ResponseCurve(
 contestable identifying claim. Antecedent does not derive the second from the
 first. This example declares censoring independent of residual demand given
 price and season. A nonempty `IndependentGiven(Z)` that contains treatment and
-every causal adjustment variable is the licensed Cox IPCW pair; marginal
-Kaplan–Meier IPCW remains the licensed pair for `IndependentGiven([])`. See
+every causal adjustment variable is the supported Cox IPCW pair; marginal
+Kaplan–Meier IPCW remains the supported pair for `IndependentGiven([])`. See
 the [observation pair contract](observation-contract.md). Selected-outcome AIPW
 and both censoring IPCW estimators can be composed into a `ResponseCurve` when
 their explicit assumption contract is satisfied. Selected-outcome AIPW

@@ -9,7 +9,7 @@
 //! 2. No unblocked backdoor path from `T` to the mediators.
 //! 3. Every backdoor path from the mediators to `Y` is blocked by conditioning on `T`.
 //!
-//! The criterion licenses the nonparametric functional
+//! The criterion supports the nonparametric functional
 //! `E[Y|do(t)] = Σ_m P(m|t) Σ_{t'} E[Y|m,t'] P(t')`; it says nothing about this estimator.
 //! [`crate::frontdoor_functional::FrontDoorFunctional`] estimates that functional. This module
 //! is the **linear shortcut**: a path-sum of product-of-coefficients terms,

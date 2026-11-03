@@ -141,7 +141,38 @@ ORDER = [
     "planning",
     "propagation_chain",
     "associational",
+    "categorical_posterior_candidate",
+    "graph_imputation",
 ]
+
+# Families that own no route in the public route table and have no representative study in the
+# suite. Each states what the family does and what discharging the obligations needs. The suite
+# requires the gap and the next step to be nonempty and no study to exist for the family.
+GAPS = {
+    "categorical_posterior_candidate": (
+        "A bounded compiler-owned categorical posterior candidate: it retains the declared "
+        "sampling design, per-row subject identities and the exact observed categorical source, "
+        "fits a declared normal-inverse-gamma model per level, and exposes no posterior result, "
+        "causal claim or decision carrier; its only interval is a measured inference that a "
+        "covering coverage record supports. It is compiled through its own request, not a Study "
+        "route, so the route table lists no route for it and the shared obligation suite runs "
+        "no study for it.",
+        "Compile a representative request through the candidate entry and discharge the six "
+        "shared obligations on it, or record why the bounded candidate (no claim, no decision "
+        "carrier) is outside each.",
+    ),
+    "graph_imputation": (
+        "A bounded compiled graph-selection imputation composite: a mixture over the retained "
+        "DAGs of one treatment-to-outcome contrast, each graph's own Bayesian g-computation "
+        "operation sealed into the lowered program, executed and replayed through the single "
+        "native implementation, with its interval reported only through the measured route when "
+        "a current coverage record covers the execution. It is built through its own candidate "
+        "entry, not a route-table row, so the route table lists no route for it and the shared "
+        "obligation suite runs no study for it.",
+        "Build a representative candidate through its entry and discharge the six shared "
+        "obligations on it, or record why the bounded composite is outside each.",
+    ),
+}
 
 
 def quote(text: str) -> str:
@@ -159,6 +190,8 @@ def render() -> str:
     if unmapped:
         sys.exit(f"route targets with no family: {unmapped}; map them in FAMILY_OF_TARGET")
     by_family: dict[str, list[str]] = {family: [] for family in ORDER}
+    if sorted(set(FAMILY_OF_TARGET) - set(ORDER)):
+        sys.exit("a mapped family is missing from ORDER")
     for route in routes:
         by_family[owner[route["target"]]].append(route["id"])
     lines = [
@@ -175,6 +208,13 @@ def render() -> str:
     ]
     for family in ORDER:
         lines += ["", "[[family]]", f"id = {quote(family)}"]
+        if family in GAPS:
+            gap, next_step = GAPS[family]
+            lines.append('status = "gap"')
+            lines.append(f"gap = {quote(gap)}")
+            lines.append(f"next_step = {quote(next_step)}")
+            lines.append("routes = []")
+            continue
         if family not in REPRESENTATIVES:
             sys.exit(f"family `{family}` has no representative study; add one to the suite")
         lines.append('status = "covered"')

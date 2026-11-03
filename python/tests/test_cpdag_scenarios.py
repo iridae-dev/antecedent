@@ -130,7 +130,7 @@ def test_enumerated_truth_effects_and_envelope():
     assert not hasattr(result, "weights") and not hasattr(result, "mass")
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         result.aggregate_interval()
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
     assert refused.value.detail == "scenarios.shared_data_aggregate"
     assert isinstance(refused.value, CausalUnsupportedError)
 

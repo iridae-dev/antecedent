@@ -195,7 +195,7 @@ fn exact_linear_scm_truth_for_every_edge_set() {
 }
 
 /// The natural direct effect is the edge set {X -> Y}; it reproduces the existing
-/// licensed nested-counterfactual cell exactly, and the natural indirect effect
+/// supported nested-counterfactual cell exactly, and the natural indirect effect
 /// is the {X -> M, M -> Y} edge set.
 #[test]
 fn natural_direct_effect_regression_against_the_existing_cell() {
@@ -460,7 +460,7 @@ fn the_outcome_noise_is_shared_per_unit_under_the_non_separable_mechanism() {
     assert!(rotated > 4.0 * mean_error, "fixture cannot tell shared from unshared: {rotated}");
 }
 
-/// The natural direct effect regresses against the existing licensed Study cell
+/// The natural direct effect regresses against the existing supported Study cell
 /// on a noisy linear SCM and on a non-separable SCM with a noisy outcome. The
 /// Study route fits the separable linear-Gaussian family, so it is compared with
 /// the same family (the non-separable basis is compared with the existing nested
@@ -697,7 +697,7 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     };
     for refused in [&admg as &dyn Fn() -> _, &cpdag, &pag, &accepted] {
         let text = reason(&run(refused));
-        assert!(text.contains("reason=cell_not_licensed"), "{text}");
+        assert!(text.contains("reason=not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
     }
     let interval = evaluate_cross_world_effect(
@@ -711,7 +711,7 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     let text = reason(&interval);
     assert!(text.contains("reason=estimator_inference_mismatch"), "{text}");
     assert!(text.contains("cross_world.interval_requested"), "{text}");
-    // The licensed graph has no size limit: nine variables evaluate like three.
+    // The supported graph has no size limit: nine variables evaluate like three.
     let nine: Vec<Vec<f64>> =
         (0..9).map(|k| (0..30).map(|i| f64::from(i * (k + 1)).sin()).collect()).collect();
     let names: Vec<String> = (0..9).map(|k| format!("v{k}")).collect();
@@ -1144,7 +1144,7 @@ fn temporal_structures_are_refused_with_the_graph_contract_detail() {
     ];
     for result in errors {
         let text = reason(&result.unwrap_err());
-        assert!(text.contains("reason=cell_not_licensed"), "{text}");
+        assert!(text.contains("reason=not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
     }
 }

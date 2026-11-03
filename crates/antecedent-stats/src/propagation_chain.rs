@@ -10,9 +10,9 @@
 //! aligned inputs (a measurement correction, a predictive line), or a
 //! preposterior update.
 //!
-//! Nothing here decides whether a combination is licensed. That is the
+//! Nothing here decides whether a combination is supported. That is the
 //! contract's rule (`antecedent_contract::check_propagation_chain`). This module
-//! computes what a licensed chain means:
+//! computes what a supported chain means:
 //!
 //! * Every stage is evaluated row by row on one aligned draw table, so a
 //!   nonlinear stage sees the joint law of its inputs and never a marginal

@@ -127,7 +127,7 @@ def test_callback_failure_cause_is_not_converted_to_a_scientific_value():
 
 def test_portable_refusal_is_distinct_from_unavailable_and_never_upgraded_by_a_payload():
     answer = answer_from_artifact(
-        {"claim": {"kind": "refusal", "detail": "not_licensed"}},
+        {"claim": {"kind": "refusal", "detail": "not_supported"}},
         {"quasi_rollout": {"uncertainty": "point_only"}},
     )
     assert isinstance(answer, Refused)

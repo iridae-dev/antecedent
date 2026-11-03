@@ -72,7 +72,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
-        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
         // The effect is the difference of arm means, computed here from the outcomes.
         assert!(
             (fit.effect - expected_effect).abs() < 1e-9,
@@ -98,7 +98,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let executed_contract = prepared.contract_for_result(&result).unwrap();
         assert_eq!(executed_contract.support_status, result.support_status());
         let support = executed_contract.reasoning.support.as_ref().unwrap();
-        assert_eq!(support.matrix_status.as_ref(), "licensed");
+        assert_eq!(support.matrix_status.as_ref(), "supported");
         assert!(support.matrix_coordinate.is_some());
         let bytes =
             prepared.encode_contracted_result(&result, "randomized-interval", &ctx).unwrap();
@@ -107,16 +107,16 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
         assert_eq!(
             artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-            Some("licensed")
+            Some("supported")
         );
-        let mut forged_license = artifact.clone();
-        forged_license.randomized_effect.as_mut().unwrap().graphless_support_status =
-            Some("refused".into());
+        let mut forged_support = artifact.clone();
+        forged_support.randomized_effect.as_mut().unwrap().graphless_support_status =
+            Some("not_supported".into());
         assert!(
             antecedent_io::encode_analysis_result_artifact(
-                &forged_license,
+                &forged_support,
                 header.variable_names.clone(),
-                "forged-license"
+                "forged-support"
             )
             .is_err()
         );
@@ -151,7 +151,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         {
             // A pre-matrix artifact has no support-status field. It remains
             // readable as a legacy off-axis result, but a new encoder must
-            // restamp the exact licensed status before issuing an artifact.
+            // restamp the exact supported status before issuing an artifact.
             let mut legacy_body = artifact.clone();
             legacy_body.randomized_effect.as_mut().unwrap().graphless_support_status = None;
             assert!(
@@ -358,7 +358,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
 }
 
 #[test]
-fn graphless_interval_license_refuses_zero_variance_despite_assignment_support() {
+fn graphless_interval_support_refuses_zero_variance_despite_assignment_support() {
     use antecedent_core::RandomizationDesign;
 
     let n = 60;
@@ -1122,7 +1122,7 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     assert!((fit.standard_error.unwrap() - se).abs() < 1e-9, "{:?} vs {se}", fit.standard_error);
     assert!((lower - (effect - 1.959_963_984_540_054 * se)).abs() < 1e-9, "{lower}");
     assert!((upper - (effect + 1.959_963_984_540_054 * se)).abs() < 1e-9, "{upper}");
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 #[test]

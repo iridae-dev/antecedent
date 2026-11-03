@@ -388,7 +388,7 @@ fn acceptance_native_claim_is_native_and_withholds_the_unsupported_dose() {
             .unwrap();
     assert_eq!(claim.means(), &[2.0, 4.0, 6.0][..]);
     assert_eq!(claim.support_status(), SupportStatus::OutsideEmpiricalSupport);
-    assert_eq!(claim.trust(), DistributionTrust::NativeLicensed);
+    assert_eq!(claim.trust(), DistributionTrust::NativeSupported);
     assert_eq!(claim.program_identity(), program().identity());
     let expected: Vec<ScientificQuantity> = (0..3).map(|dose| quantity(dose, "mean")).collect();
     assert_eq!(claim.coordinates(), &expected[..]);
@@ -403,7 +403,7 @@ fn acceptance_native_claim_is_native_and_withholds_the_unsupported_dose() {
 
     let composed = native_input();
     assert_eq!(composed.provenance().provider_kind, ProviderKind::Native);
-    assert_eq!(composed.provenance().trust, DistributionTrust::NativeLicensed);
+    assert_eq!(composed.provenance().trust, DistributionTrust::NativeSupported);
 }
 
 // ------------------------------------------------- tests: per-action support
@@ -575,7 +575,7 @@ fn independent(left: &str, right: &str) -> PairRelation {
 }
 
 #[test]
-fn acceptance_shared_data_refuses_pooling_and_a_licensed_route_lifts_it() {
+fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
     let inputs = [native_input(), e1_input(), e2_law_input(None)];
     let relations =
         [independent("native", "e1"), independent("e1", "e2law"), shared("native", "e2law", None)];
@@ -609,9 +609,9 @@ fn acceptance_shared_data_refuses_pooling_and_a_licensed_route_lifts_it() {
         id: "jl-1".into(),
         source_input: "e2law".into(),
     };
-    let licensed = [native_input(), e2_law_input(None)];
+    let supported = [native_input(), e2_law_input(None)];
     let receipt = check_composition(
-        &licensed,
+        &supported,
         &[shared("native", "e2law", Some(route))],
         Some(CompositionOperation::StatisticalPooling),
     )

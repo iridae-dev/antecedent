@@ -44,7 +44,7 @@ class MeanSource(ScientificResult):
         if len(self.coordinates) != len(self.means) or not self.coordinates:
             raise CausalValueError("a mean source needs one mean per scientific coordinate")
         ScientificResult.__post_init__(self)
-        if self.trust in ("native_licensed", "verified_extension"):
+        if self.trust in ("native_supported", "verified_extension"):
             from .. import _native
 
             native_authority = isinstance(
@@ -68,9 +68,9 @@ class MeanSource(ScientificResult):
                     json.loads(external_native.metadata_json)["identity"]["trust"]
                     == "verified_extension"
                 )
-            if not (native_authority if self.trust == "native_licensed" else verified_authority):
+            if not (native_authority if self.trust == "native_supported" else verified_authority):
                 raise CausalValueError(
-                    "a mean declaration cannot issue native_licensed or verified_extension trust; use the checked native or verified-source adapter that retains its authority"
+                    "a mean declaration cannot issue native_supported or verified_extension trust; use the checked native or verified-source adapter that retains its authority"
                 )
 
     def _wire(self) -> dict[str, Any]:
@@ -228,7 +228,7 @@ def adapt_mean_source(
     source_name = type(source).__name__
     if source_name in ("PropagationClaim", "ConsumedJointLawPropagation") and source.is_envelope:
         raise CausalUnsupportedError(
-            "a dependence envelope is not a mean source", reason_code="cell_not_licensed"
+            "a dependence envelope is not a mean source", reason_code="not_supported"
         )
     if source_name == "SynthesisOutcome" and not (
         hasattr(source.value, "estimate") or hasattr(source.value, "mean")
@@ -282,7 +282,7 @@ def adapt_mean_source(
     elif name in ("PropagationClaim", "ConsumedJointLawPropagation"):
         if source.is_envelope:
             raise CausalUnsupportedError(
-                "a dependence envelope is not a mean source", reason_code="cell_not_licensed"
+                "a dependence envelope is not a mean source", reason_code="not_supported"
             )
         key = field or "mean"
         if key not in source.values or key != "mean":

@@ -19,7 +19,7 @@ implementation_deviations = [
   "Public native_claim composition forwards explicitly declared response coordinates through the existing Rust program-binding checker before constructing a native decision source. Units, population and transform are retained, not regenerated from an incompatible program; absent declarations retain the legacy explicitly supplied ProgramBinding behavior.",
   "analyze(outcome_units=..., quantity_population=..., quantity_transform=...) populates response quantities using the native getter. Absent units leave coordinates undeclared; non-response results or undescribed response shapes refuse rather than fabricating descriptors.",
   "Contracted response export derives the same descriptors natively and seals them into the result-body digest before computing the claim identity. Python forwards the full descriptor vector; wrong variable, role, regime, horizon, functional or conditioning is refused against the executed native response. A fresh independent artifact consumer checks the same contract and retains units, population and transform; editing stored units invalidates the original sealed contract.",
-  "Claim policy: no estimate, interval or coverage claim is added. The getter names coordinates and the point labels describe support; both are point_only bookkeeping and grant no causal or interval license.",
+  "Claim policy: no estimate, interval or coverage claim is added. The getter names coordinates and the point labels describe support; both are point_only bookkeeping and grant no causal or interval support.",
   "Units, population and scale are DECLARED by the caller and never inferred or converted: response_coordinates labels the derived skeletons with them and refuses blank declarations (coordinate_support.units_required).",
   "Only a mean curve or a static intervention response is given scientific coordinates. Derivative, directional-derivative and Jacobian functionals refuse (coordinate_support.functional_not_described); a stochastic, soft, sequenced, categorical or symbolic intervention refuses (coordinate_support.regime_not_describable); a horizon-indexed intervention path refuses (coordinate_support.temporal_path_not_described); a variable the caller cannot name refuses (coordinate_support.unknown_variable) and an invalid dose grid refuses (coordinate_support.invalid_grid). A response is never scalarized or relabeled to fit a coordinate.",
   "Standalone response_result encoding preserves existing optional scientific descriptors rather than losing them in domain conversion. Analysis-result repacking may retain an explicit original contract; the encoder reuses independent contract verification and refuses changed coordinates under that contract before publishing a replacement artifact.",
@@ -40,7 +40,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Scientific coordinates and support labels of a native response read from the response itself."
 no_independent_algorithm = "Derivation of coordinate skeletons and consistency of labels; no sample size, range or support statistic is computed."
-record_sha256 = "c67cbff9e605b03deeb70451f49e6b5b3c03e0e59db8e1cd11b60fbf1649a187"
+record_sha256 = "3dcc5ac204620cda2723ba6dd07a93f82b6f76f25826bf365db620dc032b8708"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

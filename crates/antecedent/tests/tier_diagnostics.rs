@@ -105,7 +105,7 @@ fn oracle_point_evalue(data: &TabularData, effect: f64) -> f64 {
 
 fn assert_interval_withheld(diagnostics: &TierDiagnostics) {
     let interval = &diagnostics.evalue.interval;
-    assert_eq!(interval.code, "cell_not_licensed");
+    assert_eq!(interval.code, "not_supported");
     assert_eq!(interval.detail, "tier_diagnostics.evalue_interval_withheld");
 }
 
@@ -162,14 +162,14 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
 fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value() {
     let data = codetermined_data(3_000, 41);
     let ctx = ExecutionContext::for_tests(41);
-    // A tiered study refuses the Cheap refuter suite (no licensed scalar-refuter state), so a
+    // A tiered study refuses the Cheap refuter suite (no supported scalar-refuter state), so a
     // refuter-mirrored E-value is constructed on an executed result the way the mirror sets it.
     let refusal = codetermined_study(&data, RefuteSuite::Cheap)
         .build()
-        .expect_err("the Cheap suite is not licensed on a tiered study");
+        .expect_err("the Cheap suite is not supported on a tiered study");
     assert!(
         refusal.to_string().starts_with("not_applicable:")
-            && refusal.to_string().contains("no licensed scalar-refuter state"),
+            && refusal.to_string().contains("no supported scalar-refuter state"),
         "{refusal}"
     );
     let mut result =
@@ -248,7 +248,7 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
         reference.evalue.point.available().expect("point E-value"),
     );
     for result in [&click, &refreshed] {
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         let again = tier_diagnostics(result, &ctx).unwrap();
         // The fresh run and the prepared lifecycle agree to the estimator's own tolerance.
         assert_eq!(again.design, reference.design);

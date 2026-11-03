@@ -446,8 +446,6 @@ class CausalResponseView(ResultModel, ResultAPI):
     envelope: ResponseEnvelopeView | None = None
     validation: ResponseValidationView | None = None
     evidence_status: str | None = None
-    allowlist_reason: str | None = None
-    allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
     certificate: Mapping[str, Any] | None = None
     reasoning: ReasoningSlots | None = None
@@ -576,8 +574,8 @@ class CausalResponseView(ResultModel, ResultAPI):
         else:
             estimate = "structured"
         extra = ""
-        if self.evidence_status == "allowed_unlicensed":
-            extra = " unlicensed"
+        if self.evidence_status == "not_supported":
+            extra = " unsupported"
         if self.support.warnings:
             extra += f" warnings={len(self.support.warnings)}"
         rbc = any(

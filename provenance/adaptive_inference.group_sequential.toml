@@ -15,7 +15,7 @@ papers = [
 ]
 implementation_deviations = [
  "Only O'Brien-Fleming-type and Pocock-type spending, efficacy boundaries only, equally or unequally spaced pre-specified information fractions.",
- "The independent-increment model is assumed; the route is licensed for fixed randomization only.",
+ "The independent-increment model is assumed; the route is supported for fixed randomization only.",
  "The naive estimate at stopping is biased and no adjusted estimate or interval is offered.",
  "Numerical integration on composite Gauss-Legendre panels sized to the narrowest look-to-look transition; accuracy about 1e-9 against an independent score-scale recursion and a bivariate-normal integral. Looks too close for a 400-panel stage are refused.",
 ]
@@ -37,7 +37,7 @@ redistribution = "The reference script and frozen output are repository-authored
 limitations = "The four cited papers were not retrieved (nothing downloaded, no local copy); the check is of the code against the canonical joint distribution and the recursion as restated in the module documentation. The reference recurses on the score scale B_k = sqrt(t_k) Z_k with its own panels and 20 digits, over seven designs of one to five looks (equal, unequal, a look pair 0.30/0.31, 0.95/0.99/1, 0.05 first look whose one-sided spend is 1e-18), both spending functions, both sidedness conventions, levels 0.05 and 0.001, drifts 0 and 1.5, and 80 stage-wise p-values; boundaries and probabilities agree to 1e-9. Five two-look probabilities (including looks at 0.01/1 and 0.999/1) agree with a one-dimensional integral of the bivariate normal. The median-unbiased estimate and limits are checked to solve their defining p-value equations to 1e-8, not against an independent root finder. It does not examine more than five looks (the product accepts twenty), spending functions other than the two offered, or the coverage of the stage-wise interval."
 sources = ["https://doi.org/10.1093/biomet/70.3.659", "https://doi.org/10.2307/2343787", "https://doi.org/10.2307/2530245", "https://doi.org/10.1093/biomet/64.2.191", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["Defect fixed: the panels of the recursion were a fixed 0.5 wide whatever the gap between looks, so for looks close in information (a transition standard deviation of sqrt(dt/t) below the node spacing) the sum over previous-stage nodes of the sharp Gaussian transition was inaccurate: the second-look crossing probability at looks 0.999 and 1 was off by 1.6e-7 (8.5e-5 relative). The panel width now follows the narrowest transition into and out of each stage, and looks closer than the 400-panel cap resolves are refused with a limit error instead of summed inaccurately; with it all designs agree with the independent recursion to 1e-9.", "Boundaries, crossing probabilities under drift and stage-wise p-values agree with the independent recursion; two-look probabilities agree with the bivariate normal integral; the null crossing probabilities reproduce the spending increments."]
-record_sha256 = "f4ddbc1b17054fe7f82aebf51c2d81c204080d6e6bd83f82ef98ddddb00c9f84"
+record_sha256 = "f1a57d1d10d993f742ffa50b2a824ba605b8e28a7ed7f8cbbc6f572b54a7e7c0"
 
 [[method_review.artifacts]]
 role = "implementation"

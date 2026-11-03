@@ -24,7 +24,7 @@ record_sha256 = "e12f51c31a863f21c8ecc2e5ef606f4da29fe3fd81af10dda5a9f54558b4c4e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/static_mediation.rs"
-sha256 = "7908ccd9f35604c6417ab25bf69610d334835191682ff7999839f37fc7ee32e3"
+sha256 = "2629b95322d752cc0168b21b3c37b930067208a8b619638a58e9bf3653fcb993"
 
 [[method_review.artifacts]]
 role = "assertion"

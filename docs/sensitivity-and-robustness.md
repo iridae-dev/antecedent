@@ -31,9 +31,9 @@ Every route here keeps these apart, and refuses to add them together:
 - the **sampling interval** is reported next to the decision, never inside the
   range. The MSM strata are supplied as exact quantities, so no sampling interval
   is reported at all (`sampling interval: not reported`), and asking to compose
-  one with the range is refused with `cell_not_licensed`
-  (`msm_sensitivity.composition_not_licensed`, or
-  `sensitivity_decision_composition.composition_not_licensed` at decide time).
+  one with the range is refused with `not_supported`
+  (`msm_sensitivity.composition_not_supported`, or
+  `sensitivity_decision_composition.composition_not_supported` at decide time).
 
 ## Missing outcomes not at random: `mnar_ate_sensitivity`
 
@@ -92,7 +92,7 @@ What is reported, and what is kept apart:
 | --- | --- |
 | `assumption_range` | The envelope of the point effects over the declared range. An assumption range: `is_confidence_interval` and `empirically_established` are always `False`. |
 | `assumptions` | The departure assumption, status `untestable`, and the treatment-ignorability assumption held fixed. |
-| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`cell_not_licensed` / `mnar_sensitivity.composition_not_licensed`). |
+| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`not_supported` / `mnar_sensitivity.composition_not_supported`). |
 | `observed_case_effect` | The estimate from the observed outcomes alone, which equals the missing-at-random estimate here. |
 
 Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:
@@ -101,7 +101,7 @@ data, so declare it), `unsupported_mechanism`, `unsupported_estimator` (an estim
 completed-table form, such as a causal forest, is refused rather than silently replaced),
 `covariates_required`, `covariates_not_used`, `design_singular` (a singular covariate design or a
 propensity outside (0, 1)), `invalid_bootstrap`, `unsupported_query`, `unbounded_range` (a non-finite or oversized bound), `range_excludes_mar`,
-`composition_not_licensed`, `invalid_data`, `invalid_loading`, `invalid_level`,
+`composition_not_supported`, `invalid_data`, `invalid_loading`, `invalid_level`,
 `invalid_decision`, `invalid_tolerance`, `insufficient_observed` and `bounds_exceeded`. A
 multiple-imputation declaration of `missing_not_at_random` is refused with this analysis named as
 the next attempt (see [missing data](guides/missing-data.md)). Each tipping point is found by scanning every grid cell at eight interior points and
@@ -246,7 +246,7 @@ hand-supplied surface (the tests derive their oracles by hand: a gamma grid
 and leads B).
 
 Refusals use `SensitivityRefusal` with detail in
-`sensitivity_decision_composition.*`: `composition_not_licensed`, `wrong_contract`
+`sensitivity_decision_composition.*`: `composition_not_supported`, `wrong_contract`
 (mixed estimands, unlike units, weights on a ranged surface), `unsupported_coordinate`,
 `invalid_surface`, `bounds_exceeded`.
 

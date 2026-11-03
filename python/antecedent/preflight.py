@@ -15,8 +15,8 @@ an unpopulated arm is *blocking*.
 
 ``plan_rank_drop`` is opt-in and records, never executes: it declares a column priority,
 names the columns that would be dropped and the exact linear relation behind each, and
-refuses (``reason_code == "rank_drop_not_licensed"``) when a treatment, outcome or effect
-modifier is involved. ``estimate_with_rank_drop`` executes a plan: it re-runs a licensed
+refuses (``reason_code == "rank_drop_not_supported"``) when a treatment, outcome or effect
+modifier is involved. ``estimate_with_rank_drop`` executes a plan: it re-runs a supported
 estimator on the reduced design and returns the point estimate with the drop record, never
 silently, and refuses whenever the drop could change what is fitted.
 
@@ -691,7 +691,7 @@ def plan_rank_drop(
     ``priority`` lists **every** adjustment column exactly once, highest priority first
     (``None`` = the adjustment order). The plan names the dropped columns, the exact linear
     relation behind each, and the resulting design identity; it is a record, not an
-    execution. Raises ``CausalUnsupportedError`` (``rank_drop_not_licensed``) when a
+    execution. Raises ``CausalUnsupportedError`` (``rank_drop_not_supported``) when a
     treatment or outcome is involved or the priority does not cover the adjustment set.
 
     A canonical prepared study supplies its native certified design directly. Pass only
@@ -752,7 +752,7 @@ def estimate_with_rank_drop(
     unpenalized nuisances) on the design with the plan's dependent columns removed. A dropped
     column is an exact linear combination of the retained ones, so the fitted projections
     equal the original design's. Raises ``CausalUnsupportedError``
-    (``rank_drop_not_licensed``) when the plan refuses, the retained columns do not span the
+    (``rank_drop_not_supported``) when the plan refuses, the retained columns do not span the
     original design, or the cross-fitted propensity separates on the reduced design;
     ``route_not_supported`` for any other estimator.
     """

@@ -1,4 +1,4 @@
-"""Exact binary observation recovery: graph-licensed recovery, not MAR/IPCW.
+"""Exact binary observation recovery: graph-supported recovery, not MAR/IPCW.
 
 Some binary variables are item-missing. Each partially observed variable ``X``
 has an explicit response indicator ``R`` (1 observed, 0 missing) and a proxy
@@ -22,7 +22,7 @@ fallback and no missing-at-random or inverse-probability-weighting substitution.
 Selection nodes, bidirected edges, non-binary variables and response-to-response
 edges are refused as unsupported mechanisms. A downstream effect is identified
 from the recovered law by ordinary target identification on the m-graph's causal
-restriction. Exact laws only; counted laws are refused (``cell_not_licensed``).
+restriction. Exact laws only; counted laws are refused (``not_supported``).
 """
 
 from __future__ import annotations

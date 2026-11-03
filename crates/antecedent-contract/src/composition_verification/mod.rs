@@ -14,9 +14,9 @@
 //! [`Revalidation::StillValid`], [`Revalidation::Recompute`] or
 //! [`Revalidation::Withdrawn`], with the reason per dependency kind.
 //! Numerical invalidation (data, evidence, model version, structural
-//! derivation) is kept separate from withdrawal of a license (support,
+//! derivation) is kept separate from withdrawal of support (support,
 //! provider trust, calibration, a retired input). Stage reuse alone never
-//! proves a claim still licensed: support, trust and calibration are
+//! proves a claim still supported: support, trust and calibration are
 //! rechecked at the current coordinates.
 //!
 //! This module reads graphs and ledgers; it computes no statistic and

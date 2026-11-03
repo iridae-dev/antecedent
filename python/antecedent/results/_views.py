@@ -335,7 +335,7 @@ class EstimateView(ResultModel):
     limitation: str | None = None
     #: Per-row CATE when a heterogeneous-effect estimator produced one.
     cate: tuple[float, ...] | None = None
-    #: Pointwise CATE standard errors when a licensed formula produced them.
+    #: Pointwise CATE standard errors when a supported formula produced them.
     cate_se: tuple[float, ...] | None = None
     #: Causal-forest leaf-dispersion diagnostic per row: the root mean honest
     #: leaf variance. It is NOT a standard error (trees share half-samples, so
@@ -994,8 +994,6 @@ class AnalysisResult(ResultModel, ResultAPI):
     interval_bindings: tuple[IntervalBindingView, ...] = ()
     plan: PlanView | None = None
     evidence_status: str | None = None
-    allowlist_reason: str | None = None
-    allowlist_parent: str | None = None
     structural_weight_basis: str | None = None
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
@@ -1080,24 +1078,24 @@ class AnalysisResult(ResultModel, ResultAPI):
     policy_value: DoublyRobustPolicyEvaluation | None = None
     continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
-    #: Unlicensed Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
-    #: ``bayesian.continuous_dose_policy``); never licensed, calibration ``unmeasured``.
+    #: Unsupported Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
+    #: ``bayesian.continuous_dose_policy``); never supported, calibration ``unmeasured``.
     posterior_row: PosteriorRowEstimate | None = None
     longitudinal_regime: Any | None = None
     sequential_contrast: Any | None = None
     history_match: Any | None = None
     #: Sharp bounds on the average effect under a binary instrument
-    #: (:class:`antecedent.quasi.IvBoundsEstimate`): an identified set, never a point; unlicensed.
+    #: (:class:`antecedent.quasi.IvBoundsEstimate`): an identified set, never a point; unsupported.
     iv_bounds: Any | None = None
     #: Noncausal association of the observed data
     #: (:class:`antecedent.descriptive.AssociationEstimate`): identification is not claimed, never
-    #: an intervention effect, ranks no action; unlicensed, calibration unmeasured.
+    #: an intervention effect, ranks no action; unsupported, calibration unmeasured.
     association: Any | None = None
     #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
-    #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unlicensed.
+    #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unsupported.
     quasi_rollout: Any | None = None
     #: Sequentially randomized unit-period design or regime survival
-    #: (:class:`antecedent.temporal_designs.TemporalDesignEstimate`); unlicensed, calibration
+    #: (:class:`antecedent.temporal_designs.TemporalDesignEstimate`); unsupported, calibration
     #: unmeasured.
     temporal_design: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
@@ -1222,8 +1220,8 @@ class AnalysisResult(ResultModel, ResultAPI):
         mass = self.posterior.unidentified_mass if self.posterior is not None else None
         if mass is not None and mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(mass)}")
-        if self.evidence_status == "allowed_unlicensed":
-            parts.append("unlicensed")
+        if self.evidence_status == "not_supported":
+            parts.append("unsupported")
         return f"<AnalysisResult {' '.join(parts)}>"
 
     def rendering_limitation(self) -> str | None:

@@ -14,7 +14,7 @@
 //!    regime, horizon and conditioning, and that evidence established in
 //!    another population or regime than the claim's carries a declared
 //!    transportability premise. Each refusal is a typed
-//!    `scientific_bridge.*` detail with the declaration that would license it.
+//!    `scientific_bridge.*` detail with the declaration that would support it.
 //! 2. **Derive** ([`PreparedScientificBridge::derive`]) maps the source value
 //!    and returns a [`ScientificBridgeResult`]: a derived claim with its own
 //!    identity (binding the contract, its assumptions and the source claim),
@@ -26,14 +26,14 @@
 //!    spread beside the plug-in value; the dependence is never assumed. Its interval
 //!    ([`ScientificBridgeResult::bridged_interval`]) needs the source claim's declared
 //!    standard error and is published only inside a measured design; an unscoped
-//!    request, a posterior or a joint law refuses with `cell_not_licensed`, and a
+//!    request, a posterior or a joint law refuses with `not_supported`, and a
 //!    consumer that requires a predictive law, posterior, identified set or
 //!    joint outcome law refuses with `bridge_substitution_refused`.
 //! 3. **Export** ([`ScientificBridgeResult::export`]) writes
 //!    `scientific_bridge_v1`: the contract, the source claim as the bridge saw
 //!    it, and the derived identity, value and fit.
 //! 4. **Consume** ([`consume_scientific_bridge_artifact`]) rebuilds the
-//!    contract and the source claim, applies every licensing check again,
+//!    contract and the source claim, applies every support check again,
 //!    derives the claim again and requires the stored identity, value bits,
 //!    fit and transport flag to equal the derivation, against an artifact
 //!    identity the consumer retained independently of the bytes.
@@ -42,7 +42,7 @@
 //!
 //! * [`PreparedScientificBridge::derive`] with a new source claim about the
 //!   same quantity (a refreshed estimate under the same program) **keeps** the
-//!   contract, its identity, the declared assumptions, the licensing verdict
+//!   contract, its identity, the declared assumptions, the support verdict
 //!   and the transport flag, and **recomputes** the value, the trial-level fit,
 //!   the derived claim identity and the provenance. It **refuses** a claim
 //!   about another quantity or in other units, and a claim that is not a
@@ -50,7 +50,7 @@
 //! * [`PreparedScientificBridge::with_contract`] is the only way the
 //!   assumptions, mapping or scope change. It **rebuilds** the contract
 //!   identity (so every derived claim identity), re-runs every prepare check
-//!   and refuses what no longer licenses; a claim derived under the old
+//!   and refuses what no longer supports; a claim derived under the old
 //!   contract is not carried over.
 //! * Both take `&self` and return a new value: a refused derivation or
 //!   replacement leaves the prepared bridge exactly as it was.
@@ -81,15 +81,15 @@
 //! A model score offered as a probability, and a predictive importance offered
 //! as a causal effect, refuse under their own names whatever is declared: no
 //! calibration bridge for a score and no route from an importance to a mechanism
-//! is licensed. An associational claim is never a bridge source. An identified
+//! is supported. An associational claim is never a bridge source. An identified
 //! set and a joint outcome law have no executed bridge.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim,
-    BridgedDistributionClaim, Licensing, MappingKind, NonlinearMap, PointPropagation,
-    TrialLevelFit, ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
+    BridgedDistributionClaim, MappingKind, NonlinearMap, PointPropagation, Support, TrialLevelFit,
+    ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
 };
 use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
 use antecedent_core::identity::SemanticDigest;
@@ -108,16 +108,16 @@ use antecedent_io::distribution_artifact::DistributionArtifact;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `scientific_bridge.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScientificBridgeRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `scientific_bridge.<slot>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
-    /// The declaration or evidence that would license the request, when known.
+    /// The declaration or evidence that would support the request, when known.
     pub remedy: Option<String>,
 }
 
@@ -177,7 +177,7 @@ impl ScientificBridgeRefusal {
     fn from_artifact(error: &ScientificBridgeArtifactError) -> Self {
         match error.refusal() {
             Some((code, detail, message)) => {
-                // Every refusal states what would license the request: the artifact's own
+                // Every refusal states what would support the request: the artifact's own
                 // refusals name theirs; a library refusal on replay carries it as its message.
                 let remedy = match detail.as_str() {
                     "scientific_bridge.identity_mismatch" => {
@@ -202,13 +202,13 @@ impl ScientificBridgeRefusal {
     }
 }
 
-/// A bridge whose contract was checked once and whose licensing verdict is
+/// A bridge whose contract was checked once and whose support verdict is
 /// kept, ready to derive claims from source claims about its source quantity.
 #[derive(Clone, Debug)]
 pub struct PreparedScientificBridge {
     contract: BridgeContract,
     contract_identity: SemanticDigest,
-    licensing: Licensing,
+    support: Support,
 }
 
 impl PreparedScientificBridge {
@@ -216,13 +216,13 @@ impl PreparedScientificBridge {
     ///
     /// # Errors
     /// The first defect of the contract, as a coded refusal that names the
-    /// declaration or evidence that would license it.
+    /// declaration or evidence that would support it.
     pub fn prepare(contract: BridgeContract) -> Result<Self, ScientificBridgeRefusal> {
-        let licensing = contract
-            .check_licensing()
+        let support = contract
+            .check_support()
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
         let contract_identity = contract.identity();
-        Ok(Self { contract, contract_identity, licensing })
+        Ok(Self { contract, contract_identity, support })
     }
 
     /// The contract.
@@ -241,7 +241,7 @@ impl PreparedScientificBridge {
     /// claim's population or regime, under a declared premise.
     #[must_use]
     pub const fn transported(&self) -> bool {
-        self.licensing.transported
+        self.support.transported
     }
 
     /// Derive the claim for `source`.
@@ -531,7 +531,7 @@ impl ScientificBridgeResult {
     /// count); the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// `cell_not_licensed` with `scientific_bridge.interval_source_uncertainty_required`
+    /// `not_supported` with `scientific_bridge.interval_source_uncertainty_required`
     /// when the source claim declared no standard error, and with
     /// `scientific_bridge.interval_scope_outside_measured` outside a measured record.
     pub fn bridged_interval(
@@ -549,7 +549,7 @@ impl ScientificBridgeResult {
     /// An unscoped request for an interval, posterior or joint law of the bridged claim.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` under `scientific_bridge.interval_not_licensed`: name
+    /// Always `not_supported` under `scientific_bridge.interval_not_supported`: name
     /// the level and ask [`Self::bridged_interval`] for the interval of the value; a
     /// posterior and a joint law have no executed route.
     pub fn interval(&self) -> Result<(), ScientificBridgeRefusal> {
@@ -627,7 +627,7 @@ pub fn consume_scientific_bridge_artifact(
 pub struct PreparedScientificBridgeDistribution {
     contract: BridgeContract,
     contract_identity: SemanticDigest,
-    licensing: Licensing,
+    support: Support,
 }
 
 impl PreparedScientificBridgeDistribution {
@@ -639,11 +639,11 @@ impl PreparedScientificBridgeDistribution {
     /// the source and the target), an uncertain map that declares no dependence
     /// on its source, or a mapping that declares its uncertainty a second time.
     pub fn prepare(contract: BridgeContract) -> Result<Self, ScientificBridgeRefusal> {
-        let licensing = contract
-            .check_draws_licensing()
+        let support = contract
+            .check_draws_support()
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
         let contract_identity = contract.identity();
-        Ok(Self { contract, contract_identity, licensing })
+        Ok(Self { contract, contract_identity, support })
     }
 
     /// The contract.
@@ -662,7 +662,7 @@ impl PreparedScientificBridgeDistribution {
     /// population or regime, under a declared premise.
     #[must_use]
     pub const fn transported(&self) -> bool {
-        self.licensing.transported
+        self.support.transported
     }
 
     /// Bridge the draws in `source`.
@@ -677,7 +677,7 @@ impl PreparedScientificBridgeDistribution {
     /// Draws of another quantity, of a meaning that is neither a posterior nor a
     /// predictive law or that is not the contract's value kind, independent
     /// marginals, a source claim that is not about draws, draws outside the
-    /// range the mapping is licensed for, a dependence no joint law has, or a
+    /// range the mapping is supported for, a dependence no joint law has, or a
     /// mapped draw that is not finite.
     pub fn derive(
         &self,
@@ -854,7 +854,7 @@ impl ScientificBridgeDistributionResult {
     /// An unscoped request for an interval of the bridged draws.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` under `scientific_bridge.interval_not_licensed`:
+    /// Always `not_supported` under `scientific_bridge.interval_not_supported`:
     /// name a level and ask [`Self::bridged_interval`].
     pub fn interval(&self) -> Result<(), ScientificBridgeRefusal> {
         self.bridged
@@ -870,7 +870,7 @@ impl ScientificBridgeDistributionResult {
     /// construction.
     ///
     /// # Errors
-    /// `cell_not_licensed` with `scientific_bridge.interval_scope_outside_measured`
+    /// `not_supported` with `scientific_bridge.interval_scope_outside_measured`
     /// for a mapping with uncertain coefficients, a declared source-mapping
     /// covariance, a level or design no record measured.
     pub fn bridged_interval(

@@ -45,12 +45,12 @@ sha256 = "1a176d9faaab79843689fa0ff00e631e1b81a9c19ee6a475e7291b81da3ea5e2"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "88fedc34bddf96041cc964019a9a8cebe8377cd3c6cac88df9b8efb1f40d7dbb"
+sha256 = "1c83542bfff721d9d767671869ca147cd6c84f525279d9d9eaacfcc482a5b085"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/distance.rs"
-sha256 = "d00239f60e60d64476d21b055cb71feb7eab0c1e842f10249a6f6fbb377f5868"
+sha256 = "711dfe01d18185164ced666009b256210acc5b64abda95b527f16620e355c46f"
 
 [[method_review.artifacts]]
 role = "assertion"

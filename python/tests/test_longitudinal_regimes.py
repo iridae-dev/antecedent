@@ -123,7 +123,7 @@ def test_stabilized_msm_recovers_known_additive_period_effects_and_clustered_se(
     assert result.observed_subjects == 16
     assert result.method == "marginal_structural_model"
     assert result.uncertainty == "pointwise_subject_clustered_cr1_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 def test_msm_direct_accepts_strided_numpy_inputs():

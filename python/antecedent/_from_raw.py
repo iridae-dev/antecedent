@@ -16,7 +16,7 @@ from ._native import AteAnalysisResult
 from ._posterior_row import PosteriorRowEstimate
 from ._quasi_rollout import quasi_rollout_from_raw as _quasi_rollout_from_raw
 from ._temporal_design import temporal_design_from_raw as _temporal_design_from_raw
-from ._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+from ._unset_support import unset_dose_support, unset_panel_support, unset_policy_support
 from .descriptive import association_from_raw as _association_from_raw
 from .errors import CausalValueError
 from .experiment import RandomizedExperimentEstimate
@@ -327,7 +327,7 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
     else:
         uncertainty = (
             "Conservative Young variance bound under the declared randomization; "
-            "see the support matrix for interval licensing."
+            "see the support matrix for interval support."
         )
     return InterferenceEstimate(
         RandomizationContrast(
@@ -363,9 +363,9 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         pointwise_interval=pointwise_interval,
         interval_unavailable_reason=section.interval_unavailable_reason,
         support_status=(
-            "licensed"
-            if section.graphless_support_status == "licensed"
-            else "unlicensed_point_utility"
+            "supported"
+            if section.graphless_support_status == "supported"
+            else "unsupported_point_utility"
         ),
     )
 
@@ -533,7 +533,7 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
             or (
                 "off_axis_interval_evidence"
                 if section.interval_95 is not None
-                else "unlicensed_off_matrix"
+                else "unsupported_off_matrix"
             )
         ),
     )
@@ -600,14 +600,14 @@ def _panel_did_from_raw(
             uncertainty=(
                 "event_time_pointwise_normal_intervals_independent_clusters"
                 if supported
-                else "cluster_robust_se_only_pointwise_cr1_unlicensed"
+                else "cluster_robust_se_only_pointwise_cr1_unsupported"
             ),
             support_status=(
-                "licensed"
-                if section.graphless_support_status == "licensed"
+                "supported"
+                if section.graphless_support_status == "supported"
                 else "off_axis_pointwise_95"
                 if supported
-                else "unlicensed_point_utility"
+                else "unsupported_point_utility"
             ),
         )
     repeated = (
@@ -654,7 +654,7 @@ def _panel_did_from_raw(
         ),
         support_status=(
             section.graphless_support_status
-            or unset_panel_license(has_interval=section.interval_95 is not None)
+            or unset_panel_support(has_interval=section.interval_95 is not None)
         ),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
@@ -807,8 +807,8 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
             "independent_local_observations",
         ),
         support_status=(
-            "licensed"
-            if getattr(section, "graphless_support_status", None) == "licensed"
+            "supported"
+            if getattr(section, "graphless_support_status", None) == "supported"
             else "off_axis_interval_evidence"
         ),
         diagnostics=(
@@ -840,7 +840,7 @@ def _survival_from_raw(
     fixed_g = getattr(query, "known_censoring", None) is not None
     has_interval = section.difference_at_tau_interval is not None
     native_band = section.difference_band
-    # The band license is the sixth tuple element on builds that carry it; older
+    # The band support is the sixth tuple element on builds that carry it; older
     # builds return a five-element tuple, so read it defensively.
     band_status = native_band[5] if native_band is not None and len(native_band) > 5 else None
     difference_band = (
@@ -850,7 +850,7 @@ def _survival_from_raw(
             lower=tuple(native_band[2]),
             upper=tuple(native_band[3]),
             replicates_ok=native_band[4],
-            support_status=band_status or "unlicensed_simultaneous_band",
+            support_status=band_status or "unsupported_simultaneous_band",
         )
         if native_band is not None
         else None
@@ -871,23 +871,23 @@ def _survival_from_raw(
             else "independent_delayed_entry_within_arm",
         )
     provenance = section.censoring_survival_provenance
-    scalar_licensed = getattr(raw, "evidence_status", None) == "licensed"
-    band_licensed = band_status == "licensed"
-    # The paired RMST + horizon survival scalar license and the simultaneous
-    # band license are distinct graphless claims. The scalar license takes the
-    # top-level slot when present; a licensed band that stands alone (for example
+    scalar_supported = getattr(raw, "evidence_status", None) == "supported"
+    band_supported = band_status == "supported"
+    # The paired RMST + horizon survival scalar support and the simultaneous
+    # band support are distinct graphless claims. The scalar support takes the
+    # top-level slot when present; a supported band that stands alone (for example
     # an off-axis competing-incidence scalar) is reported as such; the band's own
-    # license is always carried on ``difference_band.support_status``.
+    # support is always carried on ``difference_band.support_status``.
     support_status = (
-        "licensed"
-        if scalar_licensed
-        else "licensed_simultaneous_band"
-        if band_licensed
-        else "unlicensed_simultaneous_band"
+        "supported"
+        if scalar_supported
+        else "supported_simultaneous_band"
+        if band_supported
+        else "unsupported_simultaneous_band"
         if difference_band is not None
-        else "unlicensed_pointwise_interval"
+        else "unsupported_pointwise_interval"
         if has_interval
-        else "unlicensed_point_utility"
+        else "unsupported_point_utility"
     )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
@@ -1053,11 +1053,11 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         ),
         interval_reason=section.interval_reason,
         support_status=(
-            "licensed"
-            if section.graphless_support_status == "licensed"
+            "supported"
+            if section.graphless_support_status == "supported"
             else "off_axis_pointwise_95"
             if section.value_interval_95 is not None
-            else "unlicensed_point_utility"
+            else "unsupported_point_utility"
         ),
         effective_sample_size=section.effective_sample_size,
         matched_observed_fraction=section.matched_observed_fraction,
@@ -1138,7 +1138,7 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         fixed_policy=fixed_policy,
         support_status=(
             section.graphless_support_status
-            or unset_dose_license(
+            or unset_dose_support(
                 has_incremental_interval=fixed_policy is not None
                 and fixed_policy.incremental_interval_95 is not None
             )
@@ -1173,7 +1173,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=(
             section.graphless_support_status
-            or unset_policy_license(
+            or unset_policy_support(
                 has_regret=section.regret is not None,
                 has_interval=section.policy_interval_95 is not None
                 or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
@@ -1642,8 +1642,6 @@ def _wrap_ate(
         },
         plan=_plan_from_raw(raw),
         evidence_status=getattr(raw, "evidence_status", None),
-        allowlist_reason=getattr(raw, "allowlist_reason", None),
-        allowlist_parent=getattr(raw, "allowlist_parent", None),
         structural_weight_basis=getattr(raw, "structural_weight_basis", None),
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),

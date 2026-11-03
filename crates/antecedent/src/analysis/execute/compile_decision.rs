@@ -327,7 +327,7 @@ pub(crate) fn require_carrier(
     let name = realization_name(realization);
     if matches!(realization, Realization::CategoricalPosteriorCandidateV1) {
         return Err(DecisionCarrierError::contract(
-            "the categorical posterior candidate does not license a decision carrier",
+            "the categorical posterior candidate does not support a decision carrier",
             demanded,
             name,
             DISTRIBUTIONAL_CARRIER,
@@ -335,7 +335,7 @@ pub(crate) fn require_carrier(
     }
     if matches!(realization, Realization::GraphImputationV1) {
         return Err(DecisionCarrierError::contract(
-            "the graph-imputation realization does not license a decision carrier",
+            "the graph-imputation realization does not support a decision carrier",
             demanded,
             name,
             DISTRIBUTIONAL_CARRIER,

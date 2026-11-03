@@ -49,7 +49,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_static_kinds.rs",
-          "sha256": "4c61ba5c4ad0d4783c0ee97575590787447fded093b9e604ef4abbfbae2e9298"
+          "sha256": "7761e069fb0814d5a7d4c2e3e14cc897d662de3446dea0ab19d77815f107d987"
         }
       ],
       "fixture_payload_sha256": "ad9658a6b378d298bb0a838faf64b4a91620420aa1e42a3b458cacc868a6b7d6"

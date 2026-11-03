@@ -359,7 +359,7 @@ fn cpdag_completion_scenarios_stage(
             Some(argument_refusal(
                 reason_code!("route_not_supported"),
                 "cpdag_scenarios.exact_laws_only",
-                "the completion route evaluates supplied exact laws; counted laws are not licensed",
+                "the completion route evaluates supplied exact laws; counted laws are not supported",
             )),
         ));
     }

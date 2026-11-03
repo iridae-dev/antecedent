@@ -1,6 +1,6 @@
 //! End-to-end probe for incompletable `TemporalCpdag`/`TemporalPag` structure.
 //!
-//! Incomplete TemporalCpdag/Pag Pulse / single-step Sustained is licensed.
+//! Incomplete TemporalCpdag/Pag Pulse / single-step Sustained is supported.
 //! Bidirected / conflict graphs pass the support gate and fail at the
 //! completion sampler. Successful `try_into_temporal_dag` still collapses to
 //! the `TemporalDag` cell. Bayesian incomplete-class cells stay closed.
@@ -23,7 +23,7 @@ use antecedent_graph::{MarkedEdge, TemporalCpdag, TemporalPag};
 const T: VariableId = VariableId::from_raw(0);
 const Y: VariableId = VariableId::from_raw(1);
 
-/// The same two-column `t`/`y` series the licensed `TemporalDag` Pulse/Sustained
+/// The same two-column `t`/`y` series the supported `TemporalDag` Pulse/Sustained
 /// cells are pinned against (`conformance/response/temporal_dose_horizon`),
 /// generated inline so this probe does not depend on the fixture's contract.
 fn series() -> TimeSeriesData {
@@ -93,7 +93,7 @@ fn latent_temporal_pag() -> AcceptedGraph {
 /// complete.
 ///
 /// `AcceptedGraph::temporal_cpdag` and `AcceptedGraph::accept` refuse conflict
-/// marks. `From<TemporalCpdag>` keeps the class so the licensed cell can build;
+/// marks. `From<TemporalCpdag>` keeps the class so the supported cell can build;
 /// the completion sampler then refuses the `x-x` mark. Counterpart of the
 /// PAG's bidirected mark.
 fn incompletable_temporal_cpdag() -> AcceptedGraph {
@@ -111,7 +111,7 @@ fn pulse_query() -> CausalQuery {
     )
 }
 
-/// The licensed Sustained form: a single-step window (`from == until`), not the
+/// The supported Sustained form: a single-step window (`from == until`), not the
 /// multi-step schedule the estimator refuses.
 fn single_step_sustained_query() -> CausalQuery {
     let mut q = TemporalEffectQuery::sustained(T, Y, 0, 1.0);
@@ -121,7 +121,7 @@ fn single_step_sustained_query() -> CausalQuery {
 }
 
 /// Valid latent graphs can fail adjustment certification; conflict graphs fail
-/// completion. Both reach their licensed graph class without becoming a DAG.
+/// completion. Both reach their supported graph class without becoming a DAG.
 fn assert_completion_or_adjustment_refusal(
     graph: &AcceptedGraph,
     query: &CausalQuery,
@@ -135,7 +135,7 @@ fn assert_completion_or_adjustment_refusal(
             .refute(suite)
             .bootstrap_replicates(0)
             .build()
-            .unwrap_or_else(|e| panic!("{label}/{suite:?}: licensed cell must build: {e}"));
+            .unwrap_or_else(|e| panic!("{label}/{suite:?}: supported cell must build: {e}"));
         let err = study
             .run(&ctx)
             .expect_err(&format!("{label}/{suite:?}: uncertified adjustment must not estimate"));
@@ -166,7 +166,7 @@ fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 /// The `SustainedEffect` half of the same policy-generic compile arm. Before
 /// the incomplete TemporalCpdag/Pag Pulse/Sustained cells were named as
 /// completion refusals, this refused at `build()` with the generic "neither
-/// licensed nor on the named running allowlist" message while the Pulse tests
+/// supported nor on the named running allowlist" message while the Pulse tests
 /// above reached the specific completion error -- an inconsistency between two
 /// policies of one query family sharing a single arm.
 #[test]
@@ -188,7 +188,7 @@ fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 }
 
 /// Incomplete TemporalCpdag/Pag still refuse Bayesian Sustained at `build()`.
-/// The licensed Bayesian Sustained cell is `TemporalDag` (explicit/accepted);
+/// The supported Bayesian Sustained cell is `TemporalDag` (explicit/accepted);
 /// completion failure is not that cell.
 #[test]
 fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refused() {
@@ -200,7 +200,7 @@ fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refuse
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
-            .expect("Bayesian Sustained is licensed")
+            .expect("Bayesian Sustained is supported")
             .run(&antecedent_core::ExecutionContext::for_tests(7))
             .expect_err("invalid or unidentified completions cannot produce an estimate");
         assert!(

@@ -70,7 +70,7 @@ impl RefuteSuite {
     }
 }
 
-/// Trial membership and known probabilities for a licensed [`CausalQuery::Transport`] cell.
+/// Trial membership and known probabilities for a supported [`CausalQuery::Transport`] cell.
 #[derive(Clone, Debug)]
 pub struct TransportTrialSpec {
     /// Source-trial membership (`true` = source experiment row).
@@ -81,7 +81,7 @@ pub struct TransportTrialSpec {
     pub treatment_probability: VariableId,
 }
 
-/// Fixed network and realized assignment for a licensed [`CausalQuery::Interference`] cell.
+/// Fixed network and realized assignment for a supported [`CausalQuery::Interference`] cell.
 #[derive(Clone, Debug)]
 pub struct InterferenceSpec {
     /// Unit table plus incoming exposure edges.
@@ -135,40 +135,40 @@ impl InterferenceSpec {
     }
 }
 
-/// Refuse a transport construction outside the licensed cell.
+/// Refuse a transport construction outside the supported cell.
 ///
-/// The licensed `TransportQuery` cell transports a mean `ResponseCurve` on the
+/// The supported `TransportQuery` cell transports a mean `ResponseCurve` on the
 /// complete, all-observed, static response by binary trial-to-target IPW. A
 /// derivative, a non-mean outcome functional, an embedded population, an
 /// observation mechanism or a temporal attachment would be labelled with the
 /// executed binary contrast it is not, so it is refused.
-pub(super) fn refuse_unlicensed_transport(
+pub(super) fn refuse_unsupported_transport(
     query: &antecedent_core::TransportQuery,
 ) -> Result<(), CausalError> {
     let response = &query.response;
-    let licensed =
+    let supported =
         matches!(response.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
             && response.outcome_functional.is_mean()
             && matches!(response.target_population, antecedent_core::TargetPopulation::AllObserved)
             && matches!(response.observation, antecedent_core::ObservationSpec::Complete)
             && response.observation_assumptions.is_empty()
             && response.temporal.is_none();
-    if licensed {
+    if supported {
         Ok(())
     } else {
         Err(crate::support_reason!(
-            "construction_not_licensed",
-            "TransportQuery is licensed for a mean ResponseCurve on the complete, all-observed \
+            "construction_not_supported",
+            "TransportQuery is supported for a mean ResponseCurve on the complete, all-observed \
              static response, transported by binary trial-to-target IPW"
         ))
     }
 }
 
 /// Refuse interference designs without a checked execution path.
-pub(super) fn refuse_unlicensed_interference(
+pub(super) fn refuse_unsupported_interference(
     query: &antecedent_core::InterferenceQuery,
 ) -> Result<(), CausalError> {
-    let licensed =
+    let supported =
         (matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
             && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount))
             || (matches!(
@@ -193,11 +193,11 @@ pub(super) fn refuse_unlicensed_interference(
                     | antecedent_core::ExposureMapping::NeighborFraction
                     | antecedent_core::ExposureMapping::WeightedNeighborExposure
             ));
-    if licensed {
+    if supported {
         Ok(())
     } else {
         Err(crate::support_reason!(
-            "construction_not_licensed",
+            "construction_not_supported",
             "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
         ))
     }
@@ -205,7 +205,7 @@ pub(super) fn refuse_unlicensed_interference(
 
 /// Refusal for panel response on a non-temporal or static graph.
 pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
-    "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
+    "panel ResponseCurve / InterventionResponse is supported on a supplied ",
     "TemporalDag, TemporalCpdag, or TemporalPag",
 );
 
@@ -217,12 +217,12 @@ pub(crate) const PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL: &str =
 pub(crate) const PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL: &str =
     "multi-step Sequence transfer stays refused on incomplete classes";
 
-/// Single owner for panel data-route licenses. Build, prepare, compile, and
+/// Single owner for panel data-route supports. Build, prepare, compile, and
 /// execute consult this; they do not restate the same refusals.
 ///
 /// Every panel route requires one sampling regularity across units: a horizon of
 /// `h` steps must mean the same duration in every unit.
-pub(crate) fn refuse_unlicensed_panel_route(
+pub(crate) fn refuse_unsupported_panel_route(
     query: &CausalQuery,
     class: GraphClass,
     inference: &InferenceMode,
@@ -231,9 +231,9 @@ pub(crate) fn refuse_unlicensed_panel_route(
 ) -> Result<(), CausalError> {
     panel_shared_regularity(panel)?;
     match query {
-        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class),
+        CausalQuery::Response(query) => refuse_unsupported_panel_response(query, class),
         CausalQuery::TemporalEffect(query) => {
-            refuse_unlicensed_panel_effect(query, class, inference, split)
+            refuse_unsupported_panel_effect(query, class, inference, split)
         }
         _ => Ok(()),
     }
@@ -259,7 +259,7 @@ pub(crate) fn panel_shared_regularity(
     Ok(first.clone())
 }
 
-fn refuse_unlicensed_panel_response(
+fn refuse_unsupported_panel_response(
     query: &ResponseQuery,
     class: GraphClass,
 ) -> Result<(), CausalError> {
@@ -274,7 +274,7 @@ fn refuse_unlicensed_panel_response(
     Ok(())
 }
 
-fn refuse_unlicensed_panel_effect(
+fn refuse_unsupported_panel_effect(
     query: &TemporalEffectQuery,
     class: GraphClass,
     inference: &InferenceMode,
@@ -731,7 +731,7 @@ macro_rules! bayesian {
 /// mode at execution, and the query-specific pairings are checked where the
 /// query's expected estimator is resolved. Without this refusal a Frequentist
 /// estimator would run under a Bayesian request and be bound to the Bayesian
-/// license coordinate and inference binding.
+/// support coordinate and inference binding.
 pub(super) fn refuse_estimator_inference_mismatch(
     query: &CausalQuery,
     estimator: EstimatorId,
@@ -1064,7 +1064,7 @@ pub(super) fn refuse_unsupported_white_innovation(
     }
     Err(crate::unsupported_reason!(
         "option_not_applicable",
-        "a declared white-innovation premise licenses the untempered Gaussian posterior of a \
+        "a declared white-innovation premise supports the untempered Gaussian posterior of a \
          single-step temporal pulse, one-step sustained effect or one-step single-horizon \
          response curve on one fixed TemporalDag under the isotropic Gaussian prior; this route \
          does not read it, so it refuses the premise \
@@ -1224,11 +1224,11 @@ pub(super) fn refuse_unsupported_likelihood(
         ),
         _ => false,
     };
-    let licensed = matches!(data, DataInput::Tabular(_))
+    let supported = matches!(data, DataInput::Tabular(_))
         && class == GraphClass::Dag
         && structure_fixed
         && supported_query;
-    if licensed {
+    if supported {
         return Ok(());
     }
     Err(crate::unsupported_reason!(
@@ -1282,7 +1282,7 @@ impl StudyBuilder {
     /// replicate count by construction rather than a second copy of `199`.
     pub const OMITTED_BOOTSTRAP: u32 = super::latency::STANDARD_BOOTSTRAP;
     /// Validation suite used when the caller omits [`Self::refute`]. A cell
-    /// that does not license this suite is downgraded at build.
+    /// that does not support this suite is downgraded at build.
     pub const OMITTED_REFUTE: RefuteSuite = RefuteSuite::PlaceboAndRcc;
 
     fn from_data(data: DataInput) -> Self {
@@ -1363,7 +1363,7 @@ impl StudyBuilder {
         self
     }
 
-    /// Capability report without granting a license.
+    /// Capability report without granting support.
     ///
     /// Missing graph or query is a binding report with no neighbors. Present
     /// coordinates classify through [`Self::inspect`] and do not identify.
@@ -1388,7 +1388,7 @@ impl StudyBuilder {
         Ok(self.clone().inspect()?.capability())
     }
 
-    /// Cheap structural inspection without requiring a licensed cell.
+    /// Cheap structural inspection without requiring a supported cell.
     ///
     /// Closed, n/a, and refused coordinates still produce a contract: support
     /// status is recorded and identification stays unavailable. This does not
@@ -1630,7 +1630,7 @@ impl StudyBuilder {
     /// (one Exp(1) weight per block of consecutive times shared by every horizon), which
     /// replaces the per-horizon conjugate fits, whose draws are independent marginals. The
     /// option changes the contract's inference binding, and a Bayesian run under it is
-    /// unlicensed.
+    /// unsupported.
     #[must_use]
     pub fn retain_joint_horizons(mut self, on: bool) -> Self {
         self.settings.retain_joint_horizons = on;
@@ -1699,7 +1699,7 @@ impl StudyBuilder {
     /// Request a coarsened continuous coordinate for cell-AIPW.
     ///
     /// Refused at [`Self::build`]: coarsening D is not a controlled direct
-    /// effect at a point (`do(D=d0)`). Point CDE is unlicensed.
+    /// effect at a point (`do(D=d0)`). Point CDE is unsupported.
     #[must_use]
     pub fn continuous_cell(
         mut self,
@@ -2083,8 +2083,8 @@ impl Study {
         self.structure_source
     }
 
-    /// Evidence contract recorded at [`StudyBuilder::build`]: licensed, or
-    /// allowlisted-and-unlicensed. `None` when the query is not on the public
+    /// Evidence contract recorded at [`StudyBuilder::build`]: supported, or
+    /// not supported. `None` when the query is not on the public
     /// matrix axis.
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {

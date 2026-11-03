@@ -60,7 +60,7 @@ pub struct RandomizedEffectSection {
     pub treatment_units: usize,
     /// Explicit uncertainty semantics; never implies a confidence interval.
     pub uncertainty: String,
-    /// Exact graphless matrix status for the retained result, when licensed.
+    /// Exact graphless matrix status for the retained result, when supported.
     pub graphless_support_status: Option<String>,
     /// Assignment units in analyzed row order.
     pub assignment_units: Vec<String>,

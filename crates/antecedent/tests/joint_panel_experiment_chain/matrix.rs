@@ -160,18 +160,18 @@ pub(super) fn translated_fixture(
     if [1, 2, 4].contains(&translation_case) {
         bridge.transport=Some(TransportabilityPremise {id:"declared_estimand_translation".into(),statement:"The declared paired affine mapping carries the exact experimental population/time/duration setting to the retained target".into(),established_in:bridge.evidence_scope.clone(),applies_to:BridgeScope {population_id:target.population_id.clone(),regime_id:target.regime_id.clone()},evidence:Some("explicit_reference_transport_model".into())});
     }
-    bridge.check_licensing().unwrap();
+    bridge.check_support().unwrap();
     if [1, 2, 4].contains(&translation_case) {
         let mut unsupported = bridge.clone();
         unsupported.transport = None;
         assert!(
-            unsupported.check_licensing().is_err(),
+            unsupported.check_support().is_err(),
             "changed experimental population/horizon requires an explicit transport premise"
         );
         let mut wrong_source = bridge.clone();
         wrong_source.source.quantity.population_id = "unrelated_population".into();
         assert!(
-            wrong_source.check_licensing().is_err(),
+            wrong_source.check_support().is_err(),
             "experimental endpoint must match the translated experimental population"
         );
     }
@@ -188,7 +188,7 @@ pub(super) fn translated_fixture(
 }
 
 /// A future study may run in another population, window, dose, duration, exposure, recency or
-/// spend than the observed experiment. It is valued through its own licensed bridge and paired
+/// spend than the observed experiment. It is valued through its own supported bridge and paired
 /// mapping, the update it would cause and the decision that update changes, and each stage is
 /// checked here against arithmetic that calls no production update or ranking helper.
 #[allow(
@@ -359,7 +359,7 @@ fn verify_regime_studies(
     // The decision rule the problem encodes (change when the contrast beats the threshold)
     // therefore flips between the two outcomes.
     assert_ne!(dot(&high.response_means) > center, dot(&low.response_means) > center);
-    // Unlicensed, unaligned or stale regimes refuse; none falls back to the observed estimand.
+    // Unsupported, unaligned or stale regimes refuse; none falls back to the observed estimand.
     let rank = |regime: PanelFutureRegime, ledger: &EvidenceLedger| {
         updated.rank_next_studies(
             &problem,
@@ -865,7 +865,7 @@ fn exercise_native_source_variant(
     if [1, 2, 4].contains(&translation) {
         bridge.transport=Some(TransportabilityPremise {id:"explicit_estimand_transport".into(),statement:"The retained paired mapping carries this specific experimental population/time/duration setting to the exact native target".into(),established_in:bridge.evidence_scope.clone(),applies_to:BridgeScope {population_id:quantity.population_id.clone(),regime_id:quantity.regime_id.clone()},evidence:Some("separately_supplied_transport_model".into())});
     }
-    bridge.check_licensing().unwrap();
+    bridge.check_support().unwrap();
     let mut ledger = EvidenceLedger::new();
     let model = ledger
         .add_source(
@@ -1507,7 +1507,7 @@ fn native_experiment_decision_full_procedure_calibration_l95() {
     }
     let coverage = covered as f64 / repetitions as f64;
     eprintln!(
-        "native_experiment_decision_full_procedure: seeds={repetitions} covered={covered} coverage={coverage} changed_decisions={decisions_changed}; release license requires stable candidate and registered gate measurements"
+        "native_experiment_decision_full_procedure: seeds={repetitions} covered={covered} coverage={coverage} changed_decisions={decisions_changed}; release support requires stable candidate and registered gate measurements"
     );
     assert!(
         (0.90..=0.99).contains(&coverage),
@@ -1543,29 +1543,29 @@ fn experimental_translation_can_change_real_endpoint_population_and_horizon_only
     estimand.experiment.time_end = "historical_period:1".into();
     estimand.experiment.duration = 2.0;
     translated.transport=Some(TransportabilityPremise {id:"population_and_horizon_model".into(),statement:"The supplied affine map carries this historical trial response to the target population at period24".into(),established_in:translated.evidence_scope.clone(),applies_to:BridgeScope {population_id:quantity.population_id.clone(),regime_id:quantity.regime_id.clone()},evidence:Some("separately_established_translation_model".into())});
-    assert!(translated.check_licensing().unwrap().transported);
+    assert!(translated.check_support().unwrap().transported);
     let mut no_transport = translated.clone();
     no_transport.transport = None;
-    assert!(no_transport.check_licensing().is_err());
+    assert!(no_transport.check_support().is_err());
     let mut wrong_scope = translated.clone();
     wrong_scope.transport.as_mut().unwrap().applies_to.population_id = "another_population".into();
-    assert!(wrong_scope.check_licensing().is_err());
+    assert!(wrong_scope.check_support().is_err());
     let mut wrong_source = translated.clone();
     wrong_source.source.quantity.population_id = "unbound_population".into();
-    assert!(wrong_source.check_licensing().is_err());
+    assert!(wrong_source.check_support().is_err());
     let mut missing_translation = translated.clone();
     missing_translation.estimand_bridge = None;
-    assert!(missing_translation.check_licensing().is_err());
+    assert!(missing_translation.check_support().is_err());
     let mut horizon_only = translated;
     horizon_only.source.quantity.population_id = quantity.population_id.clone();
     horizon_only.evidence_scope.population_id = quantity.population_id.clone();
     horizon_only.estimand_bridge.as_mut().unwrap().experiment.population_id =
         quantity.population_id.clone();
     horizon_only.transport.as_mut().unwrap().established_in = horizon_only.evidence_scope.clone();
-    assert!(horizon_only.check_licensing().unwrap().transported);
+    assert!(horizon_only.check_support().unwrap().transported);
     horizon_only.transport = None;
     assert!(
-        horizon_only.check_licensing().is_err(),
+        horizon_only.check_support().is_err(),
         "same-population horizon extrapolation still needs its explicit transport model"
     );
 }

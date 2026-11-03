@@ -841,7 +841,7 @@ mod tests {
             assert!(m.abs() < 1e-10, "influence must be centered: {m}");
         }
         let se =
-            effect.heterogeneity.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
+            effect.heterogeneity.cate_se.as_ref().expect("linear final stage supports CATE SEs");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s > 0.0));
     }

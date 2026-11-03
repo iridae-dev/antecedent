@@ -20,9 +20,9 @@ record_sha256 = "1d1661c3e7fe185ae6661f0c114b95185232e6952d9c5ced2e473974d110d47
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/effect_constancy_consumers.rs"
-sha256 = "a4ed43d9dc96204a666b935441da75a051a20e8332eb921234e1f808bd9b275c"
+sha256 = "297c72bb6a9b526711917eea2b0a9eb64110ec494bf5c9d3964a3bda47ab8685"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/effect_constancy_consumers.rs"
-sha256 = "e0feb4858bd2f1e2e4aa4bbee34910a0cf8a33926c4cf29dbbd0b20df2db66e6"
+sha256 = "ef86311198d4e39f2d11aff0fb38f664eab8faa2e964047c7a1645b0a4fcdc4c"

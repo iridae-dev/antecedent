@@ -8,7 +8,7 @@
 //! threshold, exploration mass or outcome structure is refused: a record for
 //! one cell never covers another.
 //!
-//! Licensed cells:
+//! Supported cells:
 //!
 //! * Thompson sampling with a uniform Beta prior, two arms, a posterior
 //!   probability stopping rule at a measured threshold and two looks: the
@@ -37,7 +37,7 @@ use antecedent_estimate::adaptive_measured_interval as built;
 
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("measured_interval.protocol_not_measured: {message}"),
     }
 }

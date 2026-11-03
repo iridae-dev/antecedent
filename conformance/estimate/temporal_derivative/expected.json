@@ -53,7 +53,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_derivative_effect.rs",
-          "sha256": "8cf331a778e15630216e95b8a6e94e7c650f694676a8bb6d504257425d3fc4b2"
+          "sha256": "33870ca31fa38913d2f23fe035d1f29062d32b5315cf684a7bfcada506e24096"
         }
       ],
       "fixture_payload_sha256": "80b8857c182ec5f2edb8402e8743125c27f653755533418ce3a72cad694473ed"

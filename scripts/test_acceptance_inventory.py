@@ -44,13 +44,13 @@ fn representatives() -> Vec<Rep> {
 
 def counterpart(**over) -> dict:
     row = {
-        "id": "licensed.AverageEffect.Dag#static.frequentist",
+        "id": "supported.AverageEffect.Dag#static.frequentist",
         "kind": "route",
         "method": "AverageEffect",
         "design": "static",
         "inference": "frequentist",
-        "route": "licensed.AverageEffect.Dag",
-        "status": "licensed",
+        "route": "supported.AverageEffect.Dag",
+        "status": "supported",
         "uncertainty": "analytic",
         "uncertainty_basis": "measured_record",
         "target": "AverageEffect",
@@ -68,17 +68,16 @@ def counterpart(**over) -> dict:
     return row | over
 
 
-def licensed_obligation(**over) -> dict:
+def supported_obligation(**over) -> dict:
     row = {
         "id": "AverageEffect:Dag:explicit:Frequentist:none",
-        "kind": "licensed",
+        "kind": "supported",
         "query": "AverageEffect",
         "graph_class": "Dag",
         "structure": "explicit",
         "inference": "Frequentist",
         "validation": "none",
-        "identification_license": "internal_known_truth|crates/a/tests/t.rs|runs|fixture",
-        "calibration_license": "records:cov.one",
+        "identification_evidence": "internal_known_truth|crates/a/tests/t.rs|runs|fixture",
         "uncertainty": "coverage_records",
     }
     return row | over
@@ -88,7 +87,7 @@ def association_row(route: str, design: str, inference: str) -> dict:
     return counterpart(
         id=f"{route}#{design}.{inference}",
         route=route,
-        status="executing_unlicensed",
+        status="not_supported",
         uncertainty="analytic",
         uncertainty_basis="declared_and_corroborated",
         design=design,
@@ -111,10 +110,10 @@ class Fixture:
             "manifest": {
                 "route": [
                     {
-                        "id": "licensed.AverageEffect.Dag",
+                        "id": "supported.AverageEffect.Dag",
                         "target": "AverageEffect",
                         "inference": "Frequentist",
-                        "status": "licensed",
+                        "status": "supported",
                         "decision_ports": "unlisted",
                     }
                 ],
@@ -125,21 +124,20 @@ class Fixture:
                     "id": "static_effect",
                     "status": "covered",
                     "representatives": ["association_static"],
-                    "routes": ["licensed.AverageEffect.Dag"],
+                    "routes": ["supported.AverageEffect.Dag"],
                 }
             ],
             "scope": [
                 {
-                    "id": "licensed.AverageEffect.Dag",
+                    "id": "supported.AverageEffect.Dag",
                     "status": "mandatory",
                     "list": "mandatory",
                     "source": "route_manifest",
                 }
             ],
             "children": [],
-            "obligations": [licensed_obligation()],
+            "obligations": [supported_obligation()],
             "limitations": [],
-            "coverage_ids": {"cov.one"},
             "representatives": {"association_static"},
             "child_findings": {},
         }
@@ -166,7 +164,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
         rows = self.fx.rows()
         self.assertEqual(rows[0]["acceptance"], "complete")
         self.assertEqual(
-            rows[0]["licensing_obligations"], ["AverageEffect:Dag:explicit:Frequentist:none"]
+            rows[0]["support_obligations"], ["AverageEffect:Dag:explicit:Frequentist:none"]
         )
         self.assertEqual(self.problems(rows), [])
 
@@ -175,7 +173,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
 
         text = gen.render(self.fx.rows())
         self.assertEqual(
-            tomllib.loads(text)["row"][0]["id"], "licensed.AverageEffect.Dag#static.frequentist"
+            tomllib.loads(text)["row"][0]["id"], "supported.AverageEffect.Dag#static.frequentist"
         )
 
     def test_representative_labels_come_from_the_registered_list_only(self):
@@ -187,7 +185,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
     def test_executing_route_without_its_claimed_uncertainty_is_incomplete(self):
         self.fx.sources["counterparts"] = [
             counterpart(
-                status="executing_unlicensed",
+                status="not_supported",
                 uncertainty="none",
                 uncertainty_basis="declared_and_corroborated",
             )
@@ -221,7 +219,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
             {
                 "id": "lim.1",
                 "kind": "narrowed_promise",
-                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "locator": "supported.AverageEffect.Dag#static.frequentist",
                 "owner": "P20",
                 "decision": "",
                 "rationale": "",
@@ -300,12 +298,12 @@ class AcceptanceInventoryTest(unittest.TestCase):
     # ---- rejections ---------------------------------------------------------------------
     def test_rejects_a_counterpart_row_missing_from_the_inventory(self):
         self.assertRejected(
-            "missing: no inventory row for licensed.AverageEffect.Dag#static.frequentist", rows=[]
+            "missing: no inventory row for supported.AverageEffect.Dag#static.frequentist", rows=[]
         )
 
     def test_rejects_a_route_obligation_no_row_carries(self):
         self.fx.sources["obligations"].append(
-            licensed_obligation(id="AverageEffect:Dag:explicit:Bayesian:none", inference="Bayesian")
+            supported_obligation(id="AverageEffect:Dag:explicit:Bayesian:none", inference="Bayesian")
         )
         rows = self.fx.rows()
         rows[0]["obligations"] = ["AverageEffect:Dag:explicit:Frequentist:none"]
@@ -331,23 +329,23 @@ class AcceptanceInventoryTest(unittest.TestCase):
 
     def test_rejects_a_manifest_route_without_a_row(self):
         rows = self.fx.rows()
-        rows[0]["route"] = "licensed.Other.Dag"
-        self.assertRejected("missing: manifest route licensed.AverageEffect.Dag", rows)
+        rows[0]["route"] = "supported.Other.Dag"
+        self.assertRejected("missing: manifest route supported.AverageEffect.Dag", rows)
 
     def test_rejects_a_status_that_conflicts_with_the_counterpart_record(self):
         rows = self.fx.rows()
-        rows[0]["status"] = "executing_unlicensed"
-        self.assertRejected("conflict: licensed.AverageEffect.Dag#static.frequentist: status", rows)
+        rows[0]["status"] = "not_supported"
+        self.assertRejected("conflict: supported.AverageEffect.Dag#static.frequentist: status", rows)
 
-    def test_rejects_unlicensed_status_where_an_explicit_licence_exists(self):
-        self.fx.sources["counterparts"] = [counterpart(status="executing_unlicensed")]
-        self.assertRejected("not licensed although an explicit licence obligation exists", None)
+    def test_rejects_unsupported_status_where_an_explicit_support_exists(self):
+        self.fx.sources["counterparts"] = [counterpart(status="not_supported")]
+        self.assertRejected("not supported although an explicit support obligation exists", None)
 
     def test_rejects_a_closure_kind_that_conflicts_with_the_inventory(self):
         rows = self.fx.rows()
         rows[0]["closure_kind"] = "narrowed_promise"
         self.assertRejected(
-            "conflict: licensed.AverageEffect.Dag#static.frequentist: closure_kind", rows
+            "conflict: supported.AverageEffect.Dag#static.frequentist: closure_kind", rows
         )
 
     def test_rejects_a_narrowed_promise_without_a_residual_limitation(self):
@@ -361,7 +359,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
             {
                 "id": "lim.1",
                 "kind": "narrowed_promise",
-                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "locator": "supported.AverageEffect.Dag#static.frequentist",
                 "owner": "P20",
                 "decision": "",
                 "rationale": "",
@@ -385,7 +383,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
             {
                 "id": "t.1",
                 "kind": "theory_reason",
-                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "locator": "supported.AverageEffect.Dag#static.frequentist",
                 "owner": "",
                 "decision": "",
                 "rationale": "",
@@ -403,7 +401,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
             kind="method",
             method="P99.x",
             route="unlisted",
-            status="executing_unlicensed",
+            status="not_supported",
             uncertainty_basis="declared_and_corroborated",
             gap="none",
         )
@@ -419,36 +417,22 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.fx.sources["families"][0]["routes"] = []
         self.assertRejected("is in no conformance family", None)
 
-    def test_rejects_a_licensed_row_without_an_explicit_licence(self):
+    def test_rejects_a_supported_row_without_an_explicit_support(self):
         self.fx.sources["obligations"] = []
         self.assertRejected(
-            "unsupported: licensed.AverageEffect.Dag#static.frequentist: licensed row has no explicit licence obligation",
+            "unsupported: supported.AverageEffect.Dag#static.frequentist: supported row has no explicit support obligation",
             None,
         )
 
-    def test_rejects_an_obligation_without_calibration_or_identification_licence(self):
-        self.fx.sources["obligations"] = [licensed_obligation(calibration_license="")]
-        self.assertRejected("has no explicit calibration licence", None)
-        self.fx.sources["obligations"] = [licensed_obligation(identification_license="|||")]
-        self.assertRejected("has no explicit identification licence", None)
-
-    def test_rejects_a_coverage_record_that_is_not_recorded(self):
-        self.fx.sources["coverage_ids"] = set()
-        self.assertRejected("cites coverage record cov.one, which is not recorded", None)
-
-    def test_rejects_measured_uncertainty_with_no_record_behind_it(self):
-        self.fx.sources["obligations"] = [
-            licensed_obligation(calibration_license="reason:no_interval_reported")
-        ]
-        self.assertRejected(
-            "rests on a measured record but no obligation cites a coverage record", None
-        )
+    def test_rejects_an_obligation_without_identification_evidence(self):
+        self.fx.sources["obligations"] = [supported_obligation(identification_evidence="|||")]
+        self.assertRejected("has no explicit identification evidence", None)
 
     def test_rejects_a_stale_row_and_a_row_naming_nothing(self):
         rows = self.fx.rows()
         rows[0]["compiler_execution"] = "crates/a/tests/t.rs::other"
         self.assertRejected(
-            "stale: licensed.AverageEffect.Dag#static.frequentist differs from the records in compiler_execution",
+            "stale: supported.AverageEffect.Dag#static.frequentist differs from the records in compiler_execution",
             rows,
         )
         ghost = copy.deepcopy(self.fx.rows()[0])
@@ -464,7 +448,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
     def test_rejects_a_counterpart_row_recorded_twice(self):
         self.fx.sources["counterparts"] = [counterpart(), counterpart()]
         self.assertRejected(
-            "counterpart row licensed.AverageEffect.Dag#static.frequentist appears 2 times", None
+            "counterpart row supported.AverageEffect.Dag#static.frequentist appears 2 times", None
         )
 
     def test_rejects_a_duplicate_inventory_row(self):

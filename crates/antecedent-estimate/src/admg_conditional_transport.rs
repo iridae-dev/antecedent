@@ -128,7 +128,7 @@ pub(crate) fn condition(
 /// query's treatments and conditioned variables.
 ///
 /// # Errors
-/// Counted laws (`cell_not_licensed`, `admg_transport.interval_withheld`), a
+/// Counted laws (`not_supported`, `admg_transport.interval_withheld`), a
 /// request that does not bind exactly those coordinates
 /// (`admg_transport.invalid_request`), provider/catalog disagreement, or a
 /// compile-time resource limit.
@@ -140,13 +140,13 @@ pub fn prepare_exact_admg_conditional_transport(
     ctx: &ExecutionContext,
 ) -> Result<AdmgConditionalExactPlan, EstimationError> {
     // Counted laws would make the point an empirical plug-in, which this route
-    // does not license (no coverage record): refused before anything compiles,
+    // does not support (no coverage record): refused before anything compiles,
     // as the facade and Python preparations refuse them.
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
         return Err(EstimationError::refused_detail(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "admg_transport.interval_withheld",
-            "counted laws are not licensed; the route publishes exact-law points only",
+            "counted laws are not supported; the route publishes exact-law points only",
         ));
     }
     let (joint_request, conditioning) = split_request(functional, request)?;

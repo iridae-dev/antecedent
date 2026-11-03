@@ -250,7 +250,7 @@ impl PrepareRequest {
 
 /// One series, or one event stream aligned onto a grid.
 ///
-/// A `DBN` graph-posterior mixture is licensed only on those two inputs.
+/// A `DBN` graph-posterior mixture is supported only on those two inputs.
 pub(super) fn one_series(
     input: super::FrameInput,
     ctx: &antecedent_core::ExecutionContext,
@@ -261,9 +261,9 @@ pub(super) fn one_series(
             .align_to_grid_in(align, ctx)
             .map_err(|e| crate::py_msg(format!("event align_to_grid: {e}"))),
         _ => Err(crate::refusal(
-            antecedent_core::reason_code!("data_modality_not_licensed"),
+            antecedent_core::reason_code!("data_modality_not_supported"),
             "a DBN graph-posterior mixture is \
-             licensed on one series or one event stream",
+             supported on one series or one event stream",
         )),
     }
 }

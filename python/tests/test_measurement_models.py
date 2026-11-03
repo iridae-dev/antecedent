@@ -147,7 +147,7 @@ def test_binary_prevalence_inverts_the_misclassification_algebra():
     # There is no coefficient vector to take a functional of.
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(estimate.downstream_linear_functional([1.0]))
-    assert_refusal(caught.value, "cell_not_licensed", "measurement_model.operation_not_licensed")
+    assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
 
 
 def test_risk_difference_keeps_the_arm_covariance_that_split_rates_miss():
@@ -345,7 +345,7 @@ def test_classical_error_recovers_the_coefficient_and_the_attenuation_is_closed_
     for target in (estimate, prepared):
         with pytest.raises(MeasurementModelRefusal) as caught:
             target.interval()
-        assert caught.value.reason_code == "cell_not_licensed"
+        assert caught.value.reason_code == "not_supported"
         assert isinstance(caught.value, CausalUnsupportedError)
     with pytest.raises(MeasurementModelRefusal) as caught:
         estimate.interval()
@@ -515,7 +515,7 @@ def test_a_posterior_route_needs_the_exact_attested_provider_object():
     # Metadata cannot confer native trust.
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(
-            posterior_model(False), analysis(), data, provider=provider(trust="native_licensed")
+            posterior_model(False), analysis(), data, provider=provider(trust="native_supported")
         )
     assert_refusal(
         caught.value,
@@ -677,12 +677,12 @@ def test_population_regime_arm_and_representation_are_checked_before_estimation(
     # A binary input sent at a classical model is not an operation of its route.
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(m, analysis(), mm.BinaryPrevalenceData(10, 100))
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
 
 
-def test_the_route_licenses_only_its_own_operations():
+def test_the_route_supports_only_its_own_operations():
     prepared = prepare_classical(0.6, 0.0, simulate(60, 3))
-    prepared.check_operation("linear_functional_of_coefficients")  # licensed: returns
+    prepared.check_operation("linear_functional_of_coefficients")  # supported: returns
     for refused in (
         "nonlinear_outcome_model",
         "condition_on_construct",
@@ -692,7 +692,7 @@ def test_the_route_licenses_only_its_own_operations():
         with pytest.raises(MeasurementModelRefusal) as caught:
             prepared.check_operation(refused)
         assert_refusal(
-            caught.value, "cell_not_licensed", "measurement_model.operation_not_licensed"
+            caught.value, "not_supported", "measurement_model.operation_not_supported"
         )
         assert caught.value.remedy is not None
     assert prepared.route_card["route"] == "classical_continuous_error"
@@ -731,13 +731,13 @@ def test_a_mapping_carries_values_and_intervention_meaning_only_when_declared():
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(m, analysis(representation=v2, mapping=wrong), data)
     assert caught.value.detail == "measurement_model.mapping_endpoints"
-    # Declared evidence of intervention preservation licenses the meaning; the route itself
+    # Declared evidence of intervention preservation supports the meaning; the route itself
     # still refuses an intervention on the recorded indicator.
     preserving = mm.RepresentationMapping(SCALAR, v2, "map-relabel", "ev:trial-9")
     ok = mm.prepare_measurement_model(m, analysis(representation=v2, mapping=preserving), data)
     with pytest.raises(MeasurementModelRefusal) as caught:
         ok.check_operation("intervene_on_representation")
-    assert_refusal(caught.value, "cell_not_licensed", "measurement_model.operation_not_licensed")
+    assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
 
 
 # --------------------------------------------------------------------------- lifecycle

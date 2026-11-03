@@ -34,14 +34,14 @@
 //! size, a computed value whose whole-method coverage is a separate claim that stays unmeasured
 //! until `tests/sample_split_weighted_effect_calibration.rs` has been measured.
 //!
-//! # What the binding licenses
+//! # What the binding supports
 //!
 //! Because discovery saw none of the analysis rows, an analysis of those rows that treats the
 //! discovered (or declared) graph as given is calibrated for the analysis procedure's own
 //! sampling error *given that graph*. The binding says exactly that and no more
-//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not by itself license "the
+//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not by itself support "the
 //! interval covers the true effect": that is a property of the whole method (split,
-//! discovery, graph acceptance, estimation), and it is licensed only for the one construction
+//! discovery, graph acceptance, estimation), and it is supported only for the one construction
 //! that was measured, through [`super::sample_split_effect`], whose interval is attested from
 //! a coverage record keyed `discovered_sample_split`. For any other analysis of the analysis
 //! rows the whole-method calibration stays `unmeasured`
@@ -116,7 +116,7 @@ pub struct AnalysisBinding {
 }
 
 impl AnalysisBinding {
-    /// Whether the licensed statement is conditional on the selected graph. Always true: the
+    /// Whether the supported statement is conditional on the selected graph. Always true: the
     /// route removes the dependence between selection and analysis, it does not state that the
     /// selected graph is right.
     #[must_use]
@@ -322,8 +322,8 @@ impl SplitDiscovery {
     ///
     /// # Errors
     ///
-    /// Always `cell_not_licensed`
-    /// (`selective_discovery.downstream_interval_not_licensed`): split the rows.
+    /// Always `not_supported`
+    /// (`selective_discovery.downstream_interval_not_supported`): split the rows.
     pub fn request_unsplit_interval(
         &self,
     ) -> Result<std::convert::Infallible, SelectiveDiscoveryError> {

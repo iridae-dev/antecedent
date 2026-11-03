@@ -240,7 +240,7 @@ fn checked_design_iv_ar_full_method_error_rate_and_weak_boundaries() {
             assert!(finite > 0.9, "strong DGP must execute finite decisions");
         }
         println!(
-            "diagnostic-precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries n={n} strength={strength} repetitions={count} known_effect=2 ar_truth_acceptance={accepted} finite_decision_fraction={finite} withheld_union_fraction={unions} actual_model_solves={} no_failed_runs_discarded; no_new_calibration_license",
+            "diagnostic-precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries n={n} strength={strength} repetitions={count} known_effect=2 ar_truth_acceptance={accepted} finite_decision_fraction={finite} withheld_union_fraction={unions} actual_model_solves={} no_failed_runs_discarded; no_new_calibration_support",
             runs.iter().map(|r| r.model_fits).sum::<u64>()
         );
     }

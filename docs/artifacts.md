@@ -62,7 +62,7 @@ separate meanings:
   coordinates. To complement exceedance bands, use `[1-upper, 1-lower]`.
   Projection does not turn raw-score bands into uncertainty for the projected curve.
 - Unsupported coordinates carry false support flags. Bounds can be NaN or
-  finite placeholders; neither licenses an interval when the flag is false.
+  finite placeholders; neither supports an interval when the flag is false.
   CBOR preserves NaN bounds. Do not convert them into zero-width intervals or
   assume a generic JSON round trip preserves non-finite floats.
 - Multi-threshold estimates have no scalar ATE. Candidate-selection records
@@ -248,7 +248,7 @@ claim. See the [workflow guide](start/first-analysis.md) for retention boundarie
 
 - `verified`: the consumer replayed a verified program from the bytes alone.
   The recorded answer is available and `acceptance.replayable` is `True`.
-- `sealed`: every licensed route executes through a sealed checked operation
+- `sealed`: every supported route executes through a sealed checked operation
   whose proof stays with the live study. Loading its export recognizes the
   artifact, verifies its contract and identities, keeps the recorded answer,
   and names the operation it cannot replay in `acceptance.unresolved` (for

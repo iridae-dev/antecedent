@@ -11,7 +11,7 @@
 //!
 //! Every number is an assumption range or an identified value. The sampling interval is
 //! withheld (`sampling interval: not reported`) and a requested sampling composition refuses
-//! with `cell_not_licensed` / `msm_sensitivity.composition_not_licensed`. Calibration is
+//! with `not_supported` / `msm_sensitivity.composition_not_supported`. Calibration is
 //! unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -36,7 +36,7 @@ pub use antecedent_validate::msm_sensitivity::{
 ///
 /// # Errors
 ///
-/// The typed [`MsmSensitivityError`] of the contract (`composition_not_licensed`,
+/// The typed [`MsmSensitivityError`] of the contract (`composition_not_supported`,
 /// `lambda_below_one`, `lambda_range_empty`, `positivity`, `stratum_mass`, `outcome_law`,
 /// `invalid_threshold`, `invalid_tolerance`, `bounds_exceeded`).
 pub fn msm_sensitivity(

@@ -356,7 +356,7 @@ impl ContractGap {
         }
     }
 
-    /// What would license the declaration.
+    /// What would support the declaration.
     #[must_use]
     pub const fn remedy(self) -> &'static str {
         match self {

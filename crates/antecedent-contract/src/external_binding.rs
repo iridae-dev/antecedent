@@ -28,7 +28,7 @@ pub enum EquivalenceScope {
     },
     /// A conditional law `P(Y | T = v)` standing for `P(Y | do(T = v))`: the
     /// observational coordinate conditions on the treatment, and each
-    /// conditioning value maps to exactly the interventional regime it licenses.
+    /// conditioning value maps to exactly the interventional regime it supports.
     ConditionedTreatment {
         /// Treatment variable whose conditioning is replaced by intervention.
         variable_id: String,
@@ -37,24 +37,24 @@ pub enum EquivalenceScope {
     },
 }
 
-/// A separately checked licence to read an observational law as interventional.
+/// A separately checked support to read an observational law as interventional.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedEquivalence {
     /// Graph for which the equivalence was checked.
     pub graph_id: String,
     /// Stable identity of the check (for example an adjustment-set proof).
     pub justification_id: String,
-    /// Which observational coordinates it licenses.
+    /// Which observational coordinates it supports.
     pub scope: EquivalenceScope,
 }
 
 impl CheckedEquivalence {
-    /// Whether this equivalence licenses reading `offered` as `wanted`.
+    /// Whether this equivalence supports reading `offered` as `wanted`.
     ///
     /// Everything except the regime (and, for a conditioned treatment, the one
     /// conditioning entry on the treatment) must already agree; a different
     /// population, horizon, units or other condition is never rescued.
-    fn licenses(
+    fn supports(
         &self,
         graph_id: &str,
         offered: &ScientificQuantity,
@@ -421,7 +421,7 @@ impl BoundExternalClaim {
     pub fn assumption_ids(&self) -> &[String] {
         &self.assumption_ids
     }
-    /// Checked equivalences that licensed an observational law.
+    /// Checked equivalences that supported an observational law.
     #[must_use]
     pub fn equivalence_ids(&self) -> &[String] {
         &self.equivalence_ids
@@ -524,11 +524,11 @@ fn check_coordinates(
                 let Some(eq) = contract
                     .equivalences
                     .iter()
-                    .find(|e| e.licenses(&contract.graph_id, got, wanted))
+                    .find(|e| e.supports(&contract.graph_id, got, wanted))
                 else {
                     // Name a plain mismatch when something besides the regime (and
                     // any treatment conditioning an equivalence could replace)
-                    // differs; otherwise only the licence is missing.
+                    // differs; otherwise only the support is missing.
                     let mut as_requested = got.clone();
                     as_requested.regime_id.clone_from(&wanted.regime_id);
                     for equivalence in &contract.equivalences {
@@ -570,10 +570,10 @@ fn check_contract(contract: &CheckedCausalContract) -> Result<(), ExternalBindin
     Ok(())
 }
 
-/// The trust a result may be bound at: native licence is never a provider's.
+/// The trust a result may be bound at: native support is never a provider's.
 fn bound_trust(header: &ExternalResultHeader) -> Result<BoundTrustLevel, ExternalBindingError> {
     match &header.trust {
-        ExternalTrustState::NativeLicensed => Err(ExternalBindingError::TrustMismatch),
+        ExternalTrustState::NativeSupported => Err(ExternalBindingError::TrustMismatch),
         ExternalTrustState::ExternallyAttested { .. } => Ok(BoundTrustLevel::ExternallyAttested),
         state @ ExternalTrustState::ExactRequestVerified(_) => {
             if state.verifies(&header.object) {
@@ -1162,7 +1162,7 @@ mod tests {
         r.header.assumption_ids.clear();
         assert_eq!(bind(&contract(), r), Err(E::MissingAssumption("ignorability".into())));
         let mut r = response();
-        r.header.trust = ExternalTrustState::NativeLicensed;
+        r.header.trust = ExternalTrustState::NativeSupported;
         assert_eq!(bind(&contract(), r), Err(E::TrustMismatch));
     }
 
@@ -1306,7 +1306,7 @@ mod tests {
             assert!(!claim.is_native_estimation());
         }
         let mut native = response();
-        native.header.trust = ExternalTrustState::NativeLicensed;
+        native.header.trust = ExternalTrustState::NativeSupported;
         assert_eq!(
             bind_external_result(&contract(), &ExternalResult::Response(native)),
             Err(ExternalBindingError::TrustMismatch)

@@ -11,7 +11,7 @@
 //!
 //! Every result is labelled `derived_unmeasured`: exact (or simulated with a
 //! reported Monte Carlo error) under the stated model, with no interval or
-//! coverage licence.
+//! coverage support.
 
 use antecedent::analysis::adaptive_procedure_declaration::{
     AdaptiveProcedure, ProcedureElements, Retention,

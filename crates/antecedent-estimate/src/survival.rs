@@ -975,10 +975,10 @@ mod tests {
     #[test]
     fn delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth() {
         // Delayed-entry (left-truncated) known-truth coverage gate for the
-        // graphless license. Entry is independent of the source event time; a
+        // graphless support. Entry is independent of the source event time; a
         // subject entering at one with an event at one is unobserved. The two
         // arm laws imply S(3) and RMST differences of .15 and .25. Sampling is
-        // repeated at the licensed 160 observed subjects per arm and the
+        // repeated at the supported 160 observed subjects per arm and the
         // minimum 299 accepted subject-bootstrap draws.
         const REPLICATIONS: usize = 2_000;
         let mut state = 0xD3E1_A7E0_2000_6B63_u64;
@@ -1048,7 +1048,7 @@ mod tests {
     #[test]
     fn fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth() {
         // Fixed-known-G IPCW known-truth coverage gate for the graphless
-        // license, with no delayed entry. Event risk is randomized and
+        // support, with no delayed entry. Event risk is randomized and
         // independent of the heterogeneous, subject-fixed censoring survival G.
         // The source-population S(3) and RMST differences are .15 and .30.
         // Sampling is repeated at 160 subjects per arm and the minimum 299

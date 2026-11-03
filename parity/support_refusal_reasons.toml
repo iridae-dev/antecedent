@@ -1,0 +1,70 @@
+# Reason table for refused cells. Refusal is the default: any cell that is
+# not supported and not n/a is `SupportRefusal::NotSupported` whether or not a
+# rule here matches. This file does not cause refusal; it names it.
+# A cell matching every listed constraint reports that rule's `reason`.
+# Must not overlap supported cells or n/a predicates (the gate fails on overlap).
+# A cell that is not supported refuses in release builds; a later development
+# build will run it and report `would_refuse`. The first matching rule decides.
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution on a supplied or accepted Cpdag, Pag, Admg, TemporalAdmg, TemporalCpdag or TemporalPag is refused. The validation would refit the vector of total change and component contributions on random row subsets and on bootstrap resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: the same derivation holds for every member of a class and every atom of a posterior, which are each attributed by the DAG or noise-block route whose replicates are such subsets and resamples. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution over a graph posterior is refused. The validation would refit the vector of total change and component contributions on random row subsets and on bootstrap resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: the same derivation holds for every member of a class and every atom of a posterior, which are each attributed by the DAG or noise-block route whose replicates are such subsets and resamples. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["Dag"]
+structures = ["accepted"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution is refused. The validation would refit the vector of total change and component contributions on random row subsets and on bootstrap resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: a high-leverage row in the baseline, in the comparison or in both, at 12 and 24 rows and two lifts, was passed every time while the same design is detected for an anomaly attribution. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution is refused. The validation would refit the vector of total change and component contributions on random row subsets and on bootstrap resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: a high-leverage row in the baseline, in the comparison or in both, at 12 and 24 rows and two lifts, was passed every time while the same design is detected for an anomaly attribution. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["TemporalDag"]
+structures = ["accepted"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution on a series is refused. The validation would refit the vector of total change and component contributions on random circular windows and block resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: a high-leverage row in the baseline, in the comparison or in both, at 12 and 24 rows and two lifts, was passed every time while the same design is detected for an anomaly attribution. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["ChangeAttribution"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit"]
+validations = ["cheap", "full"]
+reason = "Cheap and full validation of a change attribution on a series is refused. The validation would refit the vector of total change and component contributions on random circular windows and block resamples drawn within each of the two populations, and report one joint chi-square statistic against the original. The total change is a difference of two population means and the allocation a Shapley function of mechanism swaps, so a within-population subset or resample leaves the replicate mean at the original whatever heterogeneity is planted: a high-leverage row in the baseline, in the comparison or in both, at 12 and 24 rows and two lifts, was passed every time while the same design is detected for an anomaly attribution. A verdict that cannot tell a sound attribution from an unsound one is not evidence, so the cell refuses instead of reporting one. Next attempt: a planted-violation design for the allocation (a mechanism that differs between the halves of one population), checked against an exact reference."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Pag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "A counterfactual over a graph posterior of PAG atoms under cheap or full validation is refused, as on a supplied PAG. The effect on the treated is identified only through a visible treatment edge, so the treatment has an observed parent whose association with the outcome runs through the treatment; the placebo treatment permutes the treatment and leaves that association on the outcome with no mechanism to carry it, so its statistic is nonzero on a correctly specified design and the refuter state would flag valid data. Next attempt: a placebo that permutes the treatment within the strata of its parents and re-derives the outcome part the treatment carries, then earn it with a planted-violation and a clean-case test."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Pag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "A counterfactual on a PAG under cheap or full validation is refused. The effect on the treated is identified only through a visible treatment edge, so the treatment has an observed parent whose association with the outcome runs through the treatment; the placebo treatment permutes the treatment and leaves that association on the outcome with no mechanism to carry it, so its statistic is nonzero on a correctly specified design and the refuter state would flag valid data. Next attempt: a placebo that permutes the treatment within the strata of its parents and re-derives the outcome part the treatment carries, then earn it with a planted-violation and a clean-case test."
+
+[[closed]]
+queries = ["NestedCounterfactualEffect"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+validations = ["full"]
+reason = "A natural direct effect over a graph posterior of Dag atoms is refused under full validation. The full suite runs the Dag-native refuters on every atom, which need linear-Gaussian mechanism families a discrete atom table does not have, so every atom fails and the failure would read as non-identification. Next attempt: answer the full suite of a Dag atom through the functional refuter state, as the ADMG atoms are, then earn it with the atom-mixture fixture."

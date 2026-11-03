@@ -92,7 +92,7 @@ def test_native_family_capability_refusal_is_shared_by_direct_and_typed_factorie
 def test_native_sampling_design_refusal_retains_declarations_for_correction():
     refused = _recovery(AsymptoticNormal(4), sampling_design="dependent_time_series")
     assert refused.refusal.code == "estimator_inference_mismatch"
-    assert refused.refusal.detail == "cyclic_recovery.row_independence_unlicensed"
+    assert refused.refusal.detail == "cyclic_recovery.row_independence_unsupported"
     assert ant.estimate(refused).refusal.code == "estimator_inference_mismatch"
     corrected = refused.reconfigure(uncertainty=RecoveryBootstrap(4, block_length=8))
     assert corrected.refusal is None

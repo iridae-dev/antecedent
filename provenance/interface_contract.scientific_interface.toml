@@ -16,7 +16,7 @@ papers = [
 implementation_deviations = [
   "The decision is relative to the declarations: a declared population, calibration record, measurement model or evidence source is a statement the producing artifact owns, and the contract does not verify it.",
   "Support containment is decided on declared domains only (real, non-negative, binary, closed interval, finite level set); no equivalence of two supports under a transformation is inferred.",
-  "No unit conversion, bridge or transport is inferred: a difference in units, population or regime is a refusal, and the remedy names the declared route that would license it.",
+  "No unit conversion, bridge or transport is inferred: a difference in units, population or regime is a refusal, and the remedy names the declared route that would support it.",
   "No interval, posterior or calibration record is produced or measured; a connection carries the producer's label unchanged.",
 ]
 
@@ -33,27 +33,27 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: scientific interface."
 no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
-record_sha256 = "b060f45d7b4876e35f324eacfb338b230d317c51ef112d945c22e855b721dcb9"
+record_sha256 = "8d67af81ff462a0592004f6776262a5855a91a56717c1a2d5d454d40f75e0532"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
-sha256 = "9bd000095fdb53127e18580ad029132d62bf29d9352aaa06446b6a9ecf8b0215"
+sha256 = "02ad8067d3d110f8a9fa88a0b082190ef4b28230edff94ce14b94f5d4d68dd6f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/composition.rs"
-sha256 = "dc3a4eafa86956d41d4584ec19414a804e5d5ff0d8f235f441714f40fb015425"
+sha256 = "2485edc3fda18948107f42b5b0abc504444a36923c9cf7143d5dd7f5241a2d96"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/connection.rs"
-sha256 = "6bd8d54538db7e15bd6ca9dbf625fc77cc1fba65e1803636991b02da0b8292b0"
+sha256 = "608a617aa3499a0027b3052d3f682bd3177132e128798c2fcb6cdbec31bc8a50"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-sha256 = "88b7d987a66ba93f6b39eaa9ac3b2e852884371c0326aee5a3d15e742a0c632d"
+sha256 = "25a98a6e337990efd4eaa7cbab513a550fea3836ace1d7b7d41033a42647d72b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -350,7 +350,7 @@ impl DesignRanker {
 
     /// Split `candidates` into hard-constraint violations and the indices that remain
     /// active for MC scoring. Under a decision objective, a candidate the signal has
-    /// no sample size for is recorded as unlicensed rather than scored.
+    /// no sample size for is recorded as unsupported rather than scored.
     fn filter_active_candidates<O>(
         &self,
         candidates: &[CandidateDesign],
@@ -1415,7 +1415,7 @@ fn unmapped_decision_candidate<O>(
     let signal = analysis.signal();
     signal.sample_size(candidate).is_none().then(|| ConstraintViolation {
         candidate_index: index,
-        constraint: Arc::from("unlicensed_candidate"),
+        constraint: Arc::from("unsupported_candidate"),
         detail: Arc::from(format!(
             "decision signal `{}` declares no sample size for this candidate",
             signal.name()
@@ -2475,7 +2475,7 @@ mod tests {
         assert_eq!(ranking.ranked[0].candidate_index, 1);
         assert_eq!(ranking.violations.len(), 1);
         assert_eq!(ranking.violations[0].candidate_index, 0);
-        assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
+        assert_eq!(ranking.violations[0].constraint.as_ref(), "unsupported_candidate");
     }
 
     #[test]
@@ -2576,7 +2576,7 @@ mod tests {
             let direct = fixed_ranker()
                 .score_decision_candidate(&analysis, &candidate, &ctx)
                 .unwrap()
-                .expect("licensed");
+                .expect("supported");
             assert_eq!(direct.score.to_bits(), top.score.to_bits());
             assert_eq!(direct.stderr.to_bits(), top.monte_carlo.stderr.to_bits());
             assert_eq!(direct.evaluation, top.evaluation);

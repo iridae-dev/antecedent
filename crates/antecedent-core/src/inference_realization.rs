@@ -4,10 +4,10 @@
 //!
 //! [`OrdinaryBayesianLikelihood`], [`ScoreFrequentist`], [`GeneralizedBayes`], and
 //! [`PartialIdentificationEnvelope`] are different objects. No conversion turns one into
-//! another. A prior is a belief inside a posterior, not a license for observational
+//! another. A prior is a belief inside a posterior, not support for observational
 //! identification of a causal effect.
 //!
-//! [`Prior::as_observational_identification`] refuses that license and names the two
+//! [`Prior::as_observational_identification`] refuses that support and names the two
 //! legal next attempts: attach a named identifying restriction on a separate
 //! [`AssumptionBranch`], or report an [`OrdinaryBayesianLikelihood`] posterior under
 //! the declared likelihood. [`OrdinaryBayesianLikelihood::with_identifying_restriction`]
@@ -632,7 +632,7 @@ impl fmt::Display for PriorIdentificationRefusal {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "prior {} does not license observational identification; next attempt: attach the \
+            "prior {} does not support observational identification; next attempt: attach the \
              identifying restriction on a separate assumption branch, or report the result as a \
              posterior under the declared likelihood rather than as an identified causal effect",
             self.prior.name()

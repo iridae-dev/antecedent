@@ -168,7 +168,7 @@ fn effect(result: &StudyResult) -> f64 {
 /// inference mode and depth, each passing with the null or the original as its expectation.
 fn assert_cell(result: &StudyResult, inference: &InferenceMode, suite: RefuteSuite, truth: &Truth) {
     let label = format!("{} {}", inference_name(inference), suite_name(suite));
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     let tolerance = if matches!(inference, InferenceMode::Frequentist) {
         truth.document["tolerance"]["frequentist"].as_f64().unwrap()
     } else {
@@ -220,7 +220,7 @@ fn assert_cell(result: &StudyResult, inference: &InferenceMode, suite: RefuteSui
 const SUITES: [RefuteSuite; 3] = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
 
 /// `ConditionalEffect` x `Admg` and `TemporalAdmg` x explicit and accepted x Frequentist and
-/// Bayesian x none, cheap and full (the `Admg` x none cells are licensed with the cross-check
+/// Bayesian x none, cheap and full (the `Admg` x none cells are supported with the cross-check
 /// beside this test; here they are read against the fixture too).
 #[test]
 fn conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference() {

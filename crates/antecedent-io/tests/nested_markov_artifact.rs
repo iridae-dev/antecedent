@@ -122,7 +122,7 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
     // The point reader refuses the candidate envelope by its schema (it carries `method`).
     assert!(
         matches!(NestedMarkovArtifactWire::decode(&bytes), Err(IoError::Cbor(_))),
-        "point reader cannot mint an interval license"
+        "point reader cannot mint an interval support"
     );
     for mutation in
         ["covariance", "interval", "sampling", "calibration", "method", "count", "version"]

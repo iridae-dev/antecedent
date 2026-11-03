@@ -497,7 +497,7 @@ pub(crate) fn pd_path_budget_diagnostic(
         code: std::sync::Arc::from(format!("{algorithm}.pd_path_budget")),
         message: std::sync::Arc::from(format!(
             "R9/R10 uncovered potentially-directed path search exhausted its effort budget on \
-             {} edge(s) without finding a licensing path; their circle marks were left \
+             {} edge(s) without finding a support path; their circle marks were left \
              unresolved (sound, possibly incomplete)",
             state.pd_path_skipped.len()
         )),
@@ -565,7 +565,7 @@ fn apply_r9<G: PagOps>(
                 if !state.is_weakly_minimal(b1, c) && !sep.is_empty() {
                     // Static FCI never runs weakly-minimal reduction. Allow empty/singleton
                     // sepsets as trivially weakly minimal (R9 is singleton-only on this path);
-                    // larger unmarked sepsets do not license R9.
+                    // larger unmarked sepsets do not support R9.
                     if sep.len() > 1 {
                         continue;
                     }
@@ -605,7 +605,7 @@ fn apply_r9<G: PagOps>(
                     },
                 );
                 if !qualifies {
-                    // Any path found licenses the orientation; a truncated search that found
+                    // Any path found supports the orientation; a truncated search that found
                     // none cannot rule one out, so the edge is left open and recorded.
                     if truncated {
                         state.pd_path_skipped.insert((a.raw(), c.raw()));
@@ -717,7 +717,7 @@ fn apply_r10<G: PagOps>(
                 })
             });
             if !found_pair {
-                // A pair found within budget licenses the orientation; without one, a
+                // A pair found within budget supports the orientation; without one, a
                 // truncated search cannot rule one out, so the edge is left open and recorded.
                 if any_truncated {
                     state.pd_path_skipped.insert((a.raw(), c.raw()));
@@ -753,7 +753,7 @@ const POTENTIALLY_DIRECTED_START: [EndpointPattern; 3] = [
 ///
 /// Every node is a candidate source on every pass: a change anywhere along a path can complete
 /// it, so the local queue of the other rules would miss firings. Paths of any length are searched
-/// up to the effort budget; an edge whose search runs out without a licensing path is left open
+/// up to the effort budget; an edge whose search runs out without a support path is left open
 /// and reported.
 fn apply_zhang_r9<G: PagOps>(
     graph: &mut G,
@@ -863,14 +863,14 @@ fn apply_zhang_r10<G: PagOps>(
                     seconds.push((p, firsts));
                 }
             }
-            let licensed = (0..seconds.len()).any(|i| {
+            let supported = (0..seconds.len()).any(|i| {
                 ((i + 1)..seconds.len()).any(|j| {
                     seconds[i].1.iter().any(|&mu| {
                         seconds[j].1.iter().any(|&omega| mu != omega && !graph.has_edge(mu, omega))
                     })
                 })
             });
-            if !licensed {
+            if !supported {
                 if truncated {
                     state.pd_path_skipped.insert((a.raw(), c.raw()));
                 }
@@ -1206,7 +1206,7 @@ impl LpcmciOrientationRule for LpcmciR9 {
 ///   itself the first node after `a` (μ = β in Zhang's notation) is never used;
 /// - the path enumeration is exhaustive up to an effort budget
 ///   ([`OrientationState::pd_path_budget`], path extensions per search, no limit on path
-///   length or count); an edge whose search runs out without a licensing pair is left open and
+///   length or count); an edge whose search runs out without a support pair is left open and
 ///   reported as `<algorithm>.pd_path_budget` rather than failing the run.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LpcmciR10;

@@ -65,7 +65,7 @@ fn a_receipt_that_predates_standing_inputs_is_consumed_unchanged() {
     let artifact = RecalcReceiptArtifact::seal(
         &workflow(previous),
         &workflow(requested),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &decided(),
     )
     .expect("a moved decision identity is a recomputation, not a refusal");

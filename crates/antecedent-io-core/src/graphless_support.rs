@@ -1,6 +1,6 @@
-//! Exact graphless design-family license predicate.
+//! Exact graphless design-family support predicate.
 //!
-//! The license table is generated from `parity/support_graphless.toml` by
+//! The support table is generated from `parity/support_graphless.toml` by
 //! `scripts/generate_graphless_support.py`. This module is the single owner of
 //! the predicate: the facade's checked execution and artifact verification
 //! both classify through [`classify_graphless`] / [`graphless_admits`], so the
@@ -11,8 +11,8 @@
 #[path = "support_graphless_data.rs"]
 mod data;
 
-use data::GraphlessLicenseRow;
-use data::LICENSES;
+use data::GraphlessSupportRow;
+use data::SUPPORTS;
 
 /// Exact graphless design, method, and inference claim to classify.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -21,20 +21,20 @@ pub struct GraphlessSupportKey<'a> {
     pub family: &'a str,
     /// Assignment design, such as `complete` or `cluster`.
     pub design: &'a str,
-    /// Concrete estimator method; similar methods cannot inherit a license.
+    /// Concrete estimator method; similar methods cannot inherit support.
     pub method: &'a str,
     /// Exact inference claim, including confidence level and pointwise scope.
     pub inference_claim: &'a str,
 }
 
-/// Observed design and inference support for an exact graphless license.
+/// Observed design and inference support for an exact graphless support.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag records a distinct observed support condition; they are not a state enum"
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
-    /// `unit`, `cluster`, or independent `sequence`, matched to the licensed design.
+    /// `unit`, `cluster`, or independent `sequence`, matched to the supported design.
     pub assignment_unit: &'static str,
     /// Number assigned to the treatment arm.
     pub treated: usize,
@@ -98,9 +98,9 @@ pub struct GraphlessAssignmentSupport {
 /// Runtime status for one exact graphless support key.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GraphlessSupportStatus {
-    /// Exact license and assignment support matched.
-    Licensed {
-        /// Scope restrictions published with the license.
+    /// Exact support and assignment support matched.
+    Supported {
+        /// Scope restrictions published with the support.
         limitations: &'static str,
         /// Known-truth calibration test used for the row.
         known_truth_test: &'static str,
@@ -111,21 +111,21 @@ pub enum GraphlessSupportStatus {
     Refused,
 }
 
-/// The licensed row that admits `key` under `observed`, if any.
-fn find_license(
+/// The supported row that admits `key` under `observed`, if any.
+fn find_support(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
-) -> Option<&'static GraphlessLicenseRow> {
-    LICENSES.iter().find(|row| row.admits(key, observed))
+) -> Option<&'static GraphlessSupportRow> {
+    SUPPORTS.iter().find(|row| row.admits(key, observed))
 }
 
-/// Whether some licensed row matches `key` and is satisfied by `observed`.
+/// Whether some supported row matches `key` and is satisfied by `observed`.
 #[must_use]
 pub fn graphless_admits(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> bool {
-    find_license(key, observed).is_some()
+    find_support(key, observed).is_some()
 }
 
 /// Classify a graphless design against the separate machine-readable table.
@@ -135,8 +135,8 @@ pub fn classify_graphless(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> GraphlessSupportStatus {
-    find_license(key, observed).map_or(GraphlessSupportStatus::Refused, |row| {
-        GraphlessSupportStatus::Licensed {
+    find_support(key, observed).map_or(GraphlessSupportStatus::Refused, |row| {
+        GraphlessSupportStatus::Supported {
             limitations: row.limitations,
             known_truth_test: row.known_truth_test,
             retained_route_test: row.retained_route_test,
@@ -144,7 +144,7 @@ pub fn classify_graphless(
     })
 }
 
-impl GraphlessLicenseRow {
+impl GraphlessSupportRow {
     /// Whether this row matches `key` and every threshold is met by `observed`.
     fn admits(&self, key: GraphlessSupportKey<'_>, observed: GraphlessAssignmentSupport) -> bool {
         let row = self;

@@ -298,7 +298,7 @@ fn check_identities(
         return Err(FrozenScoresArtifactError::IdentityMismatch { field: "snapshot_digest" });
     }
     let fit = hex_identity(&meta.fit_identity, "fit identity")?;
-    let effective = declared.effective(RetargetSupport::Licensed);
+    let effective = declared.effective(RetargetSupport::Supported);
     if effective.get(&Stage::ScoreArtifact) != Some(&fit) {
         return Err(FrozenScoresArtifactError::IdentityMismatch { field: "fit_identity" });
     }
@@ -406,7 +406,7 @@ fn decode_parts_impl(
 pub struct FrozenScoreParts {
     /// Estimator identity label.
     pub estimator: String,
-    /// Effective identity of the score-artifact stage under a licensed retarget.
+    /// Effective identity of the score-artifact stage under a supported retarget.
     pub fit_identity: StageIdentity,
     /// Own-input digests of the producing workflow.
     pub declared: StageIdentities,

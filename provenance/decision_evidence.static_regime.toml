@@ -10,7 +10,7 @@ papers = [
 ]
 implementation_deviations = [
   "The existing observational static-regime g-formula, fitted inverse-probability weighting and doubly robust point functionals are evaluated separately for each outcome on the same complete recorded histories.",
-  "An explicitly selected whole-subject bootstrap uses the same refitting weights for every outcome and retains every failed slot; joint covariance is withheld if any refit fails. The default result is point-only. Sampling refits are not posterior draws, and the derived interval has no uncertainty license or measured calibration.",
+  "An explicitly selected whole-subject bootstrap uses the same refitting weights for every outcome and retains every failed slot; joint covariance is withheld if any refit fails. The default result is point-only. Sampling refits are not posterior draws, and the derived interval has no uncertainty support or measured calibration.",
   "Sequential exchangeability, positivity, consistency, complete follow-up and isolation are declared assumptions; they are not inferred from numerical convergence.",
 ]
 upstream_implementations_observed = []

@@ -15,11 +15,11 @@
 //! design, weight and dependence declaration and the snapshot and dataset ids,
 //! and every law's snapshot, which a refresh may replace).
 //!
-//! The multi-source interval route is closed (`cell_not_licensed`) until its
+//! The multi-source interval route is closed (`not_supported`) until its
 //! coverage records exist. No public constructor yields an interval and no
 //! public consumer accepts one: [`MzTransportArtifactWire::checked`] and
 //! [`MzTransportArtifactWire::consume_with_limits`] refuse an artifact carrying
-//! an internal estimator run with `cell_not_licensed` and detail
+//! an internal estimator run with `not_supported` and detail
 //! `mz_transport.interval_withheld`. Interval-bearing construction
 //! (`MzUncertaintyWire::from_bootstrap`, `checked_with_interval`) and its
 //! bit-for-bit recompute (`consume_with_interval`) exist only under the
@@ -58,10 +58,10 @@ pub const MZ_WITHHELD: &str = "withheld";
 pub const MZ_NOMINAL_INTERVAL: &str = "nominal_interval";
 /// Why the public multi-source interval route publishes no interval: the joint
 /// bootstrap is registered closed until its coverage records are measured.
-pub const MZ_INTERVAL_NOT_LICENSED: &str = "cell_not_licensed";
+pub const MZ_INTERVAL_NOT_SUPPORTED: &str = "not_supported";
 /// Detail of the closed interval route: a public consumer refuses an artifact
-/// that carries an interval with `cell_not_licensed` and this detail.
-pub const MZ_INTERVAL_NOT_LICENSED_DETAIL: &str = "mz_transport.interval_withheld";
+/// that carries an interval with `not_supported` and this detail.
+pub const MZ_INTERVAL_NOT_SUPPORTED_DETAIL: &str = "mz_transport.interval_withheld";
 
 pub use antecedent_io_core::transport_errors::MzTransportArtifactError;
 pub use antecedent_io_core::transport_query_wire::{MzSourceWire, MzTransportQueryWire};
@@ -180,7 +180,7 @@ pub fn mz_point_contrasts(
 pub struct MzUncertaintyWire {
     /// [`MZ_POINT_ONLY`], [`MZ_WITHHELD`] or [`MZ_NOMINAL_INTERVAL`].
     pub status: String,
-    /// `no_interval_reported`, [`MZ_INTERVAL_NOT_LICENSED`], the internal
+    /// `no_interval_reported`, [`MZ_INTERVAL_NOT_SUPPORTED`], the internal
     /// estimator's withheld reason, or `estimator_grid_not_measured` for its
     /// nominal interval.
     pub reason: String,
@@ -226,13 +226,13 @@ impl MzUncertaintyWire {
     }
 
     /// Counted laws on the closed public route: no interval, reason
-    /// [`MZ_INTERVAL_NOT_LICENSED`], with the declared-sampling reason the
+    /// [`MZ_INTERVAL_NOT_SUPPORTED`], with the declared-sampling reason the
     /// internal estimator would also withhold for, if any.
     #[must_use]
-    pub fn not_licensed(dependence_reason: Option<&str>) -> Self {
+    pub fn not_supported(dependence_reason: Option<&str>) -> Self {
         Self {
             status: MZ_WITHHELD.into(),
-            reason: MZ_INTERVAL_NOT_LICENSED.into(),
+            reason: MZ_INTERVAL_NOT_SUPPORTED.into(),
             dependence_reason: dependence_reason.map(Into::into),
             ..Self::point_only()
         }
@@ -485,7 +485,7 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// The premises do not encode, or the results or bookkeeping are inconsistent;
-    /// bookkeeping that carries an interval is refused with `cell_not_licensed`
+    /// bookkeeping that carries an interval is refused with `not_supported`
     /// (`mz_transport.interval_withheld`) while the interval route is closed.
     pub fn checked(
         input: MzTransportArtifactInput<'_>,
@@ -697,8 +697,8 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// Any reconstruction failure, an evaluation refusal, a point or contrast that
-    /// does not replay, bookkeeping that contradicts the licensing decision, or
-    /// an artifact carrying an interval, which is refused with `cell_not_licensed`
+    /// does not replay, bookkeeping that contradicts the support decision, or
+    /// an artifact carrying an interval, which is refused with `not_supported`
     /// (`mz_transport.interval_withheld`) while the interval route is closed.
     pub fn consume_with_limits(
         bytes: &[u8],
@@ -834,16 +834,16 @@ impl MzTransportArtifactWire {
 /// recomputes bit for bit.
 ///
 /// # Errors
-/// [`IoError::Refused`] with `cell_not_licensed` and detail
-/// [`MZ_INTERVAL_NOT_LICENSED_DETAIL`].
+/// [`IoError::Refused`] with `not_supported` and detail
+/// [`MZ_INTERVAL_NOT_SUPPORTED_DETAIL`].
 // doc(hidden): the facade and the python bindings apply it after consuming.
 #[doc(hidden)]
-pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
+pub fn refuse_unsupported_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
     if uncertainty.seed.is_some() || uncertainty.available() {
         return Err(IoError::Refused {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             message: format!(
-                "{MZ_INTERVAL_NOT_LICENSED_DETAIL}: the multi-source interval route is closed until its coverage records are measured"
+                "{MZ_INTERVAL_NOT_SUPPORTED_DETAIL}: the multi-source interval route is closed until its coverage records are measured"
             ),
         });
     }
@@ -871,7 +871,7 @@ struct IntervalProblem<'a> {
 /// Re-derive the interval bookkeeping and check the stored one against it.
 ///
 /// Exact laws are point-only. Counted laws without an estimator run carry the
-/// closed-route bookkeeping ([`MzUncertaintyWire::not_licensed`]) with the
+/// closed-route bookkeeping ([`MzUncertaintyWire::not_supported`]) with the
 /// declared-sampling reason recomputed from the catalog and laws. An internal
 /// estimator run carries its seed and replicate spec and must recompute bit
 /// for bit, but only when `allow_interval` (calibration and tests): otherwise
@@ -885,7 +885,7 @@ fn check_uncertainty(
 ) -> Result<(), IoError> {
     let IntervalProblem { functional, data, .. } = *problem;
     if !allow_interval {
-        refuse_unlicensed_interval(stored)?;
+        refuse_unsupported_interval(stored)?;
     }
     let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
@@ -897,7 +897,7 @@ fn check_uncertainty(
     }
     let Some(seed) = stored.seed else {
         let reason = antecedent_estimate::mz_interval_withheld_reason(functional, data)?;
-        return if same_bits(stored, &MzUncertaintyWire::not_licensed(reason)) {
+        return if same_bits(stored, &MzUncertaintyWire::not_supported(reason)) {
             Ok(())
         } else {
             bad("closed interval route bookkeeping")
@@ -917,7 +917,7 @@ fn recompute_interval(
     _: &[MzTransportPointWire],
     _: &ExecutionContext,
 ) -> Result<(), IoError> {
-    refuse_unlicensed_interval(stored)
+    refuse_unsupported_interval(stored)
 }
 
 #[cfg(any(test, feature = "calibration-internal"))]

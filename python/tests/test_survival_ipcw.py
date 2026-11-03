@@ -35,7 +35,7 @@ def test_ipcw_survival_known_truth_and_explicit_point_semantics():
     assert result.minimum_censoring_survival == pytest.approx(0.5)
     assert result.minimum_event_risk_set_control == 2
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert result.censoring_survival_provenance == "caller_supplied_not_fitted_or_verified"
     assert "correct_caller_supplied_conditional_censoring_survival" in result.assumptions
 
@@ -108,7 +108,7 @@ def test_ipcw_competing_risks_known_truth_and_diagnostics():
     assert result.minimum_censoring_survival == pytest.approx(0.5)
     assert result.minimum_event_risk_set_control == 4
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert result.censoring_survival_provenance == "caller_supplied_not_fitted_or_verified"
     assert "all_event_causes_coded_distinctly" in result.assumptions
 

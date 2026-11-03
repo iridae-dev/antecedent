@@ -6,7 +6,7 @@ on a DAG, a temporal response, a randomized trial, a structure search, a
 mixture over a graph posterior, a cyclic family or a standalone experiment
 plan. The view names the route and the family that lowered it. It shows the
 lowered program's identity, which every result of that program carries. It
-shows the support cell and its licensing status, and then one section per layer.
+shows the support cell and its support status, and then one section per layer.
 
 Reading a view does not identify, fit, scan rows, enumerate graphs, simulate or
 lease from an admission pool. It reads what compile retained, or what
@@ -29,14 +29,14 @@ programs carry no physical record.
 
 | Layer | Rust | Python | What it holds |
 | --- | --- | --- | --- |
-| Route | `route()`, `family()`, `identity()`, `depth()` | `route`, `family`, `identity`, `depth` | The route cell (the `lowering` column of `parity/licensed_routes.toml`), its family, and the lowered program identity. |
+| Route | `route()`, `family()`, `identity()`, `depth()` | `route`, `family`, `identity`, `depth` | The route cell (the `lowering` column of `parity/supported_routes.toml`), its family, and the lowered program identity. |
 | 1. Scientific problem | `scientific()` | `scientific` | The target: a world-indexed target, one per horizon, or a typed functional keyed by the query digest. Also the plan id, the data modality, the graph class and the query variables. |
 | 2. Identification | `identification()` | `identification` | See [Identification](#identification). |
 | 3. Statistical program | `statistical()` | `statistical` | Identifier, estimator, realization, model slots (role, family, inputs, output), cross-fitting folds, resampling unit and replicates, posterior algorithm, draws and prior, and the design. |
 | 4. Evidence and decision | `evidence()` | `evidence` | Sources and their roles, the composition (single, transported, pooled, atom mixture), and, when compile started from one, the decision (carrier, actions, constraints, utility form and unit) with its EVSI Monte Carlo store, or the planning request with its simulation quote. |
 | 5. Physical plan | `physical()` | `physical` | Operator contracts with their scratch, retained and output byte estimates, summed (`None` when an operator declares none, since an absent estimate is not zero). Also the quoted design width, or the reason the route quotes none, the physical record (materializations, kernels, batch, workspace, peak and copy bytes, task schedule, workers) and the kernel policy. |
 | 6. Uncertainty and claim | `uncertainty()`, `claim()` | `uncertainty` | How the published uncertainty must be read (sampling, posterior, envelope, none), the claim kind, the realization, resampling and posterior plans, and the evidence-port request a decision puts to the program. |
-| Support | `support()` | `support` | The support-matrix coordinate, whether it is licensed, and the cell status. |
+| Support | `support()` | `support` | The support-matrix coordinate, whether it is supported, and the cell status. |
 | Mixture | `mixture()` | `mixture` | Graph posteriors only. See [Graph posteriors](#graph-posteriors). |
 | Operation | `operation()` and `PreparedStudy::retained_operation()` | `operation` | Prepared stage only. The sealed operation preparation retained. In Rust, `retained_operation()` returns it as a typed `RetainedOperation`. In Python, `operation` is a dict with `kind` and that operation's inspection record. |
 
@@ -144,15 +144,15 @@ report on; the Rust contract-only report covers it.
 | Assumptions | The obligations with scope, kind, status, source, required check and description, and the assumptions the plan's identification relies on. |
 | Diagnostics and evidence | The evidence the claim references, attested evidence (marked as not re-verifiable), checks that failed or have not run, and the obligations identification left unresolved. |
 | Uncertainty | The uncertainty slot's components and whether each is omitted, the uncertainty the program must publish, and the calibration slot with its basis. |
-| Support and licence | The support status, the support slot and the support cell of the program. |
-| Refusals and limits | The operation report: applicability, readiness, blockers, unmet obligations, next actions and licensed neighbours, with the limits the other records state (a capped search, unidentified mass, omitted uncertainty, calibration that is not measured). |
+| Support | The support status, the support slot and the support cell of the program. |
+| Refusals and limits | The operation report: applicability, readiness, blockers, unmet obligations, next actions and supported neighbours, with the limits the other records state (a capped search, unidentified mass, omitted uncertainty, calibration that is not measured). |
 | Program plan | The route, family, stage and identity, the scientific problem, the identification product and its estimands, the statistical, evidence and physical layers, and a graph posterior's mixture. The sized physical record and kernel policy describe the machine and are left out. |
 | Identities | The domain-separated digests of the contract. |
 
 A status is reported as the records carry it. A route that executes without a
-support-matrix licence says so, and a calibration slot that is not `calibrated`
+support-matrix support says so, and a calibration slot that is not `calibrated`
 says that the reported uncertainty has no measured-coverage record. The report
-grants no licence and upgrades no status.
+grants no support and upgrades no status.
 
 ### Escaping
 

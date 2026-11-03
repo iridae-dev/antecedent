@@ -36,7 +36,7 @@ pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door
 pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge; general ID on the supplied ADMG was not attempted, so this refuses the closure route and is not a certificate of non-identification";
 
 /// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
-pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
+pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW support";
 
 /// Identify an average effect under a declared tier background.
 ///

@@ -143,7 +143,7 @@ fn carried_rates_correct_the_target_prevalence_with_a_typed_receipt() {
     assert_ne!(receipt.source_model, result.estimate().model_identity());
     // No interval, whoever asks.
     let closed = result.interval().unwrap_err();
-    assert_eq!(closed.code, "cell_not_licensed");
+    assert_eq!(closed.code, "not_supported");
 }
 
 #[test]

@@ -381,7 +381,7 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
     let CounterfactualTransportDecision::MissingEvidence(missing) = decision else {
         panic!("expected missing evidence, got {decision:?}");
     };
-    // The declared observational law of either population licenses the factor
+    // The declared observational law of either population supports the factor
     // P(X, Y | Z); the target has no selection target on {X, Y}, so the first
     // derivation found cites the target's full observational law. Both are
     // sound; what must be named is an observational regime, never a do(.) one.
@@ -493,7 +493,7 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     let text = error.to_string();
     assert!(text.contains("condensation"), "{text}");
     assert!(text.contains("sigma_separates"), "{text}");
-    assert!(text.contains("no cyclic identification license"), "{text}");
+    assert!(text.contains("no cyclic identification evidence"), "{text}");
     let chain = CounterfactualTransportProblem::new(&two, &[(a, b)], &[]).unwrap();
     assert_eq!(chain.topological_order(), &[0, 1]);
 }

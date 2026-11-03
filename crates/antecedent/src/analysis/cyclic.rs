@@ -100,7 +100,7 @@ pub struct CyclicPreparedInspection {
 ///
 /// The identities are derived from the request and its compiled schedules
 /// without fitting or solving. A specified or fitted model stays
-/// model-conditional; the contract grants no scientific license.
+/// model-conditional; the contract grants no scientific support.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CyclicFamilyContract {
     /// Target, identification, identification product, program, inference
@@ -651,7 +651,7 @@ impl Study {
     /// Compilation admits the worlds on the retained units and does not fit.
     /// Execution fits the declared regimes and draws the declared uncertainty; the
     /// law stays conditional on the clamp-experiment recipe and grants no
-    /// scientific license.
+    /// scientific support.
     ///
     /// # Errors
     /// The request is not an experimental recovery, a world names an action a

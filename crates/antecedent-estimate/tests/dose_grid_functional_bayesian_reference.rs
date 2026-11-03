@@ -266,7 +266,7 @@ fn declarations_are_used_or_refused_never_ignored() {
             grid: &outside,
             ..case.request()
         }),
-        "cell_not_licensed: dose_grid.unsupported_dose",
+        "not_supported: dose_grid.unsupported_dose",
     );
     let narrow = (case.dose[1], case.dose[2]);
     refusal(

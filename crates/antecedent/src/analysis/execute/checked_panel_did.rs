@@ -497,7 +497,7 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -510,7 +510,7 @@ impl CheckedPanelDidOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -592,7 +592,7 @@ impl CheckedPanelDidOperation {
     }
 
     /// Pointwise 95% intervals of post-adoption event-time effects, with the cluster counts that
-    /// license them.
+    /// support them.
     fn event_time_intervals(
         &self,
         effects: &[antecedent_estimate::staggered_event_study::EventTimeEffect],
@@ -856,7 +856,7 @@ impl CheckedPanelDidOperation {
                     DiagnosticSeverity::Info,
                     match &resampled {
                         Some(summary) => format!(
-                            "supplied propensity and untreated-change predictions held fixed; cross-fitting is caller-declared, not verified; whole-cluster resample interval from {} of {} replicates is unlicensed and its calibration is unmeasured; it does not propagate the predictions' own estimation error",
+                            "supplied propensity and untreated-change predictions held fixed; cross-fitting is caller-declared, not verified; whole-cluster resample interval from {} of {} replicates is unsupported and its calibration is unmeasured; it does not propagate the predictions' own estimation error",
                             summary.replicates_ok, summary.requested
                         ),
                         None => "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval".to_string(),
@@ -922,16 +922,16 @@ impl CheckedPanelDidOperation {
         let representative = &effects[representative_index];
         let representative_interval = event_time_intervals_95[representative_index];
         let any_interval = event_time_intervals_95.iter().any(Option::is_some);
-        // License the post-adoption event-time intervals only when the interval
+        // Support the post-adoption event-time intervals only when the interval
         // is actually published and each side clears the independent-cluster
         // support gate. Capture the support before `effects` moves into the
         // result. Pre-adoption leads and event time -1 stay point-only.
         let representative_treated_clusters = treated_cluster_count(representative.cohort);
         let published_intervals =
             event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
-        let graphless_licensed = representative_interval.is_some()
+        let graphless_supported = representative_interval.is_some()
             && !self.extra.restricted
-            && crate::support::license_if_graphless(
+            && crate::support::support_if_graphless(
                 panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
@@ -988,8 +988,8 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: event_time_intervals_95.into(),
             augmented: None,
         });
-        if graphless_licensed {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if graphless_supported {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -1159,7 +1159,7 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::RepeatedCrossSection),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -1174,7 +1174,7 @@ impl CheckedPanelDidOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -1199,11 +1199,11 @@ pub(super) fn panel_did_plan_ids(
     ("quasi.panel_did", IdentifierId::ParallelTrends.as_str(), estimator)
 }
 
-/// Graphless licence key for a `DiD` sampling design.
+/// Graphless support key for a `DiD` sampling design.
 ///
-/// Execution licenses against this key and the contract publishes it as the
+/// Execution supports against this key and the contract publishes it as the
 /// matrix coordinate, so the two cannot drift. Staggered group-time and
-/// augmented panels have no licensed method; their key matches no licence row.
+/// augmented panels have no supported method; their key matches no support row.
 pub(crate) fn panel_did_graphless_key(
     design: antecedent_core::DidSamplingDesign,
 ) -> crate::support::GraphlessSupportKey<'static> {
@@ -1222,13 +1222,13 @@ pub(crate) fn panel_did_graphless_key(
             "never_treated_event_study_cluster_cr1",
             "post_adoption_event_time_pointwise_95_normal_intervals",
         ),
-        DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unlicensed", "none"),
-        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unlicensed", "none"),
+        DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unsupported", "none"),
+        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unsupported", "none"),
         DidSamplingDesign::StaggeredHeterogeneityRobust => {
-            ("staggered_heterogeneity_robust", "unlicensed", "none")
+            ("staggered_heterogeneity_robust", "unsupported", "none")
         }
         DidSamplingDesign::CovariateAdjustedTwoPeriod => {
-            ("covariate_adjusted_two_period", "unlicensed", "none")
+            ("covariate_adjusted_two_period", "unsupported", "none")
         }
     };
     crate::support::GraphlessSupportKey {

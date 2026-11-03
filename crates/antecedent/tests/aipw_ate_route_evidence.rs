@@ -120,14 +120,14 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "AverageEffect", "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("aipw"), "{coordinate}");
     assert_eq!(contract.inference.as_ref(), "frequentist", "{coordinate}");
     match &contract.reasoning.support {
         SlotAvailability::Available(slot) => {
-            assert_eq!(slot.matrix_status.as_ref(), "licensed", "{coordinate}");
+            assert_eq!(slot.matrix_status.as_ref(), "supported", "{coordinate}");
             assert_eq!(
                 slot.matrix_coordinate.as_deref(),
                 coordinate.strip_suffix("::estimator=aipw"),
@@ -237,7 +237,7 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     drop(builder);
     drop(study);
 
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("aipw"));
     let RetainedOperation::CheckedAipw(retained) = prepared.retained_operation() else {
         panic!("retained checked trimmed AIPW operation")

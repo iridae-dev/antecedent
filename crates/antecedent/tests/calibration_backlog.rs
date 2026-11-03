@@ -201,7 +201,7 @@ where
     for (accepted, suite) in
         [(true, RefuteSuite::None), (false, RefuteSuite::Cheap), (false, RefuteSuite::Full)]
     {
-        let (_, other) = run(accepted, suite).expect("licensed coordinate");
+        let (_, other) = run(accepted, suite).expect("supported coordinate");
         assert_eq!(posterior_intervals(&other), intervals, "accepted={accepted} {suite:?}");
     }
 }

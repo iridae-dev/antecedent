@@ -14,7 +14,7 @@ use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificS
 /// Declared experiment over an authenticated world-mean posterior.
 #[derive(Clone, Debug)]
 pub struct JointLawExperimentRequest {
-    /// Licensed translation to the exact assembled contrast returned by `quantity`.
+    /// Supported translation to the exact assembled contrast returned by `quantity`.
     pub bridge: BridgeContract,
     /// Independent experimental sample mean in the source units.
     pub observed_mean: f64,

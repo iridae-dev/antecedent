@@ -1,5 +1,5 @@
 //! Typed refusals of selective discovery: a registered reason code, a namespaced detail and
-//! the declaration, evidence or action that would license the request.
+//! the declaration, evidence or action that would support the request.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,7 +19,7 @@ pub enum SelectiveDiscoveryError {
         code: &'static str,
         /// Namespaced `selective_discovery.*` detail.
         detail: &'static str,
-        /// What would license the request.
+        /// What would support the request.
         remedy: String,
     },
 }

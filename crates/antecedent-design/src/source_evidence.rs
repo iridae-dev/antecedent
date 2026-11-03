@@ -302,7 +302,7 @@ impl SourceEvidence {
         Ok(())
     }
     /// Require matching original coordinates and snapshot for a source-diagnostic citation.
-    /// This citation does not verify numerical draw values or license native provider authority.
+    /// This citation does not verify numerical draw values or support native provider authority.
     pub fn require_quantity_binding(
         &self,
         quantities: &[ScientificQuantity],
@@ -511,7 +511,7 @@ impl SourceEvidence {
                 "coordinates":self.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>(),
                 "diagnostics":[],"diagnostic_availability":"not_retained_by_original_external_claim_format", "warnings":[],
                 "point_status":external.metadata().identity.point_status,"trust":external.metadata().identity.trust,
-                "native_authority_issued":false,"calibration_license_issued":false,
+                "native_authority_issued":false,"calibration_support_issued":false,
                 "contract_identity":self.contract.as_ref().and_then(|contract|contract.identity().ok()),"action_contributors":contributors,
                 "scope":"original_external_source; no transformed numeric diagnostic or trust/calibration upgrade"});
         }
@@ -532,7 +532,7 @@ impl SourceEvidence {
             "point_status":response.support.point_status,"summary_support":response.support.status,
             "contract_identity":self.contract.as_ref().and_then(|contract| contract.identity().ok()),
             "action_contributors":contributors,
-            "scope":"original_source_diagnostics; no transformed local diagnostic, executable state, trust upgrade or calibration license"})
+            "scope":"original_source_diagnostics; no transformed local diagnostic, executable state, trust upgrade or calibration support"})
     }
     /// Export original bytes and declarations; consumers rederive every diagnostic and mapping.
     pub fn export(&self) -> Result<Vec<u8>, SourceEvidenceError> {

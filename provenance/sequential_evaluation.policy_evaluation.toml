@@ -18,7 +18,7 @@ implementation_deviations = [
  "Evaluates a supplied finite-horizon policy on a declared finite model by exact enumeration of observed histories; it does not estimate nuisance models, learn or optimize a policy, or implement a planner.",
  "The sequential importance-weighting estimator applies the Horvitz-Thompson identity along the policy steps with the logged assignment probabilities; it is the ordinary and self-normalized estimator only, with no doubly robust or marginalized weights.",
  "Belief updates use the measurement model's declared parameters as exact; their estimation uncertainty is not propagated.",
- "Only a point value is produced; the importance-weighting standard error and the rollout error are uncalibrated diagnostics and no interval is licensed.",
+ "Only a point value is produced; the importance-weighting standard error and the rollout error are uncalibrated diagnostics and no interval is supported.",
 ]
 
 upstream_implementations_observed = []
@@ -45,7 +45,7 @@ redistribution = "Primary works are cited, not redistributed. The oracle and the
 limitations = "Ten policies on one two-state inspection model (variants: with and without stopping boundaries, forfeit versus refuse for outcomes beyond the horizon, states relabelled) are compared with the oracle at 1e-12 and with hand values; the dyadic constants make the arithmetic exact in binary, which also means rounding behaviour with non-dyadic probabilities is not exercised. The off-policy estimator is checked against the whole 65,536-trajectory logged population, so its unbiasedness and the weight 8 and effective size N/8 of the target policy are verified exactly, but a finite random log, the sampling spread of the ordinary and self-normalized estimates, and extremely small logging probabilities (weights near the overflow refusal) are exercised only by the refusal tests, not by a reference value. There is no reference for models with three or more latent states, long horizons or continuous observations, and the estimation uncertainty of the measurement model is by design not propagated. The reference lives in the same Rust test file as the assertions rather than in a frozen JSON, so this review binds that file once. Calibration of the standard error is unmeasured and no interval is produced."
 sources = ["https://doi.org/10.1016/0270-0255(86)90088-6", "https://doi.org/10.1198/016214501753382327", "https://doi.org/10.1016/S0004-3702(98)00023-X", "https://doi.org/10.1080/01621459.1952.10483446"]
 findings_resolved = ["No defect found: the product agrees with the forward oracle and the hand values on every policy (including delayed outcomes evolved under a commit action's transition, forced stops from the boundaries and pending outcomes forfeited at the horizon), is invariant to relabelling the latent states, and the importance-weighted mean over the complete logged population equals the enumerated value to 1e-9."]
-record_sha256 = "eaf64e4f0940d18b945b8f8002c5a9e047baf083737288cc15b6f6a41b0cf1b1"
+record_sha256 = "0aea2a2e368ac7d1c6255bffd33a1ea01ee4851bf6a0146873fa64eb9a5dbef2"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -65,4 +65,4 @@ sha256 = "d402a2529202e1aa9839b03a2554dbf9397392fb05cfc95ede8561267f5529d8"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/sequential_evaluation.rs"
-sha256 = "dc6f3088f48dfc6628eb8f38afd8abea5faa120944c46a3be925e2e6cc81b26b"
+sha256 = "d8dcc934c319adf22b5d32302f7dc69e85a49c7f8ebc0618b7f5752732c09356"

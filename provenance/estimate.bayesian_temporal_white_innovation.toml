@@ -41,7 +41,7 @@ record_sha256 = "80a28a35ece479a078dacddf0637e26051691189b57aa9e0f7933cd3f9a9ecb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/white_innovation_posterior.rs"
-sha256 = "6ab6bd8aee899fdb9e98f189ab1dcba1a676735d43ac64700d271186d7c2ade3"
+sha256 = "11fc5c32b622dbfedc9058e3f6cb7fbe64015adad23219dfcb8b77b3ef098be4"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -51,12 +51,12 @@ sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
-sha256 = "2380ff89af0290714c687ec2e85ba453dc0de351e857b0e2af536a37bd2fdb1a"
+sha256 = "f501a9a8e8fd1e217e800138a80228e00a22bc6914d2c6ff95c8504193dccfc3"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/white_innovation_ljung_box_reference.py"
-sha256 = "bd9a864b4c97ae68eaaaaf04980a329267da9e4196bdaee9a19b9748ab08b5eb"
+sha256 = "01bf576473ee58e83950df1f226870bddcfe950927a7aa0d578f1bbb8f6cdd0b"
 
 [[method_review.artifacts]]
 role = "fixture"

@@ -1391,7 +1391,7 @@ pub struct TypedFunctionalUncertainty {
     pub variance: f64,
     /// Square root of `variance`.
     pub standard_error: f64,
-    /// How the dependence between mechanisms was licensed.
+    /// How the dependence between mechanisms was supported.
     pub dependence: &'static str,
     /// What the variance does and does not contain ([`UNCERTAINTY_SCOPE`]).
     pub scope: &'static str,

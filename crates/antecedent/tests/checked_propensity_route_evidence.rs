@@ -1,4 +1,4 @@
-//! Checked propensity lifecycle across licensed DAG estimator choices.
+//! Checked propensity lifecycle across supported DAG estimator choices.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;

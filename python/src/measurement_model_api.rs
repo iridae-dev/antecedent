@@ -727,7 +727,7 @@ fn trust_of(
                 )
             })
         }
-        "native_licensed" => Ok(ExternalTrustState::NativeLicensed),
+        "native_supported" => Ok(ExternalTrustState::NativeSupported),
         _ => Err(declaration_refusal(
             antecedent_core::reason_code!("measurement_posterior_not_trusted"),
             "measurement_model.posterior_declaration",
@@ -949,7 +949,7 @@ impl PreparedMeasurementHandle {
         route_card_json(&self.inner).to_string()
     }
 
-    /// The refusal of `operation` for this binding, or `None` when licensed.
+    /// The refusal of `operation` for this binding, or `None` when supported.
     fn check_operation(&self, operation: &str) -> PyResult<Option<String>> {
         let operation = operation_from_name(operation)?;
         Ok(self.inner.check_operation(operation).err().map(|r| refusal_json(&r)))

@@ -52,7 +52,7 @@ fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_colline
                 });
             assert_eq!(
                 refused.to_string(),
-                "reason=cell_not_licensed: split_effect.design_singular: the adjusted regression \
+                "reason=not_supported: split_effect.design_singular: the adjusted regression \
                  design is singular",
                 "{name}"
             );

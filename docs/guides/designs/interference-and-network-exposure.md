@@ -42,7 +42,7 @@ It returns three Horvitz-Thompson and Hajek contrasts:
 
 Marginal exposure probabilities are enumerated exactly over the declared cluster allocations and the within-cluster Bernoulli assignments. To bound cost, the kernel refuses more than 30 clusters, more than 50,000 cluster allocations, or a unit with more than 16 incoming neighbors.
 
-Each contrast reports observed unit and cluster support and a covariance-free Young variance bound that covers dependence from both randomization stages. That bound is not a confidence interval and carries no coverage claim. This direct utility is separate from the licensed neighbor-count Bernoulli `analyze` cell in the [graphless support matrix](../../graphless-support-matrix.md) and does not change its status.
+Each contrast reports observed unit and cluster support and a covariance-free Young variance bound that covers dependence from both randomization stages. That bound is not a confidence interval and carries no coverage claim. This direct utility is separate from the supported neighbor-count Bernoulli `analyze` cell in the [graphless support matrix](../../graphless-support-matrix.md) and does not change its status.
 
 ## Observed assignment on a network
 
@@ -70,7 +70,7 @@ An observed-network estimate identifies a causal exposure contrast only if you d
 - consistency and positivity of the exposure levels,
 - partial interference: no spillover between clusters.
 
-A randomized saturation design replaces the confounding claim with the randomization, and keeps the other four conditions. In both cases Antecedent reports support and cannot test any of the conditions. Both routes remain outside the graphless support matrix licences.
+A randomized saturation design replaces the confounding claim with the randomization, and keeps the other four conditions. In both cases Antecedent reports support and cannot test any of the conditions. Both routes remain outside the graphless support matrix supports.
 
 ## Related
 

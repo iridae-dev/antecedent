@@ -20,7 +20,7 @@ pub struct JointDesignCapability {
     pub implementation_gaps: &'static [&'static str],
     /// Limits of the declared statistical procedure, separate from missing implementation.
     pub statistical_limitations: &'static [&'static str],
-    /// Registered stable-candidate measurement status; implementation tests grant no release license.
+    /// Registered stable-candidate measurement status; implementation tests grant no release support.
     pub calibration: &'static str,
 }
 /// Required catalogue, including every promised design rather than only passing rows.
@@ -34,7 +34,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },
@@ -47,7 +47,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },
@@ -60,7 +60,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },
@@ -73,7 +73,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },
@@ -101,7 +101,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },
@@ -114,7 +114,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         compiled_native_port: true,
         implementation_gaps: &[],
         statistical_limitations: &[
-            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license",
+            "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
         calibration: "registered_unmeasured_candidate_bound",
     },

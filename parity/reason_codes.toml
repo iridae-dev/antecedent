@@ -7,9 +7,9 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-# Reconciled with the existing 180 licensed point-only cells; no cells were added.
+# Reconciled with the existing 180 supported point-only cells; no cells were added.
 max_uses = 180
-# Eligibility: a licensed cell may cite this code only for these queries,
+# Eligibility: a supported cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
 queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution", "AverageEffect", "ConditionalEffect", "InterventionResponse", "InterventionalDistribution", "PathSpecificEffect", "ResponseCurve", "TransportQuery", "TemporalConditionalPulse", "TemporalConditionalSustained", "AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
 
@@ -70,9 +70,9 @@ meaning = "The claim carries no calibration match basis to re-derive its slot fr
 max_uses = 0
 
 [[code]]
-id = "data_modality_not_licensed"
+id = "data_modality_not_supported"
 applies_to = ["python_product", "runtime_refusal"]
-meaning = "The query is not licensed on this data modality (tabular, series, event, panel, multi-environment)."
+meaning = "The query is not supported on this data modality (tabular, series, event, panel, multi-environment)."
 max_uses = 7
 
 [[code]]
@@ -82,9 +82,9 @@ meaning = "The option has no meaning for the selected route, so it is refused ra
 max_uses = 1
 
 [[code]]
-id = "construction_not_licensed"
+id = "construction_not_supported"
 applies_to = ["python_product", "runtime_refusal"]
-meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment). Other constructions refuse on the licensed estimator; a separately identified off-axis estimator may execute without inheriting its license or calibration."
+meaning = "The coordinate is supported for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment). Other constructions refuse on the supported estimator; a separately identified off-axis estimator may execute without inheriting its support or calibration."
 max_uses = 0
 
 [[code]]
@@ -203,7 +203,7 @@ meaning = "The question has no identified estimand under the declared structure;
 [[code]]
 id = "cross_world_not_identified"
 applies_to = ["runtime_refusal"]
-meaning = "A nested counterfactual query requires cross-world assumptions or graph semantics outside the explicitly licensed shared-exogenous contract."
+meaning = "A nested counterfactual query requires cross-world assumptions or graph semantics outside the explicitly supported shared-exogenous contract."
 
 [[code]]
 id = "score_table_unavailable"
@@ -216,9 +216,9 @@ applies_to = ["runtime_refusal"]
 meaning = "The requested refutation suite has no state to refute for this estimand."
 
 [[code]]
-id = "cell_not_licensed"
+id = "not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "The support-matrix cell is refused: it is neither licensed nor not-applicable."
+meaning = "The support-matrix cell is refused: it is neither supported nor not-applicable."
 
 [[code]]
 id = "cell_not_applicable"
@@ -248,7 +248,7 @@ meaning = "The randomness in supplied draws does not match the operation's requi
 [[code]]
 id = "external_capability_missing"
 applies_to = ["runtime_refusal"]
-meaning = "An external scientific object lacks the exact operation required by the request; approximation requires a separately licensed error and replicate receipt."
+meaning = "An external scientific object lacks the exact operation required by the request; approximation requires a separately supported error and replicate receipt."
 
 [[code]]
 id = "external_verification_failed"
@@ -387,7 +387,7 @@ id = "transport_coef_index_out_of_range"
 applies_to = ["runtime_refusal"]
 meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."
 
-# Reason codes of the promotion records (parity/promotion.toml). Registered before any route returns them.
+# Reason codes of the capability records (parity/capability_records.toml). Registered before any route returns them.
 [[code]]
 id = "sampling_dependence_unknown"
 applies_to = ["runtime_refusal"]
@@ -399,11 +399,11 @@ applies_to = ["runtime_refusal"]
 meaning = "Declared sampling weights are not a valid weighted population: a weight is negative, NaN or infinite, every weight is zero, no analysed row has a positive weight, or the declaration does not cover the table's rows. The refusal names the first offending weight."
 
 [[code]]
-id = "scenario_aggregate_not_licensed"
+id = "scenario_aggregate_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."
+meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are supported."
 
-# Preflight (parity/promotion.toml carries no record: diagnostics add no inferential claim).
+# Preflight (parity/capability_records.toml carries no record: diagnostics add no inferential claim).
 [[code]]
 id = "design_rank_deficient"
 applies_to = ["runtime_refusal"]
@@ -415,12 +415,12 @@ applies_to = ["runtime_refusal"]
 meaning = "A generalized linear fit (a propensity or an outcome model) did not return a usable fit: it separated the arms or outcome classes, did not converge, or, for a model other than a propensity, saturated at the probability boundary. A propensity that saturates refuses as positivity_violated instead. The refusal names which defect occurred and the iteration count; drop or coarsen the separating or near-deterministic columns, standardize near-collinear columns, or (AIPW only) declare a penalized propensity with propensity_penalty."
 
 [[code]]
-id = "target_weights_not_licensed"
+id = "target_weights_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "Custom target weights are not licensed: their declared dependence includes the treatment, an intervened coordinate or a descendant of either, is not a function of the certified adjustment set, is empty while the weights vary, or cannot be checked without a directed graph. The refusal names the failing condition; declare depends_on over adjustment-set columns only, or pass constant weights."
+meaning = "Custom target weights are not supported: their declared dependence includes the treatment, an intervened coordinate or a descendant of either, is not a function of the certified adjustment set, is empty while the weights vary, or cannot be checked without a directed graph. The refusal names the failing condition; declare depends_on over adjustment-set columns only, or pass constant weights."
 
 [[code]]
-id = "rank_drop_not_licensed"
+id = "rank_drop_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "An opt-in rank-deficiency drop would remove a column the query needs (a treatment, outcome or effect modifier) or the declared column priority does not cover the design; nothing is dropped."
 
@@ -434,23 +434,23 @@ id = "arm_not_populated"
 applies_to = ["runtime_refusal"]
 meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."
 
-# Penalized AIPW (promotion record: aipw.penalized_propensity in parity/promotion.toml).
+# Penalized AIPW (capability record: aipw.penalized_propensity in parity/capability_records.toml).
 [[code]]
-id = "penalized_interval_not_licensed"
+id = "penalized_interval_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "A factorized joint-cell propensity with penalized conditional models publishes cell points and a score table only; its nuisance remainder and interval coverage have not been licensed, so a requested interval is refused. The separately calibrated ridge/lasso AIPW route has its own interval contract."
+meaning = "A factorized joint-cell propensity with penalized conditional models publishes cell points and a score table only; its nuisance remainder and interval coverage have not been supported, so a requested interval is refused. The separately calibrated ridge/lasso AIPW route has its own interval contract."
 
 [[code]]
-id = "selection_inference_not_licensed"
+id = "selection_inference_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "The nuisance learner selects variables from the data (lasso), which changes the inference contract; an ordinary influence-function interval is not valid after selection, so the option is closed."
 
 [[code]]
-id = "nuisance_fallback_not_licensed"
+id = "nuisance_fallback_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."
+meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty support on this route; the failed fit is reported and no fallback result is produced."
 
-# Factorized joint cells and derived treatments (promotion record: estimate.factorized_joint_cells).
+# Factorized joint cells and derived treatments (capability record: estimate.factorized_joint_cells).
 [[code]]
 id = "joint_cell_unsupported"
 applies_to = ["runtime_refusal"]
@@ -462,15 +462,15 @@ applies_to = ["runtime_refusal"]
 meaning = "A derived-treatment declaration is inconsistent, a constituent column or forbidden descendant sits in the adjustment set without a declared causal exclusion rule, or an observed value is outside the declared legal values; nothing is dropped to repair it."
 
 [[code]]
-id = "ml_nuisance_not_licensed"
+id = "ml_nuisance_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "A machine-learning nuisance was declared for joint cells in a way no record licenses: an interval or joint covariance over learner-supplied nuisances (which need their own remainder and coverage license), or a machine-learning name that is not a declared joint-cell learner; refused rather than silently replaced by the ridge-logistic factors."
+meaning = "A machine-learning nuisance was declared for joint cells in a way no record supports: an interval or joint covariance over learner-supplied nuisances (which need their own remainder and coverage support), or a machine-learning name that is not a declared joint-cell learner; refused rather than silently replaced by the ridge-logistic factors."
 
-# Clustered DML (promotion record: estimate.clustered_dml_aipw).
+# Clustered DML (capability record: estimate.clustered_dml_aipw).
 [[code]]
-id = "cluster_interval_not_licensed"
+id = "cluster_interval_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "Cluster-DML AIPW refuses a requested row bootstrap or alternative analytic SE kind: the row bootstrap would split clusters, and neither requested construction has a coverage license. The default one-way cluster t interval has its own measured coordinate."
+meaning = "Cluster-DML AIPW refuses a requested row bootstrap or alternative analytic SE kind: the row bootstrap would split clusters, and neither requested construction has coverage support. The default one-way cluster t interval has its own measured coordinate."
 
 [[code]]
 id = "too_few_clusters"
@@ -478,21 +478,21 @@ applies_to = ["runtime_refusal"]
 meaning = "The number of independent clusters is below the declared minimum, so a sandwich over cluster sums and a whole-cluster cross-fit are not formed; the refusal states the count found and the minimum declared."
 
 [[code]]
-id = "dyadic_dependence_not_licensed"
+id = "dyadic_dependence_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML construction does not cover: an entity used as both a first and a second endpoint, or one connected component of the endpoint graph holding more than a fold's share of the rows, so whole-component folds and the two-way variance are not licensed."
+meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML construction does not cover: an entity used as both a first and a second endpoint, or one connected component of the endpoint graph holding more than a fold's share of the rows, so whole-component folds and the two-way variance are not supported."
 
-# Tier diagnostics (promotion record: tier_diagnostics in parity/promotion.toml).
+# Tier diagnostics (capability record: tier_diagnostics in parity/capability_records.toml).
 [[code]]
 id = "diagnostic_not_available"
 applies_to = ["runtime_refusal"]
 meaning = "A diagnostic is requested that the executed route's own design does not carry (no propensity score, an E-value that embeds an interval endpoint, a result with no single effect); it is reported absent with this code and a detail, never fabricated and never refit from a different design."
 
-# Mechanism composition (promotion record: mechanism_composition in parity/promotion.toml).
+# Mechanism composition (capability record: mechanism_composition in parity/capability_records.toml).
 [[code]]
 id = "mechanism_composition_incoherent"
 applies_to = ["runtime_refusal"]
-meaning = "Independently fitted mechanisms do not establish one coherent joint law: a support gap between a producer and its consumer, a conditioning set that is not the parent set, a dropped or unloaded shared latent cause, misaligned or contradicted parameter uncertainty, missing mechanism provenance, mixed families, or a mechanism outside the bounded composition family. The detail names the defect and the refusal states the declaration that would license the composition."
+meaning = "Independently fitted mechanisms do not establish one coherent joint law: a support gap between a producer and its consumer, a conditioning set that is not the parent set, a dropped or unloaded shared latent cause, misaligned or contradicted parameter uncertainty, missing mechanism provenance, mixed families, or a mechanism outside the bounded composition family. The detail names the defect and the refusal states the declaration that would support the composition."
 
 # Mechanism selection (candidate sets, per-node constraints, validation splits).
 [[code]]
@@ -505,16 +505,16 @@ id = "mechanism_family_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "A family a node requires could not be scored or fit on that node (a tree ensemble on a root or on fewer rows than it needs, a provider that is not compiled in, a fit that failed on every fold). The message names the node, the family and its failure; the other candidates' scores are not used to substitute another family."
 
-# Evidence ledger (promotion records: evidence_ledger.* in parity/promotion.toml).
+# Evidence ledger (capability records: evidence_ledger.* in parity/capability_records.toml).
 [[code]]
 id = "evidence_double_counted"
 applies_to = ["runtime_refusal"]
-meaning = "A combination of evidence would count the same observations more than once: a duplicate, a transform, a prior built from the likelihood's data, an external claim built from data already used, shared rows declared independent, a source listed twice, or one source counted both as native target data and as transported evidence. The refusal names the sources and the covariance, assumption range or dropped source that would license the request."
+meaning = "A combination of evidence would count the same observations more than once: a duplicate, a transform, a prior built from the likelihood's data, an external claim built from data already used, shared rows declared independent, a source listed twice, or one source counted both as native target data and as transported evidence. The refusal names the sources and the covariance, assumption range or dropped source that would support the request."
 
 [[code]]
 id = "evidence_overlap_unknown"
 applies_to = ["runtime_refusal"]
-meaning = "The observations behind two pieces of evidence are not declared, so their overlap is unknown; independence is never assumed. The refusal states the row-level declaration, covariance with cross terms or assumption range that would license the request."
+meaning = "The observations behind two pieces of evidence are not declared, so their overlap is unknown; independence is never assumed. The refusal states the row-level declaration, covariance with cross terms or assumption range that would support the request."
 
 [[code]]
 id = "evidence_source_withdrawn"
@@ -525,7 +525,7 @@ meaning = "A request rests on an evidence source, or on a result, that was withd
 [[code]]
 id = "decision_evidence_scope_mismatch"
 applies_to = ["runtime_refusal"]
-meaning = "A request reaches past what the experiment established: a population, randomized contrast or horizon the evidence does not cover, or a deployment-policy quantity with no declared structural bridge from the experimental contrast. Nothing is carried across; the refusal names the evidence's scope and the bridge or evidence that would license the request."
+meaning = "A request reaches past what the experiment established: a population, randomized contrast or horizon the evidence does not cover, or a deployment-policy quantity with no declared structural bridge from the experimental contrast. Nothing is carried across; the refusal names the evidence's scope and the bridge or evidence that would support the request."
 
 [[code]]
 id = "decision_evidence_design_unsupported"
@@ -537,7 +537,7 @@ id = "decision_evidence_invalid"
 applies_to = ["runtime_refusal"]
 meaning = "A joint evidence, derived quantity or decision declaration is not well formed: misaligned or non-finite arrays, a covariance that is not symmetric with a nonnegative diagonal, an arm with fewer than two assigned units, an unknown component, or a frame that does not name exactly two actions. The refusal names the field."
 
-# Measurement models (promotion records: measurement.* in parity/promotion.toml).
+# Measurement models (capability records: measurement.* in parity/capability_records.toml).
 [[code]]
 id = "measurement_model_invalid"
 applies_to = ["runtime_refusal"]
@@ -551,12 +551,12 @@ meaning = "A noisy or misclassified indicator, a probabilistic feature assignmen
 [[code]]
 id = "measurement_binding_mismatch"
 applies_to = ["runtime_refusal"]
-meaning = "A measurement model, or an artifact built from one, is applied outside the population, regime or arm it was established for, names a different construct, or differs from the model identity the consumer retained. Nothing is carried across: the refusal names the expected and supplied binding and the invariance premise or re-established model that would license the request."
+meaning = "A measurement model, or an artifact built from one, is applied outside the population, regime or arm it was established for, names a different construct, or differs from the model identity the consumer retained. Nothing is carried across: the refusal names the expected and supplied binding and the invariance premise or re-established model that would support the request."
 
 [[code]]
 id = "representation_mapping_required"
 applies_to = ["runtime_refusal"]
-meaning = "A representation changed coordinate system or version without an explicit mapping, a mapping does not run between the two versions, or causal or intervention meaning was requested through a mapping that carries values only (or for the coordinates of a learned vector representation). The refusal names the mapping or intervention-preservation evidence that would license it."
+meaning = "A representation changed coordinate system or version without an explicit mapping, a mapping does not run between the two versions, or causal or intervention meaning was requested through a mapping that carries values only (or for the coordinates of a learned vector representation). The refusal names the mapping or intervention-preservation evidence that would support it."
 
 [[code]]
 id = "uncertainty_representation_insufficient"
@@ -566,7 +566,7 @@ meaning = "A quantity was asked for a reading its uncertainty representation can
 [[code]]
 id = "differential_error_not_pooled"
 applies_to = ["runtime_refusal"]
-meaning = "Measurement error declared to differ by arm, population or time was sent through the non-differential route, a non-differential model was analysed as differential, a declared structure disagrees with its parameter layout, or the declared axis has no bounded route. The two cases are never pooled; the refusal states the structure declaration and per-arm parameters that would license the request."
+meaning = "Measurement error declared to differ by arm, population or time was sent through the non-differential route, a non-differential model was analysed as differential, a declared structure disagrees with its parameter layout, or the declared axis has no bounded route. The two cases are never pooled; the refusal states the structure declaration and per-arm parameters that would support the request."
 
 [[code]]
 id = "measurement_not_identified"
@@ -576,9 +576,9 @@ meaning = "The measurement correction is not identified at the declared bound: Y
 [[code]]
 id = "measurement_posterior_not_trusted"
 applies_to = ["runtime_refusal"]
-meaning = "A latent-variable posterior supplied by an external provider cannot be consumed: its object or request identity differs from the model's reference, it is not a parameter posterior over the construct in the model's population and regime, it declares no sampling operation, or it claims native trust. Trust is never inferred from metadata; the refusal states the verification or attestation that would license consumption."
+meaning = "A latent-variable posterior supplied by an external provider cannot be consumed: its object or request identity differs from the model's reference, it is not a parameter posterior over the construct in the model's population and regime, it declares no sampling operation, or it claims native trust. Trust is never inferred from metadata; the refusal states the verification or attestation that would support consumption."
 
-# Scientific bridges (promotion records: scientific_bridge.* in parity/promotion.toml).
+# Scientific bridges (capability records: scientific_bridge.* in parity/capability_records.toml).
 [[code]]
 id = "scientific_bridge_invalid"
 applies_to = ["runtime_refusal"]
@@ -587,12 +587,12 @@ meaning = "A bridge between scientific quantities is not well formed: a blank or
 [[code]]
 id = "bridge_assumption_missing"
 applies_to = ["runtime_refusal"]
-meaning = "A bridge rests on an assumption that is not declared, or that names no evidence: the kind's principal assumption (measurement model, behavioral linkage, surrogate validation, identification, parameter interpretation, utility mapping), or the transportability premise when the bridge's evidence was established for another population or regime than the claim's. The refusal names the assumption kind and the identity or evidence that would license the bridge."
+meaning = "A bridge rests on an assumption that is not declared, or that names no evidence: the kind's principal assumption (measurement model, behavioral linkage, surrogate validation, identification, parameter interpretation, utility mapping), or the transportability premise when the bridge's evidence was established for another population or regime than the claim's. The refusal names the assumption kind and the identity or evidence that would support the bridge."
 
 [[code]]
 id = "bridge_substitution_refused"
 applies_to = ["runtime_refusal"]
-meaning = "One scientific quantity was offered as another that it is not: an association as an intervention, a stated preference as realized behavior, a predictive importance as a causal effect, a model score as a probability, a scientific endpoint as a utility, or a mean, predictive law, posterior, identified set or joint outcome law where another of those objects is required. These are not interchangeable and no bridge relaxes that; the refusal names both and the declaration or route that would license the request."
+meaning = "One scientific quantity was offered as another that it is not: an association as an intervention, a stated preference as realized behavior, a predictive importance as a causal effect, a model score as a probability, a scientific endpoint as a utility, or a mean, predictive law, posterior, identified set or joint outcome law where another of those objects is required. These are not interchangeable and no bridge relaxes that; the refusal names both and the declaration or route that would support the request."
 
 [[code]]
 id = "bridge_binding_mismatch"
@@ -600,38 +600,38 @@ applies_to = ["runtime_refusal"]
 meaning = "The parts of a bridge disagree: the claim is about another quantity, units, population, regime, horizon or conditioning than the contract's source; the source and target differ in population, or in regime where a regime change is not part of the bridge kind; the measurement model names other variables, another identity or another population and regime than the bridge's evidence scope; or the transportability premise is for another transport. The refusal names the expected and supplied coordinates."
 
 [[code]]
-id = "bridge_mapping_not_licensed"
+id = "bridge_mapping_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "A bridge's mapping cannot carry this value: fewer validation trials than declared, a trial-level coefficient of determination below the declared minimum, validation effects that do not vary, a surrogate effect outside the range the validation trials covered (no extrapolation), a recorded prevalence outside the attainable range of the declared misclassification rates, or a functional or scale the correction does not invert. The refusal states the declared bound and the evidence that would license the value."
+meaning = "A bridge's mapping cannot carry this value: fewer validation trials than declared, a trial-level coefficient of determination below the declared minimum, validation effects that do not vary, a surrogate effect outside the range the validation trials covered (no extrapolation), a recorded prevalence outside the attainable range of the declared misclassification rates, or a functional or scale the correction does not invert. The refusal states the declared bound and the evidence that would support the value."
 
 [[code]]
 id = "candidate_search_record_required"
 applies_to = ["runtime_refusal"]
-meaning = "A ranking, optimality or selection-aware statement was requested over candidates that an adaptive search produced, and no search record names the generator, its budget, the number of candidates evaluated and the selection rule. Retained candidates alone would silently condition the claim on a search it does not describe; the refusal states the record that would license the request."
+meaning = "A ranking, optimality or selection-aware statement was requested over candidates that an adaptive search produced, and no search record names the generator, its budget, the number of candidates evaluated and the selection rule. Retained candidates alone would silently condition the claim on a search it does not describe; the refusal states the record that would support the request."
 
 [[code]]
 id = "validation_stream_not_independent"
 applies_to = ["runtime_refusal"]
-meaning = "A held-out or split re-evaluation of a selected decision uses draws that overlap, or are not separated from, the draws that selected it (the same stream coordinates, or an overlapping or too-close range of one stream), so it cannot correct selection bias. The refusal names both segments and the independent stream or gap that would license the request."
+meaning = "A held-out or split re-evaluation of a selected decision uses draws that overlap, or are not separated from, the draws that selected it (the same stream coordinates, or an overlapping or too-close range of one stream), so it cannot correct selection bias. The refusal names both segments and the independent stream or gap that would support the request."
 
 [[code]]
 id = "uncertainty_components_not_combined"
 applies_to = ["runtime_refusal"]
 meaning = "One combined uncertainty number was requested for a sampled or selected decision. Source-distribution spread, Monte Carlo error and selection-induced uncertainty are reported separately and never summed; a combined statement is a whole-procedure claim that needs a calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)."
 
-# Observation-conditioned queries (promotion records: observation_query.* in parity/promotion.toml).
+# Observation-conditioned queries (capability records: observation_query.* in parity/capability_records.toml).
 [[code]]
 id = "evidence_cannot_reach_level"
 applies_to = ["runtime_refusal"]
-meaning = "A posterior or decision probability cannot be moved to the declared level by any admissible evidence: the declared signal does not move the probability in that direction, no observed level of the signal crosses it, or reaching it needs more observations than the declared bound. The refusal states the level asked for and the most extreme value that is reachable (a supremum when raising, an infimum when lowering), and what would license a different answer."
+meaning = "A posterior or decision probability cannot be moved to the declared level by any admissible evidence: the declared signal does not move the probability in that direction, no observed level of the signal crosses it, or reaching it needs more observations than the declared bound. The refusal states the level asked for and the most extreme value that is reachable (a supremum when raising, an infimum when lowering), and what would support a different answer."
 
-# Sequential decision evaluation (promotion records: sequential_evaluation.* in parity/promotion.toml).
+# Sequential decision evaluation (capability records: sequential_evaluation.* in parity/capability_records.toml).
 [[code]]
 id = "history_support_violated"
 applies_to = ["runtime_refusal"]
-meaning = "A supplied policy takes an action, with positive probability, in a reachable history where the action has no support (a positivity violation): the model declares no support for it there, or the logging policy that generated the logged data has probability zero or no declared decision there, or no logged trajectory is consistent with the target policy so every importance weight is zero. The value of the policy is not identified by extrapolating across the gap; the refusal names the history, the action and the support declaration or logged coverage that would license the evaluation."
+meaning = "A supplied policy takes an action, with positive probability, in a reachable history where the action has no support (a positivity violation): the model declares no support for it there, or the logging policy that generated the logged data has probability zero or no declared decision there, or no logged trajectory is consistent with the target policy so every importance weight is zero. The value of the policy is not identified by extrapolating across the gap; the refusal names the history, the action and the support declaration or logged coverage that would support the evaluation."
 
-# Adaptive-experiment inference (promotion records: adaptive_inference.* in parity/promotion.toml).
+# Adaptive-experiment inference (capability records: adaptive_inference.* in parity/capability_records.toml).
 [[code]]
 id = "adaptive_contract_incomplete"
 applies_to = ["runtime_refusal"]
@@ -660,9 +660,9 @@ meaning = "A held-out evaluation of the selected policy was required but the stu
 [[code]]
 id = "adaptive_assumption_violated"
 applies_to = ["runtime_refusal"]
-meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would license the request."
+meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would support the request."
 
-# Scientific interface contracts (promotion records: interface_contract.* in parity/promotion.toml).
+# Scientific interface contracts (capability records: interface_contract.* in parity/capability_records.toml).
 [[code]]
 id = "interface_contract_invalid"
 applies_to = ["runtime_refusal"]
@@ -671,12 +671,12 @@ meaning = "An interface contract, or a composition of components, is not well fo
 [[code]]
 id = "interface_contract_quantity_mismatch"
 applies_to = ["runtime_refusal"]
-meaning = "A produced quantity is not the quantity the consumer declares, although a name, shape or dtype may agree: the variable or role, units, population, intervention regime, causal horizon, functional, conditioning events, transform, semantic identity or support domain differs. Nothing is converted or reinterpreted; the refusal names the dimension, what the consumer expects and what the producer declares, and the declaration (a checked conversion, a transport of evidence, a bridge) that would license the connection."
+meaning = "A produced quantity is not the quantity the consumer declares, although a name, shape or dtype may agree: the variable or role, units, population, intervention regime, causal horizon, functional, conditioning events, transform, semantic identity or support domain differs. Nothing is converted or reinterpreted; the refusal names the dimension, what the consumer expects and what the producer declares, and the declaration (a checked conversion, a transport of evidence, a bridge) that would support the connection."
 
 [[code]]
 id = "interface_contract_assumption_mismatch"
 applies_to = ["runtime_refusal"]
-meaning = "A connection's declared assumptions disagree: the producer's measurement models are not the ones the consumer requires, the dependence of the producer's evidence is undeclared where the consumer needs it declared, two inputs the consumer requires to be disjoint share an evidence source, or a provenance stage the consumer requires is not supplied. The refusal names the identities involved and the declaration that would license the connection."
+meaning = "A connection's declared assumptions disagree: the producer's measurement models are not the ones the consumer requires, the dependence of the producer's evidence is undeclared where the consumer needs it declared, two inputs the consumer requires to be disjoint share an evidence source, or a provenance stage the consumer requires is not supplied. The refusal names the identities involved and the declaration that would support the connection."
 
 [[code]]
 id = "interface_contract_operation_unavailable"
@@ -691,30 +691,30 @@ meaning = "The producer's interval, posterior, law or draws does not mean what t
 [[code]]
 id = "interface_contract_calibration_not_held"
 applies_to = ["runtime_refusal"]
-meaning = "A consumer relies on measured calibration of its input, or a producer declares its output's calibration inherited from an input, and the calibration is not held: the producer's label is none, point-only or unmeasured, an inherited calibration cannot be resolved from the pair alone, the input it is inherited from is not connected, or the upstream producer does not hold a measured record. Calibration of a component is not calibration of a composition; the refusal names what holds and what would license the reliance."
+meaning = "A consumer relies on measured calibration of its input, or a producer declares its output's calibration inherited from an input, and the calibration is not held: the producer's label is none, point-only or unmeasured, an inherited calibration cannot be resolved from the pair alone, the input it is inherited from is not connected, or the upstream producer does not hold a measured record. Calibration of a component is not calibration of a composition; the refusal names what holds and what would support the reliance."
 
 [[code]]
 id = "interface_contract_cyclic_composition"
 applies_to = ["runtime_refusal"]
 meaning = "The connections of a composition form a cycle: feedback between one component's output and another's input. Cyclic scientific composition is not supported; the loop is refused before any component runs and the refusal names the cycle path. Compose the components feed-forward, or model the loop inside one component's own declared contract."
 
-# Composition verification (promotion record: composition_verification.claim_revalidation in parity/promotion.toml).
+# Composition verification (capability record: composition_verification.claim_revalidation in parity/capability_records.toml).
 [[code]]
 id = "claim_revalidation_required"
 applies_to = ["runtime_refusal"]
-meaning = "A claim rests on an upstream object (data, evidence, a model or representation version, or a structural derivation) that changed after the claim was produced, so its numbers, fit and uncertainty carry no authority until it is recomputed. The refusal names the changed origin; the license for the claim is not withdrawn."
+meaning = "A claim rests on an upstream object (data, evidence, a model or representation version, or a structural derivation) that changed after the claim was produced, so its numbers, fit and uncertainty carry no authority until it is recomputed. The refusal names the changed origin; the support for the claim is not withdrawn."
 
 [[code]]
-id = "claim_license_withdrawn"
+id = "claim_support_withdrawn"
 applies_to = ["runtime_refusal"]
-meaning = "A claim rests on an upstream object whose license no longer holds: an input that was retired, replaced or removed, coordinates outside the support, a provider whose trust was withdrawn, or a stage that cannot be executed. This is distinct from stale numbers: recomputation alone does not restore the license. The refusal names the origin and the declaration that would restore it."
+meaning = "A claim rests on an upstream object whose support no longer holds: an input that was retired, replaced or removed, coordinates outside the support, a provider whose trust was withdrawn, or a stage that cannot be executed. This is distinct from stale numbers: recomputation alone does not restore the support. The refusal names the origin and the declaration that would restore it."
 
-# Arbitrary law, posterior and nested callbacks (promotion record: provider_callback.protocol in parity/promotion.toml).
+# Arbitrary law, posterior and nested callbacks (capability record: provider_callback.protocol in parity/capability_records.toml).
 
 [[code]]
 id = "callback_protocol_invalid"
 applies_to = ["runtime_refusal"]
-meaning = "A callback declaration is not well formed: a blank provider, object, version, snapshot or request identity, an operation the callback kind does not answer, a meaning that does not belong to the kind, a posterior update without its candidate, prior and observation or without the observation law, a seeded callback without a semantic stream identity, an idempotent retry without an attempt bound, a nested callback with no callback input, or a trust level metadata cannot confer (native licence). The refusal names the declaration that would make the callback well formed."
+meaning = "A callback declaration is not well formed: a blank provider, object, version, snapshot or request identity, an operation the callback kind does not answer, a meaning that does not belong to the kind, a posterior update without its candidate, prior and observation or without the observation law, a seeded callback without a semantic stream identity, an idempotent retry without an attempt bound, a nested callback with no callback input, or a trust level metadata cannot confer (native support). The refusal names the declaration that would make the callback well formed."
 
 [[code]]
 id = "callback_reuse_ineligible"
@@ -734,14 +734,14 @@ meaning = "A callback returned a value the protocol does not accept as an answer
 [[code]]
 id = "callback_provider_unavailable"
 applies_to = ["runtime_refusal"]
-meaning = "No compatible provider can answer a callback request in this process: none was supplied for a fresh-process resume, or the provider failed. The historical result stays inspectable and the stage is recorded as unavailable; no claim is issued. The refusal names the provider object, version, snapshot and request, or the declared portable runtime with resolved dependencies, that would license execution."
+meaning = "No compatible provider can answer a callback request in this process: none was supplied for a fresh-process resume, or the provider failed. The historical result stays inspectable and the stage is recorded as unavailable; no claim is issued. The refusal names the provider object, version, snapshot and request, or the declared portable runtime with resolved dependencies, that would support execution."
 
 [[code]]
 id = "callback_limit_exceeded"
 applies_to = ["runtime_refusal"]
 meaning = "A callback request exceeds a declared resource bound: the invocation count, the output size, or the wall-clock bound. The in-process executor enforces the wall-clock bound only after the call returns and discards the late result; a hard preemptible limit needs a declared isolated runtime. The refusal names the bound and the policy field to change."
 
-# Selective discovery (promotion record: discovery.selective_reuse in parity/promotion.toml).
+# Selective discovery (capability record: discovery.selective_reuse in parity/capability_records.toml).
 [[code]]
 id = "discovered_structure_unresolved"
 applies_to = ["runtime_refusal"]
@@ -849,9 +849,9 @@ applies_to = ["runtime_refusal"]
 meaning = "A value program reads temporal history that the route cannot supply: a lagged read on a static model with no declared history window, a look-back deeper than the route's declared window, a look-back that reaches before the first available step of a temporal rollout, or a look-back of zero steps (a future value does not exist when the policy applies). The refusal names the offending reference and, for a rollout, the step."
 
 [[code]]
-id = "policy_route_not_licensed"
+id = "policy_route_not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "A policy is licensed for some execution routes but not the one requested. Simulation and counterfactual execution accept any valid program; observational identification accepts only programs that reduce to a hard level (a set, or an assignment that folds to a constant). The refusal names the route and the routes the policy is licensed for."
+meaning = "A policy is supported for some execution routes but not the one requested. Simulation and counterfactual execution accept any valid program; observational identification accepts only programs that reduce to a hard level (a set, or an assignment that folds to a constant). The refusal names the route and the routes the policy is supported for."
 
 [[code]]
 id = "policy_callback_failed"
@@ -943,7 +943,7 @@ id = "execution_resource_limit"
 applies_to = ["runtime_refusal"]
 meaning = "The execution could not obtain the shared worker or memory resources needed to run; no scientific conclusion follows from the refusal."
 
-# Choice evidence (licensed evidence-to-decision lifecycle for repeated categorical choices).
+# Choice evidence (supported evidence-to-decision lifecycle for repeated categorical choices).
 [[code]]
 id = "choice_evidence_scope_mismatch"
 applies_to = ["runtime_refusal"]

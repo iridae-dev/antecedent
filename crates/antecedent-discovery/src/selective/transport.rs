@@ -45,7 +45,7 @@ pub struct DiscoveredStructureRefusal {
     pub unresolved_edges: Vec<UnresolvedEdge>,
     /// `(code, message)` of the exhausted search bounds.
     pub bounded_search_receipts: Vec<(String, String)>,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: String,
 }
 

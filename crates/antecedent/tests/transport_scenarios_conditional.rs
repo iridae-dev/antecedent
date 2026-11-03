@@ -193,7 +193,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
     assert!(matches!(prepared.prepared().decision().question, ScenarioQuestion::Conditional(_)));
     // No cross-scenario inference with shared data.
     let refusal = prepared.aggregate_interval().unwrap_err();
-    assert!(refusal.to_string().contains("scenario_aggregate_not_licensed"), "{refusal}");
+    assert!(refusal.to_string().contains("scenario_aggregate_not_supported"), "{refusal}");
 }
 
 #[test]
@@ -475,7 +475,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
     let (code, message) = refused(result);
     assert_eq!(code, "schema_mismatch");
     assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
-    // Counted laws are not licensed for a conditional question.
+    // Counted laws are not supported for a conditional question.
     let mut laws = data.laws().to_vec();
     let first = &laws[0];
     let cells = first.probabilities().len();
@@ -499,7 +499,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
         request(&[0], &[2], LEVEL),
         BUDGET,
     ));
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("admg_transport.interval_withheld"), "{message}");
 }
 

@@ -5,7 +5,7 @@
 //! quantity in the named worlds under the shared exogenous state, and the
 //! normal interval built on the unit values under a declared unit sampling.
 //! The data are generated from the declared model, so the measurement is
-//! conditional on model adequacy, exactly as the licence states.
+//! conditional on model adequacy, exactly as the support states.
 //!
 //! Model: `X ~ Bernoulli(0.4)`, `Y = f(X, U)` with response types
 //! `U in {never, complier, defier, always}`; evidence is the observed `(X, Y)`

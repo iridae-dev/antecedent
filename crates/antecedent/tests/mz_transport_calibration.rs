@@ -5,7 +5,7 @@
 //! fixture enumerate every supplied law and the target's interventional truth
 //! `P*(Y = 1 | do(X = 1))`. Each replicate draws fresh count tables from those
 //! laws and scores the internal estimator the public route withholds
-//! (`cell_not_licensed`) until these records exist:
+//! (`not_supported`) until these records exist:
 //! [`antecedent_estimate::mz_transport_bootstrap_interval`].
 //!
 //! * `multi_source_mz_independent_studies`: every regime is its own declared
@@ -46,7 +46,7 @@ const REPLICATES: u32 = 199;
 /// The independent-study interval showed 0.941 coverage in 8,000 datasets at
 /// 1,600 rows/law with 199 bootstrap draws. Its 2.5% tail quantile has only
 /// about five draws there, so measure the same estimator with a more stable
-/// tail before licensing the independent-study coordinate.
+/// tail before support the independent-study coordinate.
 const INDEPENDENT_REPLICATES: u32 = 999;
 
 fn construction(dependence: &str) -> Construction {

@@ -36,7 +36,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs",
-          "sha256": "95c00d3b1c9b18642962c1f230f8b6e183e0e9fa6930043f8c551cf0887b86b6"
+          "sha256": "9f113c8b44bd3a63cdaa37d45b854e2bfa24638f0c66696d0576b126754f0856"
         }
       ],
       "fixture_payload_sha256": "a4e3a4a3ef8b7cd95c2547a36c0256d9ced83826701dc21bec6fa2e9ac087a30"

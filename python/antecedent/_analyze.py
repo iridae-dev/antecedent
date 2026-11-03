@@ -471,7 +471,7 @@ def analyze(
           "associational"``; identification is not claimed and it ranks no action).
 
         Transport: ``transport.Transport`` (the compiler on an ``Admg``, with
-        ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
+        ``provider=`` / ``TransportInference`` / ``controls=``) and the supported
         ``transport.advanced.TransportQuery`` trial-IPW cell.
         ``extensibility.ProviderQuery`` dispatches ``data`` and its request mapping
         to a registered Python provider; its family-shaped output stays externally
@@ -492,7 +492,7 @@ def analyze(
         ``TemporalConditionalPulse`` / ``TemporalConditionalSustained`` over one series: the
         contrast is identified on the unrolled window of the template and evaluated on its
         lag-aligned window table, resampled in blocks of consecutive windows; it runs
-        unlicensed (``support_status`` ``"refused"``) and a window that holds a hedge is
+        unsupported (``support_status`` ``"not_supported"``) and a window that holds a hedge is
         refused with the variables and periods that carry it.
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
@@ -537,7 +537,7 @@ def analyze(
         ``False`` or a suite name (``"full"`` / ``"placebo"`` / ``"cheap"`` /
         ``"none"``) / :class:`antecedent.Refute` member. Leave unset (``None``)
         for the omitted-default suite the study builder applies (and downgrades
-        on a cell that does not license it) — passing the literal ``True``
+        on a cell that does not support it) — passing the literal ``True``
         raises ``TypeError`` (it carried no information beyond "unset" and was
         easy to confuse with an explicit choice). An omitted ``refute``
         resolves from the same omitted-default table for :func:`analyze`,

@@ -14,7 +14,7 @@
 //!    model-level coherence checker (acyclicity, parents equal conditioning
 //!    set, support overlap, shared latents, provenance, aligned uncertainty).
 //!    Every defect is returned, each with a registered code, a namespaced
-//!    detail and the declaration that would license the composition.
+//!    detail and the declaration that would support the composition.
 //! 2. **Execute** runs the closed-form joint law and `do()` law, structural
 //!    sampling and the first-order delta-method variance of a linear contrast
 //!    of interventional means (linear-Gaussian), or exact enumeration and
@@ -639,11 +639,11 @@ impl PreparedMechanismComposition {
     /// An interval for any functional of this composition.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `mechanism_composition.interval_route_closed`:
+    /// Always `not_supported` with `mechanism_composition.interval_route_closed`:
     /// the delta-method variance carries no measured coverage.
     pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
         Err(MechanismCompositionRefusal::of(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "uncertainty",
             "mechanism_composition.interval_route_closed",
             "the first-order parameter-covariance variance has no measured coverage; the point \
@@ -709,7 +709,7 @@ impl PreparedMechanismComposition {
 
     /// The first-order delta-method variance of a contrast of interventional
     /// means from the declared parameter law, with the gradient and how the
-    /// dependence between mechanisms was licensed.
+    /// dependence between mechanisms was supported.
     ///
     /// # Errors
     /// `joint_law_required` when the dependence between more than one

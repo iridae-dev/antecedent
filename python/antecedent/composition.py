@@ -33,7 +33,7 @@ Statistical pooling, Bayesian borrowing, causal transport and evidence reuse are
 separate declared :data:`Operation` values. Independent pooling or paired draws
 refuse when two inputs share data, a prior or a fitted model, or when their
 dependence is unknown (:class:`DependenceRefusal`), unless a covariance or
-joint-law route is declared and licensed by an aligned joint law that is one of
+joint-law route is declared and supported by an aligned joint law that is one of
 the pair. Conflicting structural atoms never become a silent average.
 
 Rust owns every decision here; this module builds declarations and returns scientific refusals in an Outcome retaining the original :class:`CompositionRefusal`, a
@@ -106,7 +106,7 @@ _DEPENDENCE_DETAILS = frozenset(
         "operation_not_declared",
         "shared_evidence_not_independent",
         "unknown_dependence_is_not_independence",
-        "dependence_route_not_licensed",
+        "dependence_route_not_supported",
         "paired_draws_across_sources",
         "conflicting_atoms_not_averaged",
         "atom_probabilities_invalid",
@@ -141,7 +141,7 @@ class SupportRefusal(CompositionRefusal):
 
 class DependenceRefusal(CompositionRefusal):
     """Inputs that may not be combined: shared or unknown dependence, an undeclared
-    operation, an unlicensed route, draws that cannot be paired, or atoms that
+    operation, an unsupported route, draws that cannot be paired, or atoms that
     would be averaged without declared probabilities."""
 
 
@@ -210,7 +210,7 @@ class InputProvenance:
     """Who produced an input, as established by evidence and not by a label.
 
     ``trust`` is never above what the evidence supports: an artifact labelled
-    ``native_licensed`` without a matching native execution record is
+    ``native_supported`` without a matching native execution record is
     ``unverified`` here, and ``calibration`` is then ``exact_claim_unverified``
     (the ``exact`` claim is not used).
     """
@@ -1086,7 +1086,7 @@ class DependenceRoute:
     ``source_input`` must be one of the pair and an aligned joint law with the
     matching capability (``covariance`` needs the covariance capability,
     ``joint_law`` the sample capability); anything else refuses with
-    ``composition_boundary.dependence_route_not_licensed``.
+    ``composition_boundary.dependence_route_not_supported``.
     """
 
     kind: Literal["covariance", "joint_law"]
@@ -1185,7 +1185,7 @@ def check_composition(
     Bayesian borrowing allows a shared prior but refuses shared data and fitted
     models; causal transport and evidence reuse record shared evidence without
     assuming independence. Unknown dependence refuses every operation. A declared
-    covariance or joint-law route lifts a refusal only when it is licensed.
+    covariance or joint-law route lifts a refusal only when it is supported.
 
     ``operation=None`` refuses with ``composition_boundary.operation_not_declared``.
     Raises :class:`DependenceRefusal`.
@@ -1243,7 +1243,7 @@ def check_atom_combination(
     """Check that structural ``atoms`` may be combined as requested.
 
     Two or more atoms are alternative structures; averaging them
-    (``weighted_by_declared_probabilities``) is licensed only when every atom carries
+    (``weighted_by_declared_probabilities``) is supported only when every atom carries
     a declared probability and they sum to at most one, so conflicting atoms are
     never silently averaged and missing mass is retained.
     """

@@ -3,17 +3,15 @@
 
 Fails when
 
-  missing        an executing route (a licensed coordinate or an executing closed rule) has no
-                 obligation row
-  stale          a row differs from what the recipes, the license table and
+  missing        a supported route has no obligation row
+  stale          a row differs from what the recipes, the support table and
                  crates/antecedent/data/support_matrix.json now derive, names a route the
-                 matrix does not license, or the matrix and the source tables disagree
+                 matrix does not support, or the matrix and the source tables disagree
   unreachable    a row cites a test that does not resolve as an executing checked-execution
-                 test, a fixture that does not exist, or a calibration record that is not in
-                 parity/coverage_records.toml
-  recipe_only    a row is licensed without an explicit identification license, calibration
-                 license and uncertainty, claims a basis other than the explicit license, or
-                 an execution-only or closed route carries a license
+                 test, or a fixture that does not exist
+  recipe_only    a row is supported without an explicit identification evidence and
+                 uncertainty, claims a basis other than the explicit support, or is not a
+                 supported row at all (a route that is not supported has no obligation)
 
     python3 scripts/check_route_obligations.py
 """
@@ -44,41 +42,29 @@ def citations(row: dict) -> list[tuple[str, str]]:
 
 
 def identification_citation(row: dict) -> tuple[str, str] | None:
-    ident = str(row.get("identification_license") or "").split("|")
+    ident = str(row.get("identification_evidence") or "").split("|")
     return (ident[1], ident[2]) if len(ident) == 4 and ident[1] and ident[2] else None
 
 
 def recipe_only_problems(row: dict) -> list[str]:
     rid = row.get("id")
     problems = []
-    if row.get("kind") == "licensed":
-        if row.get("license_basis") != "explicit_license":
+    if row.get("kind") == "supported":
+        if row.get("support_basis") != "explicit_support":
             problems.append(
-                f"recipe_only: {rid} is licensed on basis {row.get('license_basis')!r}, not the explicit license"
+                f"recipe_only: {rid} is supported on basis {row.get('support_basis')!r}, not the explicit support"
             )
-        ident = str(row.get("identification_license") or "").split("|")
+        ident = str(row.get("identification_evidence") or "").split("|")
         if len(ident) != 4 or not all(ident[:3]):
             problems.append(
-                f"recipe_only: {rid} has no explicit identification license (evidence kind, test, assertion)"
-            )
-        if not row.get("calibration_license"):
-            problems.append(
-                f"recipe_only: {rid} has no explicit calibration license (records or reason)"
+                f"recipe_only: {rid} has no explicit identification evidence (evidence kind, test, assertion)"
             )
         if not row.get("uncertainty"):
             problems.append(f"recipe_only: {rid} states no uncertainty")
         if not row.get("compiler_execution"):
             problems.append(f"recipe_only: {rid} cites no compiler execution")
     else:
-        for name, none in (
-            ("license_basis", "none"),
-            ("identification_license", "none"),
-            ("calibration_license", "none"),
-        ):
-            if row.get(name) != none:
-                problems.append(
-                    f"recipe_only: {rid} executes unlicensed yet carries {name}={row.get(name)!r}"
-                )
+        problems.append(f"recipe_only: {rid} is not a supported row (kind {row.get('kind')!r})")
     return problems
 
 
@@ -89,15 +75,14 @@ def check(
     cite=None,
     fixture_exists=None,
     assertion_present=None,
-    coverage_ids: set[str] | None = None,
 ) -> list[str]:
     problems: list[str] = []
     matrix = sources["matrix"]
     problems += [
         f"stale: {p}"
         for p in gate.cross_check(
-            sources["licensed"],
-            matrix.get("licensed") or [],
+            sources["supported"],
+            matrix.get("supported") or [],
             sources["closed"],
             sources["na"],
             closed_snapshot=matrix.get("closed_rules") or [],
@@ -114,17 +99,17 @@ def check(
         seen[rid] = row
     for rid in expected:
         if rid not in seen:
-            problems.append(f"missing: no obligation row for executing route {rid}")
-    licensed_keys = {gate.coordinate(c) for c in matrix.get("licensed") or []}
+            problems.append(f"missing: no obligation row for supported route {rid}")
+    supported_keys = {gate.coordinate(c) for c in matrix.get("supported") or []}
     for rid, row in seen.items():
         want = expected.get(rid)
         if want is None:
             why = (
-                "the matrix does not license it"
-                if row.get("kind") == "licensed" and rid not in licensed_keys
-                else "no executing route derives it"
+                "the matrix does not support it"
+                if row.get("kind") == "supported" and rid not in supported_keys
+                else "no supported route derives it"
             )
-            problems.append(f"stale: row {rid} has no executing route ({why})")
+            problems.append(f"stale: row {rid} has no supported route ({why})")
             problems += recipe_only_problems(row)
             continue
         differing = [n for n in gen.fields_of(want) if row.get(n) != want[n]]
@@ -138,18 +123,11 @@ def check(
         if named is not None and assertion_present is not None:
             problems += [f"unreachable: {rid}: {p}" for p in assertion_present(*named)]
         reach = row.get("evidence_reachability") or []
-        ident = str(row.get("identification_license") or "").split("|")
+        ident = str(row.get("identification_evidence") or "").split("|")
         paths = list(reach) + ([ident[3]] if len(ident) == 4 and ident[3] else [])
         for path in paths:
             if fixture_exists is not None and not fixture_exists(path):
                 problems.append(f"unreachable: {rid} cites {path!r}, which does not exist")
-        cal = str(row.get("calibration_license") or "")
-        if cal.startswith("records:") and coverage_ids is not None:
-            for record in cal[len("records:") :].split(","):
-                if record not in coverage_ids:
-                    problems.append(
-                        f"unreachable: {rid} cites coverage record {record!r}, which is not recorded"
-                    )
     return problems
 
 
@@ -178,16 +156,12 @@ def run(root: Path = ROOT) -> list[str]:
     if not path.is_file():
         return [f"missing: {gen.OUTPUT} does not exist; run scripts/generate_route_obligations.py"]
     rows = tomllib.loads(path.read_text(encoding="utf-8")).get("obligation", [])
-    records = tomllib.loads(
-        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
-    ).get("record", [])
     problems = check(
         rows,
         gen.load_sources(root),
         cite=cite,
         fixture_exists=lambda rel: (root / rel).exists(),
         assertion_present=lambda rel, name: assertion_problems(root, rel, name),
-        coverage_ids={r["id"] for r in records},
     )
     if path.read_text(encoding="utf-8") != gen.render(gen.build(gen.load_sources(root))):
         problems.append(f"stale: {gen.OUTPUT} differs from its generator output")
@@ -201,7 +175,7 @@ def main() -> int:
         for p in problems[:200]:
             print(f"FAIL: {p}")
         return 1
-    print("route obligations match the recipes, the license table and the support matrix")
+    print("route obligations match the recipes, the support table and the support matrix")
     return 0
 
 

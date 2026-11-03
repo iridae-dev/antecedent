@@ -31,7 +31,7 @@
 //! independent Beta priors out (a Polya urn per cell) and yields the
 //! prior-predictive law, the one under which a posterior is checked.
 //!
-//! Exact finite-law arithmetic supplies no interval or calibration licence:
+//! Exact finite-law arithmetic supplies no interval or calibration support:
 //! the law is of the declared procedure under a hypothesized truth, nothing
 //! more.
 //!

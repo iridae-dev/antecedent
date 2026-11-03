@@ -409,7 +409,7 @@ enum BatchGraph {
 /// Shared-table batch of static average-effect queries.
 ///
 /// Binds data once. Prepared plans share one [`SharedBatchDesign`] (folds and,
-/// when licensed, the covariate matrix). Estimation still runs per-query plans
+/// when supported, the covariate matrix). Estimation still runs per-query plans
 /// in parallel chunks.
 #[derive(Clone, Debug)]
 pub struct BatchStudy {
@@ -733,7 +733,7 @@ impl BatchStudy {
     /// Compile discrete joint `InterventionResponse` cells into a reusable prepared batch.
     ///
     /// Defaults to [`EstimatorId::CellAipw`] when the batch has no estimator override.
-    /// Licensed on a DAG and on `CoDetermined` via joint ADMG adjustment on the
+    /// Supported on a DAG and on `CoDetermined` via joint ADMG adjustment on the
     /// known closure graph. Unknown has no single ADMG. Bare ADMG
     /// `InterventionResponse` already refuses.
     ///

@@ -1,10 +1,10 @@
 //! Builder-independent evidence for checked temporal graph-posterior responses
 //! over `TemporalDag`, `TemporalCpdag`, and `TemporalPag` atoms (mean curve and
-//! single-step intervention response, both inferences, all licensed suites).
+//! single-step intervention response, both inferences, all supported suites).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
@@ -358,7 +358,7 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     );
 
                     let result = prepared.estimate_series(&fixture.initial, &ctx).unwrap();
-                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert!(
                         result
                             .diagnostics

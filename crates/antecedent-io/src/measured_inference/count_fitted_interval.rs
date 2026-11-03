@@ -44,7 +44,7 @@ pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("{detail}: {message}"),
     }
 }

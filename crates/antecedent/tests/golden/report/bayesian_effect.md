@@ -10,16 +10,16 @@
 - **Route:** StaticAteDag
 - **Claim kind:** point
 - **Value:** 2.0322712926
-- **Support status:** licensed
+- **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
-- The route is a licensed support-matrix cell.
+- The route is a supported support-matrix cell.
 - Calibration status is unavailable: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** db1db2aeb921ef2277e420c4b90c38dfab2979589e28fbcfe3b0e005c72745db
+- **Claim id:** 32efec0310d3671901debcaa7e0a7431a3c3dcd5451d7f0b1684b9dd8690019b
 - **Kind:** point
 - **Value:** 2.0322712926
 - **Outcome units:** none
@@ -111,9 +111,9 @@
 - **Basis rows:** 512
 - **Basis successful replicates:** none
 
-## Support and licence
+## Support
 
-- **Support status:** licensed
+- **Support status:** supported
 - **Modality:** tabular
 - **Inference:** bayesian
 - **Query kind:** AverageEffect
@@ -124,20 +124,20 @@
 
 ### Support slot
 
-- **Matrix status:** licensed
+- **Matrix status:** supported
 - **Matrix coordinate:** AverageEffect:Dag:explicit:Bayesian:none
 - **Empirical support:** unavailable:not\_evaluated
 
 ### Support cell of the program
 
 - **Coordinate:** AverageEffect:Dag:explicit:Bayesian:none
-- **Licensed:** yes
-- **Status:** licensed
+- **Supported:** yes
+- **Status:** supported
 
 ## Refusals and limits
 
 - **Operation:** execute
-- **Applicability:** licensed
+- **Applicability:** supported
 - **Readiness:** executable
 - **Coordinate:** AverageEffect:Dag:explicit:Bayesian:none
 
@@ -158,7 +158,7 @@ The operation report records no blocker.
 - **Layers the premises preserve:** target, identification, program, support
 - **Layers the premises invalidate:** none
 
-This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.
+This report restates the contract. It computes no estimate, grants no support, and a status recorded here is the status the records carry.
 
 ## Program plan
 

@@ -14,7 +14,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("measured_interval.protocol_not_measured: {message}"),
     }
 }
@@ -64,7 +64,7 @@ impl SampledRecoveryArtifactWire {
         }
         let scope = serde_json::json!({
             "validation_design":"binary_confounded_missingness_scm",
-            "evidence_interpretation":"finite validation grid for the checked binary missingness construction; arbitrary missingness graphs and sampling laws are not licensed",
+            "evidence_interpretation":"finite validation grid for the checked binary missingness construction; arbitrary missingness graphs and sampling laws are not supported",
             "declared_model_assumptions":["independent observation rows","correct declared m-graph and recovery premises"],
             "sampling_assumptions_authenticated_from_rows":false,
             "rows":result.receipt.rows,"replicates":config.replicates,"method":"bootstrap_bca","level":result.interval.level,
@@ -153,7 +153,7 @@ impl TemporalIntervalArtifactWire {
         let data = crate::digest_hex(IdentityDomain::Claim, &wire.panel)?;
         let scope = serde_json::json!({
             "validation_design":"independent_units_shared_shock_fixed_target",
-            "evidence_interpretation":"finite validation grid for complete balanced binary histories; arbitrary serial histories and callbacks are not licensed",
+            "evidence_interpretation":"finite validation grid for complete balanced binary histories; arbitrary serial histories and callbacks are not supported",
             "declared_model_assumptions":["independent units","whole-unit history ownership","correct native two-step response model"],
             "sampling_assumptions_authenticated_from_rows":false,
             "units":result.units,"histories_per_unit":16,"target_law":[0.3,0.7],"sequence":[0,0],

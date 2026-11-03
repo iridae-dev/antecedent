@@ -40,7 +40,7 @@ record_sha256 = "806f2367ddd76c8bb5d022abeb7f304c03204e293a62c0873bcd63501a5cffa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/switchback_posterior.rs"
-sha256 = "e1a2a9a6f85bd138aecca4d7d6d48875b162e04abb186f66352a292642bbff4a"
+sha256 = "5b10b684c0977ac42c2665c1258060f771bb369f3531576faa20c120cb35ba98"
 
 [[method_review.artifacts]]
 role = "implementation"

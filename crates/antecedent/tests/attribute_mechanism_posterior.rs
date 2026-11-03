@@ -10,7 +10,7 @@
 //!   every source's variance share from Dirichlet-weighted refits, the families held at the
 //!   ones selected on the data.
 //! * The other fitted-model targets keep reporting the fitted model's answer and say so.
-//! * The posterior route is explicitly unlicensed: it carries no coverage record.
+//! * The posterior route is explicitly unsupported: it carries no coverage record.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, CompiledExecution, InferenceMode, RefuteSuite, Study};
@@ -215,7 +215,7 @@ fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
         );
         assert!(
             result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.frequentist_bootstrap"),
-            "the unlicensed bootstrap is disclosed"
+            "the unsupported bootstrap is disclosed"
         );
         // The posterior over the mechanisms and the bootstrap agree about the spread of the
         // total, up to the finite number of draws.

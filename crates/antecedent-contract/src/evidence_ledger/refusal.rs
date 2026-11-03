@@ -20,8 +20,8 @@ pub enum RefusalKind {
     SourceRetired,
     /// The request is malformed or inconsistent with the ledger.
     InvalidArgument,
-    /// The requested statement has no license (an interval, a posterior).
-    NotLicensed,
+    /// The requested statement has no support (an interval, a posterior).
+    NotSupported,
     /// A ledger bound was exceeded.
     LimitExceeded,
 }
@@ -35,7 +35,7 @@ pub struct LedgerError {
     pub code: &'static str,
     /// Namespaced detail, `evidence_ledger.<rule>`.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
     /// Sources the refusal names.
     pub sources: Vec<SourceId>,

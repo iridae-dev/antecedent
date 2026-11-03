@@ -332,11 +332,11 @@ fn a_wrongly_declared_invariance_is_flagged_by_the_target_fit() {
         Some("quantity_semantics_mismatch")
     );
 
-    // Declaring the arrow and refitting is the licensed route.
-    let mut licensed = request.clone();
-    licensed.diagram =
+    // Declaring the arrow and refitting is the supported route.
+    let mut supported = request.clone();
+    supported.diagram =
         diagram(&["demand", "orders", "buys", "spend", "basket", "noise_h", "price"]);
-    let model = transport_typed(&licensed).unwrap();
+    let model = transport_typed(&supported).unwrap();
     let price = model.dispositions().iter().find(|d| d.variable == "price").unwrap();
     assert_eq!(price.role, MechanismRole::NativeInTarget);
 }

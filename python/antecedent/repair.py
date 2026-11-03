@@ -1515,7 +1515,7 @@ class RepairResult:
     an impossibility claim) or ``exhausted`` (a budget stop with nothing
     certified; never a verdict). ``inference_claim`` is always ``none``: a
     repair says the contract would identify if the studies deliver exactly their
-    declared evidence, not that any estimate is licensed.
+    declared evidence, not that any estimate is supported.
     """
 
     __slots__ = ("_report", "_stage", "obligations", "ranked", "receipt", "table")

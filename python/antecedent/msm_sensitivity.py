@@ -23,8 +23,8 @@ Three things stay distinct and are never merged:
 * the **identified value** is the ``Lambda = 1`` stratified ATE (no unmeasured confounding);
 * the **sampling interval** is withheld (``sampling interval: not reported``): the strata are
   supplied as exact quantities, so nothing here is estimated, and composing a sampling
-  interval with the range refuses (``cell_not_licensed`` /
-  ``msm_sensitivity.composition_not_licensed``). Calibration is unmeasured.
+  interval with the range refuses (``not_supported`` /
+  ``msm_sensitivity.composition_not_supported``). Calibration is unmeasured.
 
 Rust owns the bounds, the bisection tipping point, the artifact and every refusal; this module
 builds declarations and raises each refusal as :class:`MsmSensitivityRefusal`, a
@@ -76,7 +76,7 @@ class MsmSensitivityRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.StructuredRefusal`: ``code`` (the registered reason code),
     ``detail``, ``offending`` and ``remedy`` are machine-readable. ``detail`` is the namespaced
-    ``msm_sensitivity.<slot>`` (``composition_not_licensed``, ``lambda_below_one``,
+    ``msm_sensitivity.<slot>`` (``composition_not_supported``, ``lambda_below_one``,
     ``lambda_range_empty``, ``positivity``, ``stratum_mass``, ``outcome_law``,
     ``invalid_threshold``, ``invalid_tolerance``, ``bounds_exceeded``) or, for the artifact, the
     engine's own ``sensitivity_decision_composition.<slot>``; ``message`` is the human-readable
@@ -564,9 +564,9 @@ def msm_ate_sensitivity(
     ``tolerance`` (``1e-12`` to ``1e-3``).
 
     ``sampling_composition`` requests composing a sampling interval with the assumption range
-    by a named method; no method is licensed, so any value refuses with
-    :class:`MsmSensitivityRefusal` (``cell_not_licensed`` /
-    ``msm_sensitivity.composition_not_licensed``). Other refusals: ``Lambda`` below one
+    by a named method; no method is supported, so any value refuses with
+    :class:`MsmSensitivityRefusal` (``not_supported`` /
+    ``msm_sensitivity.composition_not_supported``). Other refusals: ``Lambda`` below one
     (``lambda_below_one``) or not above one (``lambda_range_empty``), a propensity outside
     ``(0, 1)`` (``positivity``), masses that do not sum to one (``stratum_mass``), a malformed
     outcome law (``outcome_law``), or exceeded bounds (``bounds_exceeded``).
@@ -749,7 +749,7 @@ def from_analysis(
         interpretation="sharp bounds for the empirical distribution; population bounds estimated",
         uncertainty=MsmUncertainty(
             sampling_interval="sampling interval: not reported",
-            reason_code="cell_not_licensed",
+            reason_code="not_supported",
             detail="empirical plug-in bounds have unmeasured sampling uncertainty",
         ),
     )

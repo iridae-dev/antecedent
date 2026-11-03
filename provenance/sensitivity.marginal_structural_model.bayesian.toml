@@ -30,12 +30,12 @@ record_sha256 = "413d88e007854e030c49e463d9566a6f3c994d2fba7d048a2b956cc22b9747c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/msm_sensitivity.rs"
-sha256 = "6966211856296e8e2bfe367298cf6d08aab4ad705c26690046e0449dc32e6bbc"
+sha256 = "c49c84c50b4da61e7331956c61f7dc8df8141e19de6db890746db774cd9a689a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
@@ -45,4 +45,4 @@ sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/msm_sensitivity.rs"
-sha256 = "0932e1bed923de257d768c20ac20199871798a854a61e03b3b33d180abd83043"
+sha256 = "df80ebcdaa69339b5a15f4ad607e8f9ab55a4ab53eecadb28af292fb46635538"

@@ -14,7 +14,7 @@
 //! * an **identified bound** is a separate, optional bound from partial identification;
 //! * a **sampling interval** is a separate, optional interval for estimation noise.
 //!   Composition of a sampling interval with the assumption range is refused unless the
-//!   method appears in [`LICENSED_SAMPLING_COMPOSITIONS`] (empty: none is licensed).
+//!   method appears in [`SUPPORTED_SAMPLING_COMPOSITIONS`] (empty: none is supported).
 //!
 //! Layout of the bounded sectioned container:
 //!
@@ -104,9 +104,9 @@ impl Default for SensitivityLimits {
     }
 }
 
-/// Sampling-composition methods licensed for an assumption range. None is licensed, so a
+/// Sampling-composition methods supported for an assumption range. None is supported, so a
 /// sampling interval is always reported next to the range and never inside it.
-pub const LICENSED_SAMPLING_COMPOSITIONS: &[&str] = &[];
+pub const SUPPORTED_SAMPLING_COMPOSITIONS: &[&str] = &[];
 /// What the surface range means.
 pub const ASSUMPTION_RANGE_STATEMENT: &str = "assumption range over the declared coordinate set; not a probability, not a confidence interval and not a sampling interval";
 
@@ -136,10 +136,10 @@ fn unsupported_coordinate(text: &str) -> IoError {
     }
 }
 
-fn composition_not_licensed(text: &str) -> IoError {
+fn composition_not_supported(text: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("sensitivity_decision_composition.composition_not_licensed: {text}"),
+        code: antecedent_core::reason_code!("not_supported"),
+        message: format!("sensitivity_decision_composition.composition_not_supported: {text}"),
     }
 }
 
@@ -471,8 +471,8 @@ pub struct SamplingInterval {
     pub level: f64,
     /// Interval method.
     pub method: String,
-    /// Licensed composition method with the assumption range; refused unless listed in
-    /// [`LICENSED_SAMPLING_COMPOSITIONS`].
+    /// Supported composition method with the assumption range; refused unless listed in
+    /// [`SUPPORTED_SAMPLING_COMPOSITIONS`].
     pub composed: Option<String>,
     /// Lower endpoint at each grid point (stored in the numbers section).
     #[serde(skip)]
@@ -1082,9 +1082,9 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
                 return Err(invalid_surface("sampling interval is malformed"));
             }
             if let Some(method) = &interval.composed {
-                if !LICENSED_SAMPLING_COMPOSITIONS.contains(&method.as_str()) {
-                    return Err(composition_not_licensed(&format!(
-                        "composing a sampling interval with an assumption range by `{method}` is not licensed"
+                if !SUPPORTED_SAMPLING_COMPOSITIONS.contains(&method.as_str()) {
+                    return Err(composition_not_supported(&format!(
+                        "composing a sampling interval with an assumption range by `{method}` is not supported"
                     )));
                 }
             }
@@ -1345,8 +1345,8 @@ impl SensitivityArtifact {
     /// # Errors
     /// Bounds, malformed surfaces (`invalid_surface`), mixed estimands or unlike units
     /// (`wrong_contract`), a grid point outside the declared range
-    /// (`unsupported_coordinate`) and a sampling composition that is not licensed
-    /// (`composition_not_licensed`).
+    /// (`unsupported_coordinate`) and a sampling composition that is not supported
+    /// (`composition_not_supported`).
     pub fn new(parts: SensitivityParts) -> Result<Self, IoError> {
         Self::new_within(parts, &SensitivityLimits::default())
     }

@@ -5,7 +5,7 @@
 //! built-in validation suite.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
@@ -318,7 +318,7 @@ fn graph_posterior_conditional_effect_body() {
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 match &prepared.contract().unwrap().reasoning.support {
                     SlotAvailability::Available(slot) => {
                         assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));
@@ -341,7 +341,7 @@ fn graph_posterior_conditional_effect_body() {
 
                 let result = prepared.estimate(&fixture.base, &ctx).unwrap();
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(result.support_status().map(CellStatus::as_str), Some("licensed"));
+                assert_eq!(result.support_status().map(CellStatus::as_str), Some("supported"));
                 let mixture = result.structural_response.as_ref().expect("graph mixture");
                 assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
                 assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");

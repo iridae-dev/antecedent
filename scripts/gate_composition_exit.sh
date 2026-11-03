@@ -15,7 +15,7 @@
 #
 # Status per story: PASS / FAIL / PENDING_CALIBRATION. Story 3's "calibrated" and the multi-source interval
 # records are PENDING_CALIBRATION while the coverage records allocated to them in
-# parity/promotion.toml are absent from parity/coverage_records.toml, and PASS automatically
+# parity/capability_records.toml are absent from parity/coverage_records.toml, and PASS automatically
 # once they exist and the calibration attestation (scripts/calibration_facets.py) holds. Exit
 # status is nonzero on any FAIL; PENDING_CALIBRATION exits 0 unless --require-calibrated.
 set -euo pipefail

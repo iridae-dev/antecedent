@@ -31,8 +31,8 @@
 //!
 //! A ranking probability or interval is published only where a current coverage record
 //! measured it at the coordinate (candidate-set size, Monte Carlo budget, selection
-//! rule, coupling, serial dependence): [`calibration::license_route_at`] resolves the
-//! record. Every other request is refused with a typed `cell_not_licensed`. The
+//! rule, coupling, serial dependence): [`calibration::support_route_at`] resolves the
+//! record. Every other request is refused with a typed `not_supported`. The
 //! simulation design that measures the routes lives in [`calibration`] and
 //! [`coverage_design`].
 //!
@@ -60,11 +60,11 @@ pub use artifact::{
     MAX_DECISION_RELIABILITY_BYTES, consume,
 };
 pub use calibration::{
-    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, ClosedRoute, DEFAULT_LICENSE_LEVEL,
+    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, ClosedRoute, DEFAULT_SUPPORT_LEVEL,
     KnownOptimumDesign, NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome,
     banded_record_functional, calibration_basis, candidate_count_band, closed_routes,
-    license_route, license_route_at, record_functional, simulate_replicate,
-    simulate_selection_draws,
+    record_functional, simulate_replicate, simulate_selection_draws, support_route,
+    support_route_at,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{
@@ -136,7 +136,7 @@ pub enum ReliabilityError {
     },
     /// Candidates are compared by draw index without an aligned joint law.
     JointLawRequired {
-        /// Why the pairing is not licensed.
+        /// Why the pairing is not supported.
         reason: &'static str,
     },
     /// Dependence between candidates, draws or repeated evaluations is unknown.
@@ -147,7 +147,7 @@ pub enum ReliabilityError {
     /// One combined uncertainty number was requested.
     CombinedUncertainty,
     /// A published probability or interval route is closed pending measurement.
-    CellNotLicensed {
+    NotSupported {
         /// Route name.
         route: &'static str,
         /// Coordinate the route would be calibrated at.
@@ -345,9 +345,9 @@ impl ReliabilityError {
                  calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)",
             )
             .build(),
-            Self::CellNotLicensed { route, coordinate } => builder(
-                antecedent_core::reason_code!("cell_not_licensed"),
-                "decision_reliability.cell_not_licensed",
+            Self::NotSupported { route, coordinate } => builder(
+                antecedent_core::reason_code!("not_supported"),
+                "decision_reliability.not_supported",
             )
             .offending(format!("{route} at {coordinate}"))
             .remedy(

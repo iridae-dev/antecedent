@@ -154,14 +154,14 @@ fn caller_graph_and_tiered_background_conflict_in_either_order() {
 fn codetermined_average_effect_known_truth() {
     let data = codetermined_data(4_000, 19);
     let ctx = ExecutionContext::for_tests(19);
-    // The support matrix licenses `AverageEffect x CoDetermined x explicit x Frequentist`
+    // The support matrix supports `AverageEffect x CoDetermined x explicit x Frequentist`
     // with AIPW. `cell.aipw` is reserved for joint InterventionResponse queries;
     // scalar AverageEffect is refused by the builder.
     // `linear.adjustment.ate` was never evidenced for a CoDetermined tier closure, so a
-    // caller-selected `LinearAdjustmentAte` here is refused by the licensed-route/estimator
+    // caller-selected `LinearAdjustmentAte` here is refused by the supported-route/estimator
     // check even though the tier-closure identification itself succeeds
     // (NonparametricallyIdentified). That refusal is unrelated to this fix set; only the
-    // licensed estimator is exercised here.
+    // supported estimator is exercised here.
     for estimator in [EstimatorId::Aipw] {
         let builder = Study::tabular(data.clone())
             .tiered_background(codetermined_background(&data))
@@ -190,7 +190,7 @@ fn codetermined_average_effect_known_truth() {
         drop(builder);
         let click = prepared.estimate(&data, &ctx).unwrap();
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
             let est = &result.estimate();
             assert!(
@@ -251,7 +251,7 @@ fn unknown_scenarios_known_truth() {
     let fresh = study.clone().run(&ctx).unwrap();
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     for result in [&fresh, &click] {
-        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
         assert!(
             result.estimate().as_effect().unwrap().ate.is_nan(),

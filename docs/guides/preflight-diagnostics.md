@@ -83,7 +83,7 @@ Sites that populate the fields:
 
 | Site | Stage | Reasons | Numbers carried |
 | --- | --- | --- | --- |
-| Preflight (`design_rank_deficient`, `arm_not_populated`, `rank_drop_not_licensed`), derived treatment, rank-drop estimate | `preflight`, `rank_drop`, ... | the finding | rank, columns, implicated columns, arm rows |
+| Preflight (`design_rank_deficient`, `arm_not_populated`, `rank_drop_not_supported`), derived treatment, rank-drop estimate | `preflight`, `rank_drop`, ... | the finding | rank, columns, implicated columns, arm rows |
 | GLM refused by an estimation path (`GlmFit::require_ok`: propensity, GLM adjustment, cross-fitted AIPW folds) | `glm_fit` | `non_converged`, `separated`, `boundary_saturated` | iterations, nearest margin, rows within `1e-8` |
 | Rank-deficient design from the QR backend (the real AIPW refusal at rank 174 of 175) | `design_rank` | `rank_deficient` | numerical rank, design columns; subject and implicated columns from the facade (below) |
 | Cluster-robust variance with fewer than two clusters (GLM cluster and multiway sandwiches, influence-function cluster, multiway and panel SEs) | `cluster_variance` | `too_few_clusters` | clusters found, minimum |
@@ -140,7 +140,7 @@ adjustment set, and a canonical design identity (`adjustment=[a,c];dropped=[b];p
 A dropped column is a numerically exact linear function of the kept ones on this table, so
 it carries no information they do not.
 
-It refuses with `rank_drop_not_licensed` (nothing dropped) when the priority does not cover
+It refuses with `rank_drop_not_supported` (nothing dropped) when the priority does not cover
 the adjustment set, when a dependent column is a treatment, outcome or effect modifier the
 query needs, or when an adjustment column is an exact copy of a treatment or the outcome.
 
@@ -152,7 +152,7 @@ separate, explicit entry point below.
 
 `estimate_with_rank_drop(input, policy, estimator, ctx)` (Rust) and
 `antecedent.preflight.estimate_with_rank_drop(data, treatment=, outcome=, adjustment=,
-estimator=, priority=)` (Python) re-run a licensed estimator on the design with the plan's
+estimator=, priority=)` (Python) re-run a supported estimator on the design with the plan's
 dependent columns removed. It works on a declared binary-contrast design, the same input
 as `preflight_design`, because a rank-deficient table cannot be prepared (the cross-fitted
 AIPW fits its scores at prepare time, and a prepared handle with the original set keeps it).
@@ -162,17 +162,17 @@ the exact relation behind each, the declared priority, the original and reduced 
 sets and the design identity), the numerical `span_check` and the estimator's invariance
 label. It never drops silently and it refuses, with nothing estimated, when:
 
-- the plan refuses (`rank_drop_not_licensed`: the priority does not cover the set, a
+- the plan refuses (`rank_drop_not_supported`: the priority does not cover the set, a
   dependent column is a protected effect modifier, or an adjustment column is an exact
   copy of the treatment or outcome, a treatment alias that a drop would not resolve);
-- the independent span check fails (`rank_drop_not_licensed`, detail
+- the independent span check fails (`rank_drop_not_supported`, detail
   `rank_drop_estimate.span_not_preserved`): the retained `[1 | Z_kept]` must have full
   numerical rank equal to the original's, and every dropped column must lie in its span
   within the scan tolerance (ten times, for rounding);
 - the estimator is not one of the two below, or the design is not a binary contrast of one
   treatment (`route_not_supported`);
 - for cross-fitted AIPW, the diagnostic propensity fit on the reduced design separates,
-  saturates, fails or does not converge (`rank_drop_not_licensed`, detail
+  saturates, fails or does not converge (`rank_drop_not_supported`, detail
   `rank_drop_estimate.propensity_separates`).
 
 **Why a span-preserving drop cannot change the fitted nuisances.** A dropped column is an
@@ -188,7 +188,7 @@ declared design's, not a graph search's. (The estimator itself is run through th
 study path on the reduced table with a declared confounder graph over the retained columns;
 that graph only carries the retained set into the estimator.)
 
-Licensed estimators and their invariance label:
+Supported estimators and their invariance label:
 
 | Estimator | `projection_invariance` | Notes |
 | --- | --- | --- |
@@ -202,7 +202,7 @@ forced to zero and no standard error or interval is returned or requestable.
 Tests: the reduced estimate equals the estimate on a hand-built reduced design bit for bit,
 and a NumPy / normal-equations OLS to 1e-8; a different declared priority drops a different
 column and changes the design identity but not the estimate; a treatment alias, an
-unlicensed estimator, a joint cell, a separating propensity and a span violation each
+unsupported estimator, a joint cell, a separating propensity and a span violation each
 refuse.
 
 ## Cost counts and time estimates

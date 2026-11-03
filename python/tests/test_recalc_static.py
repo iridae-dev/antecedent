@@ -493,7 +493,7 @@ def test_static_retained_response_issues_native_authority_without_new_execution(
     )
     claim = program_claims.native_claim(response, program)
     assert claim.means == pytest.approx(first.means, abs=1e-12)
-    assert claim.trust.value == "native_licensed"
+    assert claim.trust.value == "native_supported"
     spec = external.response(
         response.program_identification, outcome_units="probability", dose_units="binary"
     )

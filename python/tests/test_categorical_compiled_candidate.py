@@ -1,4 +1,4 @@
-"""Compiler-owned categorical candidate: bounded shapes, replay, and licensing by record."""
+"""Compiler-owned categorical candidate: bounded shapes, replay, and support by record."""
 
 import pytest
 from antecedent.categorical_treatment import PreparedCategoricalPosteriorCandidate
@@ -23,14 +23,14 @@ def test_compiled_candidate_replays_source_and_refuses_without_a_covering_record
     prepared = PreparedCategoricalPosteriorCandidate(**_request())
     inspection = prepared.inspect()
     assert inspection["route"] == "CategoricalPosteriorCandidate"
-    assert inspection["licensed"] is False
-    # Licensing is a record lookup at measurement: with no covering record the route
+    assert inspection["supported"] is False
+    # Support is a record lookup at measurement: with no covering record the route
     # refuses, and once one exists the same call returns a calibrated result.
     for call in (prepared.interval, prepared.measured_interval):
         try:
             call()
         except CausalUnsupportedError as refused:
-            assert refused.reason_code == "cell_not_licensed"
+            assert refused.reason_code == "not_supported"
     artifact = prepared.export_source()
     del prepared
     replayed = PreparedCategoricalPosteriorCandidate.consume_source(

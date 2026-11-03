@@ -173,7 +173,7 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
                 [(true, RefuteSuite::None), (false, RefuteSuite::Cheap), (false, RefuteSuite::Full)]
             {
                 let (_, other) =
-                    run(data.clone(), accepted, suite, rep).expect("licensed coordinate");
+                    run(data.clone(), accepted, suite, rep).expect("supported coordinate");
                 assert_eq!(pair(&other), intervals, "accepted={accepted} {suite:?}");
             }
         }
@@ -333,7 +333,7 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
                 "the construction under test is parent adjustment"
             );
             assert!(intervals[0].is_some(), "the circular-block interval must be published");
-            let (_, accepted) = run_pulse(data, true, rep).expect("licensed coordinate");
+            let (_, accepted) = run_pulse(data, true, rep).expect("supported coordinate");
             assert_eq!(interval_pair(&accepted), intervals, "accepted structure");
         }
         Some((study, result, intervals))

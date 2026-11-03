@@ -16,7 +16,7 @@ weighting identity carry propensity uncertainty alone. Asking for a Bayesian
 answer that effect (the Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score,
 or the Bayesian g-computation posterior of an outcome model).
 
-The product is unlicensed and its calibration is unmeasured. Its artifact embeds the design it was
+The product is unsupported and its calibration is unmeasured. Its artifact embeds the design it was
 fitted on; :func:`load_artifact` refits from it and refuses any edited, swapped or resealed one.
 """
 
@@ -284,8 +284,8 @@ class NuisanceScoreProduct:
         return str(self._metadata["uncertainty"])
 
     @property
-    def licensing(self) -> str:
-        return str(self._metadata["licensing"])
+    def support(self) -> str:
+        return str(self._metadata["support"])
 
     @property
     def calibration(self) -> str:
@@ -345,9 +345,9 @@ class NuisanceScoreProduct:
             ),
             support=SlotModel(
                 available=False,
-                reason=self.licensing,
-                summary=self.licensing,
-                payload={"licensing": self.licensing, "calibration": self.calibration},
+                reason=self.support,
+                summary=self.support,
+                payload={"support": self.support, "calibration": self.calibration},
             ),
             uncertainty=SlotModel(
                 available=posterior,
@@ -382,7 +382,7 @@ class NuisanceScoreProduct:
                 "estimator_id": self.estimator_id,
                 "target": self.target,
                 "uncertainty": self.uncertainty,
-                "licensing": self.licensing,
+                "support": self.support,
                 "calibration": self.calibration,
                 "values": dict(self.values.items()),
                 "assumptions": self.assumptions,
@@ -402,8 +402,8 @@ class NuisanceScoreProduct:
         return self.inspect()._repr_html_()
 
     @property
-    def licensed(self) -> bool:
-        """Always ``False``: no support license covers this product."""
+    def supported(self) -> bool:
+        """Always ``False``: no support covers this product."""
         return False
 
     @property
@@ -431,7 +431,7 @@ class NuisanceScoreProduct:
     def explain(self) -> str:
         """What the product is, and what it is not."""
         return (
-            f"{self.estimator_id}: {self.target}, {self.uncertainty}; {self.licensing}, "
+            f"{self.estimator_id}: {self.target}, {self.uncertainty}; {self.support}, "
             f"calibration {self.calibration}. A posterior of a nuisance, not of an effect."
         )
 

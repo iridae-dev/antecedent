@@ -1,6 +1,6 @@
 //! Two-step horizon through the scientific target and an independent consumer.
 //!
-//! The licensed horizon is two. The target law is the observational marginal of
+//! The supported horizon is two. The target law is the observational marginal of
 //! the history-indexed experiments. Unit histories and source experiments do not
 //! supply it. The numerical check is the fixture's enumerated structural risk.
 //!
@@ -117,7 +117,7 @@ fn refusal(error: &IoError) -> String {
 }
 
 #[test]
-fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
+fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
     let spec = spec();
     assert_eq!(spec.horizon(), 2);
     let coordinates = experiment_coordinates(&spec);
@@ -190,10 +190,10 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
     let horizon = refusal(&horizon);
     assert!(horizon.contains("temporal_transport.horizon"), "{horizon}");
 
-    let licensed = scientific_target(2, Some(declared_law(&data)));
-    assert_eq!(licensed.shared_temporal_horizon(), Some(2));
+    let supported = scientific_target(2, Some(declared_law(&data)));
+    assert_eq!(supported.shared_temporal_horizon(), Some(2));
     let sequence = sequence(0.0, 1.0);
-    let prepared = prepare(data, &licensed, &sequence).unwrap();
+    let prepared = prepare(data, &supported, &sequence).unwrap();
     let report = prepared.estimate(&ctx()).unwrap();
     assert_eq!(report.horizon, 2);
     assert_eq!(report.inference_claim, TEMPORAL_INFERENCE_CLAIM);

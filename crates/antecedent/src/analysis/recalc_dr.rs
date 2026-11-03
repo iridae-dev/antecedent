@@ -28,7 +28,7 @@ use antecedent_learn::LearnerSpec;
 use antecedent_learn::fit_counts::count_resolved_fits;
 use std::sync::Arc;
 
-/// Existing estimator configuration. PLR and trimmed score reuse are explicitly unlicensed.
+/// Existing estimator configuration. PLR and trimmed score reuse are explicitly unsupported.
 #[derive(Clone, Debug)]
 pub enum DrEstimator {
     /// DML AIPW marginal score contract.
@@ -292,11 +292,11 @@ impl DrSession {
             &self.previous,
             ids,
             &RecalcCapabilities {
-                retarget: RetargetSupport::Licensed,
+                retarget: RetargetSupport::Supported,
                 request: if request.estimator.supported() {
                     RequestSupport::OnGrid
                 } else {
-                    RequestSupport::Unsupported { licensed_route: None }
+                    RequestSupport::Unsupported { supported_route: None }
                 },
                 boundary: self.boundary,
             },
@@ -340,7 +340,7 @@ impl DrSession {
             self.score_table().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?,
             &self.previous,
             self.input_rows,
-            RetargetSupport::Licensed,
+            RetargetSupport::Supported,
         )
     }
     /// Export the original fitted response and predictor through the existing result codec.

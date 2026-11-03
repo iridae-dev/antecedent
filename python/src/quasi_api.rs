@@ -30,7 +30,7 @@ pub struct PanelDidSection {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless two-period DiD support license, when matched.
+    /// Exact graphless two-period DiD support, when matched.
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
     pub event_time_effects: Vec<EventTimeEffect>,
@@ -277,7 +277,7 @@ impl From<&antecedent_estimate::rollout_resampling::DesignEffect> for DesignEffe
     }
 }
 
-/// Unlicensed rollout, conformal or multi-unit synthetic-panel, or optioned local-ratio result.
+/// Unsupported rollout, conformal or multi-unit synthetic-panel, or optioned local-ratio result.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct QuasiRolloutSection {
@@ -295,7 +295,7 @@ pub struct QuasiRolloutSection {
     pub critical_value: Option<f64>,
     pub diagnostics: Vec<(String, f64)>,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 impl From<&antecedent::QuasiRolloutEstimate> for QuasiRolloutSection {
@@ -315,7 +315,7 @@ impl From<&antecedent::QuasiRolloutEstimate> for QuasiRolloutSection {
                 .iter()
                 .map(|(name, statistic)| (name.to_string(), *statistic))
                 .collect(),
-            licensed: value.licensed,
+            supported: value.supported,
         }
     }
 }

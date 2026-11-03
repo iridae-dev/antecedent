@@ -1,8 +1,8 @@
 //! The Bayesian refuter state of a static DAG intervention level.
 //!
 //! Bayesian `InterventionResponse` cheap and full on an explicit, accepted or
-//! graph-posterior DAG execute and stay unlicensed: the support status is
-//! `refused`, the refutations carry the plugin-level suite on the posterior-mean
+//! graph-posterior DAG execute and stay unsupported: the support status is
+//! `not_supported`, the refutations carry the plugin-level suite on the posterior-mean
 //! level, both predictive checks, and under full a prior-sensitivity report whose
 //! grid values are refitted posterior-mean levels (not a dose coefficient).
 //!
@@ -161,7 +161,7 @@ fn has_refuter(result: &StudyResult, prefix: &str) -> bool {
 }
 
 #[test]
-fn bayesian_level_cheap_and_full_execute_licensed_on_every_dag_structure() {
+fn bayesian_level_cheap_and_full_execute_supported_on_every_dag_structure() {
     let (table, mean_z) = data(41);
     let truth = 3.0 + 1.5 * mean_z;
     for structure in [Structure::Explicit, Structure::Accepted, Structure::GraphPosterior] {
@@ -170,7 +170,7 @@ fn bayesian_level_cheap_and_full_execute_licensed_on_every_dag_structure() {
             let result =
                 study(table.clone(), structure, Some(suite)).run(&ExecutionContext::for_tests(5));
             let result = result.unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             let level = published_level(&result);
             assert!((level - truth).abs() < 0.03, "{label}: level {level} vs truth {truth}");
             assert!(has_refuter(&result, "overlap"), "{label}: plugin-level overlap runs");
@@ -205,14 +205,14 @@ fn bayesian_level_cheap_and_full_execute_licensed_on_every_dag_structure() {
 }
 
 #[test]
-fn the_default_suite_is_the_licensed_cheap_state() {
-    // The Bayesian level's cheap state is licensed, so the default suite is no longer
+fn the_default_suite_is_the_supported_cheap_state() {
+    // The Bayesian level's cheap state is supported, so the default suite is no longer
     // downgraded to validation none: it runs the cheap state.
     let (table, _) = data(43);
     for structure in [Structure::Explicit, Structure::GraphPosterior] {
         let result = study(table.clone(), structure, None).run(&ExecutionContext::for_tests(6));
         let result = result.unwrap();
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{structure:?}");
+        assert_eq!(result.support_status(), Some(CellStatus::Supported), "{structure:?}");
         assert!(has_refuter(&result, "overlap"), "{structure:?}");
         if matches!(structure, Structure::Explicit) {
             assert_eq!(result.predictive_checks.len(), 2, "{structure:?}");
@@ -246,7 +246,7 @@ fn the_bayesian_state_does_not_depend_on_the_thread_count() {
 }
 
 #[test]
-fn derivative_refuter_state_is_licensed_and_checks_the_finite_difference() {
+fn derivative_refuter_state_is_supported_and_checks_the_finite_difference() {
     let table = continuous_data(53);
     let derivative = ResponseQuery::new(ResponseFunctional::AverageDerivative {
         outcome: VariableId::from_raw(1),
@@ -268,7 +268,7 @@ fn derivative_refuter_state_is_licensed_and_checks_the_finite_difference() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(9))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
         assert!(has_refuter(&result, "derivative.support"), "{label}");
         let fd = result
             .refutations

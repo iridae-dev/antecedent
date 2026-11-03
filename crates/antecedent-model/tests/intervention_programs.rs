@@ -1,5 +1,5 @@
 //! Programmable interventions: value expressions compiled into overlays and executed by
-//! the shared column kernel, with dependency validation and per-route licensing.
+//! the shared column kernel, with dependency validation and per-route support.
 #![allow(
     clippy::float_cmp,
     reason = "the kernel is bit-identical to the interpreter and to hand arithmetic, so equality is exact"
@@ -552,23 +552,23 @@ fn non_finite_results_and_cancellation_stop_the_run_without_draws() {
 }
 
 #[test]
-fn each_route_is_licensed_separately() {
+fn each_route_is_supported_separately() {
     let (model, _) = pricing_chain();
     let floor = Intervention::transform(
         var(0),
         ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
     );
     let support = policy_support(&model, std::slice::from_ref(&floor));
-    assert!(support.decision(PolicyRoute::Simulation).is_licensed());
-    assert!(support.decision(PolicyRoute::CounterfactualExecution).is_licensed());
+    assert!(support.decision(PolicyRoute::Simulation).is_supported());
+    assert!(support.decision(PolicyRoute::CounterfactualExecution).is_supported());
     let identification = support.decision(PolicyRoute::ObservationalIdentification);
     match identification {
         antecedent_model::RouteDecision::Refused { code, detail, .. } => {
-            assert_eq!(code, reason_code!("policy_route_not_licensed"));
+            assert_eq!(code, reason_code!("policy_route_not_supported"));
             assert_eq!(detail, "intervention_program.identification_requires_hard_level");
         }
-        other @ (antecedent_model::RouteDecision::Licensed
-        | antecedent_model::RouteDecision::LicensedUnder { .. }) => {
+        other @ (antecedent_model::RouteDecision::Supported
+        | antecedent_model::RouteDecision::SupportedUnder { .. }) => {
             panic!("a transform has no observational identification, got {other:?}")
         }
     }
@@ -577,25 +577,25 @@ fn each_route_is_licensed_separately() {
     };
     assert!(
         message.contains("observational identification") && message.contains("simulate"),
-        "the refusal names the route and the licensed ones: {message}"
+        "the refusal names the route and the supported ones: {message}"
     );
 
     // A computed assignment that folds to a constant is a hard level on every route.
     let level =
         Intervention::assign(var(0), ValueExpr::constant(2.0).mul(ValueExpr::constant(6.0)));
     let support = policy_support(&model, &[level]);
-    assert!(support.simulation.is_licensed() && support.counterfactual.is_licensed());
-    assert!(support.identification.is_licensed());
+    assert!(support.simulation.is_supported() && support.counterfactual.is_supported());
+    assert!(support.identification.is_supported());
     // An assignment that reads another variable is a function, not a level.
     let function = Intervention::assign(var(1), ValueExpr::var(var(0)));
-    assert!(!policy_support(&model, &[function]).identification.is_licensed());
+    assert!(!policy_support(&model, &[function]).identification.is_supported());
     assert!(
         policy_support(&model, &[Intervention::set(var(0), Value::f64(1.0))])
             .identification
-            .is_licensed()
+            .is_supported()
     );
 
-    // An invalid program is licensed on no route, with the same coded reason.
+    // An invalid program is supported on no route, with the same coded reason.
     let flat = model_with_vacant_treatment();
     let bad = [
         Intervention::assign(var(0), ValueExpr::var(var(1))),
@@ -611,8 +611,8 @@ fn each_route_is_licensed_separately() {
             antecedent_model::RouteDecision::Refused { code, .. } => {
                 assert_eq!(code, reason_code!("policy_dependency_circular"));
             }
-            other @ (antecedent_model::RouteDecision::Licensed
-            | antecedent_model::RouteDecision::LicensedUnder { .. }) => {
+            other @ (antecedent_model::RouteDecision::Supported
+            | antecedent_model::RouteDecision::SupportedUnder { .. }) => {
                 panic!("{route:?}: {other:?}")
             }
         }
@@ -1056,16 +1056,16 @@ fn callback_outputs_are_validated_and_failures_keep_their_message() {
 }
 
 #[test]
-fn a_callback_is_licensed_for_simulation_and_conditionally_for_counterfactuals() {
+fn a_callback_is_supported_for_simulation_and_conditionally_for_counterfactuals() {
     let (model, _) = pricing_chain();
     let floor = runtime("floor", 1, price_floor);
     let policy =
         Intervention::transform(var(0), ValueExpr::callback(floor, [ValueExpr::generated()]));
     let support = policy_support(&model, std::slice::from_ref(&policy));
-    assert!(support.simulation.is_licensed());
+    assert!(support.simulation.is_supported());
     assert!(support.simulation.assumption().is_none());
-    assert!(support.counterfactual.is_licensed());
-    let assumption = support.counterfactual.assumption().expect("a conditional licence");
+    assert!(support.counterfactual.is_supported());
+    let assumption = support.counterfactual.assumption().expect("a conditional support");
     assert!(
         assumption.contains("floor") && assumption.contains("declared inputs alone"),
         "{assumption}"
@@ -1073,7 +1073,7 @@ fn a_callback_is_licensed_for_simulation_and_conditionally_for_counterfactuals()
     let antecedent_model::RouteDecision::Refused { code, .. } = &support.identification else {
         panic!("a callback has no observational identification");
     };
-    assert_eq!(code, reason_code!("policy_route_not_licensed"));
+    assert_eq!(code, reason_code!("policy_route_not_supported"));
 }
 
 #[test]

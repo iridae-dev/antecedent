@@ -156,7 +156,7 @@ fn line_table(pin: &serde_json::Value) -> TabularData {
     TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap()
 }
 
-/// A coordinate of the matrix this file licenses: a graph class, its data, query and truth.
+/// A coordinate of the matrix this file supports: a graph class, its data, query and truth.
 struct Case {
     class: &'static str,
     query_name: &'static str,
@@ -286,9 +286,9 @@ fn class_cross_world_effects_match_the_exact_functionals_of_the_count_tables() {
                 );
                 let (b, _) = (case.build)(accepted, bayesian, RefuteSuite::None);
                 let study = b.build().unwrap_or_else(|e| panic!("{label}: {e}"));
-                assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(study.support_status(), Some(CellStatus::Supported), "{label}");
                 let result = study.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 let effect = result.effect();
                 assert!(
                     (effect - case.truth).abs() <= tolerance(&case, bayesian),
@@ -380,7 +380,7 @@ fn class_cross_world_effects_execute_from_the_retained_plan_without_the_builder(
                 };
                 assert_eq!(estimator.as_deref(), Some(expected), "{label}");
                 let result = prepared.estimate(&data, &ctx).unwrap();
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 assert!(
                     (result.effect() - case.truth).abs() <= tolerance(&case, bayesian),
                     "{label}: {}",
@@ -425,9 +425,9 @@ fn class_cross_world_cheap_and_full_validation_refutes_the_exact_functionals() {
                     );
                     let (b, _) = (case.build)(accepted, bayesian, suite);
                     let study = b.build().unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(study.support_status(), Some(CellStatus::Supported), "{label}");
                     let result = study.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert!(
                         (result.effect() - case.truth).abs() <= tolerance(&case, bayesian),
                         "{label}: {}",
@@ -587,7 +587,7 @@ fn class_cross_world_validation_executes_from_the_retained_plan_without_the_buil
                     assert_eq!(estimator.as_deref(), Some(expected), "{label}");
                     let result =
                         prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert!(
                         (result.effect() - case.truth).abs() <= tolerance(&case, bayesian),
                         "{label}"
@@ -611,7 +611,7 @@ fn a_counterfactual_on_a_pag_is_refused_under_cheap_and_full_validation() {
                     .map(|c| (c.build)(accepted, bayesian, suite))
                     .unwrap();
                 let error = b.build().unwrap_err().to_string();
-                assert!(error.starts_with("refused:"), "{error}");
+                assert!(error.starts_with("not_supported:"), "{error}");
                 assert!(error.contains("placebo treatment permutes the treatment"), "{error}");
             }
         }

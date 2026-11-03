@@ -31,7 +31,7 @@ const SECTION: &str = "external_cyclic_equilibrium_v1";
 pub const MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 /// Optional model-fitting stage; rows are independent equilibrium replicates under known
-/// hard-clamp regimes. Not a time-series licence.
+/// hard-clamp regimes. Not a time-series support.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExternalFitRequest {

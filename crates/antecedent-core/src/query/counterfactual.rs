@@ -289,7 +289,7 @@ mod target_binding_tests {
     }
 
     #[test]
-    fn missing_or_ambiguous_default_target_is_not_licensed() {
+    fn missing_or_ambiguous_default_target_is_not_supported() {
         let outcome = VariableId::from_raw(2);
         let empty = CounterfactualQuery::new(outcome, Vec::<Intervention>::new());
         assert!(matches!(empty.validate(), Err(QueryError::AmbiguousInterventionTarget)));

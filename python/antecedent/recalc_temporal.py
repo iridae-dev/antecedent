@@ -609,7 +609,7 @@ class CheckedTemporalIntervalCandidate:
 
             raise RecalcRefusal(
                 {
-                    "code": "cell_not_licensed",
+                    "code": "not_supported",
                     "detail": "temporal_interval.route_frozen",
                     "stage": "inference",
                     "message": "checked temporal interval calibration is unmeasured",

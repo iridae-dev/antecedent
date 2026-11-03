@@ -222,7 +222,7 @@ fn evidence_with_context(
         other => return Err(crate::value_err(format!("unknown dependence kind `{other}`"))),
     };
     let design = object(member(map, "design")?, "design")?;
-    let licenses = match present(map, "marginal_licenses") {
+    let supports = match present(map, "marginal_supports") {
         Some(Json::Array(items)) => {
             items.iter().map(|v| v.as_str().map(str::to_owned)).collect::<Vec<_>>()
         }
@@ -408,8 +408,8 @@ fn evidence_with_context(
     };
     value.design_contract_id = design_contract_id;
     value.design_details = decoded_details;
-    if !licenses.is_empty() {
-        value = value.with_marginal_licenses(licenses);
+    if !supports.is_empty() {
+        value = value.with_marginal_supports(supports);
     }
     let owner = if matches!(
         value.design.assignment_design.as_str(),
@@ -792,7 +792,7 @@ fn derived_json(r: &DerivedResult) -> Json {
             Standing::AssumptionDependent => "assumption_dependent",
             Standing::Unresolved => "unresolved",
         },
-        "license": r.license,
+        "support": r.support,
         "calibration": r.calibration,
         "interval_statement": r.interval_statement,
         "separation": r.separation,

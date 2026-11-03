@@ -328,8 +328,8 @@ impl CheckedRandomizedOperation {
             exact_test,
             uncertainty,
         ));
-        if self.graphless_license(&result, method, small_arm.is_some()).is_some() {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if self.graphless_support(&result, method, small_arm.is_some()).is_some() {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.rebind_interval(false);
         result.treatment = None;
@@ -501,10 +501,10 @@ impl CheckedRandomizedOperation {
         }
     }
 
-    /// Graphless licenses are exact design/method/inference claims. A
+    /// Graphless supports are exact design/method/inference claims. A
     /// published interval alone is insufficient: sparse or other designs
     /// must not inherit a geometric matrix coordinate by analogy.
-    fn graphless_license(
+    fn graphless_support(
         &self,
         result: &StudyResult,
         method: RandomizedMethod,
@@ -572,7 +572,7 @@ impl CheckedRandomizedOperation {
         } else {
             fit.interval_95.is_some()
         };
-        crate::support::license_if_graphless(
+        crate::support::support_if_graphless(
             crate::support::GraphlessSupportKey {
                 family,
                 design,
@@ -583,7 +583,7 @@ impl CheckedRandomizedOperation {
                 assignment_unit,
                 treated: fit.treatment_units,
                 control: fit.control_units,
-                // The small-arm interval is a separate construction that no licence row names.
+                // The small-arm interval is a separate construction that no support row names.
                 interval_95_published: fit.interval_95.is_some() && !small_arm,
                 rows: self.rows,
                 blocks: block_counts.len(),
@@ -830,17 +830,17 @@ impl CheckedPolicyValueOperation {
             evaluation.independent_policy_rows,
         );
         if let Some(config) = self.extra.as_ref() {
-            // The posterior route reports no interval and holds no support license.
+            // The posterior route reports no interval and holds no support.
             let posterior = self.bayesian_policy_posterior(y, config, ctx)?;
             let mut evaluation = evaluation;
             evaluation.intervals = None;
             let mut result = self.policy_value_result(data, evaluation, Some(posterior));
             result.support_status = None;
-            result.diagnostics.push(bayesian_policy::unlicensed_diagnostic());
+            result.diagnostics.push(bayesian_policy::unsupported_diagnostic());
             return Ok(result);
         }
         let mut result = self.policy_value_result(data, evaluation, None);
-        self.license_policy_value(&mut result, y.len(), counts);
+        self.support_policy_value(&mut result, y.len(), counts);
         Ok(result)
     }
 
@@ -1107,8 +1107,8 @@ impl CheckedPolicyValueOperation {
         }
     }
 
-    /// Licenses the graphless cell when the observed assignment support clears its gates.
-    fn license_policy_value(
+    /// Supports the graphless cell when the observed assignment support clears its gates.
+    fn support_policy_value(
         &self,
         result: &mut StudyResult,
         rows: usize,
@@ -1190,7 +1190,7 @@ impl CheckedPolicyValueOperation {
                     .all(|id| !self.query.evaluation_subject_ids.contains(id)),
             ..Default::default()
         };
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             crate::support::GraphlessSupportKey {
                 family: "policy_value",
                 design,
@@ -1201,7 +1201,7 @@ impl CheckedPolicyValueOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
     }
 }

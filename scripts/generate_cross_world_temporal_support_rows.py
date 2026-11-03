@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the licensed rows of the temporal cross-world effects (counterfactual, interventional
+"""Generate the supported rows of the temporal cross-world effects (counterfactual, interventional
 distribution, nested natural direct effect, path-specific effect) on a TemporalDag, TemporalCpdag and
 TemporalPag, supplied, accepted or as a graph posterior.
 
 The rows are a deterministic function of the table below. They live between two marker lines of
-parity/support_licensed.toml; `--check` fails when the file differs from the generated block and
-`--write` replaces (or appends) the block. `--routes` prints the matching licensed_routes entries.
+parity/support_cells.toml; `--check` fails when the file differs from the generated block and
+`--write` replaces (or appends) the block. `--routes` prints the matching supported_routes entries.
 
     python3 scripts/generate_cross_world_temporal_support_rows.py --check
     python3 scripts/generate_cross_world_temporal_support_rows.py --write
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# BEGIN generated rows: scripts/generate_cross_world_temporal_support_rows.py"
 END = "# END generated rows: scripts/generate_cross_world_temporal_support_rows.py"
 
@@ -150,7 +150,7 @@ def main(argv: list[str]) -> int:
     if argv[0] == "--routes":
         print(route_entries(), end="")
         return 0
-    text = LICENSED.read_text(encoding="utf-8")
+    text = SUPPORTED.read_text(encoding="utf-8")
     if BEGIN in text and END in text:
         head, rest = text.split(BEGIN, 1)
         _, tail = rest.split(END, 1)
@@ -159,11 +159,11 @@ def main(argv: list[str]) -> int:
         new = text.rstrip("\n") + "\n\n" + block()
     if argv[0] == "--check":
         if new != text:
-            print("parity/support_licensed.toml differs from the generated temporal cross-world rows")
+            print("parity/support_cells.toml differs from the generated temporal cross-world rows")
             return 1
         print("ok")
         return 0
-    LICENSED.write_text(new, encoding="utf-8")
+    SUPPORTED.write_text(new, encoding="utf-8")
     print(f"wrote {len(rows())} rows")
     return 0
 

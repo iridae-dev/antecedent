@@ -1,4 +1,4 @@
-//! A narrowly licensed natural direct effect query.
+//! A narrowly supported natural direct effect query.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,7 +12,7 @@ use crate::value::Value;
 
 /// Natural direct effect `E[Y(1, M(0)) - Y(0, M(0))]` for one mediator.
 ///
-/// Execution licenses the fixed Markovian DAG `X -> M`, `X -> Y`, `M -> Y`
+/// Execution supports the fixed Markovian DAG `X -> M`, `X -> Y`, `M -> Y`
 /// with linear Gaussian mechanisms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NestedCounterfactualQuery {

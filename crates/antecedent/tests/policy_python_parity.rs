@@ -219,7 +219,7 @@ fn a_discrete_parent_policy_has_portable_rust_python_bits() {
 }
 
 #[test]
-fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence() {
+fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_support() {
     let (fitted, _) = fitted_price_model(0.0);
     let ctx = ExecutionContext::for_tests(21);
     let n = 2_000;
@@ -257,12 +257,12 @@ fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licen
     assert!(on_demand.difference_simulation_stderr < unpaired);
 
     // A hard level is identifiable; a transform of the generated value is simulation-only.
-    assert!(on_price.support.identification.is_licensed());
+    assert!(on_price.support.identification.is_supported());
     let floor = policy_value(&fitted.model, &[price_floor()], price, n, &ctx).unwrap();
-    assert!(floor.support.simulation.is_licensed() && floor.support.counterfactual.is_licensed());
+    assert!(floor.support.simulation.is_supported() && floor.support.counterfactual.is_supported());
     match &floor.support.identification {
         antecedent::gcm::RouteDecision::Refused { code, .. } => {
-            assert_eq!(code, "policy_route_not_licensed");
+            assert_eq!(code, "policy_route_not_supported");
         }
         other => panic!("expected a refusal, got {other:?}"),
     }
@@ -288,8 +288,8 @@ fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_aga
 
     let prepared = PreparedPolicy::prepare(&fitted.model, vec![floor.clone()]).unwrap();
     assert_eq!((prepared.program_compilations(), prepared.model_bindings()), (1, 1));
-    assert!(prepared.support().simulation.is_licensed());
-    assert!(!prepared.support().identification.is_licensed());
+    assert!(prepared.support().simulation.is_supported());
+    assert!(!prepared.support().identification.is_supported());
 
     // Each rerun, at any seed and outcome, is the one-shot call to the last bit, and compiles
     // nothing.
@@ -305,7 +305,7 @@ fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_aga
     }
     assert_eq!(prepared.program_compilations(), 1);
 
-    // A refit model rebinds the program: the licence and overlay are resolved against it, the
+    // A refit model rebinds the program: the support and overlay are resolved against it, the
     // program is not compiled again, and the value equals the one-shot value on that model.
     let (refit, _) = fitted_price_model(0.5);
     let rebound = prepared.rebind(&refit.model).unwrap();

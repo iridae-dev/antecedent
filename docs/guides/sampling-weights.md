@@ -112,7 +112,7 @@ as the independent primary sampling units.
 
 **Intervals.** Weighted and unweighted constructions have separate calibration
 keys. A sampling-weight declaration or raw standard error does not carry an
-interval license by itself. The exact estimator, population target, variance,
+interval support by itself. The exact estimator, population target, variance,
 dependence, reference distribution and functional must match a current record.
 
 The published scalar endpoint uses its reported analytic reference: normal
@@ -127,7 +127,7 @@ Rust exposes separate interval producers:
   population weights and independent homoskedastic Gaussian arm-linear outcomes,
   with conditional outcome-noise and random-target uncertainty in the population
   score. `population_score_interval` has a separately measured cluster scope;
-  that evidence does not license its unmeasured iid working-quadratic variant.
+  that evidence does not support its unmeasured iid working-quadratic variant.
 - `AipwAte`, `DmlAte` and `DrLearner::population_linear_interval`: independent
   homoskedastic Gaussian arm-linear outcomes, complete training-fit uncertainty
   and the declared projection/ridge correction.

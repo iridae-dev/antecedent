@@ -4,7 +4,7 @@
 Data provenance
 ---------------
 This script does **not** redistribute the real Infant Health and Development
-Program (IHDP) microdata. Redistributing that table is license-sensitive, and
+Program (IHDP) microdata. Redistributing that table is support-sensitive, and
 public mirrors are flaky for CI. Instead it synthesizes an **IHDP-like** table
 that matches the classic NPCI / Hill (2011) layout:
 

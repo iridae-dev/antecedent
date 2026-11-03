@@ -1,6 +1,6 @@
 //! Tier-aware overlap and E-value diagnostics of an executed tiered result.
 //!
-//! A tiered study (`.tiered_background(..)`) runs one of two licensed average-effect cells:
+//! A tiered study (`.tiered_background(..)`) runs one of two supported average-effect cells:
 //!
 //! * **`CoDetermined`**: same-tier nodes are bidirected, the tier closure is the
 //!   generalized-adjustment set, and the AIPW estimator fits a propensity on it. The
@@ -104,7 +104,7 @@ pub struct TierPointEvalue {
     pub method: Arc<str>,
 }
 
-/// E-value diagnostics: the point value where licensed, the interval value never.
+/// E-value diagnostics: the point value where supported, the interval value never.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TierEvalue {
     /// The point E-value, or the typed reason it is not carried.
@@ -155,11 +155,11 @@ fn unavailable(detail: &'static str, reason: &'static str) -> Unavailable {
     Unavailable { code: reason_code!("diagnostic_not_available"), detail, reason }
 }
 
-/// Read the tier diagnostics a licensed tiered average-effect result carries.
+/// Read the tier diagnostics a supported tiered average-effect result carries.
 ///
 /// # Errors
-/// `cell_not_licensed` (`tier_diagnostics.result_not_licensed`) when the result's support
-/// status is not licensed; `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`)
+/// `not_supported` (`tier_diagnostics.result_not_supported`) when the result's support
+/// status is not supported; `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`)
 /// when it is not a single-treatment `CoDetermined` closure or `Unknown` two-scenario
 /// average-effect result; `cancelled_no_claim` (`tier_diagnostics.cancelled`) when `ctx` is
 /// cancelled (observed on entry, before each of the two tier reads and once per scenario),
@@ -169,11 +169,11 @@ pub fn tier_diagnostics(
     ctx: &ExecutionContext,
 ) -> Result<TierDiagnostics, TierDiagnosticsError> {
     observe(ctx)?;
-    if !matches!(result.support_status, Some(CellStatus::Licensed)) {
+    if !matches!(result.support_status, Some(CellStatus::Supported)) {
         return Err(refusal(
-            reason_code!("cell_not_licensed"),
-            "tier_diagnostics.result_not_licensed",
-            "tier diagnostics are read only off a result of a licensed support cell",
+            reason_code!("not_supported"),
+            "tier_diagnostics.result_not_supported",
+            "tier diagnostics are read only off a result of a supported support cell",
         ));
     }
     let derived = |rule: &str| {
@@ -275,7 +275,7 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
 /// The always-present reason no interval-limit E-value is reported.
 fn interval_withheld() -> Unavailable {
     Unavailable {
-        code: reason_code!("cell_not_licensed"),
+        code: reason_code!("not_supported"),
         detail: "tier_diagnostics.evalue_interval_withheld",
         reason: "an E-value for the effect-interval limit needs that endpoint converted to a risk \
                  ratio; the conversion (outcome-SD plug-in, RR ~ exp(0.91 d)) is an approximation \

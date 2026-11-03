@@ -1,8 +1,8 @@
 //! The analysis contract of an adaptive experiment and the matrix of
-//! procedures the engine licenses, closes or carries forward.
+//! procedures the engine supports, closes or carries forward.
 //!
 //! * [`matrix`]: assignment policy x outcome structure x monitoring strategy
-//!   x stopping rule, every cell licensed (per inferential paradigm), closed
+//!   x stopping rule, every cell supported (per inferential paradigm), closed
 //!   with a typed refusal, or carried forward with an owner.
 //! * [`declaration`]: the retained analysis contract (assignment-policy
 //!   history, realized assignment probabilities, exposure history, outcome
@@ -38,5 +38,5 @@ pub use declaration::{
 };
 pub use matrix::{
     AssignmentFamily, CellStatus, InferenceParadigm, MonitoringStrategy, OutcomeStructure,
-    ProcedureCell, StoppingRuleKind, licensed_routes, procedure_cells, procedure_status,
+    ProcedureCell, StoppingRuleKind, procedure_cells, procedure_status, supported_routes,
 };

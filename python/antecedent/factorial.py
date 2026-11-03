@@ -1,6 +1,6 @@
 """Native-backed utilities for two-factor randomized 2×2 experiments.
 
-This direct estimator is not a licensed ``analyze`` workflow. Its design
+This direct estimator is not a supported ``analyze`` workflow. Its design
 assumptions are stated in each result and must be justified by the caller.
 
 The estimate is compiled, not computed beside the compiler: independent Bernoulli

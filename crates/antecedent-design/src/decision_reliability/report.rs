@@ -44,7 +44,7 @@ pub const RELIABILITY_REPORT_VERSION: u32 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UncertaintyReporting {
-    /// Three components, never summed. The only licensed value.
+    /// Three components, never summed. The only supported value.
     Separate,
     /// One combined uncertainty: refused.
     Combined,

@@ -120,9 +120,9 @@ fn invalid(detail: &'static str, subject: impl Into<String>) -> ExportRefusal {
     }
 }
 
-fn unlicensed(detail: &'static str, subject: impl Into<String>) -> ExportRefusal {
+fn unsupported(detail: &'static str, subject: impl Into<String>) -> ExportRefusal {
     ExportRefusal {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         detail,
         subject: subject.into(),
     }
@@ -734,13 +734,13 @@ fn check_input_value(input: &ExportInput, query: &ExportQuery) -> Result<(), Exp
     let value = query
         .values
         .get(name)
-        .ok_or_else(|| unlicensed("compact_export.missing_quantity", name.clone()))?;
+        .ok_or_else(|| unsupported("compact_export.missing_quantity", name.clone()))?;
     match (&input.support, value) {
         (InputSupport::Range { lo, hi }, QueryValue::Number(x)) => {
             if !x.is_finite() {
-                Err(unlicensed("compact_export.non_finite_input", name.clone()))
+                Err(unsupported("compact_export.non_finite_input", name.clone()))
             } else if x < lo || x > hi {
-                Err(unlicensed("compact_export.out_of_support", name.clone()))
+                Err(unsupported("compact_export.out_of_support", name.clone()))
             } else {
                 Ok(())
             }
@@ -749,10 +749,10 @@ fn check_input_value(input: &ExportInput, query: &ExportQuery) -> Result<(), Exp
             if levels.contains(level) {
                 Ok(())
             } else {
-                Err(unlicensed("compact_export.out_of_support", name.clone()))
+                Err(unsupported("compact_export.out_of_support", name.clone()))
             }
         }
-        _ => Err(unlicensed("compact_export.query_type_mismatch", name.clone())),
+        _ => Err(unsupported("compact_export.query_type_mismatch", name.clone())),
     }
 }
 
@@ -771,7 +771,7 @@ fn region_matches(region: &MaskRegion, query: &ExportQuery) -> bool {
 fn number_of(query: &ExportQuery, quantity: &str) -> Result<f64, ExportRefusal> {
     match query.values.get(quantity) {
         Some(QueryValue::Number(x)) => Ok(*x),
-        _ => Err(unlicensed("compact_export.query_type_mismatch", quantity)),
+        _ => Err(unsupported("compact_export.query_type_mismatch", quantity)),
     }
 }
 
@@ -785,7 +785,7 @@ fn basis_row(terms: &[TermSpec], query: &ExportQuery) -> Result<Vec<f64>, Export
                 .map(|x| x.powi(i32::try_from(*degree).unwrap_or(i32::MAX))),
             TermSpec::OneHot { quantity, level } => match query.values.get(quantity) {
                 Some(QueryValue::Level(chosen)) => Ok(if chosen == level { 1.0 } else { 0.0 }),
-                _ => Err(unlicensed("compact_export.query_type_mismatch", quantity.clone())),
+                _ => Err(unsupported("compact_export.query_type_mismatch", quantity.clone())),
             },
         })
         .collect()
@@ -798,13 +798,13 @@ fn evaluate_body(
 ) -> Result<PointWithSe, ExportRefusal> {
     let known = |name: &str| body.inputs.iter().any(|input| input.quantity.variable_id == name);
     if let Some(extra) = query.values.keys().find(|key| !known(key.as_str())) {
-        return Err(unlicensed("compact_export.unknown_quantity", extra.clone()));
+        return Err(unsupported("compact_export.unknown_quantity", extra.clone()));
     }
     for input in &body.inputs {
         check_input_value(input, query)?;
     }
     if let Some(region) = body.mask.iter().find(|region| region_matches(region, query)) {
-        return Err(unlicensed("compact_export.masked_region", region.id.clone()));
+        return Err(unsupported("compact_export.masked_region", region.id.clone()));
     }
     let phi = basis_row(&body.terms, query)?;
     let n = phi.len();
@@ -817,11 +817,11 @@ fn evaluate_body(
         .sum();
     let scale: f64 = body.covariance.iter().step_by(n + 1).zip(&phi).map(|(v, p)| v * p * p).sum();
     if variance < -NEGATIVE_VARIANCE_TOLERANCE * (1.0 + scale.abs()) {
-        return Err(unlicensed("compact_export.negative_variance", "phi_v_phi"));
+        return Err(unsupported("compact_export.negative_variance", "phi_v_phi"));
     }
     let se = variance.max(0.0).sqrt();
     if !point.is_finite() || !se.is_finite() {
-        return Err(unlicensed("compact_export.non_finite_result", "evaluation"));
+        return Err(unsupported("compact_export.non_finite_result", "evaluation"));
     }
     Ok(PointWithSe {
         point,

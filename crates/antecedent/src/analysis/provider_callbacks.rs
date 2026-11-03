@@ -49,8 +49,8 @@
 //! * A result is `diagnostic` unless the callback is deterministic or seeded,
 //!   has complete dependencies and is attested or verified; even then it is an
 //!   external claim. Metadata never mints native trust, a joint law or an
-//!   identification licence, and no interval or posterior guarantee is
-//!   carried: those routes refuse with `cell_not_licensed`.
+//!   identification evidence, and no interval or posterior guarantee is
+//!   carried: those routes refuse with `not_supported`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -224,7 +224,7 @@ pub struct CallbackExecution {
     pub reused: bool,
     /// Why it was recomputed, when it was.
     pub recomputed_because: Option<RecomputeReason>,
-    /// Diagnostic or licensed external; never native.
+    /// Diagnostic or supported external; never native.
     pub standing: ResultStanding,
     /// Declaration identity (hex).
     pub declaration_identity: String,
@@ -291,7 +291,7 @@ pub enum CallbackResume {
     Unavailable {
         /// Index of the unavailable record in the session history.
         record: usize,
-        /// The refusal that names what would license execution.
+        /// The refusal that names what would support execution.
         refusal: ExternalRefusal,
     },
 }
@@ -1036,7 +1036,7 @@ impl CallbackSession {
 ///
 /// # Errors
 /// Every defect, each a registered reason code with an
-/// `interface_contract.*` detail and the declaration that would license it.
+/// `interface_contract.*` detail and the declaration that would support it.
 pub fn check_callback_connection(
     declaration: &CallbackDeclaration,
     consumer: &InterfaceContract,
@@ -1068,13 +1068,13 @@ pub fn check_claim_to_callback(
 /// Refusal of an interval from a callback law.
 #[must_use]
 pub fn refuse_interval() -> ExternalRefusal {
-    refusal::interval_not_licensed()
+    refusal::interval_not_supported()
 }
 
 /// Refusal of a posterior or probability guarantee from a callback.
 #[must_use]
 pub fn refuse_posterior_guarantee() -> ExternalRefusal {
-    refusal::posterior_guarantee_not_licensed()
+    refusal::posterior_guarantee_not_supported()
 }
 
 /// Refusal of native trust conferred by callback metadata.
@@ -1083,9 +1083,9 @@ pub fn refuse_native_trust() -> ExternalRefusal {
     refusal::native_trust_not_conferred()
 }
 
-/// Refusal of an identification licence conferred by a callback.
+/// Refusal of an identification evidence conferred by a callback.
 #[must_use]
-pub fn refuse_identification_licence() -> ExternalRefusal {
+pub fn refuse_identification_evidence() -> ExternalRefusal {
     refusal::identification_not_conferred()
 }
 

@@ -100,7 +100,7 @@ impl PreparedMnarFixedShift {
 
     /// Execute the declared-shift sampling construction solely for the registered
     /// calibration study. The basis names this compiled candidate separately from
-    /// the earlier raw-kernel candidate; no coverage or license is conferred here.
+    /// the earlier raw-kernel candidate; no coverage or support is conferred here.
     ///
     /// # Errors
     /// Source or program mismatch, cancellation, a resource limit, or native refusal.
@@ -249,7 +249,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
     fn point(w: &mut CanonicalWriter, p: &MnarPoint) -> Result<(), CausalError> {
         if p.sampling.is_some() {
             return Err(CausalError::Compile {
-                message: "unlicensed MNAR interval in point candidate".into(),
+                message: "unsupported MNAR interval in point candidate".into(),
             });
         }
         w.real(p.parameter)
@@ -313,7 +313,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
 }
 
 /// Independently retained expected source and lowered program identity. This is a
-/// replay constraint, never a license or a substitute for reconstruction.
+/// replay constraint, never support or a substitute for reconstruction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExpectedMnarFixedShift {
     /// Expected exact source and its shared native operation.
@@ -369,7 +369,7 @@ impl PreparedMnarFixedShift {
 
 /// Reconstruct the exact original source and native operations, independently lower
 /// the whole six-layer program, and compare the result to a separately held expectation.
-/// This returns a closed candidate, never a measured or licensed interval.
+/// This returns a closed candidate, never a measured or supported interval.
 ///
 /// # Errors
 /// Corrupt source, a changed expectation, resource/cancellation refusal, or lowering failure.
@@ -403,7 +403,7 @@ impl PreparedMnarFixedShift {
     /// construction, declared-shift and missingness band and row range cover it.
     ///
     /// # Errors
-    /// `cell_not_licensed` when no such record exists, or an invalid source,
+    /// `not_supported` when no such record exists, or an invalid source,
     /// cancellation or resource refusal.
     pub fn measured_interval(
         &self,
@@ -483,7 +483,7 @@ mod tests {
                 let point = declared_point(&result, data.treated_shift()).unwrap();
                 assert!((point.effect - expected).abs() < 1e-9);
                 assert!(result.grid.iter().all(|point| point.sampling.is_none()));
-                assert_eq!(result.sampling_status, "cell_not_licensed");
+                assert_eq!(result.sampling_status, "not_supported");
             }
         }
     }

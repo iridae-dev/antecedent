@@ -1,6 +1,6 @@
 # Refusal codes and remedies
 
-The reference catalog of refusal families, codes and remedies. For how refusals reach your code and what each category means, read [refusals](../concepts/refusals.md). Each detail below is registered with its top-level code and a remedy in `parity/promotion.toml`.
+The reference catalog of refusal families, codes and remedies. For how refusals reach your code and what each category means, read [refusals](../concepts/refusals.md). Each detail below is registered with its top-level code and a remedy in `parity/capability_records.toml`.
 
 ## Structured refusals and their remedies
 
@@ -13,7 +13,7 @@ reason code.
 
 | Field | Meaning |
 | --- | --- |
-| `code` (alias `reason_code`) | the registered refusal code, such as `cell_not_licensed`, `route_not_supported`, `transport_proven_non_transportable` or `invalid_argument` |
+| `code` (alias `reason_code`) | the registered refusal code, such as `not_supported`, `route_not_supported`, `transport_proven_non_transportable` or `invalid_argument` |
 | `detail` | the namespaced `family.slot`, such as `msm_sensitivity.lambda_below_one` or `composition_bundle.node_not_found` |
 | `offending` | the field, quantity, node or identity the refusal is about, or `None` |
 | `remedy` | what the caller can change in order to proceed, or `None` |
@@ -29,8 +29,8 @@ try:
 except StructuredRefusal as refusal:
     if refusal.code == "invalid_argument":
         ...                      # a malformed argument: fix the call
-    elif refusal.code == "cell_not_licensed":
-        ...                      # a meaningful request outside the licensed surface
+    elif refusal.code == "not_supported":
+        ...                      # a meaningful request outside the supported surface
     print(refusal.detail, refusal.offending, refusal.remedy)
 ```
 
@@ -59,10 +59,10 @@ Common remedies:
 
 | Refusal | What to change |
 | --- | --- |
-| `cell_not_licensed` / `*.composition_not_licensed` | Report the sampling interval next to the assumption range; do not compose them. No composition method is licensed. |
-| `cell_not_licensed` / `learned_joint_transport.route_frozen` | Use the checked `transport.advanced.learned_joint_transport` adapter inside its measured protocol. The separate `prepare_learned_continuous` IID route offers a point estimate or its scoped analytic interval via `prepared.interval()`; these methods have distinct contracts. |
-| `cell_not_licensed` / `transported_counterfactual.nonadditive_mechanism` and its siblings | Declare the premise in `Premises` if you can defend it, or choose an assignment inside the affine-additive class. |
-| `cell_not_licensed` / `*.transported_not_accepted` | The consumer was not declared to accept a transported input. Accept it explicitly (an inverse query's `accepts_transported=True`, a decision support policy that names `extrapolative`) and the result carries the transport receipt, or supply native target data. |
+| `not_supported` / `*.composition_not_supported` | Report the sampling interval next to the assumption range; do not compose them. No composition method is supported. |
+| `not_supported` / `learned_joint_transport.route_frozen` | Use the checked `transport.advanced.learned_joint_transport` adapter inside its measured protocol. The separate `prepare_learned_continuous` IID route offers a point estimate or its scoped analytic interval via `prepared.interval()`; these methods have distinct contracts. |
+| `not_supported` / `transported_counterfactual.nonadditive_mechanism` and its siblings | Declare the premise in `Premises` if you can defend it, or choose an assignment inside the affine-additive class. |
+| `not_supported` / `*.transported_not_accepted` | The consumer was not declared to accept a transported input. Accept it explicitly (an inverse query's `accepts_transported=True`, a decision support policy that names `extrapolative`) and the result carries the transport receipt, or supply native target data. |
 | `transport_support_failure` / `transported_decision.support_rule_unmet` | A support rule of the decision contract is stronger than the transported label can meet; weaken the declared rule or obtain target evidence. |
 | `transport_proven_non_transportable` | Read `witness`: two models agree on the source and differ on the target. Remove the selection on that mechanism or supply target evidence for it. |
 | `decision_contract_unsatisfied` / `native_claims.source_not_supplied` | A mean cannot answer a quantile or probability. Supply aligned joint draws. |
@@ -78,13 +78,13 @@ context.
 
 ## Measurement, composition, evidence and counterfactual-transport refusals
 
-Each detail below is registered with its top-level code and a remedy in `parity/promotion.toml`. The remedy says what evidence, assumption or declaration would license the request; a refusal that has no licensing declaration yet says so. A refusal is never a verdict on the science when it is a cancellation, a budget stop or an invalid argument.
+Each detail below is registered with its top-level code and a remedy in `parity/capability_records.toml`. The remedy says what evidence, assumption or declaration would support the request; a refusal that has no support declaration yet says so. A refusal is never a verdict on the science when it is a cancellation, a budget stop or an invalid argument.
 
 ### Measurement models
 
-`measurement_model.*`. A measured column is related to a latent construct only through a declared model; a refusal names the declaration or evidence that would license the request.
+`measurement_model.*`. A measured column is related to a latent construct only through a declared model; a refusal names the declaration or evidence that would support the request.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `measurement_model.arm_mismatch` | `measurement_binding_mismatch` | Declare rates for this arm, or analyse an arm the differential model covers. |
 | `measurement_model.artifact_invalid` | `invalid_argument` | Supply an intact measurement model artifact of the supported layout and size. |
@@ -103,19 +103,19 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `measurement_model.input_invalid` | `invalid_argument` | Supply equal-length columns, distinct arms and weights of the declared width. |
 | `measurement_model.insufficient_draws` | `measurement_not_identified` | Supply at least the number of joint draws the model declares. |
 | `measurement_model.insufficient_replicates` | `measurement_not_identified` | Replicate the measurement on more units so the within-unit variance is identified. |
-| `measurement_model.interval_closed` | `cell_not_licensed` | None available yet: the point and an uncalibrated standard error are the result; an interval needs a measured whole-method coverage record. |
+| `measurement_model.interval_closed` | `not_supported` | None available yet: the point and an uncalibrated standard error are the result; an interval needs a measured whole-method coverage record. |
 | `measurement_model.intervention_meaning_not_carried` | `representation_mapping_required` | Declare evidence that interventions correspond across the mapping; a relabeling carries values only. |
 | `measurement_model.invalid_model` | `measurement_model_invalid` | Declare a well formed model: named identities and parameters of the declared route within range. |
 | `measurement_model.learned_coordinates_not_intervenable` | `representation_mapping_required` | Declare the intervention on the scientific construct; coordinates of a learned representation have no intervention meaning of their own. |
 | `measurement_model.mapping_endpoints` | `representation_mapping_required` | Supply a mapping that runs exactly from the model's representation version to the requested one. |
-| `measurement_model.operation_not_licensed` | `cell_not_licensed` | Request an operation in the route's allowed set (see its route card). |
+| `measurement_model.operation_not_supported` | `not_supported` | Request an operation in the route's allowed set (see its route card). |
 | `measurement_model.parameter` | `measurement_model_invalid` | Supply parameters within their ranges (probabilities in [0, 1], positive variances). |
 | `measurement_model.population_mismatch` | `measurement_binding_mismatch` | Analyse data of the population the model names, or declare a model for this population. |
 | `measurement_model.posterior_capability` | `measurement_posterior_not_trusted` | Declare the sampling operation; the route consumes joint posterior draws. |
 | `measurement_model.posterior_declaration` | `measurement_posterior_not_trusted` | Complete the provider declaration so it is consistent with the object. |
 | `measurement_model.posterior_identity` | `measurement_posterior_not_trusted` | Supply the exact provider object the model names. |
 | `measurement_model.posterior_kind` | `measurement_posterior_not_trusted` | Supply the latent variable as a parameter-posterior object. |
-| `measurement_model.posterior_native_trust` | `measurement_posterior_not_trusted` | Attest or verify the provider object; a provider object is never natively licensed. |
+| `measurement_model.posterior_native_trust` | `measurement_posterior_not_trusted` | Attest or verify the provider object; a provider object is never natively supported. |
 | `measurement_model.posterior_quantity` | `measurement_posterior_not_trusted` | Have the posterior declare the construct in the model's population and regime. |
 | `measurement_model.posterior_receipt` | `measurement_posterior_not_trusted` | Supply a verification receipt that covers this exact provider object. |
 | `measurement_model.proxy_as_construct` | `proxy_offered_as_construct` | Name the latent scientific construct and relate the proxy to it by a measurement model. |
@@ -127,15 +127,15 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `measurement_model.structure_parameters` | `differential_error_not_pooled` | Declare shared parameters as non-differential, or one parameter set per arm as differential by arm. |
 | `measurement_model.unknown_level` | `invalid_argument` | Name only categories that are declared levels of the confusion model. |
 | `measurement_model.unmodelled_proxy` | `proxy_offered_as_construct` | Declare a measurement model relating the measured quantity to the construct, or ask the question about the measured quantity itself. |
-| `measurement_model.unrecognized` | `measurement_model_invalid` | Report the construction failure; no registered declaration would license it. |
+| `measurement_model.unrecognized` | `measurement_model_invalid` | Report the construction failure; no registered declaration would support it. |
 | `measurement_model.variance_not_positive` | `measurement_not_identified` | Supply data and parameters under which the corrected variance is positive (more units or a less degenerate design). |
 | `measurement_model.youden_too_small` | `measurement_not_identified` | Use a more accurate indicator or a validation study that shows a Youden index above the declared minimum. |
 
 ### Mechanism composition
 
-`mechanism_composition.*`. Individually valid mechanisms compose only when the declarations establish one coherent joint law; every defect names the declaration that would license the composition.
+`mechanism_composition.*`. Individually valid mechanisms compose only when the declarations establish one coherent joint law; every defect names the declaration that would support the composition.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `mechanism_composition.artifact_invalid` | `invalid_argument` | Supply an intact artifact of the supported layout with well formed declarations. |
 | `mechanism_composition.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the mechanisms. |
@@ -147,7 +147,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `mechanism_composition.identity_duplicate_mechanism` | `quantity_semantics_mismatch` | Keep one fitted mechanism per variable, or compose the alternatives separately. |
 | `mechanism_composition.identity_edge_unknown_variable` | `quantity_semantics_mismatch` | Declare edges only between variables that have a mechanism. |
 | `mechanism_composition.identity_parent_without_mechanism` | `quantity_semantics_mismatch` | Supply a mechanism for the parent; a root needs its own marginal mechanism. |
-| `mechanism_composition.interval_route_closed` | `cell_not_licensed` | None available yet: the point and the labelled first-order variance are the result; an interval needs a measured whole-method coverage record. |
+| `mechanism_composition.interval_route_closed` | `not_supported` | None available yet: the point and the labelled first-order variance are the result; an interval needs a measured whole-method coverage record. |
 | `mechanism_composition.latent_family_unsupported` | `mechanism_composition_incoherent` | Use linear-Gaussian mechanisms for a shared latent, or marginalize the latent explicitly in a model that supports it. |
 | `mechanism_composition.latent_loading_undeclared` | `mechanism_composition_incoherent` | Declare the loading of the mechanism on the shared latent. |
 | `mechanism_composition.latent_shared_with_absent_mechanism` | `mechanism_composition_incoherent` | Add the mechanism that shares the latent to the composition; a dropped latent is never treated as independent. |
@@ -219,9 +219,9 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 ### Evidence ledger
 
-`evidence_ledger.*`. Overlap that is not declared stays unknown and is never treated as independent; a refusal names the declaration, covariance or recomputation that would license the combination.
+`evidence_ledger.*`. Overlap that is not declared stays unknown and is never treated as independent; a refusal names the declaration, covariance or recomputation that would support the combination.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `evidence_ledger.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the ledger is unchanged and no verdict was formed. |
 | `evidence_ledger.diagonal_covariance_shared_rows` | `evidence_double_counted` | Supply the cross covariance for sources that share observations. |
@@ -229,7 +229,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `evidence_ledger.duplicate_row` | `evidence_double_counted` | Declare each observation once within a source. |
 | `evidence_ledger.duplicate_source` | `evidence_double_counted` | Cite the existing source rather than adding the same evidence twice. |
 | `evidence_ledger.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended ledger history. |
-| `evidence_ledger.interval_not_licensed` | `cell_not_licensed` | None available yet: the ledger returns point values and labelled assumption ranges; an interval needs measured whole-method coverage. |
+| `evidence_ledger.interval_not_supported` | `not_supported` | None available yet: the ledger returns point values and labelled assumption ranges; an interval needs measured whole-method coverage. |
 | `evidence_ledger.invalid_declaration` | `invalid_argument` | Declare a non-empty bounded label and a well formed lineage, transport identity and assumption range. |
 | `evidence_ledger.kind_mismatch` | `invalid_argument` | Keep the source kind unchanged, or register a new source of the other kind. |
 | `evidence_ledger.limit_exceeded` | `invalid_argument` | Reduce the declaration below the stated ledger or combination bound. |
@@ -259,7 +259,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `counterfactual_transport.*`. A refusal to derive is not a proof of non-transportability; only `checked_obstruction` carries a verified two-model witness.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `counterfactual_transport.bounds_exceeded` | `route_not_supported` | Reduce the problem below the stated variable, level, world, atom, source, regime or search limit, or request smaller limits. |
 | `counterfactual_transport.budget` | `transport_budget_cancel` | Raise the operation, depth or memory budget within the contract maxima, or reduce the problem. |
@@ -276,7 +276,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `counterfactual_transport.invalid_witness` | `transport_not_certified` | Discard the stored witness; it does not verify by exact enumeration. |
 | `counterfactual_transport.missing_law` | `transport_missing_provider` | Supply the law of the cited regime at the needed intervention level. |
 | `counterfactual_transport.missing_regime` | `transport_missing_evidence` | Supply the named regimes the catalog lacks; the query is derivable with them. |
-| `counterfactual_transport.sampled_inference_closed` | `cell_not_licensed` | Use the sampled counterfactual transport route for counted, empirical or posterior laws. |
+| `counterfactual_transport.sampled_inference_closed` | `not_supported` | Use the sampled counterfactual transport route for counted, empirical or posterior laws. |
 | `counterfactual_transport.selected_sample_law` | `route_not_supported` | Supply laws of the population itself; this route has no sampling-selection model. |
 | `counterfactual_transport.support_failure` | `transport_support_failure` | Supply laws with positive mass on every conditioning event the formula divides by. |
 | `counterfactual_transport.zero_conditioning_mass` | `transport_support_failure` | Condition on an event with positive mass in the target population. |
@@ -285,13 +285,13 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `counterfactual_transport_sampled.*`. Sampled evidence is point-only with an uncalibrated standard error; independence of tables is never assumed.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `counterfactual_transport_sampled.bounds_exceeded` | `route_not_supported` | Reduce the stored table counts, table sizes or search and evaluation limits to the consumer's bounds, or consume the artifact with higher limits within the contract maxima. |
 | `counterfactual_transport_sampled.cancelled` | `transport_budget_cancel` | Rerun without cancellation; no estimate was formed. |
 | `counterfactual_transport_sampled.envelope_budget` | `transport_budget_cancel` | Declare a smaller unseen-mass family or raise the envelope evaluation limit within the bound. |
 | `counterfactual_transport_sampled.envelope_undefined` | `transport_support_failure` | Declare an unseen-mass family in which some member has a defined value, or supply more observations. |
-| `counterfactual_transport_sampled.interval_not_licensed` | `cell_not_licensed` | None available yet: the point estimate and an uncalibrated standard error are the result; an interval needs measured whole-method coverage. |
+| `counterfactual_transport_sampled.interval_not_supported` | `not_supported` | None available yet: the point estimate and an uncalibrated standard error are the result; an interval needs measured whole-method coverage. |
 | `counterfactual_transport_sampled.invalid_artifact` | `invalid_argument` | Supply an intact sampled artifact whose stored estimate follows from its stored counts and which carries no interval. |
 | `counterfactual_transport_sampled.invalid_counts` | `invalid_argument` | Supply well formed count tables: named axes and levels, a shape that matches the counts, observations, no structural zero with observations, and parameters in range. |
 | `counterfactual_transport_sampled.invalid_overlap` | `invalid_argument` | Declare each pair of tables once with one relation, naming only supplied tables. |
@@ -307,22 +307,22 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 ok
 ### Observation-conditioned queries
 
-`observation_query.*`. A conditioning claim and an interventional claim are distinct, and a recorded indicator value is not the construct it measures; a refusal names the declaration or evidence that would license the request. See [observation-queries.md](../observation-queries.md).
+`observation_query.*`. A conditioning claim and an interventional claim are distinct, and a recorded indicator value is not the construct it measures; a refusal names the declaration or evidence that would support the request. See [observation-queries.md](../observation-queries.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `observation_query.arm_mismatch` | `measurement_binding_mismatch` | Declare a model for this arm, or ask about the arm the model covers. |
 | `observation_query.artifact_invalid` | `invalid_argument` | Supply an intact observation_query_v1 artifact of the supported layout. |
 | `observation_query.artifact_refused` | `invalid_argument` | Supply the artifact whose identity equals the retained one and whose result recomputes from its premises. |
 | `observation_query.blank_field` | `invalid_argument` | Name the outcome variable and the variable and level of every slot. |
-| `observation_query.calibrated_probability_closed` | `cell_not_licensed` | None available yet: a probability from a model fitted to a sample is a point value with no claim about how often it is right; calibration needs a measured whole-method record at the query's coordinate. |
+| `observation_query.calibrated_probability_closed` | `not_supported` | None available yet: a probability from a model fitted to a sample is a point value with no claim about how often it is right; calibration needs a measured whole-method record at the query's coordinate. |
 | `observation_query.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the model. |
 | `observation_query.construct_mismatch` | `measurement_binding_mismatch` | Request the construct the model names, or declare a model for the construct asked about. |
 | `observation_query.construct_observed_directly` | `invalid_argument` | Condition on the construct directly or on its measured indicator, not both. |
 | `observation_query.differential_error_unsupported` | `differential_error_not_pooled` | Use a non-differential model; error that differs has no bounded conditioning route and is never pooled. |
 | `observation_query.indicator_kind` | `invalid_argument` | Use a direct slot for an error-free recorded value, or declare the indicator's measurement kind. |
 | `observation_query.indicator_mismatch` | `measurement_binding_mismatch` | Declare a model for this indicator. |
-| `observation_query.declared_model_has_no_sampling_interval` | `cell_not_licensed` | A declared model's posterior probability is an exact number with no sampling distribution, so it has no sampling interval; for a probability computed from tables fitted to counts, request the count-fitted interval, which reports posterior quantiles bound to a currently attesting coverage record. |
+| `observation_query.declared_model_has_no_sampling_interval` | `not_supported` | A declared model's posterior probability is an exact number with no sampling distribution, so it has no sampling interval; for a probability computed from tables fitted to counts, request the count-fitted interval, which reports posterior quantiles bound to a currently attesting coverage record. |
 | `observation_query.intervention_in_conditioning_slot` | `quantity_semantics_mismatch` | State an assigned value as an intervention query; a conditioning slot holds only recorded values, and the observed and interventional laws are separate claims. |
 | `observation_query.invalid_declaration` | `invalid_argument` | Supply named levels and distributions that sum to one, with probabilities in range. |
 | `observation_query.level_unreachable` | `evidence_cannot_reach_level` | State a level inside the reachable range, supply a signal with a larger likelihood ratio, or allow more observations; the refusal states the most extreme reachable value. |
@@ -351,9 +351,9 @@ ok
 
 ### Scientific bridges
 
-`scientific_bridge.*`. A bridge states the assumptions under which one quantity answers a question about another; a refusal names the declaration, evidence or route that would license the request. A mean, predictive law, posterior, identified set and joint outcome law are never interchanged.
+`scientific_bridge.*`. A bridge states the assumptions under which one quantity answers a question about another; a refusal names the declaration, evidence or route that would support the request. A mean, predictive law, posterior, identified set and joint outcome law are never interchanged.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `scientific_bridge.artifact_invalid` | `invalid_argument` | Supply an intact scientific_bridge_v1 artifact. |
 | `scientific_bridge.association_as_intervention` | `bridge_substitution_refused` | Declare and name the identification under which the predictive quantity equals the causal quantity, or identify the causal quantity from the data. |
@@ -362,31 +362,31 @@ ok
 | `scientific_bridge.blank_field` | `scientific_bridge_invalid` | Name every identity and statement in at most the declared number of bytes. |
 | `scientific_bridge.chain_stage_not_affine` | `route_not_supported` | Derive the bridged draws and supply them to the chain as a source; a mapping with no chain expression is not a stage. |
 | `scientific_bridge.conditioning_mismatch` | `bridge_binding_mismatch` | Bridge quantities with the same conditioning. |
-| `scientific_bridge.degenerate_validation` | `bridge_mapping_not_licensed` | Validate in trials that differ in their effects. |
-| `scientific_bridge.dependence_not_a_covariance` | `bridge_mapping_not_licensed` | State a covariance whose square is at most the product of the slope variance and the source variance. |
+| `scientific_bridge.degenerate_validation` | `bridge_mapping_not_supported` | Validate in trials that differ in their effects. |
+| `scientific_bridge.dependence_not_a_covariance` | `bridge_mapping_not_supported` | State a covariance whose square is at most the product of the slope variance and the source variance. |
 | `scientific_bridge.differential_error` | `differential_error_not_pooled` | Bridge through a non-differential model, or analyse the arms with their own rates. |
 | `scientific_bridge.draws_meaning_mismatch` | `distribution_meaning_mismatch` | Declare the value kind the draws are: a posterior or a predictive law; a bootstrap, sampling or empirical law is neither. |
 | `scientific_bridge.draws_not_aligned` | `joint_law_required` | Supply the draws as columns of one aligned joint draw table. |
-| `scientific_bridge.draws_outside_domain` | `bridge_mapping_not_licensed` | The bridge neither truncates nor extrapolates a law; validate trials that cover the draws, or check the declared rates. |
+| `scientific_bridge.draws_outside_domain` | `bridge_mapping_not_supported` | The bridge neither truncates nor extrapolates a law; validate trials that cover the draws, or check the declared rates. |
 | `scientific_bridge.draws_unusable` | `scientific_bridge_invalid` | Supply finite draws that vary and a target quantity the table does not already carry. |
 | `scientific_bridge.duplicate_assumption` | `scientific_bridge_invalid` | Give every declared assumption its own identity. |
 | `scientific_bridge.endpoint_classes` | `scientific_bridge_invalid` | Connect the class pair the bridge kind relates. |
-| `scientific_bridge.functional_not_supported` | `bridge_mapping_not_licensed` | State the quantity as a prevalence or risk on the probability scale. |
+| `scientific_bridge.functional_not_supported` | `bridge_mapping_not_supported` | State the quantity as a prevalence or risk on the probability scale. |
 | `scientific_bridge.horizon_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one horizon. |
 | `scientific_bridge.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended bridge. |
-| `scientific_bridge.interval_not_licensed` | `cell_not_licensed` | None available yet: a bridged claim is a point value; whole-method coverage of a bridge is not measured. |
+| `scientific_bridge.interval_not_supported` | `not_supported` | None available yet: a bridged claim is a point value; whole-method coverage of a bridge is not measured. |
 | `scientific_bridge.invalid_quantity` | `scientific_bridge_invalid` | Name the variable, units, population, regime, functional and transform with canonical conditioning. |
 | `scientific_bridge.malformed_mapping` | `scientific_bridge_invalid` | Declare the mapping within its range. |
 | `scientific_bridge.mapping_not_allowed` | `scientific_bridge_invalid` | Carry the value by a mapping the bridge kind allows. |
 | `scientific_bridge.mapping_scope_mismatch` | `bridge_binding_mismatch` | Establish the model for the bridge's scope, or declare the evidence scope the model was established for. |
 | `scientific_bridge.mapping_uncertainty_invalid` | `scientific_bridge_invalid` | Declare the mapping's uncertainty once: a trial-level line and a correction draw it from their own evidence. |
 | `scientific_bridge.measurement_model_mismatch` | `bridge_binding_mismatch` | Bridge the quantities the measurement model relates. |
-| `scientific_bridge.measurement_route_not_supported` | `bridge_mapping_not_licensed` | Use a binary-misclassification model, or its own corrected-functional record. |
+| `scientific_bridge.measurement_route_not_supported` | `bridge_mapping_not_supported` | Use a binary-misclassification model, or its own corrected-functional record. |
 | `scientific_bridge.model_identity_mismatch` | `bridge_binding_mismatch` | Name the identity of the measurement model the mapping uses. |
-| `scientific_bridge.model_score_as_probability` | `bridge_substitution_refused` | Use the model's calibrated predictive law where it supplies one; no calibration bridge is licensed for a score. |
+| `scientific_bridge.model_score_as_probability` | `bridge_substitution_refused` | Use the model's calibrated predictive law where it supplies one; no calibration bridge is supported for a score. |
 | `scientific_bridge.non_finite_value` | `scientific_bridge_invalid` | Bridge finite point values with finite mapping numbers. |
-| `scientific_bridge.outside_attainable_range` | `bridge_mapping_not_licensed` | Check the declared rates and the recorded value. |
-| `scientific_bridge.outside_validated_range` | `bridge_mapping_not_licensed` | Validate trials that cover the effect; extrapolation is not licensed. |
+| `scientific_bridge.outside_attainable_range` | `bridge_mapping_not_supported` | Check the declared rates and the recorded value. |
+| `scientific_bridge.outside_validated_range` | `bridge_mapping_not_supported` | Validate trials that cover the effect; extrapolation is not supported. |
 | `scientific_bridge.population_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one population; population transport is a separate declared route. |
 | `scientific_bridge.predictive_importance_as_causal_effect` | `bridge_substitution_refused` | Ask the causal question directly: identify and estimate the effect of the feature under a declared graph. |
 | `scientific_bridge.provenance` | `scientific_bridge_invalid` | Derive a claim whose identity differs from its source. |
@@ -396,29 +396,29 @@ ok
 | `scientific_bridge.replay_mismatch` | `invalid_argument` | Regenerate the artifact from the contract and the source claim. |
 | `scientific_bridge.scientific_endpoint_as_utility` | `bridge_substitution_refused` | Declare the utility function that maps the endpoint to decision utility and bridge through it. |
 | `scientific_bridge.source_dependence_missing` | `sampling_dependence_unknown` | Declare that the source and the mapping are independent, or declare their covariance. |
-| `scientific_bridge.source_not_draws` | `cell_not_licensed` | Bridge the aligned draws of a posterior or predictive law; an associational claim is never a bridge source. |
-| `scientific_bridge.source_not_point` | `cell_not_licensed` | Bridge a claim that carries one finite point value. |
+| `scientific_bridge.source_not_draws` | `not_supported` | Bridge the aligned draws of a posterior or predictive law; an associational claim is never a bridge source. |
+| `scientific_bridge.source_not_point` | `not_supported` | Bridge a claim that carries one finite point value. |
 | `scientific_bridge.stated_preference_as_realized_behavior` | `bridge_substitution_refused` | Declare the behavioral linkage by which the stated preference determines the realized choice and name its evidence. |
 | `scientific_bridge.too_many_assumptions` | `scientific_bridge_invalid` | Declare at most the bounded number of assumptions. |
 | `scientific_bridge.transport_premise_mismatch` | `bridge_binding_mismatch` | Declare the premise for exactly the scope the bridge was established in and the scope the claim is about. |
 | `scientific_bridge.transport_premise_missing` | `bridge_assumption_missing` | Declare the transportability premise with its identity and evidence, or establish the bridge in the claim's own population. |
 | `scientific_bridge.transport_premise_unused` | `bridge_binding_mismatch` | Remove the premise, or bridge a claim about another scope. |
 | `scientific_bridge.units_mismatch` | `bridge_binding_mismatch` | Supply the claim in the declared units; no implicit conversion is made. |
-| `scientific_bridge.validation_r_squared_too_low` | `bridge_mapping_not_licensed` | Validate a better surrogate, or declare the coefficient of determination the evidence supports. |
-| `scientific_bridge.validation_trials_too_few` | `bridge_mapping_not_licensed` | Validate the surrogate in at least the declared number of trials. |
-| `scientific_bridge.value_kind_not_carried` | `cell_not_licensed` | A point mean takes the point route and a posterior or predictive law takes the draws route; an identified set or joint law has no executed bridge. |
+| `scientific_bridge.validation_r_squared_too_low` | `bridge_mapping_not_supported` | Validate a better surrogate, or declare the coefficient of determination the evidence supports. |
+| `scientific_bridge.validation_trials_too_few` | `bridge_mapping_not_supported` | Validate the surrogate in at least the declared number of trials. |
+| `scientific_bridge.value_kind_not_carried` | `not_supported` | A point mean takes the point route and a posterior or predictive law takes the draws route; an identified set or joint law has no executed bridge. |
 | `scientific_bridge.value_kind_substitution` | `bridge_substitution_refused` | Supply the requested object from its own route; these are not interchangeable. |
 | `scientific_bridge.youden_too_small` | `measurement_not_identified` | A more accurate measurement or a larger declared minimum-evidence study is needed. |
 
 ## Transport, uncertainty and reach refusals
 
-Each detail below is registered with its top-level code and a remedy in `parity/promotion.toml`, like the sections above. These are the refusals of the transport, decision-reach and uncertainty routes. Every one is a statement that a premise or declaration was missing; none is a failure of the data.
+Each detail below is registered with its top-level code and a remedy in `parity/capability_records.toml`, like the sections above. These are the refusals of the transport, decision-reach and uncertainty routes. Every one is a statement that a premise or declaration was missing; none is a failure of the data.
 
 ### Transported cohort effect and measurement transport
 
 `transported_effect.*`, `measurement_transport.*`. A retained effect model or measurement model is carried to a declared target; the value is point-only. See [the guide](../guides/transported-decisions-and-measurement.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `transported_effect.cohort_invalid` | `invalid_argument` | Declare a target cohort with named finite feature rows and normalized weights. |
 | `transported_effect.weights_invalid` | `invalid_argument` | Supply finite nonnegative weights. |
@@ -432,12 +432,12 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transported_effect.modifier_set_mismatch` | `transport_not_certified` | Declare exactly the model's features as the effect modifiers. |
 | `transported_effect.model_invalid` | `invalid_argument` | Refit or re-export the model and name every retained feature once. |
 | `transported_effect.link_not_identity` | `quantity_semantics_mismatch` | Retain the identity-scale conditional-contrast map. |
-| `transported_effect.support_contract_absent` | `cell_not_licensed` | Refit with a producer that retains the fitted-row support contract. |
+| `transported_effect.support_contract_absent` | `not_supported` | Refit with a producer that retains the fitted-row support contract. |
 | `transported_effect.no_overlap` | `transport_support_failure` | Supply a model fitted on rows that cover the target population. |
 | `transported_effect.out_of_support` | `transport_support_failure` | Restrict the cohort (a new cohort) or fit on rows that cover the target. |
-| `transported_effect.prediction_refused` | `cell_not_licensed` | Check the cohort features against the model. |
-| `transported_effect.non_finite_result` | `cell_not_licensed` | Check the model and the cohort. |
-| `transported_effect.interval_not_licensed` | `cell_not_licensed` | None available: the value is point-only under a declared premise until whole-method coverage including the transport and support steps is measured. |
+| `transported_effect.prediction_refused` | `not_supported` | Check the cohort features against the model. |
+| `transported_effect.non_finite_result` | `not_supported` | Check the model and the cohort. |
+| `transported_effect.interval_not_supported` | `not_supported` | None available: the value is point-only under a declared premise until whole-method coverage including the transport and support steps is measured. |
 | `transported_effect.law_not_supplied` | `decision_contract_unsatisfied` | Supply aligned outcome draws under a declared transport model. |
 | `measurement_model.no_model` | `measurement_model_invalid` | Supply the source model the premise names. |
 | `measurement_model.invariance_premise_required` | `transport_missing_evidence` | Declare which error parameters are invariant, declare them differential, or validate in the target population. |
@@ -452,7 +452,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `mechanism_transport.*`, `typed_mechanism_transport.*`, `transported_synthesis.*`, `scientific_bridge.*`. See [the guide](../guides/mechanism-and-synthesis-transport.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `mechanism_transport.origin_not_fitted` | `mechanism_composition_incoherent` | Carry only mechanisms estimated from retained evidence; an external or declared mechanism needs its own admission. |
 | `mechanism_transport.family_unsupported` | `mechanism_composition_incoherent` | Decide a finite table with the finite counterfactual transport derivation; refit other families in the target. |
@@ -478,7 +478,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `typed_mechanism_transport.parameter_dependence_unknown` | `uncertainty_representation_insufficient` | Declare independence by design, a joint covariance or cross-covariance blocks. |
 | `typed_mechanism_transport.parameter_dependence_incomplete` | `uncertainty_representation_insufficient` | Declare a cross-covariance block for every pair of involved mechanisms, or a joint covariance listing them all. |
 | `typed_mechanism_transport.transport_identity_mismatch` | `quantity_semantics_mismatch` | Re-derive the transport from the retained fits and declaration. |
-| `typed_mechanism_transport.interval_route_closed` | `cell_not_licensed` | None: the variance is parameter-only and scoped; no interval is licensed. |
+| `typed_mechanism_transport.interval_route_closed` | `not_supported` | None: the variance is parameter-only and scoped; no interval is supported. |
 | `transported_synthesis.transport_variance_undeclared` | `transport_missing_evidence` | Declare the transport variance; an undeclared transport is not a zero-variance one. |
 | `transported_synthesis.transport_variance_on_native_source` | `invalid_argument` | Drop it, or declare the transport identity in the ledger. |
 | `transported_synthesis.source_listed_twice` | `invalid_argument` | Contribute each source once. |
@@ -498,7 +498,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `transported_policy.*`, `adaptive_transport.*`, `temporal_policy_transport.*`. See [the guide](../guides/transported-decisions-and-measurement.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `transported_policy.selection_diagram_missing` | `transport_missing_evidence` | Supply a selection diagram that marks every mechanism of the model invariant or shifted between the source and target populations. |
 | `transported_policy.target_initial_law_missing` | `transport_missing_evidence` | Supply the target population's initial law over the model's latent states. |
@@ -553,7 +553,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `discovered_transport.*`, `selective_discovery.*`. See [the guide](../guides/discovered-structure-transport.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `discovered_transport.search_incomplete` | `discovered_structure_unresolved` | Complete the search or declare the graph. |
 | `discovered_transport.orientation_conflict` | `discovered_structure_unresolved` | Resolve the conflict or declare the graph. |
@@ -599,7 +599,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `provider_transport.*`, `transport_handoff.*`. See [the guide](../guides/transported-decisions-and-measurement.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `provider_transport.blank_field` | `interface_contract_invalid` | Name every identity. |
 | `provider_transport.population_missing` | `interface_contract_invalid` | Declare the population it was established in. |
@@ -625,9 +625,9 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 ### Transported decisions and inverse forward sources
 
-`transported_decision.*`, `transported_decision_artifact.*`, `inverse_forward_source.*`. A consumer that does not accept a transported input refuses it as `cell_not_licensed` with `transported_not_accepted`, whichever source (cohort, composed, response, decision) carried it. See [the guide](../guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources).
+`transported_decision.*`, `transported_decision_artifact.*`, `inverse_forward_source.*`. A consumer that does not accept a transported input refuses it as `not_supported` with `transported_not_accepted`, whichever source (cohort, composed, response, decision) carried it. See [the guide](../guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `transported_decision.transport_identity_incomplete` | `transport_missing_evidence` | Name them; transport only to a different population. |
 | `transported_decision.transport_identity_not_digest` | `transport_missing_evidence` | Pass the producing result's digest identity. |
@@ -640,8 +640,8 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transported_decision.native_label_on_transported_value` | `transport_not_certified` | A transported value is never native. |
 | `transported_decision.mixed_transports` | `transport_not_certified` | Decide each transport's value on its own. |
 | `transported_decision.law_not_supplied` | `decision_contract_unsatisfied` | Supply a transported law. |
-| `transported_decision.interval_not_licensed` | `cell_not_licensed` | None: the value is point-only. |
-| `transported_decision.transported_not_accepted` | `cell_not_licensed` | Accept a transported claim explicitly in the support policy. |
+| `transported_decision.interval_not_supported` | `not_supported` | None: the value is point-only. |
+| `transported_decision.transported_not_accepted` | `not_supported` | Accept a transported claim explicitly in the support policy. |
 | `transported_decision.uncertainty_requirement` | `decision_contract_unsatisfied` | Supply a transported law or drop the requirement. |
 | `transported_decision.exclusions_leave_no_comparison` | `decision_contract_unsatisfied` | Declare fewer exclusions. |
 | `transported_decision.support_rule_unmet` | `transport_support_failure` | Weaken the support rule for this input. |
@@ -650,9 +650,9 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transported_decision_artifact.replay_mismatch` | `invalid_argument` | Re-export from the producer. |
 | `transported_decision_artifact.identity_expected` | `decision_contract_unsatisfied` | Supply the artifact whose identity was retained. |
 | `transported_decision_artifact.invalid` | `invalid_argument` | Supply an artifact written by this library. |
-| `inverse_forward_source.transported_not_accepted` | `cell_not_licensed` | Accept a transported input explicitly with its receipt, or supply native target data. |
+| `inverse_forward_source.transported_not_accepted` | `not_supported` | Accept a transported input explicitly with its receipt, or supply native target data. |
 | `inverse_forward_source.point_only_law_requested` | `decision_contract_unsatisfied` | Supply a source that carries a law. |
-| `inverse_forward_source.interval_not_licensed` | `cell_not_licensed` | None: the source is point-only; use a mean or a law constraint. |
+| `inverse_forward_source.interval_not_supported` | `not_supported` | None: the source is point-only; use a mean or a law constraint. |
 | `inverse_forward_source.origin_invalid` | `invalid_argument` | Re-seal the query from its source. |
 | `inverse_forward_source.composed_response_invalid` | `mechanism_composition_incoherent` | Supply the composition's response with its carrying receipt. |
 | `inverse_forward_source.composed_query_result_mismatch` | `invalid_argument` | Re-export the composition. |
@@ -676,7 +676,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `transport_sensitivity.*`, `transport_revalidation.*`. See [the guide](../guides/assumption-range-and-revalidation.md).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `transport_sensitivity.no_scalar_family` | `route_not_supported` | State the sensitivity on the transported effect estimated with the structure and declare the shift bound there. |
 | `transport_sensitivity.non_finite_point` | `invalid_argument` | Supply the finite point value the route returned. |
@@ -687,7 +687,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transport_sensitivity.quantity_not_in_target` | `quantity_semantics_mismatch` | State the quantity in the target population the route transports to. |
 | `transport_sensitivity.blank_identity` | `invalid_argument` | Supply the identity field. |
 | `transport_sensitivity.surface_refused` | `invalid_argument` | Declare a reference quantity in the same population and units as the transported quantity. |
-| `transport_sensitivity.interval_not_composed` | `cell_not_licensed` | None: the range stays an assumption range; sampling is withheld. |
+| `transport_sensitivity.interval_not_composed` | `not_supported` | None: the range stays an assumption range; sampling is withheld. |
 | `transport_sensitivity.law_response_not_scalar` | `route_not_supported` | Reduce the law to the scalar functional the decision uses and transport that. |
 | `transport_sensitivity.route_undeclared` | `route_not_supported` | Declare the transport route the premise belongs to. |
 | `transport_sensitivity.coordinate_out_of_range` | `invalid_argument` | Name a coordinate the response has. |
@@ -704,14 +704,14 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `joint_law_propagation.*`, `cross_world_uncertainty.*`, `interface_contract.*`. See [composed uncertainty](../guides/composed-uncertainty.md) and [interface-contract adapters](../guides/build/scientific-interfaces.md#adapt-declarations-you-already-have).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
-| `joint_law_propagation.spread_needs_licensed_dependence` | `cell_not_licensed` | Supply a covariance, an aligned joint law, known weights or a declared independence of distinct evidence; a correlation range or marginals alone give only the labelled envelope. |
+| `joint_law_propagation.spread_needs_supported_dependence` | `not_supported` | Supply a covariance, an aligned joint law, known weights or a declared independence of distinct evidence; a correlation range or marginals alone give only the labelled envelope. |
 | `joint_law_propagation.evidence_overlap_unknown` | `sampling_dependence_unknown` | Declare the observations of each source in the ledger. |
 | `joint_law_propagation.mixture_weights_unknown` | `invalid_argument` | Supply the mixture weights or ask for the dependence envelope. |
 | `cross_world_uncertainty.unit_sampling_undeclared` | `sampling_dependence_unknown` | Declare fixed units or an independent sample of a population. |
-| `cross_world_uncertainty.sampled_path_not_licensed` | `cell_not_licensed` | Use exact enumeration; sampled-path coverage is not measured. |
-| `cross_world_uncertainty.transported_path_closed` | `cell_not_licensed` | Derive in the population the mechanisms were declared for; no transported abduction derivation exists. |
+| `cross_world_uncertainty.sampled_path_not_supported` | `not_supported` | Use exact enumeration; sampled-path coverage is not measured. |
+| `cross_world_uncertainty.transported_path_closed` | `not_supported` | Derive in the population the mechanisms were declared for; no transported abduction derivation exists. |
 | `cross_world_uncertainty.incompatible_history` | `route_not_supported` | Declare mechanisms for the history of the evidence. |
 | `cross_world_uncertainty.bounds_exceeded` | `invalid_argument` | Reduce units or states below the bound. |
 | `cross_world_uncertainty.result_mismatch` | `invalid_argument` | Pass the result of executing this request. |
@@ -731,7 +731,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `decision_reliability.*`, `adaptive_inference.*`. See [decision reliability](../decision-reliability.md#derived-intervals-and-confidence-sets) and [adaptive procedures](../guides/composed-uncertainty.md#uncertainty-of-an-adaptive-procedure).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `adaptive_inference.policy_history_missing` | `adaptive_contract_incomplete` | Declare the assignment rule that governed every unit, as a function of the observed history. |
 | `adaptive_inference.interim_analyses_missing` | `adaptive_contract_incomplete` | Declare the interim looks: the units enrolled between consecutive looks. |
@@ -762,13 +762,13 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.batch_incomplete` | `adaptive_assumption_violated` | Retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed. |
 | `adaptive_inference.outcome_availability_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.exposure_invalid` | `invalid_argument` | Correct the declared element. |
-| `adaptive_inference.posterior_premise_outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |
-| `adaptive_inference.anytime_premise_contexts` | `cell_not_licensed` | Analyse one context at a time or declare a single context. |
-| `adaptive_inference.outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss or use a paradigm that models the loss. |
-| `adaptive_inference.fixed_sample_design_adaptive` | `cell_not_licensed` | Use the paradigm licensed for the adaptive cell. |
-| `adaptive_inference.fixed_sample_data_dependent_stopping` | `cell_not_licensed` | Use the group-sequential or anytime-valid paradigm. |
-| `adaptive_inference.group_sequential_assignment_adaptive` | `cell_not_licensed` | Use fixed randomization or an anytime-valid paradigm. |
-| `adaptive_inference.inversion_premise_contexts` | `cell_not_licensed` | Invert one context at a time. |
+| `adaptive_inference.posterior_premise_outcome_dependent_delay` | `not_supported` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |
+| `adaptive_inference.anytime_premise_contexts` | `not_supported` | Analyse one context at a time or declare a single context. |
+| `adaptive_inference.outcome_dependent_delay` | `not_supported` | Declare ignorable loss or use a paradigm that models the loss. |
+| `adaptive_inference.fixed_sample_design_adaptive` | `not_supported` | Use the paradigm supported for the adaptive cell. |
+| `adaptive_inference.fixed_sample_data_dependent_stopping` | `not_supported` | Use the group-sequential or anytime-valid paradigm. |
+| `adaptive_inference.group_sequential_assignment_adaptive` | `not_supported` | Use fixed randomization or an anytime-valid paradigm. |
+| `adaptive_inference.inversion_premise_contexts` | `not_supported` | Invert one context at a time. |
 | `decision_reliability.effective_sample_size_too_small` | `route_not_supported` | Draw more or reduce serial dependence. |
 | `decision_reliability.dependence_unknown` | `joint_law_required` | Declare shared simulation, independent streams or an aligned joint law. |
 | `decision_reliability.search_record_required` | `invalid_argument` | Supply the candidate search record (considered and retained counts). |
@@ -780,7 +780,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 
 `discretized_scm.*`, `discretized_scm_artifact.*`, `paradigm_parity.*`. See [the guide](../cross-world-execution.md#discretize-a-gaussian-composition-into-a-finite-model).
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `discretized_scm.levels_undeclared` | `invalid_argument` | Declare a level count for every variable. |
 | `discretized_scm.levels_out_of_range` | `invalid_argument` | Declare between 2 and 64 levels. |
@@ -792,7 +792,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `discretized_scm.degenerate_marginal` | `route_not_supported` | Declare a positive finite noise scale. |
 | `discretized_scm.composition_incoherent` | `mechanism_composition_incoherent` | Repair the composition findings. |
 | `discretized_scm.intervention_invalid` | `invalid_argument` | Name declared variables and levels. |
-| `discretized_scm.point_only` | `cell_not_licensed` | None: the value is point-only with a computed mean-error bound. |
+| `discretized_scm.point_only` | `not_supported` | None: the value is point-only with a computed mean-error bound. |
 | `discretized_scm.cancelled` | `cancelled_no_claim` | Re-run without cancellation. |
 | `discretized_scm.numerical` | `invalid_argument` | Check the composition parameters. |
 | `discretized_scm_artifact.malformed` | `invalid_argument` | Supply bytes written by this library. |
@@ -801,13 +801,13 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `discretized_scm_artifact.rederivation_refused` | `invalid_argument` | Re-export from the producing composition. |
 | `discretized_scm_artifact.identity_mismatch` | `invalid_argument` | Supply the artifact whose identity was retained. |
 | `discretized_scm_artifact.claimed_numbers_differ` | `invalid_argument` | Re-export from the producing composition. |
-| `paradigm_parity.paradigm_closed` | `cell_not_licensed` | Use the paradigm the route supports; the closed reason is returned as the remedy. |
+| `paradigm_parity.paradigm_closed` | `not_supported` | Use the paradigm the route supports; the closed reason is returned as the remedy. |
 
 ### Evidence overlap of design studies
 
 `evsi.*`, `design_ranking.*`, `prior_signal.*`. Whether a study's data overlap the prior's is read from the evidence ledger; a lineage the ledger cannot decide is unknown, and unknown is never disjoint.
 
-| Detail | Code | What would license the request |
+| Detail | Code | What would support the request |
 | --- | --- | --- |
 | `evsi.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the study's observations (or its lineage) in the ledger. |
 | `design_ranking.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the observations of the study and prior sources in the ledger. |
@@ -838,7 +838,7 @@ action of its own. A family whose observed law already identifies the effect ref
 with `identification_repair.not_a_failure`; a search stopped by its budget keeps its
 unevaluated subsets and is never reported as impossibility.
 
-The capability report also carries the licensed neighbors and the unmet obligations:
+The capability report also carries the supported neighbors and the unmet obligations:
 the host record (`operation_record`) emits `neighbors` and `unmet_obligations` beside
 `next_actions`, and Python exposes `next_actions`, `neighbors`, `unmet_obligations` and
 `evidence_obligations` on `inspect()` reports. A neighbor is an explicit alternative
@@ -913,7 +913,7 @@ format changes with it.
 | Refusal | Remedy |
 | --- | --- |
 | Additive-GAM non-convergence (`additive GAM target did not converge`, `additive GAM nuisance did not converge`, and the weighted nuisance form) | Standardize the treatment and adjustment columns, drop or coarsen near-collinear or near-constant adjustment covariates, or raise `nuisance_lambda` / lower `nuisance_basis` in the response options. |
-| `plug-in response Jacobian supports at most two treatments` | Query the Jacobian over at most two treatments at a time (one `ResponseJacobian` per pair, with the remaining treatments in the adjustment set where the graph licenses it), or an `AverageDerivative` per treatment. |
+| `plug-in response Jacobian supports at most two treatments` | Query the Jacobian over at most two treatments at a time (one `ResponseJacobian` per pair, with the remaining treatments in the adjustment set where the graph supports it), or an `AverageDerivative` per treatment. |
 | `plug-in directional derivative supports at most two treatments` | Restrict the direction to at most two treatments, or query a `ResponseJacobian` per pair and take the inner product with the direction. |
 
 ```python

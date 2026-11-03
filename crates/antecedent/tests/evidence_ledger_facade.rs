@@ -262,7 +262,7 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
 }
 
 #[test]
-fn a_declared_covariance_with_cross_terms_licenses_the_shared_pair() {
+fn a_declared_covariance_with_cross_terms_supports_the_shared_pair() {
     let mut session = StudyBuilder::evidence_ledger();
     let s3 = session.add_source(data("s3", 90..120)).unwrap();
     let s4 = session.add_source(data("s4", 110..150)).unwrap();
@@ -674,7 +674,7 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         .unwrap()
         .result;
     let refusal = session.pooled_interval(three).unwrap_err();
-    expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
+    expect(&refusal, "not_supported", "evidence_ledger.interval_not_measured");
 }
 
 /// Studies `i = 0..k` of 20 observations each (the last has 17), with scattered
@@ -782,14 +782,14 @@ fn pooled_intervals_refuse_study_counts_outside_the_measured_family() {
             .result;
         for result in [fixed, random] {
             let refusal = session.pooled_interval_candidate(result).unwrap_err();
-            expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
+            expect(&refusal, "not_supported", "evidence_ledger.interval_not_measured");
             assert!(refusal.message.contains(&format!("{k} studies")), "{refusal}");
         }
     }
 }
 
 #[test]
-fn legacy_hksj_records_cannot_license_unmeasured_study_counts() {
+fn legacy_hksj_records_cannot_support_unmeasured_study_counts() {
     for k in [5_usize, 10, 15] {
         for method in [BetweenStudy::DerSimonianLaird, BetweenStudy::RestrictedMaximumLikelihood] {
             let (mut session, summaries) = study_family(k);
@@ -800,7 +800,7 @@ fn legacy_hksj_records_cannot_license_unmeasured_study_counts() {
             // The original numerical construction remains available to replay.
             assert_eq!(session.pooled_interval_candidate(result).unwrap().method, "hksj_t");
             let refusal = session.pooled_interval(result).unwrap_err();
-            expect(&refusal, "cell_not_licensed", "evidence_ledger.hksj_study_count_not_measured");
+            expect(&refusal, "not_supported", "evidence_ledger.hksj_study_count_not_measured");
             assert!(refusal.message.contains("pool_gaussian_studies"));
         }
     }
@@ -812,10 +812,10 @@ fn a_pooled_interval_refuses_without_a_measured_record() {
     // The small fixture has no coverage record of its sample size: the numeric
     // result is refused as unmeasured, never reported without a record.
     let refusal = s.session.pooled_interval(s.r_all).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert!(
         refusal.detail == "evidence_ledger.interval_not_measured"
-            || refusal.detail == "evidence_ledger.interval_not_licensed",
+            || refusal.detail == "evidence_ledger.interval_not_supported",
         "{}",
         refusal.detail
     );
@@ -1143,8 +1143,8 @@ fn an_exported_dependence_range_is_replayed_as_an_assumption_range_by_the_consum
     assert_eq!(record.claim_class.as_str(), "assumption_range");
     assert!(record.mass.unknown_sources.contains(&vendor));
     let refusal = consumed.ledger().request_interval(result).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "evidence_ledger.interval_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "evidence_ledger.interval_not_supported");
     // The same history exports to the same identity, and the producer's range
     // is bound into it: another range is another artifact.
     assert_eq!(range_session().0.export("range-ledger").unwrap().identity, export.identity);

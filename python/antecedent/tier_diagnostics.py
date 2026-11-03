@@ -1,6 +1,6 @@
 """Tier-aware overlap and E-value diagnostics of an executed tiered result.
 
-A tiered study (``analyze(data, query, graph=TieredBackground(...))``) runs one of two licensed
+A tiered study (``analyze(data, query, graph=TieredBackground(...))``) runs one of two supported
 average-effect cells. :func:`tier_diagnostics` reads only what the executed result carries and
 states which diagnostic is available for it; nothing is refit and no within-tier graph is built::
 
@@ -23,8 +23,8 @@ states which diagnostic is available for it; nothing is refit and no within-tier
 The E-value is a sensitivity summary of the stated no-latent-path premise, never a test of it.
 Every number, availability decision and refusal is computed in Rust.
 
-A result that is not a licensed single-treatment tiered average-effect result is refused with
-``cell_not_licensed`` (``tier_diagnostics.result_not_licensed``) or ``invalid_argument``
+A result that is not a supported single-treatment tiered average-effect result is refused with
+``not_supported`` (``tier_diagnostics.result_not_supported``) or ``invalid_argument``
 (``tier_diagnostics.not_a_tiered_average_result``); a cancelled ``cancel`` token stops the read with
 ``cancelled_no_claim`` (``tier_diagnostics.cancelled``) and no diagnostics.
 """
@@ -91,7 +91,7 @@ class TierDesign(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class TierEvalue(ScientificResult):
-    """The point E-value where licensed; the interval value is always unavailable."""
+    """The point E-value where supported; the interval value is always unavailable."""
 
     point: Availability
     interval: Availability
@@ -146,7 +146,7 @@ def tier_diagnostics(result: Any, *, execution: Execution | None = None) -> Tier
         cancel: An optional cancellation token; observed on entry and before each read.
 
     Raises:
-        CausalUnsupportedError: the result is not a licensed single-treatment tiered
+        CausalUnsupportedError: the result is not a supported single-treatment tiered
             average-effect result, or the read was cancelled (see the module notes).
         CausalTypeError: ``result`` carries no prepared study.
     """

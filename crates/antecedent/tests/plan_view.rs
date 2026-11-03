@@ -97,7 +97,7 @@ fn assert_agrees(label: &str, view: &PlanView, plan: &PhysicalExecutionPlan) {
         "{label}: a design is quoted or names why it is not"
     );
     assert_eq!(view.support().coordinate(), lowered.scientific().support_coordinate());
-    assert_eq!(view.support().licensed(), lowered.scientific().licensed(), "{label}");
+    assert_eq!(view.support().supported(), lowered.scientific().supported(), "{label}");
     assert_eq!(
         view.identification().kind() == IdentificationKind::Retained,
         lowered.identification_retained(),

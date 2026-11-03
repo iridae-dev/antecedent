@@ -11,7 +11,7 @@
 //!   of the quantity it answers, the invariance and selection assumptions it
 //!   relies on, and the evidence it rests on. [`ProviderTransportSource::admit`]
 //!   refuses a missing population or regime, a quantity the provider object
-//!   does not declare, a native licence, a verification receipt that does not
+//!   does not declare, a native support, a verification receipt that does not
 //!   cover the object, and a provider that is only attested where the route
 //!   requires exact-request verification. An admitted source is an instance of
 //!   the interface contract (a produced port that supplies the
@@ -47,7 +47,7 @@
 //!
 //! A declared population is the producer's declaration, not proof that the
 //! data came from it; verification receipts cover provider behaviour at exact
-//! requests, not the truth of an invariance assumption. A handoff licenses no
+//! requests, not the truth of an invariance assumption. A handoff supports no
 //! interval, posterior or calibration claim.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -260,12 +260,12 @@ impl ProviderTransportSource {
     ///
     /// # Errors
     /// The first defect, in a fixed order, as a registered refusal with a
-    /// `provider_transport.*` detail and the declaration that would license
+    /// `provider_transport.*` detail and the declaration that would support
     /// the route: a missing population or regime
     /// (`population_missing`, `regime_missing`), an incomplete quantity,
     /// a provider object this route does not admit or that is ill formed,
     /// missing assumptions, a quantity the object does not declare, a native
-    /// licence, a receipt that does not cover the object, or attestation where
+    /// support, a receipt that does not cover the object, or attestation where
     /// verification is required (`verification_required`).
     pub fn admit(&self) -> Result<AdmittedProviderSource, ExternalRefusal> {
         if !text_ok(&self.component) || !text_ok(&self.semantic_identity) {
@@ -323,10 +323,10 @@ impl ProviderTransportSource {
             .with_supplied(self.quantity.canonical_identity()));
         }
         match &self.trust {
-            ExternalTrustState::NativeLicensed => {
+            ExternalTrustState::NativeSupported => {
                 return Err(declare(
                     "provider_transport.native_trust_claimed",
-                    "a provider is external: declare it attested or exact-request verified; native licence is never conferred by metadata",
+                    "a provider is external: declare it attested or exact-request verified; native support is never conferred by metadata",
                 ));
             }
             ExternalTrustState::ExternallyAttested { attestor } => {
@@ -435,7 +435,7 @@ impl AdmittedProviderSource {
             ExternalTrustState::ExactRequestVerified(receipt) => {
                 writer.word(2).text(&receipt.digest());
             }
-            ExternalTrustState::NativeLicensed => {
+            ExternalTrustState::NativeSupported => {
                 writer.word(0);
             }
         }

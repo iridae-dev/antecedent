@@ -1163,7 +1163,7 @@
           ]
         },
         {
-          "path": "python/src/prepared_api/prepare_unlicensed_design.rs",
+          "path": "python/src/prepared_api/prepare_unsupported_design.rs",
           "lines": [
             70,
             110,
@@ -3908,11 +3908,11 @@
         },
         {
           "rust": "<antecedent::PreparedMechanismComposition>::inverse_forward_source",
-          "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>"
+          "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>"
         },
         {
           "rust": "<antecedent::PreparedMechanismComposition>::inverse_forward_source_typed",
-          "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>"
+          "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>"
         },
         {
           "rust": "<antecedent::PreparedMechanismComposition>::mean_contrast",
@@ -6434,7 +6434,7 @@
           ]
         },
         {
-          "path": "python/src/prepared_api/prepare_unlicensed_design.rs",
+          "path": "python/src/prepared_api/prepare_unsupported_design.rs",
           "lines": [
             9,
             72,
@@ -15357,8 +15357,8 @@
           "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn graph_class(&self) -> &'static str"
         },
         {
-          "rust": "<antecedent::planner::lowered::ScientificProblem>::licensed",
-          "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn licensed(&self) -> bool"
+          "rust": "<antecedent::planner::lowered::ScientificProblem>::supported",
+          "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn supported(&self) -> bool"
         },
         {
           "rust": "<antecedent::planner::lowered::ScientificProblem>::source_digest",
@@ -15935,8 +15935,8 @@
       "method_count": 3,
       "methods": [
         {
-          "rust": "<antecedent::planner::plan_view::SupportView>::licensed",
-          "declaration": "pub fn <antecedent::planner::plan_view::SupportView>::const fn licensed(&self) -> bool"
+          "rust": "<antecedent::planner::plan_view::SupportView>::supported",
+          "declaration": "pub fn <antecedent::planner::plan_view::SupportView>::const fn supported(&self) -> bool"
         },
         {
           "rust": "<antecedent::planner::plan_view::SupportView>::status",

@@ -268,7 +268,7 @@ fn x8t_selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it()
         declared(),
         &evidence(),
     ));
-    assert_eq!(refusal.refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.refusal.code, "not_supported");
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.selection_on_mechanism");
     assert!(refusal.witness.is_none());
     assert_eq!(refusal.refusal.offending.as_deref(), Some("m"));
@@ -306,7 +306,7 @@ fn x8t_undeclared_premises_refuse_each_with_its_own_detail() {
     };
     let r = go(DeclaredAssumptions { additive_noise: false, ..declared() });
     assert_eq!(r.refusal.detail, "transported_counterfactual.nonadditive_mechanism");
-    assert_eq!(r.refusal.code, "cell_not_licensed");
+    assert_eq!(r.refusal.code, "not_supported");
     let r = go(DeclaredAssumptions { noise_laws_shared: false, ..declared() });
     assert_eq!(r.refusal.detail, "transported_counterfactual.noise_law_not_shared");
     assert_eq!(r.refusal.offending.as_deref(), Some("noise_laws_shared"));

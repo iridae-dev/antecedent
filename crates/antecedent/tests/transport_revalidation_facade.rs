@@ -173,7 +173,7 @@ fn a_calibration_record_is_never_inherited_by_another_target() {
     assert!(claim.reasons.contains(&TransportReason::CalibrationFromAnotherTarget));
     assert!(claim.calibration_withdrawn());
     let refusal = report.require_valid("effect_trial").unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     // A point-only claim of the same scene is recomputed, not withdrawn: it states no
     // guarantee to lose.
     assert_eq!(class(&report, "effect_registry"), Revalidation::Recompute);

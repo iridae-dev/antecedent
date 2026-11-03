@@ -25,7 +25,7 @@
 //! `layered_multi_mediator_nuisance` and `confounded_direct_and_mediated`, which has a direct
 //! edge from the treatment to the outcome plus a mediated path under confounding) have weights
 //! redrawn until the strong-faithfulness margin `sparse_scm::MIN_MARGIN` holds. A table does not
-//! announce its topology, so the runtime licenses a cell only when the records of every
+//! announce its topology, so the runtime supports a cell only when the records of every
 //! topology of its declared degree attest it (the conservative intersection,
 //! `ParentSetEffect::keyed_bases`).
 //!
@@ -446,7 +446,7 @@ fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
 
 fn gated(test: &'static str, design: Design) {
     eprintln!("calibration-protocol parent_set_source_version={}", protocol_version());
-    let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Licensed, false, rep));
+    let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Supported, false, rep));
     let (share, median, covered) = print_summary(test, &runs);
     let dgp = match design.transformation {
         Transformation::Linear => "crates/antecedent/tests/common/sparse_scm.rs::simulate",
@@ -570,7 +570,7 @@ fn discovery_validation_publishes_denominators_refusals_widths_and_recovery() {
     for transformation in [Transformation::Linear, Transformation::LogLinear] {
         let cell = design(transformation, 10, Topology::HubConfoundedMultiPath, Regime::None);
         let runs: Vec<Replicate> = (0..u64::from(REPLICATES))
-            .map(|rep| replicate(cell, Variant::Licensed, false, rep))
+            .map(|rep| replicate(cell, Variant::Supported, false, rep))
             .collect();
         let summary = summarize("discovery_validation_publication_check", &runs);
         assert_eq!(summary.replicates, REPLICATES, "the denominator is every replicate");
@@ -903,7 +903,7 @@ fn parent_set_misspecified_test_boundary_95() {
     boundary(
         "parent_set_misspecified_test_boundary_95",
         "misspecified_test",
-        Variant::Licensed,
+        Variant::Supported,
         true,
     );
 }

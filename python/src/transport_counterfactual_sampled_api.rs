@@ -168,7 +168,7 @@ impl SampledCounterfactualTransportResultNative {
     }
 
     /// Replay the sealed artifact, build the delta Wald interval and bind it to
-    /// its currently attesting coverage record, or refuse `cell_not_licensed`.
+    /// its currently attesting coverage record, or refuse `not_supported`.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None))]
     fn measure_interval(
         &self,

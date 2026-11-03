@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/bayesian/static_effect_prior_transfer`
 
-Same-design and mapped prior transfer ride licensed Bayesian
+Same-design and mapped prior transfer ride supported Bayesian
 `AverageEffect` / `ConditionalEffect` on explicit Dag and Cpdag/Pag class
 envelopes via the staged path. They are not a matrix axis.
 

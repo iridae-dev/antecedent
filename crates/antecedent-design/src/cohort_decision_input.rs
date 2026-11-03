@@ -83,7 +83,7 @@ pub fn cohort_decision_input(
     )
 }
 
-/// The cohort-mean contrast as a licensed forward source of an inverse query.
+/// The cohort-mean contrast as a supported forward source of an inverse query.
 ///
 /// An inverse query asks which finite action meets a target mean, so a mean source
 /// answers a target on an affine utility and the existing engine refuses a probability,
@@ -94,12 +94,12 @@ pub fn cohort_decision_input(
 ///
 /// # Errors
 /// A source built under a declared covariate shift: the shape every consumer that does
-/// not accept transported claims returns (`cell_not_licensed`,
+/// not accept transported claims returns (`not_supported`,
 /// `inverse_forward_source.transported_not_accepted`).
 pub fn cohort_forward_claim(source: &CohortDecisionSource) -> Result<ForwardClaim, CohortRefusal> {
     if source.shift().is_some() {
         return Err(CohortRefusal {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             detail: crate::inverse_forward_source::DETAIL_TRANSPORTED_NOT_ACCEPTED,
             subject: source.cohort().population_id().to_owned(),
             remedy: "accept transported claims explicitly (AcceptsTransported) so the result \

@@ -227,7 +227,7 @@ def s1_producer():
     assert (interval["available"], interval["status"], interval["reason"]) == (
         False,
         "withheld",
-        "cell_not_licensed",
+        "not_supported",
     )
     assert interval["mean_intervals"] == [] and interval["seed"] is None
     return before, after, (bytes(counted.export()), counted_live)
@@ -376,7 +376,7 @@ def s2_producer():
     assert report["envelope"]["scenarios"] == ["direct"]
     with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
         prepared.aggregate_interval()
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
     require_success(prepared.refresh(s2_laws(source=(0.1, 0.3, 0.3, 0.3))))
     moved = json.loads(require_success(prepared.estimate()))
     assert [s["status"] for s in moved["scenarios"]] == [s["status"] for s in report["scenarios"]]
@@ -914,7 +914,7 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     tmp_path,
 ):
     """A misclassified exposure, corrected by its declared confusion model, enters a finite
-    causal model together with a pooled study effect; an affine decision reads the licensed
+    causal model together with a pooled study effect; an affine decision reads the supported
     mean; new observations make the claim graph classify the claim for recomputation and the
     decision flips; a fresh process holding only files recomputes both decisions against
     closed forms written in the consumer (``conformance/composition/release_boundary``)."""

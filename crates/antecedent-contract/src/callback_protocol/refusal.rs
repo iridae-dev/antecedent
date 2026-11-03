@@ -1,6 +1,6 @@
 //! Typed refusals of the callback protocol: a registered reason code, a
 //! `callback_protocol.*` detail and the declaration or evidence that would
-//! license the request.
+//! support the request.
 //!
 //! Every detail literal is written here, beside the reason code it is emitted
 //! under, as one named constructor per refusal. The rest of the module tree
@@ -170,7 +170,7 @@ pub fn nested_inputs_mismatch() -> CallbackRefusal {
 pub fn native_trust_claimed() -> CallbackRefusal {
     invalid(
         "callback_protocol.native_trust_claimed",
-        "a callback is external: declare it unverified, externally attested or exact-request verified; native licence is never conferred by metadata",
+        "a callback is external: declare it unverified, externally attested or exact-request verified; native support is never conferred by metadata",
     )
 }
 
@@ -302,7 +302,7 @@ pub fn no_idempotency_contract() -> CallbackRefusal {
     )
 }
 
-/// A diagnostic result cannot back a licensed claim.
+/// A diagnostic result cannot back a supported claim.
 #[must_use]
 pub fn diagnostic_only(reason: &str) -> CallbackRefusal {
     reuse(
@@ -473,15 +473,15 @@ pub fn provider_unavailable(identity: &str) -> CallbackRefusal {
     )
 }
 
-// -- closed routes (cell_not_licensed, joint_law_required) -----------------------------------------
+// -- closed routes (not_supported, joint_law_required) -----------------------------------------
 
 /// An interval from a callback law is closed.
 #[must_use]
-pub fn interval_not_licensed() -> CallbackRefusal {
+pub fn interval_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_CLOSED,
-        "callback_protocol.interval_not_licensed",
+        "callback_protocol.interval_not_supported",
     )
     .with_remedy(
         "a callback supplies values, not coverage: an interval needs a whole-method coverage record measured at this coordinate",
@@ -490,11 +490,11 @@ pub fn interval_not_licensed() -> CallbackRefusal {
 
 /// A posterior or probability guarantee from a callback is closed.
 #[must_use]
-pub fn posterior_guarantee_not_licensed() -> CallbackRefusal {
+pub fn posterior_guarantee_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_CLOSED,
-        "callback_protocol.posterior_guarantee_not_licensed",
+        "callback_protocol.posterior_guarantee_not_supported",
     )
     .with_remedy(
         "a callback posterior is the provider's object; a posterior or probability guarantee needs a measured coverage record for the whole method",
@@ -505,20 +505,20 @@ pub fn posterior_guarantee_not_licensed() -> CallbackRefusal {
 #[must_use]
 pub fn native_trust_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_CLOSED,
         "callback_protocol.native_trust_not_conferred",
     )
     .with_remedy(
-        "metadata never confers native licence; implement and license the method natively, or keep the result an external claim",
+        "metadata never confers native support; implement and support the method natively, or keep the result an external claim",
     )
 }
 
-/// A callback cannot mint an identification licence.
+/// A callback cannot mint an identification evidence.
 #[must_use]
 pub fn identification_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_CLOSED,
         "callback_protocol.identification_not_conferred",
     )

@@ -3,7 +3,7 @@
 //! Analytic standard errors follow Abadie–Imbens (2006) via
 //! [`super::matching::matching_contrast`]. The nonparametric bootstrap is invalid for
 //! nearest-neighbor matching with a fixed number of matches (Abadie–Imbens 2008); the
-//! licensed uncertainty product is [`EffectEstimate::se_analytic`]. Setting
+//! supported uncertainty product is [`EffectEstimate::se_analytic`]. Setting
 //! `DistanceMatching`'s declared bootstrap replicates do **not** populate
 //! [`EffectEstimate::se_bootstrap`].
 //!
@@ -457,7 +457,7 @@ mod tests {
         (TabularData::new(storage), estimand)
     }
 
-    /// Regression: requesting bootstrap replicates must not license an SE in
+    /// Regression: requesting bootstrap replicates must not support an SE in
     /// `se_bootstrap` (Abadie–Imbens 2008). Analytic SE remains the uncertainty product.
     #[test]
     fn bootstrap_replicates_do_not_populate_se_bootstrap() {

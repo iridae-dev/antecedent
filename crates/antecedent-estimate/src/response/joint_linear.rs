@@ -3,7 +3,7 @@
 //! This extends the linear response design and Bayesian g-computation engines. A fit is
 //! shared by all world averages; uncertainty is projected jointly from one coefficient
 //! covariance or one aligned coefficient posterior. It is conditional on the retained
-//! empirical covariate distribution. This component grants no causal or calibration license.
+//! empirical covariate distribution. This component grants no causal or calibration support.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

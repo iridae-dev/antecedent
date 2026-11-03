@@ -35,14 +35,14 @@ record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/kind.rs"
-sha256 = "61355ff7c980f069f57bcd8a50a2762b8f3612284ddbeb69faaf7caacef19523"
+sha256 = "2e14629e026c5ecdf86ce353c2ac4c7337a2dcbd5cb9e9a15aaa8a58dbc5692d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/claim.rs"
-sha256 = "5a6844ff7ffd8a33576f8ee166e411512728cc50cca8bbe26ce2b0c326de936f"
+sha256 = "f8ea7af10c7c1c249144bdf467978e5b5424fadc133c6a58633f28b933b25ef4"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/scientific_bridge.rs"
-sha256 = "413f3cc427f682f1c889d317e010ff67c20a0ed432cc28999b1d04358dfc2321"
+sha256 = "3b666cdd6801d250ff39ae5319185bee70f738acae19ea8069650d96f4333cba"

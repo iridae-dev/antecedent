@@ -1209,7 +1209,7 @@ recalc_request_codes! {
     MemoryBudgetExceeded => "recalc.memory_budget_exceeded",
     MzInvalidRequest => "recalc.mz_invalid_request",
     PrimaryResultIsNotAnEffect => "recalc.primary_result_is_not_an_effect",
-    RetargetNotLicensed => "recalc.retarget_not_licensed",
+    RetargetNotSupported => "recalc.retarget_not_supported",
     RowCountMismatch => "recalc.row_count_mismatch",
     RowIdsMismatch => "recalc.row_ids_mismatch",
     ScoreStageUndeclared => "recalc.score_stage_undeclared",
@@ -1320,14 +1320,14 @@ impl Default for RecalcSession {
 }
 
 impl RecalcSession {
-    /// An empty in-process session with the retarget route declared licensed.
+    /// An empty in-process session with the retarget route declared supported.
     #[must_use]
     pub fn new() -> Self {
         Self {
             live: None,
             previous: StageIdentities::new(),
             resume: None,
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
         }
     }
@@ -1338,7 +1338,7 @@ impl RecalcSession {
         Self { previous, resume: Some(resume), ..Self::new() }
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     pub fn set_retarget_support(&mut self, retarget: RetargetSupport) {
         self.retarget = retarget;
     }
@@ -1586,7 +1586,7 @@ pub enum StandingInputDeclaration {
     },
     /// The session does not hold the information the input names, or declaring it would
     /// reseal the identity of a retained artifact, so none is declared. A claim that needs
-    /// it is not licensed by this session's identities alone.
+    /// it is not supported by this session's identities alone.
     Undeclared {
         /// What is missing, as a namespaced finding.
         finding: &'static str,

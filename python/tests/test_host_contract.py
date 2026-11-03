@@ -210,7 +210,7 @@ def test_an_associational_record_is_noncausal_and_a_point_record_is_causal():
 
 
 def test_operation_status_follows_applicability_then_readiness():
-    assert host.operation_status("licensed", "executable") == "supported"
+    assert host.operation_status("supported", "executable") == "supported"
     for readiness in (
         "review_required",
         "assumption_missing",
@@ -219,9 +219,9 @@ def test_operation_status_follows_applicability_then_readiness():
         "runtime_unavailable",
         "unknown_support",
     ):
-        assert host.operation_status("licensed", readiness) == "partial", readiness
-    assert host.operation_status("licensed", "empirical_support_failed") == "unsupported"
-    assert host.operation_status("unlicensed", "executable") == "unsupported"
+        assert host.operation_status("supported", readiness) == "partial", readiness
+    assert host.operation_status("supported", "empirical_support_failed") == "unsupported"
+    assert host.operation_status("unsupported", "executable") == "unsupported"
     assert host.operation_status("impossible") == "unsupported"
     assert host.operation_status("unknown") == "partial"
     assert host.operation_status("not_a_status") == "unsupported"

@@ -62,7 +62,7 @@ One declared discovery contract is run on each population's rows separately, wit
 
 ## Discover on one half, analyse on the other
 
-`discover_on_split` partitions exchangeable rows into a discovery table and an analysis table by a declared rule, with a `SampleSplitReceipt` a consumer re-derives. The binding licenses a statement for an analysis that treats the selected graph as given. A table that is not the receipt's analysis rows is refused.
+`discover_on_split` partitions exchangeable rows into a discovery table and an analysis table by a declared rule, with a `SampleSplitReceipt` a consumer re-derives. The binding supports a statement for an analysis that treats the selected graph as given. A table that is not the receipt's analysis rows is refused.
 
 `sample_split_effect` is the whole-method construction with a measured coverage property: split, PC with the partial-correlation test, a resolved structure accepted, and the treatment's effect adjusted for its parents on the analysis half. Its interval is attested by `SplitEffect.measure` from a coverage record and is a statement about the method over the measured family (linear-Gaussian, causally sufficient, faithful, fully orientable class, five to seven variables), not about one dataset's graph. Faithfulness and causal sufficiency cannot be tested from the table discovery ran on, so a per-dataset recovery claim stays closed.
 
@@ -82,10 +82,10 @@ For ten to twenty variables with undirected edges elsewhere in the class, `sampl
 | Tables not integer-coded or complete, a series shorter than its window | `evidence_invalid` | Supply complete integer-coded tables and valid temporal windows |
 | Pooled search over stacked populations | `selective_discovery.pooled_population_search` | Use the pooled algorithm directly and declare cross-population assumptions |
 | Content-identical populations | `selective_discovery.pooled_population_data` | Supply disjoint population rows |
-| Interval after reusing the same rows to select and analyse | `cell_not_licensed` (`selective_discovery.downstream_interval_not_licensed`) | Split the rows and use `sample_split_effect` |
-| Effect after discovery with an unresolved structure, an unfinished search, or outside five to seven variables | `cell_not_licensed` (`split_effect.structure_unresolved`, `split_effect.search_not_finished`, `split_effect.variable_count_not_measured`) | Use a fully orientable table, or analyse under a declared graph |
-| Effect after discovery with an undirected edge at the treatment, a non-positive log-linear column, or a declared degree above four | `cell_not_licensed` (`parent_set_effect.*`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
-| Attestation without a current coverage record, or outside its measured row range | `cell_not_licensed` (`measured_inference.record_not_attesting`) | Measure the construction at this coordinate |
+| Interval after reusing the same rows to select and analyse | `not_supported` (`selective_discovery.downstream_interval_not_supported`) | Split the rows and use `sample_split_effect` |
+| Effect after discovery with an unresolved structure, an unfinished search, or outside five to seven variables | `not_supported` (`split_effect.structure_unresolved`, `split_effect.search_not_finished`, `split_effect.variable_count_not_measured`) | Use a fully orientable table, or analyse under a declared graph |
+| Effect after discovery with an undirected edge at the treatment, a non-positive log-linear column, or a declared degree above four | `not_supported` (`parent_set_effect.*`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
+| Attestation without a current coverage record, or outside its measured row range | `not_supported` (`measured_inference.record_not_attesting`) | Measure the construction at this coordinate |
 | Temporal, panel or clustered rows in a split, or a non-float64 column | `selective_discovery.split_unsupported_rows` | Materialize rows, or use a design for dependent rows |
 
 ## Related

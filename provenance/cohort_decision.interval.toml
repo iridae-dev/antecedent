@@ -8,7 +8,7 @@ copied_tests = false
 # papers = [] is an explicit judgment: the construction is original engineering over standard identities.
 papers = []
 implementation_deviations = [
-  "The interval is the textbook Student-t interval of a linear combination of OLS coefficients, phibar' b_hat +/- t_(n-p) sqrt(phibar' V phibar), with the HC3 heteroskedasticity-consistent sandwich covariance (MacKinnon and White 1985). It is reported only as a measured scalar bound to a currently attesting coverage record of the whole route; outside the measured native-fit construction it refuses cell_not_licensed.",
+  "The interval is the textbook Student-t interval of a linear combination of OLS coefficients, phibar' b_hat +/- t_(n-p) sqrt(phibar' V phibar), with the HC3 heteroskedasticity-consistent sandwich covariance (MacKinnon and White 1985). It is reported only as a measured scalar bound to a currently attesting coverage record of the whole route; outside the measured native-fit construction it refuses not_supported.",
   "Native-fit authority is replayed, not declared: the measured envelope retains the fit rows, and the consumer refits and requires the export (marker, n, p, coefficients, covariance) to reproduce bit for bit.",
 ]
 upstream_implementations_observed = []
@@ -28,17 +28,17 @@ limitations = "Three seeded heteroskedastic designs (no modifier with 40 rows, o
 assumptions = ["The cohort is drawn from the model's own population (a shifted cohort is point-only), and the rows are independent with a correctly specified linear conditional effect; the review checks arithmetic, not those assumptions.", "HC3 is undefined at a row with leverage one and the fit refuses there; with near-unit leverage the covariance is dominated by one row.", "The interval treats the cohort mean basis as fixed and so excludes cohort-sampling variability; it is conditional on the cohort rows."]
 sources = ["https://doi.org/10.1016/0304-4076(85)90158-7", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The effect coefficients and the HC3 covariance of the effect block equal the 50-digit refit on the uncentred basis for zero, one and two modifiers, so the centring and the affine back-map to the uncentred basis preserve both the coefficients and the sandwich.", "The cohort point c'phibar, its standard error sqrt(phibar' V phibar) and the lower and upper bands equal the reference at all three levels, with the critical value of the Student-t distribution on n - p degrees of freedom.", "No product defect was found in this record."]
-record_sha256 = "d87164cb130d82f80c6733a6eb96f9d4e5e73b54eec144caecb4060604cd55ce"
+record_sha256 = "c1aedde0dcdd44d50ef27bfad950efb9046879439853e6b1a28487304f8fedb4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
-sha256 = "527a4497cf080baa5bf77ca48c5d75e018a50671d906b229d44f4ebaadf4baa7"
+sha256 = "38d56e67c1b7cd8b2ab40ba5cea33ca0aacc8831d55c69c644372178864e3b01"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
-sha256 = "fcdd8cee64c5ac74454d3dcf98436498a423aa0b496e3fcd35fcbd00e4ab049b"
+sha256 = "a5ff3a70a645483ceb5d0cae6e5c98eeffb450230995e0f71b41110adf7b535f"
 
 [[method_review.artifacts]]
 role = "reference"

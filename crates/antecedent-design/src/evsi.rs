@@ -97,7 +97,7 @@ pub struct EvsiRequest {
     pub action_ids: Vec<String>,
     /// Candidates (any order; evaluation is canonical by semantic id).
     pub candidates: Vec<EvsiCandidate>,
-    /// Cost-to-utility mapping, if one is licensed.
+    /// Cost-to-utility mapping, if one is supported.
     pub cost_map: Option<CostToUtilityMap>,
     /// Refuse (instead of reporting value and cost separately) when no map is supplied.
     pub require_net_value: bool,

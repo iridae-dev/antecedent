@@ -273,7 +273,7 @@ def test_action_and_forward_row_order_and_cost_ties_never_change_a_result():
 
 def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint():
     _refused(
-        "cell_not_licensed",
+        "not_supported",
         "inverse.probability_target",
         lambda: inverse_outcome(_forward(), query=ChanceConstraint(3.0, 0.9), actions=_actions()),
     )
@@ -281,7 +281,7 @@ def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constrai
 
 def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell():
     _refused(
-        "cell_not_licensed",
+        "not_supported",
         "inverse.quantile_target",
         lambda: inverse_outcome(_forward(), query=TargetQuantile(0.9, 3.0), actions=_actions()),
     )
@@ -289,7 +289,7 @@ def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell
 
 def test_observational_scenarios_are_refused_not_turned_into_an_action():
     _refused(
-        "cell_not_licensed",
+        "not_supported",
         "inverse.observational_scenarios",
         lambda: inverse_outcome(_forward(), query=ObservationalScenarios(), actions=_actions()),
     )
@@ -391,7 +391,7 @@ def test_temporal_style_simultaneous_band_is_preferred_to_the_pointwise_band():
     assert report.action("dose_1.5").interval == (2.5, 5.5)
 
 
-def test_forward_claim_and_snapshot_identity_are_bound_and_unlicensed_input_refuses():
+def test_forward_claim_and_snapshot_identity_are_bound_and_unsupported_input_refuses():
     forward = _forward().model_copy(
         update={
             "claim_id": "claim-a",
@@ -416,10 +416,10 @@ def test_forward_claim_and_snapshot_identity_are_bound_and_unlicensed_input_refu
         != report.identity
     )
     _refused(
-        "cell_not_licensed",
-        "inverse.forward_not_licensed",
+        "not_supported",
+        "inverse.forward_not_supported",
         lambda: inverse_outcome(
-            forward.model_copy(update={"evidence_status": "allowed_unlicensed"}),
+            forward.model_copy(update={"evidence_status": "not_supported"}),
             query=TargetMean(3.0),
             actions=_actions(),
         ),

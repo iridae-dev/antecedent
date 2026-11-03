@@ -709,7 +709,7 @@ mod tests {
         assert_eq!(
             mag_path.status,
             IdentificationStatus::NotIdentified,
-            "MAG visibility must not be the CoDetermined license: {:?}",
+            "MAG visibility must not be the CoDetermined support: {:?}",
             mag_path.derivation
         );
         let known = GeneralizedAdjustmentIdentifier::new()

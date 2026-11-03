@@ -1,7 +1,7 @@
-"""Parity of the unlicensed design utilities.
+"""Parity of the unsupported design utilities.
 
 ``transport.estimate_trial_effect`` and ``interference.estimate`` are the
-unlicensed utilities: augmented IPW, every assignment design and exposure
+unsupported utilities: augmented IPW, every assignment design and exposure
 mapping, and ``seed`` as the exposure-probability Monte Carlo seed. They keep
 that capability and those numbers. The expected values in
 ``fixtures/design_utilities.json`` were recorded by running these exact

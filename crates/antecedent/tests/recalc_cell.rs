@@ -168,7 +168,7 @@ fn table(outcome: &RecalcOutcome) -> Table {
 }
 
 fn reused_string(stage: Stage) -> String {
-    let dep = stage.dependencies(RetargetSupport::Licensed).first().copied().unwrap_or(stage);
+    let dep = stage.dependencies(RetargetSupport::Supported).first().copied().unwrap_or(stage);
     format!("reused({dep})")
 }
 
@@ -394,9 +394,9 @@ fn cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
     assert_eq!(counts(&second), [0, FIRST_RUN_FITS, 1, 1, 1]);
     close(second.law.ate, rerun(&changed, SEED).law.ate, "refit vs independent rerun");
 
-    // An unlicensed route cannot be exported either.
+    // An unsupported route cannot be exported either.
     let error = session.export_scores().unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.retarget_not_licensed");
+    assert_eq!(request_detail(&error), "recalc.retarget_not_supported");
 }
 
 #[test]
@@ -724,7 +724,7 @@ fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
     assert_eq!(fresh.identities(), &anchor);
     assert!(!fresh.has_run());
 
-    // None of that poisoned the session: the licensed operation still runs.
+    // None of that poisoned the session: the supported operation still runs.
     let good = execute_resumed_retarget(&mut fresh, &ok).unwrap();
     assert_eq!(counts(&good), [1, 0, 0, 1, 1]);
 }
@@ -791,7 +791,7 @@ fn cell_crossfit_scores_resume_the_same_way() {
     let mut session = RecalcSession::new();
     let first = execute_with_receipt(&mut session, &base, &ctx(61)).unwrap();
     assert_eq!(first.receipt.totals().fold_fits, 10);
-    let artifact = freeze_crossfit_scores(&session, 600, RetargetSupport::Licensed).unwrap();
+    let artifact = freeze_crossfit_scores(&session, 600, RetargetSupport::Supported).unwrap();
     let bytes = artifact.to_bytes("crossfit-scores").unwrap();
 
     let mut changed = base.clone();
@@ -827,7 +827,7 @@ fn cell_crossfit_scores_resume_the_same_way() {
         in_process.decision.net_benefit,
         "resumed cross-fit decision",
     );
-    // An unlicensed export is refused.
+    // An unsupported export is refused.
     let error = freeze_crossfit_scores(&session, 600, RetargetSupport::NotDeclared).unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.retarget_not_licensed");
+    assert_eq!(request_detail(&error), "recalc.retarget_not_supported");
 }

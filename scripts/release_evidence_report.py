@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Report promotion evidence and enforce explicit closed-cell dispositions.
+"""Report capability evidence and enforce explicit closed-cell dispositions.
 
 This inventories cited evidence, not execution or calibration. A consistent report
-does not certify a release. The promotion runner and release-candidate gates still
-own those verdicts. Reads the one registry, parity/promotion.toml.
+does not certify a release. The capability runner and release-candidate gates still
+own those verdicts. Reads the one registry, parity/capability_records.toml.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from evidence_audit import claim_rows
 
 def build_report(root: Path) -> dict:
     dispositions = tomllib.loads(
-        (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
+        (root / "parity/capability_gaps.toml").read_text(encoding="utf-8")
     )
     if dispositions.get("version") != 1:
         raise ValueError("unsupported carryover disposition version")
@@ -29,7 +29,7 @@ def build_report(root: Path) -> dict:
     by_id = {c["id"]: c for c in cells}
     if len(by_id) != len(cells):
         raise ValueError("duplicate carryover disposition")
-    registry = "parity/promotion.toml"
+    registry = "parity/capability_records.toml"
     data = tomllib.loads((root / registry).read_text(encoding="utf-8"))
     if "release" in data:
         raise ValueError(f"{registry}: release field is not a claim")
@@ -38,13 +38,14 @@ def build_report(root: Path) -> dict:
     for record in records:
         rid = record["id"]
         if rid in all_records:
-            raise ValueError(f"duplicate promotion record {rid}")
+            raise ValueError(f"duplicate capability record {rid}")
         all_records[rid] = record
-    carried = {rid for rid, r in all_records.items() if r["status"] == "carried_forward"}
+    # A disposition belongs to a not_supported record whose routes stay refused.
+    carried = {rid for rid, r in all_records.items() if r["status"] == "not_supported"} & set(by_id)
     if set(by_id) != carried:
         raise ValueError(
-            f"carryover disposition mismatch: missing={sorted(carried - set(by_id))}; "
-            f"stale={sorted(set(by_id) - carried)}"
+            f"carryover disposition mismatch: stale={sorted(set(by_id) - carried)} "
+            "(a disposition must name a not_supported record)"
         )
     for rid in sorted(carried):
         record, disposition = all_records[rid], by_id[rid]
@@ -82,7 +83,7 @@ def build_report(root: Path) -> dict:
             summary["refusals"] = record.get("refusals", [])
         summaries.append(summary)
     return {
-        "report_kind": "promotion_evidence_inventory",
+        "report_kind": "capability_evidence_inventory",
         "execution_verified": False,
         "calibration_verified": False,
         "release_certified": False,
@@ -98,7 +99,7 @@ def build_report(root: Path) -> dict:
 
 
 def render(report: dict) -> str:
-    lines = ["Promotion evidence inventory (execution and calibration not verified)"]
+    lines = ["Capability evidence inventory (execution and calibration not verified)"]
     records = report["records"]
     counts = {
         state: sum(r["status"] == state for r in records)
@@ -149,7 +150,7 @@ def render(report: dict) -> str:
 
 
 def self_test() -> int:
-    # Pin synthetic closed records: promotion in the live registry must not
+    # Pin synthetic closed records: capability in the live registry must not
     # remove the very broken-input controls this checker is meant to exercise.
     # No measurement, build or release gate runs.
     with tempfile.TemporaryDirectory() as temp:
@@ -157,15 +158,15 @@ def self_test() -> int:
         (root / "parity").mkdir()
         # The shared claim reader also classifies registered calibration acceptance.
         (root / "parity/v3_test_registry.toml").write_text("", encoding="utf-8")
-        (root / "parity/promotion.toml").write_text(
+        (root / "parity/capability_records.toml").write_text(
             "\n".join(
                 f'''[[record]]
 id = "{rid}"
-status = "carried_forward"
+status = "not_supported"
 inference_claim = "none"
 owners = ["synthetic_owner"]
-routes = [{{ name = "synthetic.{index}", status = "closed", reason_code = "cell_not_licensed", refusal_test = "synthetic.rs", refusal_assertion = "refuses_{index}" }}]
-refusals = [{{ code = "cell_not_licensed", detail = "synthetic.closed" }}]
+routes = [{{ name = "synthetic.{index}", status = "closed", reason_code = "not_supported", refusal_test = "synthetic.rs", refusal_assertion = "refuses_{index}" }}]
+refusals = [{{ code = "not_supported", detail = "synthetic.closed" }}]
 '''
                 for index, rid in enumerate(
                     ["sensitivity.joint_uncertainty", "synthetic.transport"]
@@ -174,7 +175,7 @@ refusals = [{{ code = "cell_not_licensed", detail = "synthetic.closed" }}]
             encoding="utf-8",
             newline="\n",
         )
-        (root / "parity/promotion_carryovers.toml").write_text(
+        (root / "parity/capability_gaps.toml").write_text(
             """version = 1
 [[cell]]
 id = "sensitivity.joint_uncertainty"
@@ -195,8 +196,8 @@ corrective_action = "Add independent transport evidence."
         assert not any(
             report[k] for k in ("execution_verified", "calibration_verified", "release_certified")
         )
-        assert "parity/promotion.toml;" in render(report)
-        baseline = (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
+        assert "parity/capability_records.toml;" in render(report)
+        baseline = (root / "parity/capability_gaps.toml").read_text(encoding="utf-8")
         correction = tomllib.loads(baseline)["cell"][1]["corrective_action"]
         for before, after, expected in [
             ('id = "sensitivity.joint_uncertainty"', 'id = "unknown"', "mismatch"),
@@ -212,7 +213,7 @@ corrective_action = "Add independent transport evidence."
             ),
         ]:
             assert before in baseline
-            (root / "parity/promotion_carryovers.toml").write_text(
+            (root / "parity/capability_gaps.toml").write_text(
                 baseline.replace(before, after, 1), encoding="utf-8", newline="\n"
             )
             try:
@@ -221,13 +222,13 @@ corrective_action = "Add independent transport evidence."
                 assert expected in str(error), str(error)
             else:
                 raise AssertionError(f"mutation accepted: {expected}")
-        (root / "parity/promotion_carryovers.toml").write_text(
+        (root / "parity/capability_gaps.toml").write_text(
             baseline, encoding="utf-8", newline="\n"
         )
         duplicate = baseline[
             baseline.index("[[cell]]") : baseline.index("[[cell]]", baseline.index("[[cell]]") + 1)
         ]
-        (root / "parity/promotion_carryovers.toml").write_text(
+        (root / "parity/capability_gaps.toml").write_text(
             baseline + duplicate, encoding="utf-8", newline="\n"
         )
         try:
@@ -236,17 +237,17 @@ corrective_action = "Add independent transport evidence."
             assert "duplicate carryover disposition" in str(error)
         else:
             raise AssertionError("duplicate disposition accepted")
-        (root / "parity/promotion_carryovers.toml").write_text(
+        (root / "parity/capability_gaps.toml").write_text(
             baseline, encoding="utf-8", newline="\n"
         )
-        registry = root / "parity/promotion.toml"
+        registry = root / "parity/capability_records.toml"
         original = registry.read_text(encoding="utf-8")
         # All carried routes must be closed regardless of the report filter.
         carried_at = original.index('id = "sensitivity.joint_uncertainty"')
         closed_at = original.index('status = "closed"', carried_at)
         registry.write_text(
             original[:closed_at]
-            + 'status = "licensed"'
+            + 'status = "supported"'
             + original[closed_at + len('status = "closed"') :],
             encoding="utf-8",
             newline="\n",
@@ -256,12 +257,12 @@ corrective_action = "Add independent transport evidence."
         except ValueError as error:
             assert "every carried route must remain closed" in str(error)
         else:
-            raise AssertionError("licensed carried route accepted")
+            raise AssertionError("supported carried route accepted")
         registry.write_text(original, encoding="utf-8", newline="\n")
         # Losing an executable refusal citation must fail even when the route
         # still has a reason code and remains closed.
         first = next(
-            r for r in tomllib.loads(original)["record"] if r["status"] == "carried_forward"
+            r for r in tomllib.loads(original)["record"] if r["status"] == "not_supported"
         )
         assertion = first["routes"][0]["refusal_assertion"]
         carried_at = original.index(f'id = "{first["id"]}"')

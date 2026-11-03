@@ -50,7 +50,7 @@ pub enum PoolingDependence {
         has_cross_covariance: bool,
     },
     /// Dependence is unknown; only a structural envelope over a common
-    /// correlation range is licensed. Never a point, interval or posterior.
+    /// correlation range is supported. Never a point, interval or posterior.
     AssumptionRange {
         /// Lower correlation bound.
         rho_lo: f64,
@@ -195,11 +195,11 @@ pub struct CombinationRequest {
     pub replaces: Option<ResultId>,
 }
 
-/// What kind of statement a result licenses.
+/// What kind of statement a result supports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ClaimClass {
-    /// A point value. No interval or posterior is licensed by the ledger.
+    /// A point value. No interval or posterior is supported by the ledger.
     PointOnly,
     /// A structural envelope over a declared dependence range.
     AssumptionRange,
@@ -290,7 +290,7 @@ pub struct ResultRecord {
     pub operation: SynthesisOperation,
     /// Observation mass, each observation counted once.
     pub mass: MassAccount,
-    /// What the result licenses.
+    /// What the result supports.
     pub claim_class: ClaimClass,
     /// Digest of the sorted distinct observations counted (absent when any
     /// contributing observation set is unknown).
@@ -301,7 +301,7 @@ pub struct ResultRecord {
     /// is not independent confirmation.
     pub data_reuse: bool,
     /// Overlap-accounted dependence note: `true` when a declared covariance
-    /// or assumption range, not independence, licensed the combination.
+    /// or assumption range, not independence, supported the combination.
     pub dependence_declared: bool,
     /// Result this one recomputes.
     pub replaces: Option<ResultId>,

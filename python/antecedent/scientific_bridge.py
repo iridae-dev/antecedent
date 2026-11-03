@@ -85,7 +85,7 @@ of a propagation chain: an affine map or trial-level line reads its slope and in
 predictive law adds the new trial's residual as an input of its own, and a measurement correction is
 the guarded ratio of the source and the drawn sensitivity and specificity.
 
-Every licensing check, mapping, identity and refusal is computed in Rust; this module builds the
+Every support check, mapping, identity and refusal is computed in Rust; this module builds the
 declaration and presents the result. Refusals are :class:`ScientificBridgeRefusal` (a
 :class:`~antecedent.errors.CausalUnsupportedError`) with a registered ``reason_code``, a
 ``scientific_bridge.*`` ``detail`` and a ``remedy``.
@@ -290,7 +290,7 @@ class ScientificBridgeRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     ``scientific_bridge.*`` ``detail``; ``remedy`` names the declaration or evidence that would
-    license the request when one is known.
+    support the request when one is known.
     """
 
 
@@ -452,7 +452,7 @@ class TransportabilityPremise:
 
 @dataclass(frozen=True, slots=True)
 class IdentityMapping:
-    """The value is unchanged; licensed only where the assumptions make the target equal it."""
+    """The value is unchanged; supported only where the assumptions make the target equal it."""
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration the native layer reads."""
@@ -991,7 +991,7 @@ class BridgedClaimInterval(ScientificResult):
 
     ``standard_error`` is the source claim's declared ``source_standard_error`` propagated through
     the mapping together with the mapping's own estimation uncertainty. ``degrees_of_freedom`` is
-    ``None`` for the normal reference. ``licensed_by`` is ``coverage_record`` (a current record,
+    ``None`` for the normal reference. ``supported_by`` is ``coverage_record`` (a current record,
     named by ``coverage_record``, measured the construction) or
     ``exact_transform_of_declared_source_interval`` (an identity or declared affine map adds no
     uncertainty, so the level is the declared source interval's own). ``assumptions`` states what
@@ -1009,7 +1009,7 @@ class BridgedClaimInterval(ScientificResult):
     degrees_of_freedom: float | None
     mapping: str
     construction: str
-    licensed_by: str
+    supported_by: str
     coverage_record: str
     calibration_sha: str
     assumptions: str
@@ -1215,8 +1215,8 @@ class BridgedClaim(ScientificResult):
         request is unscoped and, like a posterior or joint law of a bridged claim, always raises.
 
         Raises:
-            ScientificBridgeRefusal: ``cell_not_licensed`` /
-                ``scientific_bridge.interval_not_licensed`` for an unscoped request;
+            ScientificBridgeRefusal: ``not_supported`` /
+                ``scientific_bridge.interval_not_supported`` for an unscoped request;
                 ``scientific_bridge.interval_source_uncertainty_required`` when the source claim
                 declared no ``standard_error``; ``scientific_bridge.interval_scope_outside_measured``
                 outside a measured design.
@@ -1328,7 +1328,7 @@ def _claim(summary: Mapping[str, Any], handle: Any) -> BridgedClaim:
 
 @dataclass(frozen=True, slots=True, eq=False)
 class PreparedBridge:
-    """A bridge contract checked once, with its licensing verdict kept.
+    """A bridge contract checked once, with its support verdict kept.
 
     :meth:`derive` and :meth:`with_contract` return new values and leave this one untouched.
     """
@@ -1382,7 +1382,7 @@ def prepare_scientific_bridge(contract: BridgeContract) -> PreparedBridge:
 
     Raises:
         ScientificBridgeRefusal: the first defect, with its registered ``reason_code``,
-            ``scientific_bridge.*`` ``detail`` and the ``remedy`` that would license it: a
+            ``scientific_bridge.*`` ``detail`` and the ``remedy`` that would support it: a
             missing or evidence-less assumption, a proxy offered as the construct, an
             association offered as an intervention, a stated preference offered as realized
             behavior, a predictive importance offered as a causal effect, a model score offered
@@ -1396,7 +1396,7 @@ def prepare_scientific_bridge(contract: BridgeContract) -> PreparedBridge:
 
 
 def contract_identity(contract: BridgeContract) -> str:
-    """The identity of a contract declaration, without checking its licensing."""
+    """The identity of a contract declaration, without checking its support."""
     if not isinstance(contract, BridgeContract):
         raise CausalTypeError("contract must be a BridgeContract")
     return str(_native.scientific_bridge_contract_identity(_dumps(contract.to_wire())))
@@ -1430,10 +1430,10 @@ class ConsumedBridge(ScientificResult):
 
     @outcome_operation
     def interval(self) -> None:
-        """Always raises: a consumed bridge carries no interval license.
+        """Always raises: a consumed bridge carries no interval support.
 
         Raises:
-            ScientificBridgeRefusal: ``cell_not_licensed``.
+            ScientificBridgeRefusal: ``not_supported``.
         """
         raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
 
@@ -1467,13 +1467,13 @@ def _consume_point(artifact: bytes, expected_identity: str | None = None) -> Con
 
     ``expected_identity`` is the artifact identity the consumer retained independently of the
     bytes; a consistently resealed artifact of another bridge is refused. The consumer rebuilds
-    the contract and the source claim, applies every licensing check again, derives the claim
+    the contract and the source claim, applies every support check again, derives the claim
     again and requires the stored identity, value bits, fit and transport flag to match.
 
     Raises:
         ScientificBridgeRefusal: ``route_not_supported`` for an identity mismatch,
             ``invalid_argument`` for corrupt or foreign bytes or a value that does not replay, or
-            the library's own refusal of a stored declaration that no longer licenses.
+            the library's own refusal of a stored declaration that no longer supports.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
@@ -1629,8 +1629,8 @@ class BridgedDistribution(ScientificResult):
         With no ``level`` the request is unscoped and always raises.
 
         Raises:
-            ScientificBridgeRefusal: ``cell_not_licensed`` /
-                ``scientific_bridge.interval_not_licensed`` for an unscoped request, and
+            ScientificBridgeRefusal: ``not_supported`` /
+                ``scientific_bridge.interval_not_supported`` for an unscoped request, and
                 ``scientific_bridge.interval_scope_outside_measured`` for a map with uncertain
                 coefficients, a declared source-mapping covariance, or a design no record measured.
         """
@@ -1653,7 +1653,7 @@ class BridgedDistribution(ScientificResult):
           its own that declares its own disturbance, so the residual variance is added once;
         * a measurement correction applies ``(q + specificity - 1) / (sensitivity + specificity - 1)``
           over the source and the two drawn rates. The division refuses a Youden index that reaches
-          zero (or falls below the model's smallest licensed value) on any row, and a corrected rate
+          zero (or falls below the model's smallest supported value) on any row, and a corrected rate
           outside ``[0, 1]`` is refused, never clipped.
 
         Raises:
@@ -1762,7 +1762,7 @@ def _distribution(summary: Mapping[str, Any], handle: Any) -> BridgedDistributio
 
 @dataclass(frozen=True, slots=True, eq=False)
 class PreparedDistributionBridge:
-    """A bridge of draws whose contract was checked once, with its licensing verdict kept.
+    """A bridge of draws whose contract was checked once, with its support verdict kept.
 
     :meth:`derive` and :meth:`with_contract` return new values and leave this one untouched.
     """
@@ -1787,7 +1787,7 @@ class PreparedDistributionBridge:
 
         Raises:
             ScientificBridgeRefusal: draws of another quantity or meaning, independent marginals,
-                an associational source, a draw outside the range the mapping is licensed for, a
+                an associational source, a draw outside the range the mapping is supported for, a
                 dependence no joint law has, or a mapped draw that is not finite.
         """
         from .joint_distribution import JointDistributionArtifact

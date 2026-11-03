@@ -21,7 +21,7 @@
 //!   it. Observed work counters name what ran.
 //! * **Export / consume** seal the declarations, the shared exogenous states
 //!   and the numbers into `cross_world_execution_v1`; consume replays them with
-//!   a fresh executor and returns it warm for a licensed resume.
+//!   a fresh executor and returns it warm for a supported resume.
 //!
 //! # What a value means
 //!
@@ -85,14 +85,14 @@ pub struct CrossWorldExecution {
 
 fn closed_reading(reading: &'static str, detail: &'static str) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
-        code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+        code: antecedent_core::reason_code!("not_supported").to_owned(),
         stage: "execute".to_owned(),
         detail: detail.to_owned(),
         offending: Some(reading.to_owned()),
         remedy: Some(
             "an unqualified interval or posterior of a declared model is closed: the \
              point value from exact enumeration is the result. The interval of a named unit \
-             sampling is read with measured_interval, licensed only by a currently attesting \
+             sampling is read with measured_interval, supported only by a currently attesting \
              whole-path coverage record; a posterior statement has no parameter uncertainty \
              to describe and stays closed (docs/cross-world-execution.md)"
                 .to_owned(),
@@ -174,7 +174,7 @@ impl CrossWorldExecution {
     /// An interval for the quantity. Closed.
     ///
     /// # Errors
-    /// Always: `cell_not_licensed` (`cross_world_execution.interval_route_closed`).
+    /// Always: `not_supported` (`cross_world_execution.interval_route_closed`).
     pub fn interval(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
         Err(closed_reading("interval", "cross_world_execution.interval_route_closed"))
     }
@@ -186,7 +186,7 @@ impl CrossWorldExecution {
     /// A posterior statement for the quantity. Closed.
     ///
     /// # Errors
-    /// Always: `cell_not_licensed` (`cross_world_execution.posterior_route_closed`).
+    /// Always: `not_supported` (`cross_world_execution.posterior_route_closed`).
     pub fn posterior(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
         Err(closed_reading("posterior", "cross_world_execution.posterior_route_closed"))
     }
@@ -195,7 +195,7 @@ impl CrossWorldExecution {
 /// What an inspection of a whole-path account shows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WholePathInspection {
-    /// Always `uncalibrated_spread`: no interval or posterior reading is licensed.
+    /// Always `uncalibrated_spread`: no interval or posterior reading is supported.
     pub label: &'static str,
     /// The declared unit sampling.
     pub unit_sampling: &'static str,
@@ -296,7 +296,7 @@ impl CrossWorldExecution {
     ///
     /// # Errors
     /// Undeclared unit sampling, a sampled or transported request, a coupling the
-    /// joint-law rule does not license, units with shared evidence declared
+    /// joint-law rule does not support, units with shared evidence declared
     /// independent, an exceeded bound, or cancellation.
     pub fn whole_path_uncertainty(
         &self,

@@ -17,7 +17,7 @@ pub enum NativeExecutionFormat {
     #[serde(rename = "native_execution_v2")]
     V2,
 }
-/// Recorded observations are descriptive; importing them never executes or licenses a claim.
+/// Recorded observations are descriptive; importing them never executes or supports a claim.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NativeExecutionWire {

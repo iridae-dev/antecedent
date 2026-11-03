@@ -133,7 +133,7 @@ of an equivalence class is never reported as the discovered graph.
 ### Transport under graph uncertainty (decision)
 
 A discovered structure cannot supply a selection diagram. `request_selection_diagram`
-refuses and names every unresolved edge, the exhausted bounds, and what would license
+refuses and names every unresolved edge, the exhausted bounds, and what would support
 the request. Three decisions are recorded:
 
 1. A CPDAG/PAG or search-incomplete graph returns a **refusal with the unresolved
@@ -196,13 +196,13 @@ Limits: Portable receipts: 250000. Structure items: 65536.
   lag changes, thresholds, background knowledge and exhausted budgets, through the
   result identity and the per-edge evidence bits, against independent known-graph
   oracles (a d-separation oracle over hand-written DAGs).
-* **Not published, and not licensable per dataset:** recovery of the true graph, a
+* **Not published, and not establishable per dataset:** recovery of the true graph, a
   false-discovery or type-I error rate for the output. Whether a discovered graph is the
   true graph rests on faithfulness and causal sufficiency, and neither can be tested from
   the data discovery ran on, so no calibration of the procedure turns the statement into
-  one about a given dataset. `request_recovery_claim` refuses with `cell_not_licensed`.
+  one about a given dataset. `request_recovery_claim` refuses with `not_supported`.
 * **Not published:** an interval for an estimate computed on the rows discovery used.
-  `request_downstream_interval` refuses with `cell_not_licensed`; selecting the graph and
+  `request_downstream_interval` refuses with `not_supported`; selecting the graph and
   estimating on the same rows is not a construction with a measured coverage.
 
 ### Splitting rows: filter, then split
@@ -270,7 +270,7 @@ split on the table it was made from and refuses a changed mask
 row ids (`split_rows_mismatch`), masks, weights and content. `check_analysis_table` accepts
 only the recorded analysis part, weights included.
 
-### The interval that is licensed: the whole method on a row split
+### The interval that is supported: the whole method on a row split
 
 `antecedent::analysis::sample_split_effect::estimate_effect_on_split` (Python:
 `selective_discovery.sample_split_effect`) runs one fixed construction: a seeded half
@@ -287,21 +287,21 @@ orientable, at the measured analysis row counts, how often the interval contains
 structural coefficient. It is keyed `structure = discovered_sample_split` and never
 inherits a known-graph record. `SplitEffect.measure` replays the source and attests the
 interval from the current coverage record; without one the interval is a computed value,
-and `measure` refuses with `cell_not_licensed`.
+and `measure` refuses with `not_supported`.
 
 The measured family, the gated test and the named boundaries (weak edges, a cancelling
 edge, a test that cannot see the confounder, and the reuse of the discovery rows) are in
 `crates/antecedent/tests/sample_split_effect_calibration.rs`. Each boundary is recorded
-under its own key and licenses nothing.
+under its own key and supports nothing.
 
 ### Recovery as a measured table
 
 How often PC returns exactly the true graph over that family is printed by the same
-harness (`info recovery` lines) and published here as a table, not as a license. A row
+harness (`info recovery` lines) and published here as a table, not as support. A row
 states the variable count, the rows given to discovery and the share of replicates whose
 discovered graph equals the true one. The table is filled from the measurement at the
 release cut and carries the commit it was measured at (`4ae60f8b5`). It is a description of
-how the search behaves, not a license: the license is the coverage record of the interval.
+how the search behaves, not support: the support is the coverage record of the interval.
 
 | Variables | Discovery rows | Replicates | Graph recovered | Interval reported |
 | --- | --- | --- | --- | --- |
@@ -364,18 +364,18 @@ Three quarters go to discovery because resolving the graph needs more informatio
 held-out coefficient fit; all reporting, coverage and width targets remain unchanged. New
 sources use protocol version two and a `discovery_fraction_0_75` calibration key. Version-one
 sources replay their original half split and retain their original key; evidence from one
-allocation cannot license the other.
+allocation cannot support the other.
 
 The topologies are connected graphs with confounding, mediators and nuisance variables:
 `hub_confounded_multi_path` (a hub confounds the treatment and the outcome; the effect runs
 through a mediator), `layered_multi_mediator_nuisance` (two mediators in series and a
 mediator-outcome confounder) and `confounded_direct_and_mediated` (a direct edge and a mediated
 path under confounding; maximum degree four). A table does not announce its topology, so
-`ParentSetEffect.measure` licenses a cell only when the records of every topology of its
+`ParentSetEffect.measure` supports a cell only when the records of every topology of its
 declared degree attest it at that variable count, transformation, knowledge and analysis row
 count: the conservative intersection (a family declared at degree three has the first two
 topologies; the third has degree four). Until the records exist `measure` refuses with
-`cell_not_licensed`.
+`not_supported`.
 
 Every replicate of a design reruns discovery, acceptance or refusal and estimation. The truth
 is computed independently of the estimator by simulating the intervention (the treatment's
@@ -388,7 +388,7 @@ usefulness targets are asserted: reporting at least 0.9, median width at most 0.
 0.3 at 1,000, 2,000 and 4,000 participants, and, with the 2,000 replicates the acceptance
 manifest freezes, coverage of at least 0.93. Named boundary designs at fifteen variables (weak
 signal below the published margin, an exactly cancelling path, and skewed noise the
-partial-correlation test cannot see through) are recorded under their own keys and license
+partial-correlation test cannot see through) are recorded under their own keys and support
 nothing.
 
 *Background knowledge.* `estimate_parent_set_effect_with_knowledge` (Python: `required=`,
@@ -449,8 +449,8 @@ over, never a per-table certificate.
 
 | Row | Reason | Refusal |
 |---|---|---|
-| recovery or error-control claim for the output graph of one dataset | faithfulness and causal sufficiency are untestable | `cell_not_licensed` |
-| interval for an estimate computed on the rows discovery used | no construction with a measured coverage | `cell_not_licensed` |
+| recovery or error-control claim for the output graph of one dataset | faithfulness and causal sufficiency are untestable | `not_supported` |
+| interval for an estimate computed on the rows discovery used | no construction with a measured coverage | `not_supported` |
 | score-based search reuse | no score-cache injection seam | `route_not_supported` |
 | skeleton-state resume between runs | algorithms expose no resumable state | not offered |
 | multi-population discovery | assumptions belong to the transport contract | `route_not_supported` |

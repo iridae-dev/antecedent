@@ -67,7 +67,7 @@ pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
 #[must_use]
 pub fn route_frozen_refusal() -> EstimationError {
     EstimationError::refused_detail(
-        reason_code!("cell_not_licensed"),
+        reason_code!("not_supported"),
         TEMPORAL_INTERVAL_ROUTE_FROZEN,
         "a dependent-sampling interval is requested before its whole-method grid and artifact \
          gate pass",

@@ -17,7 +17,7 @@
 )]
 #![allow(
     clippy::fn_params_excessive_bools,
-    reason = "effort and license flags are separate Python keywords"
+    reason = "effort and support flags are separate Python keywords"
 )]
 #![cfg_attr(
     test,
@@ -192,7 +192,7 @@ mod release_migration_api;
 mod sequential_evaluation_api;
 mod temporal_design_api;
 mod tiered_identify_api;
-mod unlicensed_design_api;
+mod unsupported_design_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
 mod intervention_callback_api;
@@ -225,7 +225,7 @@ mod target_validation_api;
 mod temporal_api;
 mod temporal_counterfactual_api;
 mod temporal_extension_api;
-mod temporal_license;
+mod temporal_support;
 mod temporal_transport_api;
 mod transport_admg_conditional_api;
 mod transport_buffers;
@@ -535,16 +535,8 @@ fn identified_set_method_tag(
     serde_json::to_value(wire).ok()?.as_str().map(str::to_owned)
 }
 
-pub(crate) fn evidence_status_parts(
-    status: Option<antecedent::CellStatus>,
-) -> (Option<String>, Option<String>, Option<String>) {
-    match status {
-        Some(antecedent::CellStatus::Licensed) => (Some("licensed".into()), None, None),
-        Some(antecedent::CellStatus::Allowlisted { reason, parent }) => {
-            (Some("allowed_unlicensed".into()), Some(reason.to_string()), Some(parent.to_string()))
-        }
-        _ => (None, None, None),
-    }
+pub(crate) fn evidence_status_name(status: Option<antecedent::CellStatus>) -> Option<String> {
+    status.map(|status| status.as_str().to_owned())
 }
 
 /// Coarse-grained ATE analysis result (single boundary crossing).
@@ -869,32 +861,32 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,
-    /// Posterior of an unlicensed Bayesian randomized-design row (survival contrast, fixed
+    /// Posterior of an unsupported Bayesian randomized-design row (survival contrast, fixed
     /// group-dose policy value) with the covariance of its joint draws.
     #[pyo3(get)]
     posterior_row: Option<posterior_row_api::PosteriorRowSection>,
     /// Sequential randomized regime value and support diagnostics.
     #[pyo3(get)]
     longitudinal_regime: Option<regimes_api::LongitudinalRegimeSection>,
-    /// Observational two-decision contrast of two static regimes (unlicensed).
+    /// Observational two-decision contrast of two static regimes (unsupported).
     #[pyo3(get)]
-    sequential_contrast: Option<unlicensed_design_api::SequentialContrastSection>,
-    /// Within-period history-matched contrast (unlicensed).
+    sequential_contrast: Option<unsupported_design_api::SequentialContrastSection>,
+    /// Within-period history-matched contrast (unsupported).
     #[pyo3(get)]
-    history_match: Option<unlicensed_design_api::HistoryMatchSection>,
-    /// Sequentially randomized unit-period design or regime survival (unlicensed).
+    history_match: Option<unsupported_design_api::HistoryMatchSection>,
+    /// Sequentially randomized unit-period design or regime survival (unsupported).
     #[pyo3(get)]
     temporal_design: Option<temporal_design_api::TemporalDesignSection>,
-    /// Sharp bounds on the average effect under a binary instrument (unlicensed): an identified
+    /// Sharp bounds on the average effect under a binary instrument (unsupported): an identified
     /// set, never a point.
     #[pyo3(get)]
     iv_bounds: Option<bounds_api::IvBoundsSection>,
-    /// Noncausal association of the observed data (unlicensed, calibration unmeasured): never
+    /// Noncausal association of the observed data (unsupported, calibration unmeasured): never
     /// an intervention effect, ranks no action.
     #[pyo3(get)]
     association: Option<association_api::AssociationSection>,
     /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
-    /// panel, or optioned local ratio (unlicensed, calibration unmeasured).
+    /// panel, or optioned local ratio (unsupported, calibration unmeasured).
     #[pyo3(get)]
     quasi_rollout: Option<quasi_api::QuasiRolloutSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
@@ -903,15 +895,9 @@ pub(crate) struct AteAnalysisResult {
     /// GCM distribution-change Shapley (ChangeAttribution).
     #[pyo3(get)]
     change_attribution: Option<gcm_api::ChangeAttributionResult>,
-    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    /// Support-matrix evidence contract (`supported` or `not_supported`).
     #[pyo3(get)]
     evidence_status: Option<String>,
-    /// Allowlist reason when `evidence_status` is `allowed_unlicensed`.
-    #[pyo3(get)]
-    allowlist_reason: Option<String>,
-    /// Allowlist parent family when `evidence_status` is `allowed_unlicensed`.
-    #[pyo3(get)]
-    allowlist_parent: Option<String>,
 }
 
 /// One refuter's record: which check ran, its comparison statistic, and pass/fail.
@@ -1154,7 +1140,7 @@ pub(crate) struct EstimateSection {
     /// Per-row CATE when a heterogeneous-effect estimator produced one.
     #[pyo3(get)]
     cate: Option<Vec<f64>>,
-    /// Licensed pointwise CATE standard errors, when computed.
+    /// Supported pointwise CATE standard errors, when computed.
     #[pyo3(get)]
     cate_se: Option<Vec<f64>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.
@@ -1325,8 +1311,6 @@ pub(crate) struct SharedStudySections {
     pub modality: String,
     pub refutations: Vec<RefutationReportView>,
     pub evidence_status: Option<String>,
-    pub allowlist_reason: Option<String>,
-    pub allowlist_parent: Option<String>,
     pub structural_weight_basis: Option<String>,
     pub structural_identified_mass: Option<f64>,
     pub structural_unidentified_mass: Option<f64>,
@@ -1638,10 +1622,9 @@ pub(crate) fn shared_study_sections(
         bytes_borrowed: result.performance.bytes_borrowed,
         resampling,
     };
-    let (evidence_status, allowlist_reason, allowlist_parent) =
-        evidence_status_parts(result.support_status());
+    let evidence_status = evidence_status_name(result.support_status());
     // A query with no matrix cell (mechanism / unit change) is off the axis by design; say so
-    // rather than leaving a reader to mistake it for a licensed cell that was never stamped.
+    // rather than leaving a reader to mistake it for a supported cell that was never stamped.
     let evidence_status = match (evidence_status, result.support_status()) {
         (None, None) => Some("off_axis".to_owned()),
         (status, _) => status,
@@ -1662,8 +1645,6 @@ pub(crate) fn shared_study_sections(
         modality,
         refutations,
         evidence_status,
-        allowlist_reason,
-        allowlist_parent,
         structural_weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
         structural_identified_mass: structural.map(|m| m.identified_mass),
         structural_unidentified_mass: structural.map(|m| m.unidentified_mass),
@@ -1945,7 +1926,7 @@ pub(crate) struct ResamplingSection {
     /// Relative Monte Carlo error target of the interval half-width.
     #[pyo3(get)]
     half_width_rel_tol: Option<f64>,
-    /// Percentile interval of the successes, when licensed.
+    /// Percentile interval of the successes, when supported.
     #[pyo3(get)]
     interval: Option<(f64, f64)>,
     /// Why the run ended: `converged`, `max_replicates` or `cancelled`.
@@ -2183,7 +2164,7 @@ mod tests {
         use antecedent_graph::GraphError;
 
         let named =
-            format!("{}data_modality_not_licensed: panel", antecedent_core::reason_code::PREFIX);
+            format!("{}data_modality_not_supported: panel", antecedent_core::reason_code::PREFIX);
         let unregistered =
             format!("{}not_a_registered_code: x", antecedent_core::reason_code::PREFIX);
         let cases: Vec<(E, Option<&str>)> = vec![
@@ -2213,17 +2194,14 @@ mod tests {
                 Some("cell_not_applicable"),
             ),
             (
-                E::Support { id: SupportRefusal::Refused, message: "not licensed" },
-                Some("cell_not_licensed"),
+                E::Support { id: SupportRefusal::NotSupported, message: "not supported" },
+                Some("not_supported"),
             ),
             (E::Missing { field: "outcome" }, Some("required_option_missing")),
             (E::Conflict { what: "seed", detail: "set once" }, Some("invalid_argument")),
             // A message that names its own registered code wins over the variant default.
-            (E::Compile { message: named.clone() }, Some("data_modality_not_licensed")),
-            (
-                E::Unsupported { message: "refused: reason=cell_not_licensed: x" },
-                Some("cell_not_licensed"),
-            ),
+            (E::Compile { message: named.clone() }, Some("data_modality_not_supported")),
+            (E::Unsupported { message: "refused: reason=not_supported: x" }, Some("not_supported")),
             // A structured callback failure names the code it carries; its text is not read.
             (
                 E::Model(antecedent_model::ModelError::CallbackFailed(

@@ -161,7 +161,7 @@
       "horizon": 1,
       "treatment_offset": -1,
       "contrast": 2.0,
-      "note": "Licensed SustainedEffect is the single-step window (from == until) at treatment_offset; multi-step Sustained remains estimator-refused."
+      "note": "Supported SustainedEffect is the single-step window (from == until) at treatment_offset; multi-step Sustained remains estimator-refused."
     }
   },
   "estimator_contract": {
@@ -223,10 +223,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "f4bc57970033838b15a1caf20244b462d4741984916e5eb667e8714a66a22773"
+          "sha256": "1c170166367808bcd15716ccd3199bc3a77e8fa4e34a41ec13d2e8ee0b866698"
         }
       ],
-      "fixture_payload_sha256": "9d977b64cea2adb659141de02bb86655e434e6a14c0f5d99118e01835bd15957"
+      "fixture_payload_sha256": "8cd6c855615103423cc201882cf7547c3294d965149bd7b9f354c82ef9a197b9"
     }
   }
 }

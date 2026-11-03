@@ -1,4 +1,4 @@
-//! Typed bridges between scientific quantities: licensed bridges against hand
+//! Typed bridges between scientific quantities: supported bridges against hand
 //! computed truth, the named substitution refusals, population and regime
 //! binding, transportability, value-kind separation, identity and the derived
 //! claim's relation to its source.
@@ -148,7 +148,7 @@ fn assert_refused<T: std::fmt::Debug>(
     assert_eq!(refusal.code, code, "{refusal:?}");
     assert_eq!(refusal.detail, detail, "{refusal:?}");
     assert_eq!(refusal.validate(), Ok(()), "{refusal:?}");
-    assert!(refusal.remedy.is_some(), "a refusal states what would license it: {refusal:?}");
+    assert!(refusal.remedy.is_some(), "a refusal states what would support it: {refusal:?}");
     refusal
 }
 
@@ -309,32 +309,32 @@ fn validation_minimums_and_the_validated_range_are_enforced() {
     let source = BridgeSource { claim: &source_claim, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&too_few, &source),
-        "bridge_mapping_not_licensed",
+        "bridge_mapping_not_supported",
         "scientific_bridge.validation_trials_too_few",
     );
     let weak = surrogate_contract(4, 0.995);
     let refusal = assert_refused(
         derive_bridged_claim(&weak, &source),
-        "bridge_mapping_not_licensed",
+        "bridge_mapping_not_supported",
         "scientific_bridge.validation_r_squared_too_low",
     );
     assert_eq!(refusal.expected.as_deref(), Some("0.995"));
 
     // The range of validated surrogate effects is [0, 1.5]; the ends are in,
     // anything beyond is an extrapolation and refused.
-    let licensed = surrogate_contract(4, 0.9);
+    let supported = surrogate_contract(4, 0.9);
     for (value, expected) in [(0.0, 0.06), (1.5, 1.44)] {
         let claim_at = at(value);
         let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
-        let bridged = derive_bridged_claim(&licensed, &source).unwrap();
+        let bridged = derive_bridged_claim(&supported, &source).unwrap();
         assert!(close(bridged.value, expected, 1e-12), "{value}: {}", bridged.value);
     }
     for value in [-0.01, 1.51, 3.0] {
         let claim_at = at(value);
         let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
         assert_refused(
-            derive_bridged_claim(&licensed, &source),
-            "bridge_mapping_not_licensed",
+            derive_bridged_claim(&supported, &source),
+            "bridge_mapping_not_supported",
             "scientific_bridge.outside_validated_range",
         );
     }
@@ -354,7 +354,7 @@ fn validation_minimums_and_the_validated_range_are_enforced() {
     let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&flat, &source),
-        "bridge_mapping_not_licensed",
+        "bridge_mapping_not_supported",
         "scientific_bridge.degenerate_validation",
     );
     let mut two = surrogate_contract(2, 0.0);
@@ -494,7 +494,7 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
         let source = BridgeSource { claim: &source_claim, quantity: &measured };
         assert_refused(
             derive_bridged_claim(&measured_to_latent(model.clone()), &source),
-            "bridge_mapping_not_licensed",
+            "bridge_mapping_not_supported",
             "scientific_bridge.outside_attainable_range",
         );
     }
@@ -546,7 +546,7 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
     on_log.source.quantity = log_scale.clone();
     assert_refused(
         derive_bridged_claim(&on_log, &source),
-        "bridge_mapping_not_licensed",
+        "bridge_mapping_not_supported",
         "scientific_bridge.functional_not_supported",
     );
 }
@@ -707,7 +707,7 @@ fn an_association_is_a_causal_quantity_only_under_a_named_identification() {
     assert!(close(association - effect, 0.24, 1e-12));
 
     // The back-door standardized contrast, with its identification named, is
-    // licensed and carries its value unchanged to the interventional regime.
+    // supported and carries its value unchanged to the interventional regime.
     let identified = vec![assumption(
         "backdoor",
         AssumptionKind::Identification,
@@ -780,7 +780,7 @@ fn an_associational_quantity_is_refused_as_a_causal_quantity_until_identified() 
         "scientific_bridge.association_as_intervention",
     );
 
-    // Only a named identification licenses the same pair, and it carries the identified value.
+    // Only a named identification supports the same pair, and it carries the identified value.
     let identified = vec![assumption(
         "backdoor",
         AssumptionKind::Identification,
@@ -817,7 +817,7 @@ fn an_associational_claim_is_never_a_bridge_source() {
     let source = BridgeSource { claim: &association, quantity: &observational };
     let refusal = assert_refused(
         derive_bridged_claim(&associational_contract(identified), &source),
-        "cell_not_licensed",
+        "not_supported",
         "scientific_bridge.source_not_point",
     );
     assert_eq!(refusal.supplied.as_deref(), Some("associational"));
@@ -947,7 +947,7 @@ fn a_stated_preference_is_realized_behavior_only_under_a_declared_linkage() {
     .unwrap();
     assert!(close(calibrated.value, 0.3, 1e-12), "{}", calibrated.value);
     // The declared linkage with an unchanged value is the assertion that stated
-    // equals realized; it is licensed only because it is declared.
+    // equals realized; it is supported only because it is declared.
     let unchanged = derive_bridged_claim(&make(BridgeMapping::Identity, linkage), &source).unwrap();
     assert!(close(unchanged.value, 0.5, 0.0));
     assert_ne!(unchanged.claim.claim_id, calibrated.claim.claim_id);
@@ -1091,7 +1091,7 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
             } else if held == requested {
                 let refusal = assert_refused(
                     result,
-                    "cell_not_licensed",
+                    "not_supported",
                     "scientific_bridge.value_kind_not_carried",
                 );
                 assert_eq!(refusal.supplied.as_deref(), Some(held.as_str()));
@@ -1122,8 +1122,8 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
     }
     // And no interval or posterior is reachable from it.
     let refusal = bridged.request_interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "scientific_bridge.interval_not_supported");
 }
 
 #[test]
@@ -1165,7 +1165,7 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     );
 
     // The claim must be about the contract's source quantity, in its units.
-    let licensed = surrogate_contract(4, 0.9);
+    let supported = surrogate_contract(4, 0.9);
     let wrong = quantity(
         "trial:other",
         QuantityRole::Outcome,
@@ -1176,7 +1176,7 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     );
     let wrong_source = BridgeSource { claim: &source_claim, quantity: &wrong };
     let refusal = assert_refused(
-        derive_bridged_claim(&licensed, &wrong_source),
+        derive_bridged_claim(&supported, &wrong_source),
         "bridge_binding_mismatch",
         "scientific_bridge.quantity_mismatch",
     );
@@ -1184,7 +1184,7 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     let in_other_units = claim(1, 0.8, "mg_per_dl");
     let source = BridgeSource { claim: &in_other_units, quantity: &source_quantity };
     assert_refused(
-        derive_bridged_claim(&licensed, &source),
+        derive_bridged_claim(&supported, &source),
         "bridge_binding_mismatch",
         "scientific_bridge.units_mismatch",
     );
@@ -1227,12 +1227,12 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
         "scientific_bridge.transport_premise_mismatch",
     );
 
-    // The declared premise licenses the bridge, labelled transported, with
+    // The declared premise supports the bridge, labelled transported, with
     // the premise carried as an unresolved obligation.
-    let mut licensed = transported.clone();
-    licensed.transport =
+    let mut supported = transported.clone();
+    supported.transport =
         Some(premise(scope("adults", "do(treatment=1)"), scope("children", "do(treatment=1)")));
-    let bridged = derive_bridged_claim(&licensed, &source).unwrap();
+    let bridged = derive_bridged_claim(&supported, &source).unwrap();
     assert!(bridged.transported);
     assert!(close(bridged.value, 0.796, 1e-12));
     assert!(
@@ -1245,9 +1245,9 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
     let obligations = &bridged.claim.reasoning.assumptions.as_ref().unwrap().obligations;
     assert!(obligations.iter().any(|o| &*o.id == "bridge_transport:invariant-effect-modification"));
     // The premise is part of the bridge's identity.
-    let mut other_statement = licensed.clone();
+    let mut other_statement = supported.clone();
     other_statement.transport.as_mut().unwrap().statement = "a weaker premise".into();
-    assert_ne!(licensed.identity(), other_statement.identity());
+    assert_ne!(supported.identity(), other_statement.identity());
 
     // Where nothing is transported, a premise is refused rather than carried
     // as decoration.
@@ -1320,14 +1320,14 @@ fn malformed_declarations_and_unusable_sources_are_refused() {
     let source_bad = BridgeSource { claim: &incomplete, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_bad),
-        "cell_not_licensed",
+        "not_supported",
         "scientific_bridge.source_not_point",
     );
     let not_finite = claim(1, f64::NAN, "mmol_per_l");
     let source_nan = BridgeSource { claim: &not_finite, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_nan),
-        "cell_not_licensed",
+        "not_supported",
         "scientific_bridge.source_not_point",
     );
 }
@@ -1409,11 +1409,11 @@ fn a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it() {
     let derived_ref = SharedEvidenceRef::from_claim(&bridged.claim);
     let source_ref = SharedEvidenceRef::from_claim(&source_claim);
     assert!(derived_ref.same_source(&source_ref));
-    // Pooling the source with its own bridge is refused as unlicensed
+    // Pooling the source with its own bridge is refused as unsupported
     // synthesis, with both parents intact.
     match compose_claims(&[&source_claim, &bridged.claim], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
             assert_eq!(parents.as_ref(), [source_claim.claim_id, bridged.claim.claim_id]);
         }
         other => panic!("expected a refusal, got {other:?}"),

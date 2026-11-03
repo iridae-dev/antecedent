@@ -83,7 +83,7 @@ fn unknown_tiered_average_lifecycle_body() {
     drop(builder);
 
     let first = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(first.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(first.support_status().unwrap().as_str(), "supported");
     assert_eq!(format!("{:?}", first.identification.status), "GraphDependent");
     assert!(
         first.estimate().as_effect().unwrap().ate.is_nan(),

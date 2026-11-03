@@ -100,7 +100,7 @@ fn shared_row_mean_covariance_precision() {
         );
     }
     println!(
-        "diagnostic-precision shared_row_mean_covariance_precision n={n} samples={} inner_replicates=1000 mean_relative_error={mean_relative_error:?} scaled_covariance={scaled_covariance:?}; point_only_no_interval_license",
+        "diagnostic-precision shared_row_mean_covariance_precision n={n} samples={} inner_replicates=1000 mean_relative_error={mean_relative_error:?} scaled_covariance={scaled_covariance:?}; point_only_no_interval_support",
         results.len()
     );
 }

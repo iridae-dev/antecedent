@@ -112,7 +112,7 @@ class Bayesian:
         contrasts (``bayesian.randomized_finite_population``, the same target as the design-based
         row, or ``bayesian.randomized_superpopulation``) and its switchback effect
         (``bayesian.switchback_effect``) need it with the ``conjugate`` backend; there is no
-        default, because a prior alone does not identify a contrast. The results are unlicensed
+        default, because a prior alone does not identify a contrast. The results are unsupported
         and their calibration is unmeasured. A ``ComplierEffect`` or ``TreatmentOnTreated``
         under ``Bayesian`` runs ``bayesian.complier_effect``, a Bayesian bootstrap of the Wald
         ratio that needs no ``design_model`` and refuses a first stage whose posterior reaches
@@ -136,7 +136,7 @@ class Bayesian:
         not prove it. A rejecting test refuses with
         ``white_innovation.residual_autocorrelation``, a horizon above one step with
         ``white_innovation.multi_step``, and any other route with ``option_not_applicable``,
-        each naming the next attempt. The result is reported as the unlicensed estimator
+        each naming the next attempt. The result is reported as the unsupported estimator
         ``bayesian.temporal.white_innovation_linear`` and carries the declared premise and the
         Ljung-Box statistic.
     """

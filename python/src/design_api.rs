@@ -620,7 +620,7 @@ pub(crate) fn decision_target_digest(
 /// sample information and needs `decision` (see [`parse_decision`]) with
 /// `decision_id=0`.
 ///
-/// With `prepared` the ranking is bound to that prepared study's contract: an unlicensed
+/// With `prepared` the ranking is bound to that prepared study's contract: an unsupported
 /// support cell or a missing identification product is refused, a width ranking across a
 /// decision target other than the study's own is refused (`decision_target` is that
 /// target's 64-hex identity), candidates the objective cannot score are reported as
@@ -737,7 +737,7 @@ pub(crate) fn rank_designs(
 /// Obligations a contract-bound ranking inspects before it scores, as JSON.
 ///
 /// Reads the prepared contract and the declared evaluation context; nothing is scored. The
-/// refusals are the bound ranking's: an unlicensed contract, a missing identification
+/// refusals are the bound ranking's: an unsupported contract, a missing identification
 /// product, incomparable width targets and a renormalized identification mass.
 #[pyfunction]
 #[pyo3(signature = (

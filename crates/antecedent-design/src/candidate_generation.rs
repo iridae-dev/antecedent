@@ -22,7 +22,7 @@
 //! vocabulary. Only a candidate that a repair search verified sufficient on its own
 //! unlocks identification, and the unlock lists name the variables of those
 //! candidates alone, so a variable-name match on an unverified study never marks it
-//! licensed.
+//! supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -358,7 +358,7 @@ pub struct UnverifiedStudy {
     pub reasons: Vec<String>,
 }
 
-/// What a finished repair search licenses in the ranker's vocabulary.
+/// What a finished repair search supports in the ranker's vocabulary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedUnlocks {
     /// Variables a verified-sufficient study measures (outside the base law) or

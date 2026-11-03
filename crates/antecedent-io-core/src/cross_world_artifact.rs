@@ -228,7 +228,7 @@ pub struct CrossWorldArtifactWire {
     /// The factual table, one column per variable in id order. Shared, so the producer's
     /// retained table and the wire it seals are one allocation.
     pub columns: Arc<[Vec<f64>]>,
-    /// The derivation that licensed the estimand.
+    /// The derivation that supported the estimand.
     pub witness: CrossWorldWitness,
     /// IEEE bits of the point.
     pub point_bits: u64,

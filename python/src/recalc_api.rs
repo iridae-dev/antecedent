@@ -119,9 +119,9 @@ pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> St
         _ => None,
     };
     let remedy = match &reason {
-        RefusalReason::OffGrid { licensed_route: Some(route) }
-        | RefusalReason::Unsupported { licensed_route: Some(route) } => {
-            Some(format!("use the separately licensed route `{route}`"))
+        RefusalReason::OffGrid { supported_route: Some(route) }
+        | RefusalReason::Unsupported { supported_route: Some(route) } => {
+            Some(format!("use the separately supported route `{route}`"))
         }
         RefusalReason::Unavailable { missing } => Some(match missing {
             antecedent_core::recalc::MissingDependency::Fit => {
@@ -218,12 +218,12 @@ fn consume_recalc_receipt(
 fn capabilities_wire(
     retarget: &str,
     request: &str,
-    licensed_route: Option<&str>,
+    supported_route: Option<&str>,
 ) -> CapabilitiesWire {
     CapabilitiesWire {
         retarget: retarget.to_owned(),
         request: request.to_owned(),
-        licensed_route: licensed_route.map(str::to_owned),
+        supported_route: supported_route.map(str::to_owned),
         boundary: "in_process".to_owned(),
         resume: None,
     }
@@ -238,9 +238,9 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
 
 fn request_support_of(
     request: &str,
-    licensed_route: Option<&str>,
+    supported_route: Option<&str>,
 ) -> PyResult<antecedent_core::recalc::RequestSupport> {
-    capabilities_wire("licensed", request, licensed_route)
+    capabilities_wire("supported", request, supported_route)
         .to_capabilities()
         .map(|c| c.request)
         .map_err(|e| artifact_invalid(&e))
@@ -421,7 +421,7 @@ impl PyRecalcSession {
 impl PyRecalcSession {
     /// An empty in-process session.
     #[new]
-    #[pyo3(signature = (retarget="licensed"))]
+    #[pyo3(signature = (retarget="supported"))]
     fn new(retarget: &str) -> PyResult<Self> {
         let retarget = retarget_of(retarget)?;
         let mut inner = RecalcSession::new();
@@ -437,7 +437,7 @@ impl PyRecalcSession {
     /// A fresh-process session that knows only the previous identities (a JSON list of
     /// `{"stage", "own"}`) and what the resume context (a JSON object) names.
     #[staticmethod]
-    #[pyo3(signature = (previous_json, resume_json, retarget="licensed"))]
+    #[pyo3(signature = (previous_json, resume_json, retarget="supported"))]
     fn resume(previous_json: &str, resume_json: &str, retarget: &str) -> PyResult<Self> {
         let previous: Vec<DeclaredStageWire> = parse_json(previous_json, "previous")?;
         let resume: ResumeWire = parse_json(resume_json, "resume")?;
@@ -460,7 +460,7 @@ impl PyRecalcSession {
         })
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     fn set_retarget_support(&mut self, retarget: &str) -> PyResult<()> {
         self.retarget = retarget_of(retarget)?;
         self.declare();
@@ -468,10 +468,14 @@ impl PyRecalcSession {
     }
 
     /// Declare whether the next request is `on_grid`, `off_grid` or `unsupported`, with the
-    /// separately licensed route that serves it, when one exists.
-    #[pyo3(signature = (request, licensed_route=None))]
-    fn set_request_support(&mut self, request: &str, licensed_route: Option<&str>) -> PyResult<()> {
-        self.request = request_support_of(request, licensed_route)?;
+    /// separately supported route that serves it, when one exists.
+    #[pyo3(signature = (request, supported_route=None))]
+    fn set_request_support(
+        &mut self,
+        request: &str,
+        supported_route: Option<&str>,
+    ) -> PyResult<()> {
+        self.request = request_support_of(request, supported_route)?;
         self.declare();
         Ok(())
     }

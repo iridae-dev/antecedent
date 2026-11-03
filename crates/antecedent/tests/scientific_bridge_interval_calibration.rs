@@ -22,7 +22,7 @@
 //! and the clipped interval is one-sided; and a validation set whose Youden index is
 //! small is outside the measured scope and refused, so is not a coverage cell.
 //!
-//! The scored interval is `construct_bridged_claim_interval`, the unlicensed
+//! The scored interval is `construct_bridged_claim_interval`, the unsupported
 //! construction, and every replicate is bound under the key it builds, the key the public
 //! `bridged_claim_interval` resolves a record with.
 //!

@@ -13,12 +13,12 @@
 //!   the order-dependent weighted estimator.
 //! * [`AdaptiveProcedure::report`]: one paradigm's statement. Each paradigm
 //!   has a validity premise the declared procedure must meet; when it does
-//!   not the request is refused with `cell_not_licensed` and the premise's
+//!   not the request is refused with `not_supported` and the premise's
 //!   `adaptive_inference.*` detail, and nothing is computed.
 //!
 //! Every result is labelled `derived_unmeasured`: the numbers are exact (or
 //! simulated with a reported Monte Carlo error) under the stated model, and no
-//! interval or coverage licence follows until the whole-procedure coverage is
+//! interval or coverage support follows until the whole-procedure coverage is
 //! measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -289,7 +289,7 @@ fn premise_remedy(detail: &str) -> &'static str {
 }
 
 /// Details whose premise is an assumption of the retained history or of a
-/// frozen declaration, not the licence of a cell.
+/// frozen declaration, not the support of a cell.
 const ASSUMPTION_DETAILS: [&str; 4] = [
     "adaptive_inference.borrowing_frozen",
     "adaptive_inference.assignment_not_replayed",
@@ -404,7 +404,7 @@ impl AdaptiveProcedure {
     /// One paradigm's derived statement.
     ///
     /// # Errors
-    /// `cell_not_licensed` with the premise's detail when the declared
+    /// `not_supported` with the premise's detail when the declared
     /// procedure does not meet the paradigm's premise; otherwise the shape,
     /// limit, positivity or cancellation refusal of the derivation.
     #[allow(
@@ -833,7 +833,7 @@ impl RepeatedMeasuresProcedure {
     /// One statement about the procedure.
     ///
     /// # Errors
-    /// `cell_not_licensed` with the premise's detail (a fixed-sample analysis
+    /// `not_supported` with the premise's detail (a fixed-sample analysis
     /// after adaptive assignment, an independence assumption for dependent
     /// measurements, an undeclared paradigm, a cell transfer), or the
     /// derivation's shape, limit, positivity or cancellation refusal.

@@ -109,7 +109,7 @@ fn the_account_is_the_enumerated_spread_bound_to_its_execution() {
 
     // The reading stays closed: a spread is a labelled diagnostic, never an interval.
     assert!(sealed.interval().is_err());
-    assert_eq!(sealed.posterior().unwrap_err().code, "cell_not_licensed");
+    assert_eq!(sealed.posterior().unwrap_err().code, "not_supported");
 }
 
 #[test]

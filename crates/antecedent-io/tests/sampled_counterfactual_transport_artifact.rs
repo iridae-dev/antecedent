@@ -187,8 +187,8 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
     // Four distinct claims and no interval anywhere in the artifact.
     assert_eq!(wire.estimate.structural_identification, "identified_by_stored_derivation");
     assert_eq!(wire.estimate.point_estimate, "plug_in_point_estimate");
-    assert_eq!(wire.estimate.statistical_inference, "withheld_cell_not_licensed");
-    assert_eq!(wire.estimate.interval_code, "cell_not_licensed");
+    assert_eq!(wire.estimate.statistical_inference, "withheld_not_supported");
+    assert_eq!(wire.estimate.interval_code, "not_supported");
     assert_eq!(wire.estimate.standard_error.as_ref().unwrap().label, "uncalibrated_standard_error");
     assert_eq!(wire.overlap.default, "independent");
     assert_eq!(wire.unseen_rule.name, "refuse");
@@ -505,15 +505,15 @@ fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
 }
 
 #[test]
-fn an_unmeasured_sample_size_or_unseen_rule_refuses_cell_not_licensed() {
+fn an_unmeasured_sample_size_or_unseen_rule_refuses_not_supported() {
     for outcome in [
         measure_at(20_000, UnseenCellRule::Refuse),
         measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 }),
     ] {
         let error = outcome.unwrap_err();
         assert!(
-            format!("{error:?}").contains("cell_not_licensed"),
-            "an interval outside the measured scope is cell_not_licensed: {error:?}"
+            format!("{error:?}").contains("not_supported"),
+            "an interval outside the measured scope is not_supported: {error:?}"
         );
     }
 }

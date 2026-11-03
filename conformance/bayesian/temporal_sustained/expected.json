@@ -9,7 +9,7 @@
   "outcome": "defect",
   "treatment_lag": 2,
   "policy": "sustained(-2, -2)",
-  "policy_note": "from == until, so this is the single-step Sustained window that is licensed today; a Sustained window with until > from is refused by TemporalLinearAdjustment (see refuse_multi_step_schedule in antecedent-estimate/src/temporal_adjustment.rs) and is not exercised by this fixture. The lag-2 window is chosen specifically so this fixture cannot be satisfied by the Pulse (lag-1) fixture's graph or SCM.",
+  "policy_note": "from == until, so this is the single-step Sustained window that is supported today; a Sustained window with until > from is refused by TemporalLinearAdjustment (see refuse_multi_step_schedule in antecedent-estimate/src/temporal_adjustment.rs) and is not exercised by this fixture. The lag-2 window is chosen specifically so this fixture cannot be satisfied by the Pulse (lag-1) fixture's graph or SCM.",
   "horizon_steps": 1,
   "backend": "conjugate_gaussian",
   "require_finite_p_below_zero": true,
@@ -57,10 +57,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "ea6b23e5b672f85471bc01871cbf286dc5a51cffc6209b607cc750d04a6f8892"
+          "sha256": "255f80e6327d78d3ecb87f0ac9ff57eeb4861648d61b38e60c0a8ed0af96aa32"
         }
       ],
-      "fixture_payload_sha256": "bf6c31f8ecfb10655040204ec138b00899f7a5f03dffeedaac9744ce40a9e641"
+      "fixture_payload_sha256": "c353fb29a67ac7e0d2197fc823619398e3340263653261f94e7bbbca46e6a10e"
     }
   }
 }

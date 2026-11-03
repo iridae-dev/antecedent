@@ -197,7 +197,7 @@ fn initial_state_artifact_refuses_a_resealed_changed_value_or_swapped_labels() {
     assert!(message.contains("temporal_initial_state_artifact.label"), "{message}");
 
     let mut claim = artifact();
-    claim.marginalized.inference_claim = "calibrated".into();
+    claim.marginalized.inference_claim = "interval".into();
     let message = convert_detail(
         TemporalInitialStateArtifactWire::consume(&reseal(claim), &limits()).unwrap_err(),
     );

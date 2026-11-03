@@ -10,7 +10,7 @@
 //! An ordinary posterior for the curve needs the innovation law of the series to be part of
 //! the likelihood. This module records that premise: [`SerialErrorModel::IndependentInnovations`]
 //! (the caller attests that conditional on the modelled history the innovations are
-//! independent, so the working likelihood is the true one) licenses the ordinary reading;
+//! independent, so the working likelihood is the true one) supports the ordinary reading;
 //! [`SerialErrorModel::Unmodeled`] does not, and a request for the ordinary reading is
 //! refused with the premise that is missing and the next attempt that reaches it.
 //!
@@ -64,8 +64,8 @@ pub fn require_ordinary_temporal_curve_posterior(
     match temporal_curve_posterior_meaning(serial) {
         TemporalCurvePosteriorMeaning::OrdinaryLikelihood => Ok(()),
         TemporalCurvePosteriorMeaning::TemperedGeneralized => Err(EstimationError::refused_detail(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "temporal_curve.ordinary_posterior_not_licensed",
+            antecedent_core::reason_code!("not_supported"),
+            "temporal_curve.ordinary_posterior_not_supported",
             "the innovation dependence is not part of the likelihood, so the curve posterior is \
              the tempered generalized posterior and not the posterior of a joint law of the \
              series; next attempt: attest independent innovations given the modelled history, \
@@ -84,7 +84,7 @@ mod tests {
         let refused =
             require_ordinary_temporal_curve_posterior(SerialErrorModel::Unmodeled).unwrap_err();
         let text = refused.to_string();
-        assert!(text.contains("temporal_curve.ordinary_posterior_not_licensed"));
+        assert!(text.contains("temporal_curve.ordinary_posterior_not_supported"));
         assert!(text.contains("next attempt"));
         assert_eq!(
             temporal_curve_posterior_meaning(SerialErrorModel::Unmodeled),
@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn attested_independent_innovations_license_the_ordinary_reading() {
+    fn attested_independent_innovations_support_the_ordinary_reading() {
         assert!(
             require_ordinary_temporal_curve_posterior(SerialErrorModel::IndependentInnovations)
                 .is_ok()

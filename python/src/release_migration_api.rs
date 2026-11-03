@@ -140,9 +140,9 @@ fn break_json(error: &RouteRecordError) -> Json {
     let (kind, methods): (&str, &[String]) = match error {
         RouteRecordError::UnknownStatus { .. } => ("unknown_status", &[]),
         RouteRecordError::RouteWithoutCurrentMethod { .. } => ("route_without_current_method", &[]),
-        RouteRecordError::LicenseNotCarried { methods, .. } => ("license_not_carried", methods),
+        RouteRecordError::SupportNotCarried { methods, .. } => ("support_not_carried", methods),
     };
-    json!({"outcome": "break", "kind": kind, "unlicensed_methods": methods, "message": error.to_string()})
+    json!({"outcome": "break", "kind": kind, "unsupported_methods": methods, "message": error.to_string()})
 }
 
 /// Carry every record of a previous-release route artifact onto the current methods.

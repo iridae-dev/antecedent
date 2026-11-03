@@ -12,7 +12,7 @@ use super::contract::{BridgeAssumption, BridgeContract, NonlinearMap, PointPropa
 use super::kind::{BridgeKind, ValueKind};
 use super::mapping::{MappingKind, TrialLevelFit};
 use super::refusal::{
-    BridgeRefusal, interval_not_licensed, provenance_failed, quantity_mismatch, source_not_point,
+    BridgeRefusal, interval_not_supported, provenance_failed, quantity_mismatch, source_not_point,
     units_mismatch, wrong_value_kind,
 };
 use crate::claim::{
@@ -168,7 +168,7 @@ pub(super) fn obligation(assumption: &BridgeAssumption) -> ObligationRecord {
 }
 
 /// Admit the source point at its declared scientific coordinate before any
-/// mapping or uncertainty propagation. Licensing remains the caller's first check.
+/// mapping or uncertainty propagation. Support remains the caller's first check.
 fn source_point_value(
     contract: &BridgeContract,
     source: &BridgeSource<'_>,
@@ -195,15 +195,15 @@ fn source_point_value(
         .ok_or_else(|| source_not_point("no_finite_value"))
 }
 
-/// Derive the claim a contract licenses from a source claim.
+/// Derive the claim a contract supports from a source claim.
 ///
-/// Nothing is derived unless the contract licenses its bridge
-/// ([`BridgeContract::check_licensing`]) and the source claim is a finite
+/// Nothing is derived unless the contract supports its bridge
+/// ([`BridgeContract::check_support`]) and the source claim is a finite
 /// point value about the contract's source quantity.
 ///
 /// # Errors
 /// The first failed check, as a coded refusal: a contract that does not
-/// license its bridge; a source claim about another quantity or in other units;
+/// support its bridge; a source claim about another quantity or in other units;
 /// a source that is not a finite point value; a value outside the mapping's
 /// validated or attainable range.
 pub fn derive_bridged_claim(
@@ -213,7 +213,7 @@ pub fn derive_bridged_claim(
     derive_bridged_claim_propagating(contract, source, None, None)
 }
 
-/// Derive the claim a contract licenses from a source claim whose estimate carries
+/// Derive the claim a contract supports from a source claim whose estimate carries
 /// `standard_error`, with the propagated uncertainty of the bridged value.
 ///
 /// The claim value is the plug-in value of the mapping. When `standard_error` is given and
@@ -233,13 +233,13 @@ pub fn derive_bridged_claim_propagating(
     standard_error: Option<f64>,
     nonlinear: Option<NonlinearMap>,
 ) -> Result<BridgedClaim, BridgeRefusal> {
-    let licensing = contract.check_licensing()?;
+    let support = contract.check_support()?;
     let source_value = source_point_value(contract, source)?;
-    let applied = contract.mapping.apply(source_value, licensing.direction)?;
+    let applied = contract.mapping.apply(source_value, support.direction)?;
     let propagation = super::contract::propagate_point(
         contract,
         &contract.mapping,
-        licensing.direction,
+        support.direction,
         source_value,
         applied.value,
         standard_error,
@@ -324,7 +324,7 @@ pub fn derive_bridged_claim_propagating(
         value_kind: contract.target_value,
         mapping: contract.mapping.kind(),
         fit: applied.fit,
-        transported: licensing.transported,
+        transported: support.transported,
         propagation,
         provenance,
         receipt,
@@ -526,9 +526,9 @@ impl BridgedClaim {
     /// records (`antecedent_io::bridge_interval`).
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `scientific_bridge.interval_not_licensed`.
+    /// Always `not_supported` with `scientific_bridge.interval_not_supported`.
     pub fn request_interval(&self) -> Result<(), BridgeRefusal> {
-        Err(interval_not_licensed())
+        Err(interval_not_supported())
     }
 
     /// Freshness of the bridged claim given the freshness of its source.

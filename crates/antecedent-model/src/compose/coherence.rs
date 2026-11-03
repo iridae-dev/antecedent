@@ -4,7 +4,7 @@
 //! returns every defect it finds, each as a [`CoherenceFinding`] with a closed
 //! kind, a namespaced `detail` literal, the offending subject, the expected and
 //! supplied semantics when a comparison failed, and the declaration that would
-//! license the composition. A composition with no finding establishes one
+//! support the composition. A composition with no finding establishes one
 //! acyclic joint law over the mechanisms' outputs under the declared graph; it
 //! establishes nothing about posterior dependence, which is checked when an
 //! uncertainty claim is requested.
@@ -144,7 +144,7 @@ pub struct CoherenceFinding {
     pub expected: Option<String>,
     /// Supplied semantics, when a comparison failed.
     pub supplied: Option<String>,
-    /// The evidence, assumption or declaration that would license the request.
+    /// The evidence, assumption or declaration that would support the request.
     pub remedy: &'static str,
 }
 

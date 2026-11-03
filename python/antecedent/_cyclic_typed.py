@@ -1263,7 +1263,7 @@ def prepare_experimental_recovery(
     sampled; the bootstrap resamples the unit it names, and Rust refuses a row-independent
     origin under a clustered or time-series design (``estimator_inference_mismatch``, naming a
     bootstrap under the declared design). The law stays conditional on the clamp-experiment
-    recipe and grants no scientific license; ``certifying_evidence`` must name evidence
+    recipe and grants no scientific support; ``certifying_evidence`` must name evidence
     other than ``source_id``.
     """
     assert execution is not None

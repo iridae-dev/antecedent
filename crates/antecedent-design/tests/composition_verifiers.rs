@@ -872,7 +872,7 @@ fn sensitivity_parts() -> SensitivityParts {
             },
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
-                reason_code: "cell_not_licensed".into(),
+                reason_code: "not_supported".into(),
                 detail: "joint_sensitivity.interval_withheld".into(),
             },
         },

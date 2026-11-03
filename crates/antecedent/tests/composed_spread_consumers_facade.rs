@@ -74,7 +74,7 @@ fn pieces_artifact(snapshot: &str) -> DistributionArtifact {
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },

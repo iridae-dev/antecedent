@@ -1,4 +1,4 @@
-"""Finite-action inverse-outcome query (target mean) over a licensed forward response.
+"""Finite-action inverse-outcome query (target mean) over a supported forward response.
 
 The forward question ``a -> E[Y | do(a)]`` is answered by an existing response
 route (``analyze`` / ``prepare`` with a :class:`~antecedent.query.ResponseCurve`).
@@ -20,7 +20,7 @@ What a result is:
   unresolved, never excluded or interpolated.
 * A mean threshold is not a chance constraint ``P(Y^do(a) >= y) >= q``, and a
   target quantile needs the interventional distribution; an observational
-  ``P(X | Y)`` is not an action. All three refuse with ``cell_not_licensed``.
+  ``P(X | Y)`` is not an action. All three refuse with ``not_supported``.
 
 Missing-evidence study options (the study planner's output) and sensitivity
 tipping points are attached as separate views. Neither is a confidence interval,
@@ -101,7 +101,7 @@ class TargetMean:
 
 @dataclass(frozen=True, slots=True)
 class ChanceConstraint:
-    """``P(Y^do(a) >= threshold) >= probability``: always refused (``cell_not_licensed``)."""
+    """``P(Y^do(a) >= threshold) >= probability``: always refused (``not_supported``)."""
 
     threshold: float
     probability: float
@@ -109,7 +109,7 @@ class ChanceConstraint:
 
 @dataclass(frozen=True, slots=True)
 class TargetQuantile:
-    """A target quantile of ``Y^do(a)``: always refused (``cell_not_licensed``)."""
+    """A target quantile of ``Y^do(a)``: always refused (``not_supported``)."""
 
     level: float
     threshold: float
@@ -291,18 +291,18 @@ _finite = partial(
 
 
 def _forward(response: CausalResponseView) -> tuple[Any, ...]:
-    """The forward response exactly as the licensed route published it."""
+    """The forward response exactly as the supported route published it."""
     if not isinstance(response, CausalResponseView):
         raise CausalTypeError(
             "inverse_outcome requires the CausalResponseView of a forward response route "
             "(ResponseCurve); run analyze/prepare first",
             reason_code="invalid_argument",
         )
-    if response.evidence_status == "allowed_unlicensed":
+    if response.evidence_status == "not_supported":
         raise CausalUnsupportedError(
-            "inverse.forward_not_licensed: the forward response is allowed for compatibility "
-            "but does not carry a licensed causal claim",
-            reason_code="cell_not_licensed",
+            "inverse.forward_not_supported: the forward response is not a supported "
+            "cell and does not carry a supported causal claim",
+            reason_code="not_supported",
         )
     view = response.response
     points = [] if view is None else [[float(c) for c in point] for point in view.points]
@@ -469,12 +469,12 @@ def inverse_outcome(
     sensitivity: Mapping[str, Any] | None = None,
     execution: Execution | None = None,
 ) -> InverseOutcomeReport:
-    """Classify an enumerated action grid against a licensed forward response.
+    """Classify an enumerated action grid against a supported forward response.
 
     ``response`` is the result of an existing response route evaluated on a grid
     that contains every action's point (an action off that grid is
     ``unevaluated``). ``query`` is a :class:`TargetMean`; the probability,
-    quantile and observational-scenario queries refuse with ``cell_not_licensed``
+    quantile and observational-scenario queries refuse with ``not_supported``
     (``inverse.probability_target``, ``inverse.quantile_target``,
     ``inverse.observational_scenarios``). A forward response that is not a point
     identified mean curve refuses with ``route_not_supported``

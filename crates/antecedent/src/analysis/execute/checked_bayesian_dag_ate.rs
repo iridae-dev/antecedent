@@ -240,7 +240,7 @@ impl CheckedBayesianDagAteExecution {
             )
         {
             return Err(CausalError::Unsupported {
-                message: "checked Bayesian DAG g-computation licenses a mean ATE over AllObserved, and a model-based mean effect over the Treated or Untreated arm",
+                message: "checked Bayesian DAG g-computation supports a mean ATE over AllObserved, and a model-based mean effect over the Treated or Untreated arm",
             });
         }
 

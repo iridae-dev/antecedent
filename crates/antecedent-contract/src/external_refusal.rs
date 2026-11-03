@@ -223,7 +223,7 @@ pub const fn probe_name(kind: VerificationProbeKind) -> &'static str {
 }
 
 /// Namespaced detail for a coordinate mismatch; each is a literal so the
-/// promotion gate can match it against the record's declared refusals.
+/// capability gate can match it against the record's declared refusals.
 const fn coordinate_detail(mismatch: QuantityMismatch) -> &'static str {
     match mismatch {
         QuantityMismatch::InvalidCoordinate => {
@@ -283,7 +283,7 @@ impl ExternalContractError {
                 capability: Some(*capability),
                 offending: Some(capability_name(*capability).to_owned()),
                 remedy: Some(
-                    "declare the exact operation, or license a sampling approximation with a numerical-error and replicate receipt",
+                    "declare the exact operation, or support a sampling approximation with a numerical-error and replicate receipt",
                 ),
                 ..refusal(
                     antecedent_core::reason_code!("external_capability_missing"),
@@ -647,7 +647,7 @@ mod tests {
         nan.values[0] = f64::NAN;
         cases.push((nan, "invalid_argument", "external_response_binding.non_finite_value"));
         let mut native = base.clone();
-        native.header.trust = ExternalTrustState::NativeLicensed;
+        native.header.trust = ExternalTrustState::NativeSupported;
         cases.push((
             native,
             "external_verification_failed",

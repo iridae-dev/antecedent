@@ -153,7 +153,7 @@ def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail
     with pytest.raises(TransportedCounterfactualRefusal) as raised:
         transported_path_specific_effect(*args)
     assert raised.value.detail == "transported_counterfactual.nonadditive_mechanism"
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"
     assert raised.value.offending == "additive_noise"
     cases = {
         "noise_law_not_shared": Premises(additive_noise=True),
@@ -162,7 +162,7 @@ def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail
     for detail, premises in cases.items():
         error = refusal_of(premises=premises)
         assert error.detail == f"transported_counterfactual.{detail}"
-        assert error.reason_code == "cell_not_licensed"
+        assert error.reason_code == "not_supported"
         assert error.witness is None
 
 
@@ -186,7 +186,7 @@ def test_x8t_selection_on_the_outcome_refuses_with_a_two_model_witness():
 def test_x8t_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_it():
     # The NDE does not depend on the mediator's equation: refused, no impossibility claimed.
     error = refusal_of(selection=MechanismSelection.on("m"))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "transported_counterfactual.selection_on_mechanism"
     assert error.witness is None and error.offending == "m"
     # The NIE depends on it: witness (perturbing the A coefficient of M by 1 moves it by 6).
@@ -308,4 +308,4 @@ def test_x8t_the_general_class_stays_closed():
     with pytest.raises(CausalUnsupportedError) as raised:
         transported_path_specific()
     assert raised.value.detail == "transported_counterfactual.route_frozen"
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"

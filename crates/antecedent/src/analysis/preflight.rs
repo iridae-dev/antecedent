@@ -1334,7 +1334,7 @@ fn rank_drop_refusal(
         ..RefusalFields::default()
     };
     EstimationError::refused_detail_with_fields(
-        reason_code!("rank_drop_not_licensed"),
+        reason_code!("rank_drop_not_supported"),
         subject,
         format!("{reason}; nothing was dropped"),
         fields,
@@ -1393,7 +1393,7 @@ fn column_priority_order(
 ///
 /// # Errors
 ///
-/// `rank_drop_not_licensed` when the priority does not cover the adjustment set, when a
+/// `rank_drop_not_supported` when the priority does not cover the adjustment set, when a
 /// dependent column is a treatment, outcome or effect modifier, or when an adjustment column
 /// is an exact copy of a treatment or the outcome; `arm_not_populated` when an arm is empty;
 /// or the preflight errors (unknown column, size limit, cancellation).
@@ -1560,7 +1560,7 @@ fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
 ///
 /// # Errors
 ///
-/// `rank_drop_not_licensed` when the retained design is still rank deficient, its rank
+/// `rank_drop_not_supported` when the retained design is still rank deficient, its rank
 /// differs from the original, or a dropped column is not in the retained span; the
 /// preflight errors (unknown column, size limit, cancellation).
 pub(super) fn verify_span_preserved(
@@ -1977,7 +1977,7 @@ mod tests {
         for recorded_rank in [3, 2] {
             let error =
                 verify_span_preserved(&input, &plan(recorded_rank), &[ia], &ctx).unwrap_err();
-            assert_eq!(error.reason_code(), Some("rank_drop_not_licensed"), "{error}");
+            assert_eq!(error.reason_code(), Some("rank_drop_not_supported"), "{error}");
             assert!(error.to_string().contains("rank_drop_estimate.span_not_preserved"), "{error}");
         }
         // Keeping both columns spans the original space exactly.

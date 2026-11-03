@@ -284,7 +284,7 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
     assert!(tuned_entry.support_requirements[0].contains("at least 0.1 "));
     assert!(tuned_entry.support_requirements[1].contains("[0.2, 0.8]"));
     assert_eq!(tuned_entry.sampling_design, ["nested_cohort"]);
-    assert!(tuned_entry.uncertainty_status.starts_with("withheld: cell_not_licensed"));
+    assert!(tuned_entry.uncertainty_status.starts_with("withheld: not_supported"));
     assert!(tuned_entry.uncertainty_status.contains("300 bootstrap replicates"));
     let below = LearnedContinuousOptions { bootstrap: 50, ..tuned };
     let menu_below = antecedent_estimate::transport_estimator_menu_with(
@@ -853,7 +853,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(
         (uncertainty.status.as_str(), uncertainty.reason.as_str()),
-        ("withheld", "cell_not_licensed")
+        ("withheld", "not_supported")
     );
     assert!(!uncertainty.available() && result.estimate().estimate.is_finite());
     let (code, message) = refused_code(
@@ -863,7 +863,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
             .unwrap_err(),
     );
     assert_eq!(code, "estimator_inference_mismatch");
-    assert!(message.starts_with("learned_transport.bootstrap_not_licensed"));
+    assert!(message.starts_with("learned_transport.bootstrap_not_supported"));
 }
 
 #[test]

@@ -163,7 +163,7 @@ fn declarations_the_range_cannot_honour_are_refused_not_ignored() {
     spec.sampling_composition = Some("percentile bootstrap".to_owned());
     assert_eq!(
         msm_ate_sensitivity(&strata, &spec).unwrap_err().detail(),
-        "msm_sensitivity.composition_not_licensed"
+        "msm_sensitivity.composition_not_supported"
     );
     assert!(msm_ate_bounds_at(&strata, 0.99).is_err(), "Lambda below one");
     assert!(msm_ate_bounds_at(&strata, f64::NAN).is_err());

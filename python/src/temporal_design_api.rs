@@ -1,6 +1,6 @@
 //! Result section of the sequentially randomized unit-period designs and regime survival.
 //!
-//! The section is unlicensed and uncalibrated: it carries every named coordinate with its
+//! The section is unsupported and uncalibrated: it carries every named coordinate with its
 //! estimate (or posterior mean), standard error (or posterior standard deviation), pointwise
 //! interval, the simultaneous band and Holm family when the design has them, the worst-case
 //! smoothing bias of a dose grid, and the standing of the reported uncertainty.
@@ -35,7 +35,7 @@ pub struct TemporalDesignSection {
     pub draws: Option<u64>,
     pub uncertainty: String,
     pub calibration: String,
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 impl From<&antecedent::TemporalDesignEstimate> for TemporalDesignSection {
@@ -63,7 +63,7 @@ impl From<&antecedent::TemporalDesignEstimate> for TemporalDesignSection {
             draws: value.draws,
             uncertainty: value.uncertainty.to_string(),
             calibration: value.calibration.to_string(),
-            licensed: value.licensed,
+            supported: value.supported,
         }
     }
 }

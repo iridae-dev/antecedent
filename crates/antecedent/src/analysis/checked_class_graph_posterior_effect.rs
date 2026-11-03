@@ -82,11 +82,11 @@ impl CheckedClassGraphPosteriorEffect {
                 message: "checked class graph-posterior effect requires CPDAG or PAG atoms",
             });
         }
-        let licensed = match inference {
+        let supported = match inference {
             InferenceMode::Frequentist => target.frequentist_estimator(),
             InferenceMode::Bayesian(_) => target.bayesian_estimator(),
         };
-        if procedure.id() != licensed {
+        if procedure.id() != supported {
             return Err(CausalError::Unsupported {
                 message: "checked class graph-posterior effect procedure does not match its inference and query kind",
             });

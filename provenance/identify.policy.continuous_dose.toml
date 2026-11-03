@@ -40,7 +40,7 @@ record_sha256 = "89cd634ac51b35589fd340f6a6f812c3a705edcaa7979ae20f20a14ec4aa82c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs"
-sha256 = "ef16a46b265b55b715409759c4739f66a4561b661f07b85a1be9c19f740b7347"
+sha256 = "6a0c659735724b597c15c939b314e476958ed4e1e1acd6b7c69db6e6d3c5bc0e"
 
 [[method_review.artifacts]]
 role = "assertion"

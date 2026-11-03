@@ -17,7 +17,7 @@ papers = [
 implementation_deviations = [
   "The invariance premise is a declaration and is never tested; the selection-diagram premise is checked only structurally (the selection node's children are inside the declared modifiers and those modifiers are exactly the model's features).",
   "Overlap is a support-box necessary condition (per-feature disjointness and rows outside the fitted box). No density ratio, weight diagnostic or positivity guarantee is computed; the value is labelled extrapolative.",
-  "Point-only: no standard error, interval or law is inherited from the source model's own fit. An interval or law request is refused with the evidence that would license it.",
+  "Point-only: no standard error, interval or law is inherited from the source model's own fit. An interval or law request is refused with the evidence that would support it.",
   "No weighting of the source sample toward the target is performed (this is not inverse-odds-of-selection weighting); the model is retained and evaluated at target rows.",
 ]
 upstream_implementations_observed = []
@@ -38,12 +38,12 @@ redistribution = "Repository-authored code and tests under MIT OR Apache-2.0; ci
 limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the implementation was checked against the rules as the reviewer understands them and against an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. The module implements no published algorithm: the two cited papers only state the selection-diagram premise and generalization conditions, and the estimator is a weighted mean of a model's own predictions. No weighting of the source sample (no inverse-odds-of-selection weights) and no variance, interval or law is produced; the support box is a coarse necessary check that cannot detect interior gaps. The hand-computed value is one three-row linear model. The Python and facade layers that call this function are not covered here. Calibration remains deferred."
 sources = ["https://doi.org/10.1214/14-STS486", "https://doi.org/10.1111/j.1467-985X.2010.00673.x"]
 findings_resolved = ["Checked the refusal order and each guard against the code: cohort shape and weight normalization, model validity and identity link, strict named-feature schema, the shift declaration (different populations, selection children inside the modifiers, modifiers equal to the model's features), then overlap (a disjoint feature, then any row outside the box), then prediction.", "Re-derived the unit test's hand value (rows tau = 1, 3, -1 with weights 0.5, 0.25, 0.25 give 1.0) and found the inline tests cover the declaration, overlap and identity cases but not the identity-link refusal, weight validation, row-order invariance or the closed box.", "Added executing assertions in a separate test module: a probability-scale (logistic) predictor is refused as not a treatment contrast while the identity scale is accepted; unnormalized and negative weights are refused; the mean equals the hand-computed weighted contrast and is invariant to row reordering; the support box is closed at its endpoints and a zero-weight row outside it is still refused; a differently named cohort column is a schema mismatch.", "No defect requiring a change to the transport code was found. Code edits: a new unit-test module (crates/antecedent-learn/src/transported_effect_premise_tests.rs, included from transported_effect.rs); no change to the estimator."]
-record_sha256 = "4e1c3d47bb1ed4ed56602f7a929edb683087d5eb011b0c45c57fb12004b9d978"
+record_sha256 = "124c9e8a94abab2087e8c8f94cb498f62905ecafe25a9d83b43098ac8411402b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-learn/src/transported_effect.rs"
-sha256 = "21c0f91e653a14e669ea9d9d9d9a607b2dc49a70af4ff9015e16e03d441e7be1"
+sha256 = "31b63ec571529c6614776a3eaaf7542e615dbbb6c66ed1cc43220bc8d3e5d769"
 
 [[method_review.artifacts]]
 role = "assertion"

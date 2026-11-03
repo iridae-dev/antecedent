@@ -13,7 +13,7 @@ One scenario whose numbers are checked by hand (``conformance/composition/releas
   risk 0.024 and ``act`` worth -6.
 
 Every stage is point-only: each request for an interval, a posterior decision or a ranking
-guarantee is refused with ``cell_not_licensed``. Nothing here uses an internal constructor or a
+guarantee is refused with ``not_supported``. Nothing here uses an internal constructor or a
 test-only hook. The fresh-process consumer is ``consumer.py`` from the fixture directory; the
 oracle in it is a closed form written there.
 """
@@ -167,7 +167,7 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     error = refused(lambda: rb.pool(ledger, "vendor", [(a, est_a, var_a), (vendor, est_c, var_c)]))
     assert_refusal(error, VARIANTS["dependence_gap_ledger"])
 
-    # A declared covariance with cross terms licenses the shared pair: generalized least
+    # A declared covariance with cross terms supports the shared pair: generalized least
     # squares of y = (0.10, 0.20), S = [[0.0004, 0.0002], [0.0002, 0.0004]]: weights (1/2, 1/2),
     # estimate 0.15, variance (0.0004 + 0.0002) / 2 = 0.0003.
     pooled = rb.pool(
@@ -267,14 +267,14 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     # The aligned moment is the point claim of the composed model.
     assert claim.value("mean") == pytest.approx(World.build().excess_risk, abs=DECISION)
     assert (
-        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "cell_not_licensed"
+        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "not_supported"
     )
 
 
 # --------------------------------------------------------------------------- 4
 
 
-def test_the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities():
+def test_the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities():
     world = World.build()
     result = require_success(world.result)
     # 1000 * 0.045 - 30 = 15 for act; the hold action is worth 0.
@@ -653,10 +653,10 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
     )
     assert error.reason_code == VARIANTS["dependence_gap_rule"]["code"]
 
-    # Declaring the dependence is what licenses the combination: the vendor discloses its
+    # Declaring the dependence is what supports the combination: the vendor discloses its
     # rows, and a declared covariance pools it.
     covered = ledger.add_source(rb.study("vendor_rows", "cohort", [400, 900]))
-    licensed = rb.pool(
+    supported = rb.pool(
         ledger,
         "pooled_with_declared_dependence",
         [
@@ -665,7 +665,7 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
         ],
         covariance=[0.0004, 0.0002, 0.0002, 0.0004],
     )
-    assert licensed.variance == pytest.approx(0.0003, abs=EXACT)
+    assert supported.variance == pytest.approx(0.0003, abs=EXACT)
 
 
 # --------------------------------------------------------------------------- point-only
@@ -673,12 +673,12 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
 
 def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships():
     world = World.build()
-    # The ledger: a pooled interval is never licensed.
+    # The ledger: a pooled interval is never supported.
     error = refused(
         lambda: world.ledger.pooled_interval(world.pooled.result), el.EvidenceLedgerRefusal
     )
     assert error.reason_code == VARIANTS["interval"]["code"]
-    # The measurement: an interval is never licensed.
+    # The measurement: an interval is never supported.
     prepared = mm.prepare_measurement_model(
         rb.measurement_model(),
         mm.AnalysisBinding(

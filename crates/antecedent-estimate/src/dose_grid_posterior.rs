@@ -267,7 +267,7 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), d| (a.min(*d), b.max(*d)));
     if let Some(at) = points.iter().find(|d| **d < minimum || **d > maximum) {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "dose_grid.unsupported_dose",
             &format!("dose {at} is outside the observed dose support"),
         ));
@@ -591,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn unlicensed_requests_are_refused() {
+    fn unsupported_requests_are_refused() {
         let grid = [0.5];
         let mut observational = request(DoseFunctional::Level, &grid, &DOSE, &OUTCOME);
         observational.design = DoseDesign::Observational;

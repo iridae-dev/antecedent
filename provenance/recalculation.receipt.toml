@@ -17,7 +17,7 @@ papers = []
 
 implementation_deviations = [
   "External callback invocations use zero-omitted tag9. Only a recomputed matching ProviderRequest branch may carry invocation counts; raw ExternalStudy inputs and native-law stages cannot. Independent manual-digest and resealed-mutation fixtures retain historical identities and distinguish stored assertions from live callback execution.",
-  "Additive posterior_draws uses zero-omitted tag8 and is licensed only in the model-fit family. Recorded work counts are historical assertions; only the live executing adapter authenticates its instrumented execution. The independent manual digest oracle checks old identities, resealed family and stage boundaries.",
+  "Additive posterior_draws uses zero-omitted tag8 and is supported only in the model-fit family. Recorded work counts are historical assertions; only the live executing adapter authenticates its instrumented execution. The independent manual digest oracle checks old identities, resealed family and stage boundaries.",
   "Claim policy: the artifact is a record of a decision, not a computation. It carries no estimate, no interval and no coverage or calibration claim; a consumer decides and checks counts and identities only.",
   "A consumer trusts none of the stored table. It recomputes the plan from the stored previous and requested digests and capabilities and refuses any stored status, determining dependency, identity, per-stage count, total or identity that differs, even when the container is resealed with recomputed section checksums.",
   "A loaded receipt never claims reuse in a fresh process: ANY derived stage stored as reused under a fresh-process boundary is refused before the plan is compared, even in a configuration where the planner would allow portable scores to be reused, because a loaded result recreates no prepared study, score table or fit. The artifact therefore cannot be used to certify cache reuse across processes; it records what was decided and counted in the producing run.",
@@ -39,14 +39,14 @@ kind = "contract"
 rationale = "A durable container for the receipt of one selective recalculation: per-stage digests, capability declarations, statuses, counted work and canonical identities, recomputed by the consumer from the stored declarations."
 no_independent_algorithm = "recalc_receipt_artifact.rs serializes and re-derives BLAKE3 identities and checks stored counts against the planner; counts are integers and the file has no floating-point computation."
 covered_by = ["recalculation.selective"]
-record_sha256 = "5ff730995bd2249b4d2c61860992c8de0a6fe8839409cef0030e3e32339c5f14"
+record_sha256 = "f3e0cf7a746bf01fc02c78d76acfa25471df4f1ae7933a0bf244da5b91a29868"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
-sha256 = "c7713b7c1e227f57ff2704a724a78b4b800c85fc4b61d04f1c404c7208074e36"
+sha256 = "ee224c8d45fc1d55b8ab9600a294d76c2ee1ae75f85b648be7971fe09e7e15de"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
-sha256 = "5757fa1438dddfacc7b1211f3c1a3ee7ca6776889aaf1755f0be918dfd19c3fa"
+sha256 = "3f5fdbad2416ff3b52d64a817278664b0c2a7577cb1f4f110681983b277dd263"

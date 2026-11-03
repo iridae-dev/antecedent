@@ -2,13 +2,13 @@
 
 **Suite path:** `conformance/response/temporal_class_observation`
 
-Licensed observation pairs on `TemporalCpdag` / `TemporalPag`
+Supported observation pairs on `TemporalCpdag` / `TemporalPag`
 `ResponseCurve` / `InterventionResponse`, including Sequence overlays. The
 observation mechanism is adjusted per completion (IPCW for Frequentist,
 observed-data Gaussian likelihood for Bayesian), and the class-mass contract
 is applied afterwards. Complete-data bands are never reused.
 
-Licensed pairs: `Selected × OutcomeIndependentGiven`, `RightCensored` /
+Supported pairs: `Selected × OutcomeIndependentGiven`, `RightCensored` /
 `LeftCensored × IndependentGiven([])` and `IndependentGiven([T])`. Delayed
 entry, interval censoring, and truncation stay refused on incomplete classes.
 
@@ -29,4 +29,4 @@ Consumed by `crates/antecedent/tests/temporal_class_observation.rs` and
 
 ## Expected summary
 
-Top-level keys: `case, evidence_kind, evidence_proposition, evidence_roles, evidence_source, graph_classes, incomplete_class, licensed_pairs, limitations, notes, oracle, refused, schema_version` (13 fields).
+Top-level keys: `case, evidence_kind, evidence_proposition, evidence_roles, evidence_source, graph_classes, incomplete_class, supported_pairs, limitations, notes, oracle, refused, schema_version` (13 fields).

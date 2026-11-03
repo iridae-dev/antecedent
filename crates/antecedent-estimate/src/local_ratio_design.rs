@@ -91,7 +91,7 @@ pub struct DensityTest {
     pub log_difference: f64,
     /// Its standard error.
     pub standard_error: f64,
-    /// Two-sided normal p-value; a diagnostic, not a licence.
+    /// Two-sided normal p-value; a diagnostic, not support.
     pub p_value: f64,
     /// Bin width.
     pub bin_width: f64,

@@ -13,7 +13,7 @@
 //!   split over adjustment columns; a leave-one-out or other per-column attribution is
 //!   refused ([`refuse_column_attribution`]) because the adjusted estimate is not an
 //!   additive function of the columns.
-//! * **Reporting-scale transform.** From a mean-outcome pair `(mu1, mu0)` (a licensed
+//! * **Reporting-scale transform.** From a mean-outcome pair `(mu1, mu0)` (a supported
 //!   result's arm means) a declared transform to the risk difference, log risk ratio or
 //!   log odds ratio, by the delta method. For `theta = g(mu)` the first-order
 //!   covariance of a family `g_1..g_k` is `J Sigma J'`, with `J` the `k x 2` Jacobian and
@@ -373,7 +373,7 @@ pub fn transform_mean_pair(
 #[must_use]
 pub fn refuse_transform_interval() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         "descriptive_comparison.interval_withheld",
         "no interval is reported on a transformed scale: a delta-method Wald interval rests on \
          asymptotic normality of the arm means and an adequate linearization near the boundary \
@@ -621,7 +621,7 @@ fn cpu_admission_error(error: CpuAdmissionError) -> EstimationError {
 
 /// An adjusted estimate and the estimand coding it was computed under.
 ///
-/// The comparison is licensed only for the coding the raw contrast has: active level 1,
+/// The comparison is supported only for the coding the raw contrast has: active level 1,
 /// control level 0, difference of means, all-observed population.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AdjustedEstimate {
@@ -719,7 +719,7 @@ pub fn compare_raw_adjusted(
         adjusted,
         gap: raw.difference - adjusted.estimate,
         gap_interval: Unavailable {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             detail: "descriptive_comparison.gap_interval_unavailable",
             reason: "the covariance between the raw and the adjusted estimate is not carried by \
                      either and is not assumed zero (they use the same rows), so the gap has no \

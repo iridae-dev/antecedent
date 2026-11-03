@@ -2,7 +2,7 @@
 
 The Rust engine scopes seven query kinds to a target population. Each Python
 class of those kinds carries the field, and the Rust study builder decides
-what it licenses: an ``AverageEffect`` estimates the treated, untreated,
+what it supports: an ``AverageEffect`` estimates the treated, untreated,
 predicate and custom-distribution targets its estimators support; every other
 kind refuses a declared population with ``population_not_estimable`` rather
 than estimating the all-observed population under the declared name.
@@ -61,7 +61,7 @@ def _case(name: str, make, graph, query, **options: Any):
 
 
 #: Every Python class whose Rust query kind is population-scoped, except
-#: AverageEffect (licensed below), as a callable of the declared population.
+#: AverageEffect (supported below), as a callable of the declared population.
 SCOPED = [
     _case(
         "PulseEffect",
@@ -233,7 +233,7 @@ def test_every_population_scoped_class_has_the_field() -> None:
     ids=["treated", "untreated", "named", "rows", "custom"],
 )
 @pytest.mark.parametrize(("make", "graph", "query", "options"), SCOPED)
-def test_an_unlicensed_population_refuses_by_code(make, graph, query, options, population) -> None:
+def test_an_unsupported_population_refuses_by_code(make, graph, query, options, population) -> None:
     data = make()
     n = len(next(iter(data.values())))
     registry = P.PopulationRegistry()

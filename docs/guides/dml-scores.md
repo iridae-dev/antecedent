@@ -21,7 +21,7 @@ fit uses, the propensity clipped at the overlap clip) the table holds, for every
 
     phi1_i = mu1_i + T_i (Y_i - mu1_i) / e_i,    phi0_i = mu0_i + (1 - T_i)(Y_i - mu0_i) / (1 - e_i)
 
-in exactly the formulas of the licensed AIPW table, so `phi1_i - phi0_i` is the DML AIPW score
+in exactly the formulas of the supported AIPW table, so `phi1_i - phi0_i` is the DML AIPW score
 `mu1 - mu0 + T (Y - mu1)/e - (1 - T)(Y - mu0)/(1 - e)` row by row, the mean of the contrast
 is the fitted ATE, and uniform-weight retarget returns the route's own point and iid standard
 error. The table carries the original-row index of each complete-case row, the fold plan,
@@ -91,7 +91,7 @@ product = require_success(
 product["row0.at_mode"], product["row0.mean"], product["row0.sd"], product["row0.outside_band"]
 ```
 
-For each summarized row the product reports the score at the posterior mode, its posterior mean and spread, and the probability that the score falls outside the band set by `clip`. It is a posterior of a nuisance, never of an effect: `product.estimator_id` is `bayesian.propensity.coefficient_posterior`, `product.licensing` is `unlicensed` and `product.calibration` is `unmeasured`. A posterior of the weighting effect cannot be built from these draws. Asking for a Bayesian `PropensityWeighting` estimator is refused with `route_not_supported`, and the message names the posteriors that do answer that effect: the Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score, or the Bayesian g-computation posterior of an outcome model.
+For each summarized row the product reports the score at the posterior mode, its posterior mean and spread, and the probability that the score falls outside the band set by `clip`. It is a posterior of a nuisance, never of an effect: `product.estimator_id` is `bayesian.propensity.coefficient_posterior`, `product.support` is `unsupported` and `product.calibration` is `unmeasured`. A posterior of the weighting effect cannot be built from these draws. Asking for a Bayesian `PropensityWeighting` estimator is refused with `route_not_supported`, and the message names the posteriors that do answer that effect: the Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score, or the Bayesian g-computation posterior of an outcome model.
 
 `product.export()` embeds the design the product was fitted on; `nuisance_scores.load_artifact(bytes(product.export()))` refits from it and refuses any edited, truncated or resealed artifact with `CausalSerializationError`. `temporal_treatment_score` is the temporal counterpart for a `TemporalDag` study.
 

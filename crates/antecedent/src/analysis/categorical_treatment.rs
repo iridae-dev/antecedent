@@ -111,7 +111,7 @@ impl CategoricalTreatment {
     /// marginal for each level and requested pair, and the Bonferroni/Frechet bounds of the
     /// declared monotonicity. The estimand is the superpopulation coefficient contrast of the
     /// stated linear model, not the finite-population average of the rows' effects; the section
-    /// is unlicensed, its calibration is unmeasured, and it is recomputed from the stored design
+    /// is unsupported, its calibration is unmeasured, and it is recomputed from the stored design
     /// when the artifact is consumed. The covariance kind of the declared design is not read:
     /// the model-based likelihood is the posterior's.
     ///

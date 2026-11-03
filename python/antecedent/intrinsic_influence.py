@@ -4,7 +4,7 @@ See :func:`intrinsic_influence`. Every interval on the result names the uncertai
 it covers (Shapley permutation sampling, nested simulation, or mechanism fitting), and a
 component that was not measured says so rather than reading zero. With ``fit_bootstrap`` each
 source also carries ``whole_procedure``: the spread of the full attribution across row-bootstrap
-refits with the fixed permutation variance added. It is uncalibrated and not a licensed
+refits with the fixed permutation variance added. It is uncalibrated and not a supported
 interval.
 
 With ``posterior_draws`` the same attribution is run under Bayesian inference: every draw
@@ -12,7 +12,7 @@ refits the mechanisms under one Dirichlet(1, ..., 1) row-weight vector (the mech
 held at the ones selected on ``data``) and repeats the whole attribution, so ``posterior``
 carries the posterior mean, standard deviation and 95% credible interval of each source's
 share given the empirical row law. It is the counterpart of ``fit_bootstrap`` and, like it,
-uncalibrated and not a licensed interval.
+uncalibrated and not a supported interval.
 """
 
 from __future__ import annotations

@@ -129,7 +129,7 @@ class JointTransportPosterior(ScientificResult):
     """Numerically replayable candidate posterior; calibration is unmeasured.
 
     All rows are aligned across the original complete joint parameter/effect law.
-    A successful internal feature build is not a released interval license.
+    A successful internal feature build is not a released interval support.
     """
 
     kind: Literal["gaussian", "learned_gaussian"]
@@ -232,7 +232,7 @@ def consume_joint_transport_posterior(
     if consumer is None:
         raise CausalUnsupportedError(
             "joint_transport.route_frozen: candidate lifecycle requires internal feature build",
-            reason_code="cell_not_licensed",
+            reason_code="not_supported",
         )
     if kind not in ("gaussian", "learned_gaussian"):
         raise CausalValueError("kind must be gaussian or learned_gaussian")
@@ -393,7 +393,7 @@ def _measured(
     if producer is None:
         raise CausalUnsupportedError(
             "joint_transport.route_frozen: measured native authority unavailable",
-            reason_code="cell_not_licensed",
+            reason_code="not_supported",
         )
     native = call_native(
         execution,

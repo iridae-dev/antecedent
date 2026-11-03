@@ -19,9 +19,9 @@ record_sha256 = "e0b8080cbab4c17a92ef65b27f6677b5606cfa0ae260a41278d0de61d4d6351
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/source_evidence.rs"
-sha256 = "8414dc1985bc0fde087670a4099a0b0bdc90f0e0c6fca9226ebc14665eea63cc"
+sha256 = "526d6a3a6c6d434a477fd7d43731adba68c8450a6a65ce118ac7e57ac60b2728"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-sha256 = "b09b23eeb8edd81dda5bdcc27fda66013a50f2d950b0bcb1f51f22d2ef1a3db5"
+sha256 = "c3746d8b65eb42d04940c12e0729b90a0477bb777b5cb4e93f945e77f617bbff"

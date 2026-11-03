@@ -336,8 +336,8 @@ def schema_cases() -> list[bool]:
         case(
             g,
             "required_row_deleted",
-            {"parity/compiler.toml": drop_block("capabilities", "compiler.e2e_licensed_cells")},
-            ["required composition row compiler.e2e_licensed_cells missing"],
+            {"parity/compiler.toml": drop_block("capabilities", "compiler.e2e_supported_cells")},
+            ["required composition row compiler.e2e_supported_cells missing"],
         ),
         case(
             g,
@@ -387,7 +387,7 @@ def schema_cases() -> list[bool]:
             g,
             "no_interval_reason_with_an_interval_method",
             {
-                "parity/support_licensed.toml": replace(
+                "parity/support_cells.toml": replace(
                     'calibration_reason = "no_interval_reported"',
                     'calibration_reason = "no_interval_reported"\ninterval_method = "analytic_se"',
                 )
@@ -444,20 +444,20 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "oracle_component_no_licensed_cell_runs",
+            "oracle_component_no_supported_cell_runs",
             {
                 "parity/estimate.toml": replace(
                     'oracle_components = ["estimator:linear.adjustment.ate"]',
                     'oracle_components = ["estimator:linear.adjustment.att"]',
                 )
             },
-            ["'estimator:linear.adjustment.att' is not a estimator any licensed cell runs"],
+            ["'estimator:linear.adjustment.att' is not a estimator any supported cell runs"],
         ),
         case(
             g,
-            "licensed_cell_without_a_route",
+            "supported_cell_without_a_route",
             {
-                "parity/licensed_routes.toml": replace(
+                "parity/supported_routes.toml": replace(
                     '\n[[route]]\ncoordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"\n'
                     'identifier = "response.backdoor"\nestimator = "response.kennedy_dr"\n',
                     "",
@@ -708,7 +708,7 @@ def schema_cases() -> list[bool]:
 
 
 def _live_citation(boundary: bool) -> tuple[str, str, float]:
-    """A coverage figure the licensed prose cites today, as `(text, figure, observed)`.
+    """A coverage figure the supported prose cites today, as `(text, figure, observed)`.
 
     The fixtures below mutate this text, so it is read from the committed prose and
     registry rather than written here: a hard-coded figure fails the self-test at the
@@ -719,7 +719,7 @@ def _live_citation(boundary: bool) -> tuple[str, str, float]:
             (ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8")
         )["record"]
     }
-    prose = (ROOT / "parity/support_licensed.toml").read_text(encoding="utf-8")
+    prose = (ROOT / "parity/support_cells.toml").read_text(encoding="utf-8")
     for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
         rec = records.get(m.group(3))
         if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
@@ -748,7 +748,7 @@ OTHER_FIG = "0.931" if abs(COND_OBSERVED - 0.931) > 0.01 else "0.812"
 
 def citation_cases() -> list[bool]:
     g = "gate_coverage_citations.sh"
-    lic = "parity/support_licensed.toml"
+    lic = "parity/support_cells.toml"
     return [
         case(g, "control", {}, [], must_fail=False),
         case(

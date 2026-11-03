@@ -2,7 +2,7 @@
 
 You can use Antecedent's identification beside another library's estimators, or bring a graph or a fitted estimate from another library into an Antecedent result. Both directions are handoffs: Antecedent does not import, call or wrap the other library, and each side keeps its own scientific claim.
 
-The rule that keeps a handoff honest: whatever crosses the boundary keeps the status it had where it was produced. An adjustment set Antecedent identified stays an identification under the graph you declared. An estimate another library computed enters Antecedent as an attested, uncalibrated external result, and Antecedent does not give it a native licence or a calibration it did not measure.
+The rule that keeps a handoff honest: whatever crosses the boundary keeps the status it had where it was produced. An adjustment set Antecedent identified stays an identification under the graph you declared. An estimate another library computed enters Antecedent as an attested, uncalibrated external result, and Antecedent does not give it native support or a calibration it did not measure.
 
 ## Which direction do you need?
 
@@ -43,13 +43,13 @@ cols = spec.columns(data)  # Y, T and W (the adjustment columns) for the learner
 
 Here `data` is a table with columns `z`, `t` and `y`; the maintained example, [`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/econml_cate_handoff.py), generates one with a known effect of 2 and fits `LinearDML` on `cols` when `econml` is installed. The learner and its CATE are yours; Antecedent supplies the adjustment columns and the identification status.
 
-The handoff is licensed for point-identified backdoor and generalized-adjustment estimands on an explicit or accepted graph. Front-door, instrumental-variable, general-identification, partial-identification and graph-posterior results refuse instead of being flattened into a single adjustment set. Temporal columns are lag-aligned when the identification carries offsets.
+The handoff is supported for point-identified backdoor and generalized-adjustment estimands on an explicit or accepted graph. Front-door, instrumental-variable, general-identification, partial-identification and graph-posterior results refuse instead of being flattened into a single adjustment set. Temporal columns are lag-aligned when the identification carries offsets.
 
 To bring a fitted estimate back, `spec.attach(...)` records it as attested evidence with no native calibration. A scalar effect labelled `"ate"` is bound through `external.bind`, so the learner, its declared version, its support labels and its lineage travel with the result as `.claim`.
 
 ## Share a graph with DoWhy
 
-Antecedent owns identification licensing, and DoWhy receives a graph and runs its own estimand and estimator stack. The two libraries do not produce byte-identical intervals, so compare the adjustment sets and the sign and rough size of the effect on a model where you know the answer.
+Antecedent owns identification support, and DoWhy receives a graph and runs its own estimand and estimator stack. The two libraries do not produce byte-identical intervals, so compare the adjustment sets and the sign and rough size of the effect on a model where you know the answer.
 
 From Antecedent to DoWhy:
 
@@ -71,4 +71,4 @@ The runnable recipe, [`examples/python/dowhy_handoff.py`](https://github.com/iri
 
 ## Choose a library for the question
 
-[Compare Antecedent with other libraries](../../comparison.md) describes where each library's strengths and scope lie, including estimators Antecedent does not ship and routes where Antecedent's native result carries a stated calibration or licence status. Read each result's `inspect().calibration` and support status rather than inferring them from the library that computed the number.
+[Compare Antecedent with other libraries](../../comparison.md) describes where each library's strengths and scope lie, including estimators Antecedent does not ship and routes where Antecedent's native result carries a stated calibration or support status. Read each result's `inspect().calibration` and support status rather than inferring them from the library that computed the number.

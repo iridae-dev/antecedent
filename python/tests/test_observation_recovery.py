@@ -5,7 +5,7 @@ structural mechanisms, independently of the library. Treatment ``t`` and outcome
 ``y`` are item-missing with response indicators ``rt`` and ``ry`` and proxies
 ``t_obs`` and ``y_obs`` (levels 0, 1 and "?"); the confounder ``z`` is always
 observed. ``rt`` depends on ``z`` and ``ry`` on ``t``: no response depends on
-its own variable, so the full law is recoverable (graph-licensed recovery, not
+its own variable, so the full law is recoverable (graph-supported recovery, not
 MAR/IPCW), and the backdoor effect of ``t`` on ``y`` follows from it.
 """
 
@@ -150,7 +150,7 @@ def test_identify_observation_recovery_decides_once_and_executes_its_plan_after_
     builder = decide()
     assert builder.outcome == "recovered"
     decision = builder.decision()
-    assert decision["route"] == "graph-licensed recovery, not MAR/IPCW"
+    assert decision["route"] == "graph-supported recovery, not MAR/IPCW"
     assert [f["conditioning"] for f in decision["factors"]] == [["z"], ["rt", "t_obs"]]
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
@@ -246,11 +246,11 @@ def test_self_censoring_is_nonrecoverable_with_a_verified_witness():
     assert "recovery.nonrecoverable_witness" in str(refused.value)
 
 
-def test_counted_laws_are_not_licensed_on_the_recovery_route():
+def test_counted_laws_are_not_supported_on_the_recovery_route():
     stage = decide()
-    with pytest.raises(CausalUnsupportedError, match="cell_not_licensed") as refused:
+    with pytest.raises(CausalUnsupportedError, match="not_supported") as refused:
         stage.prepare_empirical(observed_law(), REQUESTS)
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "not_supported"
 
 
 def test_separate_marginals_refuse_as_a_missing_margin():

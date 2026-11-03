@@ -16,7 +16,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: the licensed claim is the POINT prediction f(x) = b'phi(x) inside the declared support and outside the refusal mask. The model-based standard error sqrt(phi' V phi) is a reported diagnostic with calibration 'unmeasured'; it is not an interval, not a coverage claim, and carries no extrapolation or misspecification uncertainty. No coverage record is allocated.",
+  "Claim policy: the supported claim is the POINT prediction f(x) = b'phi(x) inside the declared support and outside the refusal mask. The model-based standard error sqrt(phi' V phi) is a reported diagnostic with calibration 'unmeasured'; it is not an interval, not a coverage claim, and carries no extrapolation or misspecification uncertainty. No coverage record is allocated.",
   "Evaluation refuses (never extrapolates or clamps) a query outside the declared support of any input, a missing or unknown quantity, a query matching a refusal-mask region even inside the support, a wrong query type, and a non-finite result or negative variance.",
   "A consumer verifies the identity over every semantic field (response quantity, inputs and supports, terms, coefficients, covariance, mask and scope statements) and the premises and data digests, so a change to any of them is refused even when the container is resealed with recomputed section checksums. A consumer holding no retained expected identity checks only internal consistency; a forgery passes only under the forger's own identity.",
   "Decode is bounded (byte size, term, input, mask-region and level counts) and refused before decoding when the declared size is oversized. Term and input order is canonicalised so permuted specifications share one identity.",
@@ -39,17 +39,17 @@ limitations = "Two exported models (a quartic power basis with five terms and a 
 assumptions = ["The stored coefficients and covariance are the fitted model's, taken as given; the export neither refits nor validates them against data.", "The standard error is model-based and carries no extrapolation or misspecification uncertainty; calibration is unmeasured, as the artifact states.", "Powers are small integer degrees (default limit 8) of inputs inside their declared support."]
 sources = ["https://en.wikipedia.org/wiki/Variance#Linear_combinations", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The point prediction and the model-based standard error equal the exact rational point and the 50-digit root of the exact quadratic form on all 24 queries, including the closed support bounds, the one-hot levels and a dense covariance with off-diagonal terms (so the cross terms of phi'V phi are exercised, not only the diagonal).", "A covariance that satisfies every pairwise bound but has a negative determinant, an asymmetric covariance and a negative diagonal are refused at build, and the identity covariance is accepted.", "No product defect was found in this record."]
-record_sha256 = "fbfca005e1eacc1eb070d607129992a49ebf1d3a31150c5d744c5c3ffbd1ea16"
+record_sha256 = "be46d5de29d1b4f91234a5e3be84e91095aec47b2e59b381c970957886569495"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/compact_export.rs"
-sha256 = "1a3b5de10d322dd2a9c58aada4ec8acb5b03700abb79d09a88888f9c87dabe39"
+sha256 = "038d547a8566b2958f563e157a984d8cb5ecc43cd36ffd69ffe3ed44f4813f52"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/compact_export.rs"
-sha256 = "22279310a11230d2b7db5bd3e36b425de9bf1924a3f63b42fee036cad9a20a6b"
+sha256 = "8e22b44e9a93144ecab59348cc5ddeb9670d14a7d69cbd2397d1e62e8ba73ccf"
 
 [[method_review.artifacts]]
 role = "reference"

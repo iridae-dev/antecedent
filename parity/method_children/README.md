@@ -67,4 +67,4 @@ The roadmap's grouped response asks for a finite carryover, a saturation, one se
 
 No module implements this. That absence is implementation. Whether the panel identifies the joint contrast is unreviewed research (`temporal-identification` on the temporal children). B04 has to accept or reject the slice. These four children do not admit it.
 
-X02.broader (geometric adstock, free Hill shape, group-specific saturation, spatial residuals, extra channels and interactions), X03, finite-candidate X04.1, continuous-search X04.2, and comprehensive X05 stay promotion candidates.
+X02.broader (geometric adstock, free Hill shape, group-specific saturation, spatial residuals, extra channels and interactions), X03, finite-candidate X04.1, continuous-search X04.2, and comprehensive X05 stay later-release candidates.

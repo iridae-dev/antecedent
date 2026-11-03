@@ -40,7 +40,7 @@ use super::transport_common::{
     requirements, sort_axis_values,
 };
 
-/// Why a statistical transport estimate carries no (or no licensed) uncertainty interval.
+/// Why a statistical transport estimate carries no (or no supported) uncertainty interval.
 ///
 /// The wire spelling of each reason is what artifacts and reasoning slots carry; this names
 /// the closed set so a comparison against a wire string cannot drift from the producer, and a
@@ -50,7 +50,7 @@ enum IntervalWithholdReason {
     /// No interval was computed for this estimate.
     #[serde(rename = "uncertainty_unavailable")]
     UncertaintyUnavailable,
-    /// Fewer replicates than the facade's licensing floor.
+    /// Fewer replicates than the facade's support floor.
     #[serde(rename = "insufficient_bootstrap_replicates")]
     InsufficientBootstrapReplicates,
     /// The declared bootstrap exceeded its failure budget.
@@ -59,7 +59,7 @@ enum IntervalWithholdReason {
     /// A replicate failed numerically.
     #[serde(rename = "bootstrap_numerical_failure")]
     NumericalFailure,
-    /// The evidence's dependence structure licenses no resampling.
+    /// The evidence's dependence structure supports no resampling.
     #[serde(rename = "transport.unsupported_dependence")]
     UnsupportedDependence,
     /// The catalog binds no estimated regime to resample.
@@ -103,7 +103,7 @@ impl IntervalWithholdReason {
         Self::ALL.into_iter().find(|reason| reason.as_str() == wire)
     }
 
-    /// The dependence structure licenses no resampling, so no draws exist at all.
+    /// The dependence structure supports no resampling, so no draws exist at all.
     const fn is_dependence_refusal(self) -> bool {
         matches!(self, Self::UnsupportedDependence | Self::NoEstimatedRegime)
     }
@@ -725,7 +725,7 @@ impl DeferredStatisticalTransport {
     }
 }
 
-/// Statistical execution result: plug-in law plus licensed or withheld uncertainty.
+/// Statistical execution result: plug-in law plus supported or withheld uncertainty.
 #[derive(Clone, Debug)]
 pub struct StatisticalStudyResult {
     estimate: StatisticalTransportEstimate,
@@ -778,7 +778,7 @@ impl StatisticalStudyResult {
             replicates_failed: 0,
             reason: Some(IntervalWithholdReason::UncertaintyUnavailable.as_str()),
         };
-        // A point's own `uncertainty_reason` also covers the facade's licensing floor
+        // A point's own `uncertainty_reason` also covers the facade's support floor
         // (`insufficient_bootstrap_replicates`), which withholds only that point's
         // *pointwise* percentile edges while still retaining its replicate draws. The
         // contrast draws its own paired sample from those retained replicates and
@@ -924,7 +924,7 @@ impl StudyBuilder {
     /// Prepare mixed supplied-law / empirical-table transport on the common handle.
     ///
     /// # Errors
-    /// Missing providers, unlicensed estimators, incompatible catalogs, or budgets.
+    /// Missing providers, unsupported estimators, incompatible catalogs, or budgets.
     pub fn statistical_transport(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,
@@ -1194,15 +1194,15 @@ impl PreparedStudy<StatisticalPreparedState> {
         self.state.options
     }
 
-    /// The estimator's own license rule: an earned percentile floor plus iid,
+    /// The estimator's own support rule: an earned percentile floor plus iid,
     /// unweighted, independent-study dependence for every estimated regime.
-    fn licensed_interval(&self) -> bool {
+    fn supported_interval(&self) -> bool {
         if is_bayesian_provider(self.state.options.estimator) {
             return false;
         }
         self.state.options.bootstrap_replicates >= PERCENTILE_95_MIN_REPLICATES
             && !self.state.input.samples.is_empty()
-            && antecedent_estimate::licensed_iid_dependence(
+            && antecedent_estimate::supported_iid_dependence(
                 self.state.functional.catalog(),
                 &self.state.input.samples,
             )
@@ -1295,7 +1295,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                         .as_deref()
                         .unwrap_or(IntervalWithholdReason::UncertaintyUnavailable.as_str()),
                 ),
-                None if self.licensed_interval() => {
+                None if self.supported_interval() => {
                     SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
                         UncertaintySource::Sampling,
                         antecedent_estimate::PERCENTILE_BOOTSTRAP,
@@ -2439,8 +2439,8 @@ enum UncertaintyFault {
     AbsentRowClaims,
     /// The row's estimator, coverage, seed, sample sizes or replicate counts disagree.
     RowMetadata,
-    /// The evidence catalog does not license iid resampling of the sampled regimes.
-    UnlicensedDependence,
+    /// The evidence catalog does not support iid resampling of the sampled regimes.
+    UnsupportedDependence,
     /// The replicate matrix or its ids are missing or malformed.
     ReplicateShape,
     /// A replicate row is not a probability law over the fitted atoms.
@@ -2458,7 +2458,7 @@ impl UncertaintyFault {
         match self {
             Self::AbsentRowClaims
             | Self::RowMetadata
-            | Self::UnlicensedDependence
+            | Self::UnsupportedDependence
             | Self::ReplicateShape
             | Self::ReplicateLaw
             | Self::IntervalClaims => err("transport artifact uncertainty mismatch"),
@@ -2508,11 +2508,11 @@ fn check_uncertainty(
     };
     check_uncertainty_row(wire, row)?;
     ensure(
-        antecedent_estimate::licensed_iid_regimes(
+        antecedent_estimate::supported_iid_regimes(
             prepared.evidence_catalog(),
             wire.samples.iter().map(|sample| antecedent_core::RegimeId::from_raw(sample.regime)),
         ),
-        UncertaintyFault::UnlicensedDependence,
+        UncertaintyFault::UnsupportedDependence,
     )?;
     let rows = wire.atom_replicates.as_ref().ok_or(UncertaintyFault::ReplicateShape)?;
     let ids = wire.replicate_ids.as_ref().ok_or(UncertaintyFault::ReplicateShape)?;
@@ -2552,7 +2552,7 @@ fn absent_uncertainty_reason(
 }
 
 /// No uncertainty row: no intervals or replicates may ride along, the study must carry the
-/// reason its kind implies, and the facade must not have licensed an interval.
+/// reason its kind implies, and the facade must not have supported an interval.
 fn check_absent_uncertainty(
     wire: &StatisticalExecutionWire,
     prepared: &PreparedStudy<StatisticalPreparedState>,
@@ -2564,7 +2564,7 @@ fn check_absent_uncertainty(
             && wire.atom_replicates.is_none()
             && wire.replicate_ids.is_none()
             && wire.uncertainty_reason == Some(expected)
-            && !prepared.licensed_interval(),
+            && !prepared.supported_interval(),
         UncertaintyFault::AbsentRowClaims,
     )
 }
@@ -2637,7 +2637,7 @@ type PublishedIntervals = (Vec<(f64, f64)>, Vec<(u32, f64, f64)>);
 ///
 /// Two distinct reasons withhold the percentile edges: the estimator's own failure-fraction
 /// refusal (too few successful replicates or too many failed ones to trust the resample),
-/// and the facade's licensing floor (enough replicates ran clean, but fewer than the
+/// and the facade's support floor (enough replicates ran clean, but fewer than the
 /// nominal-0.95 percentile requires). `withhold_unearned_percentile` never overwrites an
 /// existing failure-fraction reason, so the two are mutually exclusive and must be told apart
 /// here too. Returns the recomputed intervals when they are published.
@@ -3194,11 +3194,11 @@ mod tests {
     }
 
     #[test]
-    fn licensed_interval_requires_earned_percentile_minimum() {
+    fn supported_interval_requires_earned_percentile_minimum() {
         for replicates in [0, 1, 2] {
             let study = prepared_with_replicates("one", [20, 5, 10, 15], replicates);
             assert!(
-                !study.licensed_interval(),
+                !study.supported_interval(),
                 "B={replicates} cannot earn a nominal 0.95 percentile label"
             );
             let inspect = study.inspect();
@@ -3216,9 +3216,9 @@ mod tests {
         }
         let below =
             prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES - 1);
-        assert!(!below.licensed_interval());
+        assert!(!below.supported_interval());
         let earned = prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES);
-        assert!(earned.licensed_interval());
+        assert!(earned.supported_interval());
         assert!(earned.inspect().reasoning.uncertainty.is_available());
     }
 
@@ -3369,7 +3369,7 @@ mod tests {
                 PERCENTILE_95_MIN_REPLICATES,
                 dependence,
             );
-            assert!(!study.licensed_interval(), "{dependence:?} cannot license an iid bootstrap");
+            assert!(!study.supported_interval(), "{dependence:?} cannot support an iid bootstrap");
             let inspect = study.inspect();
             match &inspect.reasoning.uncertainty {
                 SlotAvailability::Unavailable { reason } => {

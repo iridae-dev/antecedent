@@ -19,7 +19,7 @@
 //! declared premise, never target-population data, never two absolute potential-outcome
 //! means and never a law. No standard error, interval or utility variance is inherited
 //! from the model's own fit, and an interval or law request is refused with the evidence
-//! that would license it ([`TransportedRequest`]).
+//! that would support it ([`TransportedRequest`]).
 //!
 //! # Refresh with outcome-only data
 //!
@@ -65,7 +65,7 @@ pub struct TransportRefusal {
     pub detail: &'static str,
     /// The premise, row, feature or identity the refusal is about.
     pub subject: String,
-    /// The declaration or evidence that would license the request.
+    /// The declaration or evidence that would support the request.
     pub remedy: &'static str,
 }
 
@@ -142,17 +142,12 @@ fn support_failure(
     )
 }
 
-fn unlicensed(
+fn unsupported(
     detail: &'static str,
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> TransportRefusal {
-    TransportRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        detail,
-        subject,
-        remedy,
-    )
+    TransportRefusal::new(antecedent_core::reason_code!("not_supported"), detail, subject, remedy)
 }
 
 /// A request the transported cohort mean cannot answer.
@@ -165,12 +160,12 @@ pub enum TransportedRequest {
 }
 
 impl TransportedRequest {
-    /// The typed refusal naming the evidence that would license the request.
+    /// The typed refusal naming the evidence that would support the request.
     #[must_use]
     pub fn refusal(self) -> TransportRefusal {
         match self {
-            Self::Interval => unlicensed(
-                "transported_effect.interval_not_licensed",
+            Self::Interval => unsupported(
+                "transported_effect.interval_not_supported",
                 "interval",
                 "none available: the transported value is point-only under a declared premise; \
                  an interval needs measured whole-method coverage that includes the transport \
@@ -453,7 +448,7 @@ pub enum TransportedInference {
     PointOnly,
 }
 
-/// A transported weighted-mean contrast with the premise and overlap check that licensed it.
+/// A transported weighted-mean contrast with the premise and overlap check that supported it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransportedCohortEffect {
     /// Weighted mean of the conditional contrast over the target rows.
@@ -462,7 +457,7 @@ pub struct TransportedCohortEffect {
     pub row_contrasts: Vec<f64>,
     /// The overlap check that passed.
     pub overlap: OverlapAssessment,
-    /// The declaration that licensed the transport.
+    /// The declaration that supported the transport.
     pub declaration: SelectionShiftDeclaration,
     /// Digest of the target cohort.
     pub cohort_digest: String,
@@ -663,7 +658,7 @@ pub fn transport_cohort_effect(
     cohort.validate()?;
     check_model(effect, feature_names, model_identity, model_population)?;
     let Some(support) = &effect.support else {
-        return Err(unlicensed(
+        return Err(unsupported(
             "transported_effect.support_contract_absent",
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; overlap \
@@ -703,7 +698,7 @@ pub fn transport_cohort_effect(
                 feature.source_hi
             ),
             "the target rows do not intersect the fitted support on this feature: no \
-             transport is licensed; supply a model fitted on rows that cover the target",
+             transport is supported; supply a model fitted on rows that cover the target",
         ));
     }
     if let (Some(row), Some(feature)) = (overlap.first_row, overlap.first_feature) {
@@ -721,7 +716,7 @@ pub fn transport_cohort_effect(
     let ids: Vec<VariableId> = effect.features.iter().map(|v| VariableId::from_raw(*v)).collect();
     let row_contrasts =
         effect.predict(&ids, &ordered, cohort.weights.len(), ctx).map_err(|error| {
-            unlicensed(
+            unsupported(
                 "transported_effect.prediction_refused",
                 error.to_string(),
                 "the retained model could not predict at these rows; check the cohort features",
@@ -730,7 +725,7 @@ pub fn transport_cohort_effect(
     let mean_contrast =
         TargetCohort::total(row_contrasts.iter().zip(&cohort.weights).map(|(v, w)| v * w));
     if !mean_contrast.is_finite() {
-        return Err(unlicensed(
+        return Err(unsupported(
             "transported_effect.non_finite_result",
             "mean_contrast",
             "the cohort mean is not finite; check the model and the cohort",
@@ -946,7 +941,7 @@ mod tests {
     fn requests_beyond_the_point_are_refused() {
         let c = cohort(vec![0.5], vec![1.0]);
         let value = run(&model(true), &c, Some(&declaration())).unwrap();
-        assert_eq!(value.interval_refusal().detail, "transported_effect.interval_not_licensed");
+        assert_eq!(value.interval_refusal().detail, "transported_effect.interval_not_supported");
         assert_eq!(value.law_refusal().code, "decision_contract_unsatisfied");
     }
 

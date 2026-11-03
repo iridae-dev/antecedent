@@ -38,7 +38,7 @@ record_sha256 = "92bfe9849f63ec5c2f16f13b13d9f7ce121297a3254a3c2558dd4cd1e4df944
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/efficient.rs"
-sha256 = "88e471d46abbfe4684ae5e024fd7cb76b671ee020055fa3a3f98f9558d3268fe"
+sha256 = "523ec2360d22c8e763166dadf92675741844280dbf97f8b2cfbcd678a9a43cde"
 
 [[method_review.artifacts]]
 role = "assertion"

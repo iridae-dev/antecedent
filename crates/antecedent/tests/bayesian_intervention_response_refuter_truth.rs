@@ -211,7 +211,7 @@ fn bayesian_level_cheap_and_full_pass_on_the_clean_law_at_the_closed_form_level(
             let result = study(table.clone(), structure, suite)
                 .run(&ExecutionContext::for_tests(5))
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             let level = published_level(&result);
             assert!(
                 (level - contract.level).abs() < contract.level_tolerance,
@@ -259,7 +259,7 @@ fn bayesian_level_refuters_detect_planted_positivity_and_curvature_violations() 
     assert!(clean.refutations.iter().all(|report| report.passed), "the clean law passes");
 }
 
-/// The default suite keeps the licensed validation `none`, and a requested cheap or full
+/// The default suite keeps the supported validation `none`, and a requested cheap or full
 /// study executes from the retained plan with the builder dropped.
 #[test]
 fn bayesian_level_refuters_execute_from_the_retained_plan_with_the_builder_dropped() {
@@ -273,7 +273,7 @@ fn bayesian_level_refuters_execute_from_the_retained_plan_with_the_builder_dropp
             let prepared =
                 builder.prepare(&context).unwrap_or_else(|error| panic!("{label}: {error}"));
             drop(builder);
-            assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{label}");
             assert!(prepared.plan().logical.record.estimator.is_some(), "{label}");
             let result = prepared
                 .estimate(&table, &context)

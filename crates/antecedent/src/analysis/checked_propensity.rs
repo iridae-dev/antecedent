@@ -103,8 +103,8 @@ pub(crate) struct CheckedPropensityOperation {
     fit: CheckedPropensityFit,
 }
 
-/// Refuses a context outside the licensed DAG, frequentist, mean-effect propensity contract.
-fn refuse_unlicensed_premises(
+/// Refuses a context outside the supported DAG, frequentist, mean-effect propensity contract.
+fn refuse_unsupported_premises(
     context: &CheckedPropensityContext,
     query: &AverageEffectQuery,
 ) -> Result<(), CausalError> {
@@ -121,7 +121,7 @@ fn refuse_unlicensed_premises(
         || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
     {
         return Err(compile_error(
-            "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
+            "checked propensity route premises are outside the supported DAG frequentist mean-effect contract",
         ));
     }
     Ok(())
@@ -194,7 +194,7 @@ impl CheckedPropensityOperation {
             CausalQuery::AverageEffect(query) => query.clone(),
             _ => return Err(compile_error("checked propensity requires an AverageEffect query")),
         };
-        refuse_unlicensed_premises(&context, &query)?;
+        refuse_unsupported_premises(&context, &query)?;
         let (target, required_assumptions) = backdoor_target(&context)?;
         let (active, control) = binary_backdoor_arms(&target, &query)?;
         let fitter = fitter.into();

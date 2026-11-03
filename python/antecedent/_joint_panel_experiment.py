@@ -132,9 +132,9 @@ def condition_native(
 
 @dataclass(frozen=True, slots=True)
 class PanelJointComponent:
-    """One measured quantity of a retained experiment and its licensed map into the response.
+    """One measured quantity of a retained experiment and its supported map into the response.
 
-    ``component`` names the evidence outcome; ``bridge`` is the licensed
+    ``component`` names the evidence outcome; ``bridge`` is the supported
     :class:`~antecedent.scientific_bridge.BridgeContract` from that outcome's retained
     quantity to the response ``functional``; ``intercepts`` and ``slopes`` are the paired
     per-draw affine mapping over the fitted source ``mapping_dependency``.
@@ -311,7 +311,7 @@ def replay_joint_experiment(
 class PanelFutureRegime:
     """The setting a future study would run in and how it connects to the retained response.
 
-    ``bridge`` is the licensed :class:`~antecedent.scientific_bridge.BridgeContract` from that
+    ``bridge`` is the supported :class:`~antecedent.scientific_bridge.BridgeContract` from that
     study's population, window, dose, duration, exposure, recency and spend to the retained
     contrast, with its transport premise, mapping uncertainty and source dependence;
     ``functional`` is the time functional of the retained worlds that the study's estimand
@@ -350,7 +350,7 @@ class PanelFutureStudy:
     experimental source units) and ``cost_utility`` (already in the decision's utility unit, or
     ``None`` for an uncosted catalog) describe the Gaussian sample. ``regime=None`` is another
     sample of the already observed estimand; a :class:`PanelFutureRegime` measures a different
-    functional of the same retained joint response through its own licensed bridge and mapping.
+    functional of the same retained joint response through its own supported bridge and mapping.
     """
 
     id: str
@@ -432,7 +432,7 @@ class PanelExperiment:
         Each study is valued through the actual update it would cause: the retained draws,
         their posterior weights and the terminal responses stay exactly those of this update,
         and only what each draw predicts the study will observe changes with its regime. A
-        regime whose bridge is unlicensed, whose mapping disagrees with the fitted source, or
+        regime whose bridge is unsupported, whose mapping disagrees with the fitted source, or
         whose mapping evidence is missing, withdrawn or superseded in ``ledger`` is refused.
         ``actions`` are as for :meth:`rank_next_samples`. Every candidate reports its
         ``regime_identity`` (``None`` for the observed estimand).

@@ -44,7 +44,7 @@ use super::execute::Study;
 /// # Errors
 ///
 /// The typed [`MnarSensitivityError`] of the contract (`mechanism_not_declared`,
-/// `unsupported_estimator`, `unbounded_range`, `range_excludes_mar`, `composition_not_licensed`,
+/// `unsupported_estimator`, `unbounded_range`, `range_excludes_mar`, `composition_not_supported`,
 /// `invalid_data`, `invalid_loading`, `invalid_level`, `invalid_decision`, `invalid_tolerance`,
 /// `invalid_bootstrap`, `covariates_required`, `covariates_not_used`, `design_singular`,
 /// `insufficient_observed`, `bounds_exceeded`).

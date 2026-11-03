@@ -22,7 +22,7 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from typing import Any
 
-from .._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+from .._unset_support import unset_dose_support, unset_panel_support, unset_policy_support
 
 
 def _field_values(value: Any) -> dict[str, Any]:
@@ -76,7 +76,7 @@ class _FamilySpec:
         self.live_fn = live_fn
         self.wire_fn = wire_fn
         # wire -> {canonical name: value} for fields the live result always fills but
-        # the wire omits when unset (an unset license, derived from the wire's own
+        # the wire omits when unset (an unset support, derived from the wire's own
         # numbers exactly as the live estimate derives it).
         self.wire_defaults = wire_defaults
 
@@ -111,7 +111,7 @@ _PANEL_PLAIN = _FamilySpec(
     },
     exclude=frozenset({"assumptions", "cohort", "design", "period"}),
     wire_defaults=lambda wire: {
-        "graphless_support_status": unset_panel_license(
+        "graphless_support_status": unset_panel_support(
             has_interval=wire.get("interval_95") is not None
         )
     },
@@ -122,7 +122,7 @@ def _event_study_uncertainty(any_interval: bool) -> str:
     return (
         "event_time_pointwise_normal_intervals_independent_clusters"
         if any_interval
-        else "cluster_robust_se_only_pointwise_cr1_unlicensed"
+        else "cluster_robust_se_only_pointwise_cr1_unsupported"
     )
 
 
@@ -206,10 +206,10 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
     return {"event_time_effects": rows, "uncertainty": _event_study_uncertainty(any_interval)}
 
 
-def _policy_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
-    """The label the live policy estimate publishes when the wire leaves the license unset."""
+def _policy_unset_support(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live policy estimate publishes when the wire leaves the support unset."""
     return {
-        "graphless_support_status": unset_policy_license(
+        "graphless_support_status": unset_policy_support(
             has_regret=wire.get("regret") is not None,
             has_interval=wire.get("policy_interval_95") is not None
             or any(row.get("interval_95") is not None for row in wire.get("uplift_bins") or ())
@@ -220,12 +220,12 @@ def _policy_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
     }
 
 
-def _dose_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
-    """The label the live dose estimate publishes when the wire leaves the license unset."""
+def _dose_unset_support(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live dose estimate publishes when the wire leaves the support unset."""
     fixed = wire.get("fixed_policy")
     interval = fixed.get("incremental_interval_95") if isinstance(fixed, Mapping) else None
     return {
-        "graphless_support_status": unset_dose_license(
+        "graphless_support_status": unset_dose_support(
             has_incremental_interval=interval is not None
         )
     }
@@ -244,7 +244,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             "support_status": "graphless_support_status",
         },
         exclude=frozenset({"assumptions", "diagnostics", "evaluation_method"}),
-        wire_defaults=_policy_unset_license,
+        wire_defaults=_policy_unset_support,
     ),
     "panel_did": _FamilySpec(live_fn=_panel_from_live, wire_fn=_panel_from_wire),
     "survival": _FamilySpec(
@@ -292,7 +292,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
                 "calibration",
                 "fits_computed",
                 "fits_reused",
-                "licensed",
+                "supported",
                 "calibration_measured",
                 "support_status",
             }
@@ -305,10 +305,10 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
     # calibration ``unmeasured`` and the three false flags travel on both sides.
     "association": _FamilySpec(),
     "history_match": _FamilySpec(
-        exclude=frozenset({"calibration", "licensed", "calibration_measured", "support_status"}),
+        exclude=frozenset({"calibration", "supported", "calibration_measured", "support_status"}),
     ),
     # The live dataclass and the wire body spell every field alike (effects are nested
-    # records); calibration ``unmeasured`` and ``licensed`` false travel on both sides.
+    # records); calibration ``unmeasured`` and ``supported`` false travel on both sides.
     "quasi_rollout": _FamilySpec(),
     # The live dataclass spells every field as the wire body; a probability floor that was
     # not reported is ``None`` on both sides.
@@ -320,7 +320,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
         exclude=frozenset(
             {"assumptions", "diagnostics", "evaluation_method", "policy_value_estimated"}
         ),
-        wire_defaults=_dose_unset_license,
+        wire_defaults=_dose_unset_support,
     ),
 }
 

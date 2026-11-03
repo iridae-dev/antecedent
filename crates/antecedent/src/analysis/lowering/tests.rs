@@ -22,10 +22,10 @@ const FAMILIES: [&str; 7] = [
     "associational",
 ];
 
-/// Registered cells without a licensed support-matrix coordinate: graphless,
+/// Registered cells without a supported support-matrix coordinate: graphless,
 /// panel and multi-environment modalities, discovery, simulation and association.
-/// Each still lowers completely; the licensed-route record has no row for it.
-const OUTSIDE_LICENSED_ROUTES: [&str; 23] = [
+/// Each still lowers completely; the supported-route record has no row for it.
+const OUTSIDE_SUPPORTED_ROUTES: [&str; 23] = [
     "DiscoverStatic",
     "DiscoverTemporal",
     "GcmAttributeDag",
@@ -51,13 +51,13 @@ const OUTSIDE_LICENSED_ROUTES: [&str; 23] = [
     "AssociationTemporal",
 ];
 
-/// Licensed routes the support matrix executes.
-const LICENSED_ROUTE_COUNT: usize = 2696;
+/// Supported routes the support matrix executes.
+const SUPPORTED_ROUTE_COUNT: usize = 2696;
 
-/// The `lowering` value of every `[[route]]` in the licensed-route record, in order.
-fn licensed_route_lowerings() -> Vec<Option<String>> {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../parity/licensed_routes.toml");
-    let text = std::fs::read_to_string(path).expect("parity/licensed_routes.toml");
+/// The `lowering` value of every `[[route]]` in the supported-route record, in order.
+fn supported_route_lowerings() -> Vec<Option<String>> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../parity/supported_routes.toml");
+    let text = std::fs::read_to_string(path).expect("parity/supported_routes.toml");
     let mut routes: Vec<Option<String>> = Vec::new();
     for line in text.lines().map(str::trim) {
         if line == "[[route]]" {
@@ -71,7 +71,7 @@ fn licensed_route_lowerings() -> Vec<Option<String>> {
 }
 
 #[test]
-fn every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells() {
+fn every_registered_cell_lowers_completely_and_the_supported_routes_name_registered_cells() {
     // One depth: a partial lowering cannot be added without failing this match.
     let complete = |depth: LoweringDepth| match depth {
         LoweringDepth::Complete => true,
@@ -81,21 +81,21 @@ fn every_registered_cell_lowers_completely_and_the_licensed_routes_name_register
     for cell in GraphPosteriorCell::ALL {
         registered.insert(RouteCell::GraphPosterior(cell).as_str());
     }
-    let routes = licensed_route_lowerings();
-    assert_eq!(routes.len(), LICENSED_ROUTE_COUNT, "licensed route inventory drifted");
+    let routes = supported_route_lowerings();
+    assert_eq!(routes.len(), SUPPORTED_ROUTE_COUNT, "supported route inventory drifted");
     let mut named = BTreeSet::new();
     for (index, route) in routes.iter().enumerate() {
         let lowering = route
             .as_deref()
-            .unwrap_or_else(|| panic!("licensed route #{} records no lowering", index + 1));
-        assert!(registered.contains(lowering), "licensed route names unregistered {lowering}");
+            .unwrap_or_else(|| panic!("supported route #{} records no lowering", index + 1));
+        assert!(registered.contains(lowering), "supported route names unregistered {lowering}");
         named.insert(lowering);
     }
-    let outside: BTreeSet<&str> = OUTSIDE_LICENSED_ROUTES.into_iter().collect();
+    let outside: BTreeSet<&str> = OUTSIDE_SUPPORTED_ROUTES.into_iter().collect();
     assert!(outside.is_subset(&registered), "an excluded cell is not registered");
-    assert!(named.is_disjoint(&outside), "a licensed route names an excluded cell");
+    assert!(named.is_disjoint(&outside), "a supported route names an excluded cell");
     let covered: BTreeSet<&str> = named.union(&outside).copied().collect();
-    assert_eq!(covered, registered, "every registered cell is licensed or explicitly excluded");
+    assert_eq!(covered, registered, "every registered cell is supported or explicitly excluded");
 }
 
 #[test]

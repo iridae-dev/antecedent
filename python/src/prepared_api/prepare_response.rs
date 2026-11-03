@@ -129,8 +129,8 @@ impl PyPreparedAnalysis {
         intervention_kinds=None,
         intervention_parameters=None,
         horizons,
-        policy=crate::temporal_license::DEFAULT_POLICY,
-        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
+        policy=crate::temporal_support::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_support::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
         feedback=None,
         accepted=false,
@@ -223,7 +223,7 @@ impl PyPreparedAnalysis {
                     antecedent_core::DerivativeWeighting::Observed,
                 )?;
                 let temporal_policy =
-                    crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+                    crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
                 let origin = -i32::try_from(treatment_lag)
                     .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
                 let functional =
@@ -285,11 +285,11 @@ impl PyPreparedAnalysis {
     /// TemporalCpdag / TemporalPag (`class_graph`).
     ///
     /// Series columns, or a panel / multi-environment / event `frame` of the
-    /// same schema; the study builder licenses or refuses the combination.
+    /// same schema; the study builder supports or refuses the combination.
     ///
     /// `as_average_effect` poses the lag-0 pulse (offset 0, horizon 1) as the
     /// `AverageEffect` the caller asked for; the build compiles it as that pulse and keeps
-    /// the `AverageEffect` support cell (executing, unlicensed).
+    /// the `AverageEffect` support cell (executing, unsupported).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -422,7 +422,7 @@ impl PyPreparedAnalysis {
     /// Compile once for TemporalMediationEffect on a TemporalDag or TemporalCpdag.
     ///
     /// Series columns, or a panel / multi-environment / event `frame`; the
-    /// study builder licenses or refuses the combination.
+    /// study builder supports or refuses the combination.
     #[staticmethod]
     #[pyo3(signature = (
         names,

@@ -434,7 +434,7 @@ impl ExternalScientificObject {
     /// Negotiate one direct operation at an independently supplied request ID.
     ///
     /// `Sample` never substitutes for `Cdf`, `Quantile`, or another operation.
-    /// A future sampling approximation requires a separate licensed method
+    /// A future sampling approximation requires a separate supported method
     /// and numerical-error/replicate receipt; this direct path grants none.
     ///
     /// # Errors
@@ -516,8 +516,8 @@ pub enum ExternalVerificationError {
 /// Trust held by a supplied scientific object.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExternalTrustState {
-    /// Implemented and licensed natively by Antecedent; never held by a provider.
-    NativeLicensed,
+    /// Implemented and supported natively by Antecedent; never held by a provider.
+    NativeSupported,
     /// Supplier-asserted only; no numerical check was performed here.
     ExternallyAttested {
         /// Party making the assertion.
@@ -543,11 +543,11 @@ impl ExternalTrustState {
         Ok(Self::ExternallyAttested { attestor: attestor.to_owned() })
     }
 
-    /// Whether this state licenses native Antecedent behavior; only
-    /// `NativeLicensed` does, so a verified extension never does.
+    /// Whether this state supports native Antecedent behavior; only
+    /// `NativeSupported` does, so a verified extension never does.
     #[must_use]
-    pub const fn is_native_licensed(&self) -> bool {
-        matches!(self, Self::NativeLicensed)
+    pub const fn is_native_supported(&self) -> bool {
+        matches!(self, Self::NativeSupported)
     }
 
     /// Whether this state is exact-request verification of `object`.
@@ -751,7 +751,7 @@ mod tests {
             verify_external_object(&law, &all_probes(1.0)).unwrap(),
         ));
         assert!(state.verifies(&law));
-        assert!(!state.is_native_licensed());
+        assert!(!state.is_native_supported());
         let mut other_request = law.clone();
         if let ExternalScientificObject::Law(value) = &mut other_request {
             value.identity.request_id = "exact-request-2".into();
@@ -765,12 +765,12 @@ mod tests {
 
         let attested = ExternalTrustState::attest(&law, "outside-lab").unwrap();
         assert!(!attested.verifies(&law));
-        assert!(!attested.is_native_licensed());
+        assert!(!attested.is_native_supported());
         assert_eq!(
             ExternalTrustState::attest(&law, " "),
             Err(ExternalContractError::InvalidIdentity)
         );
-        assert!(ExternalTrustState::NativeLicensed.is_native_licensed());
+        assert!(ExternalTrustState::NativeSupported.is_native_supported());
     }
 
     #[test]
@@ -892,7 +892,7 @@ mod tests {
     }
 
     /// A mean request accepts; threshold probability (a CDF
-    /// request) and quantile refuse without a licensed approximation receipt.
+    /// request) and quantile refuse without a supported approximation receipt.
     #[test]
     fn mean_request_accepts_and_threshold_and_quantile_refuse() {
         let law = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
@@ -970,7 +970,7 @@ mod tests {
         assert!(receipt.covers(&law));
         let state = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
         assert!(state.verifies(&law));
-        assert!(!state.is_native_licensed());
+        assert!(!state.is_native_supported());
         let mut other_request = law.clone();
         if let ExternalScientificObject::Law(value) = &mut other_request {
             value.identity.request_id = "R2".into();

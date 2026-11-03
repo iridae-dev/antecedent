@@ -310,7 +310,7 @@ impl DesignSession {
     pub fn result(&self) -> Option<&StudyResult> {
         self.live.as_ref().map(|l| l.result.as_ref())
     }
-    /// Plan against actual retained state. Population reweighting is not licensed.
+    /// Plan against actual retained state. Population reweighting is not supported.
     #[must_use]
     pub fn plan(&self, r: &DesignRequest, ctx: &ExecutionContext) -> RecalcPlan {
         RecalcPlan::plan(

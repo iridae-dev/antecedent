@@ -396,7 +396,7 @@ impl super::Study {
         if self.settings.refute != RefuteSuite::None || !self.declared.custom_validators.is_empty()
         {
             return Err(CausalError::Unsupported {
-                message: "ADMG ConditionalEffect is licensed at validation none; the ATE \
+                message: "ADMG ConditionalEffect is supported at validation none; the ATE \
                           refuters and custom validators do not apply to an IDC contrast",
             });
         }
@@ -495,7 +495,7 @@ impl super::Study {
                 )
             }
             _ => Err(CausalError::Unsupported {
-                message: "Admg response is licensed for InterventionResponse and ResponseCurve",
+                message: "Admg response is supported for InterventionResponse and ResponseCurve",
             }),
         }
     }
@@ -723,7 +723,7 @@ impl super::Study {
         }
     }
 
-    /// Plugin-level refutation of a scalar ADMG response level, when one is licensed.
+    /// Plugin-level refutation of a scalar ADMG response level, when one is supported.
     fn refute_admg_response_level(
         &self,
         run: &AdmgLevelRun<'_>,
@@ -744,7 +744,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                    "contrast-shaped refuters are not supported for a plugin intervention level; \
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      identified intervention mean",
                 ));

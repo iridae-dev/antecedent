@@ -20,7 +20,7 @@ Refused, with a registered reason code:
 * any risk-scale estimand (``population_risk``, ``absolute_risk``, ``risk_difference``,
   ``risk_ratio``): ``effect_not_identified``, because the case fraction is fixed by the
   design and no prevalence or selection information is taken;
-* an interval (``level=...``): ``cell_not_licensed``, because the asymptotic
+* an interval (``level=...``): ``not_supported``, because the asymptotic
   conditions of a Wald interval are not measured by any coverage record;
 * a set collection with no informative set (``effect_not_identified``) or whose
   conditional likelihood has no finite maximizer (``route_not_supported``).

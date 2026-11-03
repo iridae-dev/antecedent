@@ -98,7 +98,7 @@ def test_law_functional_full_original_request_replays_truth_without_trust_upgrad
     assert report["source_metadata"]["identity"]["alignment"] == "joint"
     assert report["source_metadata"]["identity"]["snapshot_id"] == "snap-n"
     assert report["native_authority_issued"] is False
-    assert report["calibration_license_issued"] is False
+    assert report["calibration_support_issued"] is False
     assert {row["stage"] for row in report["lineage"]} == {
         "causal_contract",
         "data",
@@ -203,7 +203,7 @@ from antecedent.sensitivity_decision import SensitivityArtifact
 from antecedent.functional_source import LawFunctionalArtifact
 s=require_success(SensitivityArtifact.consume_with_source(open(sys.argv[1],'rb').read()))
 l=LawFunctionalArtifact.consume(open(sys.argv[2],'rb').read()).report
-print(json.dumps({'lower':s.quantities[0].lower[-1],'upper':s.quantities[0].upper[-1],'sensitivity':s.source_evidence['source_verified'],'probability':l['value'],'native':l['native_authority_issued'],'calibration':l['calibration_license_issued']}))
+print(json.dumps({'lower':s.quantities[0].lower[-1],'upper':s.quantities[0].upper[-1],'sensitivity':s.source_evidence['source_verified'],'probability':l['value'],'native':l['native_authority_issued'],'calibration':l['calibration_support_issued']}))
 """
     completed = subprocess.run(
         [sys.executable, "-c", script, str(sensitivity_path), str(law_path)],
@@ -299,7 +299,7 @@ def test_native_law_functional_portable_diagnostics_require_actual_row_origin_re
     resolved = loaded.resolve_with(claim)
     assert resolved.report["native_row_origin_verified"] is True
     assert resolved.report["native_authority_issued"] is False
-    assert resolved.report["calibration_license_issued"] is False
+    assert resolved.report["calibration_support_issued"] is False
     assert (
         require_success(LawFunctionalArtifact.consume(bytes(resolved.export()))).report[
             "native_row_origin_verified"
@@ -379,7 +379,7 @@ def test_native_rollout_retains_original_semantic_diagnostics_in_independent_ran
         == claim.source_evidence.source_artifact_digest
     )
     assert loaded.ranking.ranking_identity == ranked.ranking_identity
-    assert loaded.source_trust == "native_licensed"
+    assert loaded.source_trust == "native_supported"
     assert loaded.native_execution_authority is False
 
 
@@ -558,7 +558,7 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
     assert consumed.ranking.entries[0].evsi == pytest.approx(
         oracle, abs=5.0 * candidate.integration.stderr + 2e-4
     )
-    assert consumed.source_trust == "native_licensed"
+    assert consumed.source_trust == "native_supported"
     assert consumed.calibration == "unmeasured"
     assert consumed.native_execution_authority is False
 

@@ -29,9 +29,9 @@
 //!
 //! Bayesian studies add the prior sensitivity of the posterior of the whole target where the
 //! route retains its draws; a refuter the route cannot construct is recorded as a diagnostic
-//! naming its next attempt, never as a pass. The state executes and stays unlicensed: its
+//! naming its next attempt, never as a pass. The state executes and stays unsupported: its
 //! verdicts are diagnostics, no coverage record names it, and the result reports the support
-//! status `refused`.
+//! status `not_supported`.
 
 use antecedent_core::{
     CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
@@ -518,7 +518,7 @@ fn validate(
             ),
         ));
     }
-    let licensed = matches!(study.support_status(), Some(crate::support::CellStatus::Licensed));
+    let supported = matches!(study.support_status(), Some(crate::support::CellStatus::Supported));
     result.view.diagnostics.push(Diagnostic::new(
         "refute.functional.state",
         DiagnosticKind::Scientific,
@@ -532,20 +532,20 @@ fn validate(
             config.replicates,
             if static_class_posterior_curve(study) {
                 "These retained refutation reports are descriptive and require independent replay."
-            } else if licensed {
-                "The validated cell is licensed on known-truth refuter evidence."
+            } else if supported {
+                "The validated cell is supported on known-truth refuter evidence."
             } else {
-                "It executes unlicensed: no coverage or evidence record names it."
+                "It executes unsupported: no coverage or evidence record names it."
             }
         ),
     ));
     // The handle's contract names a run with no validation, which does not describe this
-    // result. The result carries the status of the validated cell itself: licensed when a row
+    // result. The result carries the status of the validated cell itself: supported when a row
     // names it, refused otherwise.
-    result.support_status = Some(if licensed {
-        crate::support::CellStatus::Licensed
+    result.support_status = Some(if supported {
+        crate::support::CellStatus::Supported
     } else {
-        crate::support::CellStatus::Refused
+        crate::support::CellStatus::NotSupported
     });
     result.executed_contract = None;
     let origin = if static_class_posterior_curve(study) {

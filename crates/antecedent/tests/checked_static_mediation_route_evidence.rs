@@ -1,4 +1,4 @@
-//! Builder-independent evidence for the licensed frequentist static mediation procedure.
+//! Builder-independent evidence for the supported frequentist static mediation procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -183,13 +183,13 @@ fn data(direct_delta: f64) -> TabularData {
 }
 
 #[test]
-fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite() {
+fn static_mediation_plan_executes_every_contrast_and_supported_validation_suite() {
     run_on_large_stack(
-        static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner,
+        static_mediation_plan_executes_every_contrast_and_supported_validation_suite_inner,
     );
 }
 
-fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner() {
+fn static_mediation_plan_executes_every_contrast_and_supported_validation_suite_inner() {
     let base = data(0.0);
     let context = ExecutionContext::for_tests(203);
     for accepted in [false, true] {

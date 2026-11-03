@@ -1,7 +1,7 @@
 //! Python binding of the closed learned joint source-target transport route
 //! (`learned_joint_transport`). The function validates its request against the row's scope
 //! through the Rust core and always raises: the core's scope refusal for a request outside
-//! the row, otherwise `cell_not_licensed` with `learned_joint_transport.route_frozen`.
+//! the row, otherwise `not_supported` with `learned_joint_transport.route_frozen`.
 //! Calibration is measured only at the release cut, so no interval is published. It backs
 //! `antecedent.transport._learned_joint.learned_joint_transport` and is reached only
 //! through it.

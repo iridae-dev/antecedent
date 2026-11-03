@@ -101,7 +101,7 @@ family = "P12.counterfactual"
 axis = "categorical_treatment"
 value = "categorical"
 status = "delivered"
-test = "crates/antecedent/tests/licensed_static_cells.rs::counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling"
+test = "crates/antecedent/tests/supported_static_cells.rs::counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling"
 what = "a categorical lever of the counterfactual is invariant to rescaling its parents"
 
 [[cell]]
@@ -173,8 +173,8 @@ family = "P09.two_arm"
 axis = "degeneracy"
 value = "collinear_or_constant"
 status = "delivered"
-test = "crates/antecedent/tests/randomized_trial_route.rs::graphless_interval_license_refuses_zero_variance_despite_assignment_support"
-what = "zero outcome variance refuses the interval license"
+test = "crates/antecedent/tests/randomized_trial_route.rs::graphless_interval_support_refuses_zero_variance_despite_assignment_support"
+what = "zero outcome variance refuses the interval support"
 
 [[cell]]
 family = "P09.two_arm"
@@ -533,18 +533,18 @@ test = "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::trans
 what = "an estimator the route does not run (AIPW), an overlap policy and a population registry were silently ignored by the transport route and are refused with option_not_applicable and a next attempt; the route's own estimator id is accepted and equals the plain run; the validation suite beside observation weights is refused (transport_validation_runs_on_clusters_and_is_refused_beside_weights)"
 
 # P14 graph_class dag stays "unavailable": it executes and equals the hand count and the ADMG result
-# (a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query) but licensing a new
-# coordinate needs rows in parity/route_obligations.toml, parity/licensed_routes.toml,
-# parity/acceptance_inventory.toml and a support_licensed.toml cell plus the narrowing of the Dag
-# rule in support_closed.toml to structures = ["accepted"]; see the report for the exact set.
+# (a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query) but support a new
+# coordinate needs rows in parity/route_obligations.toml, parity/supported_routes.toml,
+# parity/acceptance_inventory.toml and a support_cells.toml cell plus the narrowing of the Dag
+# rule in support_refusal_reasons.toml to structures = ["accepted"]; see the report for the exact set.
 
 [[cell]]
 family = "P09.interference"
 axis = "unsupported_input"
 value = "typed_refusal"
 status = "delivered"
-test = "crates/antecedent/tests/staged_attribution_transport_interference.rs::interference_outside_the_licensed_construction_is_refused"
-what = "interference outside the licensed construction is refused"
+test = "crates/antecedent/tests/staged_attribution_transport_interference.rs::interference_outside_the_supported_construction_is_refused"
+what = "interference outside the supported construction is refused"
 
 [[cell]]
 family = "P07.continuous_dose"
@@ -559,8 +559,8 @@ family = "P07.dose_grid"
 axis = "unsupported_input"
 value = "typed_refusal"
 status = "delivered"
-test = "crates/antecedent-estimate/src/dose_grid_posterior.rs::unlicensed_requests_are_refused"
-what = "unlicensed dose-grid posterior requests are refused"
+test = "crates/antecedent-estimate/src/dose_grid_posterior.rs::unsupported_requests_are_refused"
+what = "unsupported dose-grid posterior requests are refused"
 
 [[cell]]
 family = "P07.quantile"
@@ -607,7 +607,7 @@ family = "P03.aipw"
 axis = "unsupported_input"
 value = "typed_refusal"
 status = "delivered"
-test = "crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_refusals_are_typed"
+test = "crates/antecedent/tests/unsupported_design_routes.rs::sequential_contrast_refusals_are_typed"
 what = "sequential cross-fit contrast refusals are typed"
 
 [[cell]]
@@ -1232,7 +1232,7 @@ family = "P12.counterfactual"
 axis = "held_out_regime"
 value = "held_out_intervention"
 status = "delivered"
-test = "crates/antecedent/tests/licensed_static_cells.rs::counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support"
+test = "crates/antecedent/tests/supported_static_cells.rs::counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support"
 what = "units outside the opposite arm's covariate support are flagged"
 
 [[cell]]
@@ -2352,7 +2352,7 @@ family = "P19"
 axis = "graph_class"
 value = "graphless"
 status = "delivered"
-test = "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path"
+test = "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path"
 what = "the migration audit runs over route records, with no graph argument"
 
 [[cell]]
@@ -2742,7 +2742,7 @@ family = "P13.attribution"
 axis = "graph_class"
 value = "dag"
 status = "delivered"
-test = "crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unlicensed_standard_errors"
+test = "crates/antecedent/tests/unsupported_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unsupported_standard_errors"
 reason = "anomaly attribution on a linear DAG recovers the known unit mean score 1 and the change attribution recovers the known intercept shift 3"
 
 [[cell]]
@@ -2990,7 +2990,7 @@ axis = "dependence"
 value = "clustered"
 status = "delivered"
 test = "crates/antecedent-estimate/tests/smoothed_dose_declared_reference.rs::weighted_clustered_and_serial_scores_and_standard_errors_match_the_multiprecision_reference"
-what = "declared clusters stay whole in one cross-fit fold (clusters_stay_whole_in_one_fold_and_serial_folds_are_contiguous_blocks), the influence-function standard error is cluster-robust and equals the 50-digit reference, and the internal bootstrap resamples whole clusters (the_bootstrap_resamples_clusters_and_blocks_and_rows_otherwise); the public interval stays closed (cell_not_licensed) and the declaration changes the point, folds and diagnostics only; clusters that leave a fold without a role are refused (dose_response.declared_folds_unbalanced)"
+what = "declared clusters stay whole in one cross-fit fold (clusters_stay_whole_in_one_fold_and_serial_folds_are_contiguous_blocks), the influence-function standard error is cluster-robust and equals the 50-digit reference, and the internal bootstrap resamples whole clusters (the_bootstrap_resamples_clusters_and_blocks_and_rows_otherwise); the public interval stays closed (not_supported) and the declaration changes the point, folds and diagnostics only; clusters that leave a fold without a role are refused (dose_response.declared_folds_unbalanced)"
 
 [[cell]]
 family = "P07.smoothed_dose"
@@ -3386,7 +3386,7 @@ reason = "the class average effect contrasts two levels of a treatment the data 
 #
 # That test passes: the posterior mean equals the arm-regression least-squares reference to 0.02, recovers the
 # simulated effect 1.5 within 0.15, has a positive posterior sd below 0.2 and a 95% interval containing the truth,
-# and reports no licence (support_status None); the sibling test in the same file refuses a thin arm and declared
+# and reports no support (support_status None); the sibling test in the same file refuses a thin arm and declared
 # weights with their next attempts.
 # OPEN P11.augmented_panel_did design_inference temporal.bayesian: needs the counterparts.toml / acceptance_inventory.toml execution edit above (a quadrant axis; not settleable by a curated cell)
 # OPEN P11.augmented_panel_did uncertainty temporal.bayesian: same row, same edit
@@ -3567,7 +3567,7 @@ axis = "graph_class"
 value = "latent_or_equivalence_class"
 status = "delivered"
 test = "crates/antecedent/tests/class_attribution_route.rs::a_cpdag_anomaly_is_the_mean_of_its_dag_completions"
-what = "a CPDAG anomaly attribution equals the mean over the two DAG completions of the licensed DAG route (scores, contributions and baselines to 1e-9, with the identified set running from the backward to the forward DAG); the ADMG route is attributed to the noise blocks of its latent common causes and equals the DAG factual scores (an_admg_anomaly_is_attributed_to_the_noise_blocks)"
+what = "a CPDAG anomaly attribution equals the mean over the two DAG completions of the supported DAG route (scores, contributions and baselines to 1e-9, with the identified set running from the backward to the forward DAG); the ADMG route is attributed to the noise blocks of its latent common causes and equals the DAG factual scores (an_admg_anomaly_is_attributed_to_the_noise_blocks)"
 
 [[cell]]
 family = "P13.attribution"
@@ -3606,7 +3606,7 @@ axis = "graph_class"
 value = "temporal_graph"
 status = "delivered"
 test = "crates/antecedent/tests/temporal_conditional_effect.rs::temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
-what = "the temporal conditional pulse and sustained effects on a temporal DAG recover the closed-form marginal effect 1.9 of conformance/estimate/temporal_conditional (an exact-rational generator), frequentist and Bayesian, explicit and accepted graph; the route cell executes unlicensed"
+what = "the temporal conditional pulse and sustained effects on a temporal DAG recover the closed-form marginal effect 1.9 of conformance/estimate/temporal_conditional (an exact-rational generator), frequentist and Bayesian, explicit and accepted graph; the route cell executes unsupported"
 
 [[cell]]
 family = "P05"
@@ -3792,7 +3792,7 @@ axis = "graph_class"
 value = "dag"
 status = "unavailable"
 test = "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query"
-reason = "a TransportQuery on a Dag executes as the confounder-free selection diagram and equals the hand-computed contrast 2 and the ADMG result, but no evidence row or coverage record licenses the cell, so the result keeps support status refused (parity/support_closed.toml); a Cpdag or Pag is refused"
+reason = "a TransportQuery on a Dag executes as the confounder-free selection diagram and equals the hand-computed contrast 2 and the ADMG result, but no evidence row or coverage record supports the cell, so the result keeps support status refused (parity/support_refusal_reasons.toml); a Cpdag or Pag is refused"
 
 [[cell]]
 family = "P14"

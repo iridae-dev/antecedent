@@ -234,7 +234,7 @@ fn linear_gaussian_laws_conditioning_and_delta_method_equal_the_rational_referen
             &format!("{name} contrast"),
         );
 
-        // The delta method under three licensed dependence declarations.
+        // The delta method under three supported dependence declarations.
         let parameters: Vec<ParameterId> = case["parameters"]
             .as_array()
             .unwrap()

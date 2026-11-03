@@ -33,8 +33,8 @@ What each part means
   its declared idempotent contract.
 * An answer is accepted only as a well-formed law of the declared quantity (finite, in support,
   a distribution function in [0, 1] and non-decreasing). A malformed law is refused whole.
-* A result is ``diagnostic`` or ``licensed_external``; neither is native. Metadata cannot mint
-  native trust, a joint law or an identification licence, and a callback supplies no interval or
+* A result is ``diagnostic`` or ``supported_external``; neither is native. Metadata cannot mint
+  native trust, a joint law or an identification evidence, and a callback supplies no interval or
   posterior guarantee (:func:`refuse_interval` and the other ``refuse_*`` functions).
 
 Code execution
@@ -114,7 +114,7 @@ __all__ = [
     "check_claim_to_callback",
     "consume_callback_result",
     "inspect_callback_result",
-    "refuse_identification_licence",
+    "refuse_identification_evidence",
     "refuse_interval",
     "refuse_joint_law",
     "refuse_native_trust",
@@ -1403,7 +1403,7 @@ def _closed(route: str) -> None:
 
 
 def refuse_interval() -> None:
-    """An interval from a callback law: closed (``cell_not_licensed``).
+    """An interval from a callback law: closed (``not_supported``).
 
     Raises:
         CallbackRefusal: always.
@@ -1429,13 +1429,13 @@ def refuse_native_trust() -> None:
     _closed("native_trust")
 
 
-def refuse_identification_licence() -> None:
-    """An identification licence from a callback: closed.
+def refuse_identification_evidence() -> None:
+    """An identification evidence from a callback: closed.
 
     Raises:
         CallbackRefusal: always.
     """
-    _closed("identification_licence")
+    _closed("identification_evidence")
 
 
 def refuse_joint_law() -> None:

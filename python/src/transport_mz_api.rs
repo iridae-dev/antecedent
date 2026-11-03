@@ -14,7 +14,7 @@ use antecedent_identify::{
 };
 use antecedent_io::mz_transport_artifact::{
     MzContrastWire, MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
-    refuse_unlicensed_interval,
+    refuse_unsupported_interval,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -132,7 +132,7 @@ fn decision_json(
 
 /// Interval bookkeeping in variable names. `seed` is the stored seed of an
 /// estimator run (`None` when no interval run is recorded); while the interval
-/// route is closed, counted laws report `withheld` / `cell_not_licensed` and
+/// route is closed, counted laws report `withheld` / `not_supported` and
 /// `available` is always false.
 fn uncertainty_json(uncertainty: &MzUncertaintyWire, names: &[String]) -> serde_json::Value {
     serde_json::json!({
@@ -416,7 +416,7 @@ impl PreparedMultiSourceZTransportStage {
 
     /// Evaluate the frozen formula for every prepared request, with point
     /// contrasts against request 0. Exact laws are point-only; counted laws
-    /// return the point with the interval withheld as `cell_not_licensed`
+    /// return the point with the interval withheld as `not_supported`
     /// (the interval route is closed until its coverage records exist).
     #[pyo3(signature=(*, memory_bytes=None, cancel=None, seed=None))]
     fn estimate(
@@ -637,7 +637,7 @@ fn consume_multi_source_z_transport_artifact(
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(error)?;
-        refuse_unlicensed_interval(&consumed.wire.uncertainty).map_err(error)?;
+        refuse_unsupported_interval(&consumed.wire.uncertainty).map_err(error)?;
         let mut payload =
             points_json(&consumed.requests, &consumed.distributions, &consumed.contrasts, &names);
         payload["status"] = "available".into();

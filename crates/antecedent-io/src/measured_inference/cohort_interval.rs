@@ -27,7 +27,7 @@ pub const ROUTE: &str = "cohort_interval";
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("{detail}: {message}"),
     }
 }

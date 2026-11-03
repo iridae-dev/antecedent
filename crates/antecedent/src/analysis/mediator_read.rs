@@ -4,7 +4,7 @@
 //! Equivalent topological orders emit equivalent but differently conditioned Tian factors, so
 //! the answer is read from the functional's own algebra and the graph, never from a refit: the
 //! test normalises the product of distribution leaves the functional sums over, then removes
-//! the variable by the two rewrites the chain rule licenses.
+//! the variable by the two rewrites the chain rule supports.
 //!
 //! * `sum_m P(m | C) = 1` when `m` appears in no other factor.
 //! * `sum_m P(m | C) P(Y | C, D, m) = P(Y | C, D)` when the two factors are read at the same

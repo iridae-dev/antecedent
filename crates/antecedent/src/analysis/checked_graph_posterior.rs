@@ -327,14 +327,14 @@ impl CheckedGraphPosteriorEffect {
             latency_mode,
             validation,
         } = premises;
-        let licensed = match posterior.atom_kind() {
+        let supported = match posterior.atom_kind() {
             GraphPosteriorAtomKind::Dag => procedure.id() == target.frequentist_estimator(),
             GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
                 !target.is_conditional() && procedure.id() == EstimatorId::FunctionalEffect
             }
             _ => false,
         };
-        if !licensed {
+        if !supported {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior effect supports frequentist DAG (conditional) linear adjustment or ADMG average functional.effect",
             });

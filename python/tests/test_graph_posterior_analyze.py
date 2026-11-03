@@ -31,7 +31,7 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     assert mass is not None
     assert 0.0 < mass < 1.0  # this posterior splits between identified and unidentified graphs
     assert result.ate is None  # a mixture with unidentified mass publishes no single point
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert result.posterior.envelope is not None
     assert result.posterior.envelope.unidentified_mass == mass
     # The identified-graph mixture is a convex combination of the per-graph effects. Here the
@@ -60,7 +60,7 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
     )
     assert result.posterior is None
     assert result.ate is None  # unidentified mass: no single point is published
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     masses = [d for d in result.diagnostics if "unidentified_mass=" in d]
     assert masses, result.diagnostics
     # The structural aggregation states a partition of the posterior into identified and
@@ -106,7 +106,7 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     assert 0.0 <= mass <= 1.0
     # y[t] = 0.9 pressure[t-1] exactly: a unit pulse at lag 1 moves the outcome by 0.9.
     assert result.posterior.effect_mean == pytest.approx(0.9, abs=1e-3)
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def test_dbn_posterior_bayesian_sustained_mixture():
@@ -141,7 +141,7 @@ def test_dbn_posterior_bayesian_sustained_mixture():
     assert 0.0 <= mass <= 1.0
     # y[t] = 0.9 pressure[t-1] exactly: a unit pulse at lag 1 moves the outcome by 0.9.
     assert result.posterior.effect_mean == pytest.approx(0.9, abs=1e-3)
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def test_cpdag_graph_posterior_ate_from_graphs():
@@ -164,7 +164,7 @@ def test_cpdag_graph_posterior_ate_from_graphs():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     # z -> t, z -> y, t -> y with y = 1 + 2 t + 3 z: the adjusted total effect of t is exactly 2
     # (the unadjusted contrast is 3.5).
     assert result.ate == pytest.approx(2.0, abs=1e-9)
@@ -187,7 +187,7 @@ def test_admg_graph_posterior_ate_and_intervention_response():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert ate.evidence_status == "licensed"
+    assert ate.evidence_status == "supported"
     assert ate.ate == pytest.approx(2.0, abs=1e-9)  # y = 1 + 2 t exactly
     response = require_success(
         antecedent.analyze(
@@ -201,7 +201,7 @@ def test_admg_graph_posterior_ate_and_intervention_response():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert response.evidence_status == "licensed"
+    assert response.evidence_status == "supported"
     assert response.response is not None
     assert response.response.values[0][0] == pytest.approx(3.0, abs=1e-9)  # E[y | do(t=1)] = 1 + 2
     assert response.validation is not None
@@ -230,7 +230,7 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
             execution=antecedent.Execution(seed=11),
         )
     )
-    assert curve.evidence_status == "licensed"
+    assert curve.evidence_status == "supported"
     assert curve.response is not None
     # defect[t] = 0.9 pressure[t-1]: the curve at horizon 1 is 0 at pressure 0 and 0.9 at pressure 1.
     assert curve.response.points == ((0.0, 1.0), (1.0, 1.0))
@@ -252,7 +252,7 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
             execution=antecedent.Execution(seed=11),
         )
     )
-    assert ir.evidence_status == "licensed"
+    assert ir.evidence_status == "supported"
     assert ir.response is not None
     assert ir.response.values[0][0] == pytest.approx(0.9, abs=1e-9)  # E[defect | do(pressure=1)]
 
@@ -290,5 +290,5 @@ def test_temporal_cpdag_graph_posterior_pulse():
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert result.ate == pytest.approx(0.8, abs=1e-9)  # outcome[i] = 0.8 treatment[i-1] exactly

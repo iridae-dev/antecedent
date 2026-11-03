@@ -326,7 +326,7 @@ def test_cross_scenario_inference_and_equivalence_classes_are_refused():
     prepared = prepare()
     with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
         prepared.aggregate_interval()
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
     cpdag = Cpdag.from_directed_undirected(NAMES, [("z", "x")], [("x", "y")])
     with pytest.raises(
         CausalUnsupportedError, match="scenarios.equivalence_class_input"
@@ -335,7 +335,7 @@ def test_cross_scenario_inference_and_equivalence_classes_are_refused():
     assert equivalence.value.reason_code == "route_not_supported"
 
 
-# Checked execution: each licensed route runs from the retained, frozen plans with
+# Checked execution: each supported route runs from the retained, frozen plans with
 # no builder alive, and the test inspects those retained plans.
 
 

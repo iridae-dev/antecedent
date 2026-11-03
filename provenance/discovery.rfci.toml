@@ -42,7 +42,7 @@ sha256 = "b1740e213826aac586fd2700adfe7e95eb6a5a76c30f58335a6e0d8cfca6a4e6"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rule_scheduling.rs"
-sha256 = "4aa329557ce27c2307327899ca8507a3e8ef14a1cec2e9dc835c102eda544bd1"
+sha256 = "af998b192a7edb562fa77cea311f0ae6c56c4e24d2299ba3ca45c2a6dca0b177"
 
 [[method_review.artifacts]]
 role = "assertion"

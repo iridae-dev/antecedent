@@ -39,7 +39,7 @@ def test_randomized_survival_known_truth_with_right_censoring():
     assert result.control_survival == pytest.approx((1.0, 0.75, 0.75, 0.375, 0.375))
     assert result.treated_survival == pytest.approx((1.0, 1.0, 0.75, 0.75, 0.5))
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "independent_right_censoring_within_arm" in result.assumptions
 
 
@@ -135,7 +135,7 @@ def test_cause_specific_cumulative_incidence_known_truth():
     assert result.treated_incidence == pytest.approx((0.0, 0.25, 0.5, 0.5))
     assert result.incidence_difference == pytest.approx(0.3)
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "all_event_causes_coded_distinctly" in result.assumptions
 
 

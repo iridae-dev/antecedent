@@ -2,7 +2,7 @@
 
 A refusal identifies an unmet scientific or execution requirement. Repair the declaration or supply the missing evidence; do not catch the error and substitute a more convenient number.
 
-This executable recipe shows a retained randomized design that refuses changed assignments, preserves the preceding result, and then accepts explicit repreparation. It also demonstrates a declared mixture whose spread cannot be read as a licensed interval.
+This executable recipe shows a retained randomized design that refuses changed assignments, preserves the preceding result, and then accepts explicit repreparation. It also demonstrates a declared mixture whose spread cannot be read as a supported interval.
 
 <!-- example: examples/python/refusal_recipes.py -->
 
@@ -33,7 +33,7 @@ try:
     # a perturbation bound below one is refused
     msm_sensitivity.msm_ate_sensitivity(strata, 0.5)
 except StructuredRefusal as refusal:
-    refusal.code        # "invalid_argument" here; a scientific refusal has e.g. "cell_not_licensed"
+    refusal.code        # "invalid_argument" here; a scientific refusal has e.g. "not_supported"
     refusal.detail      # "msm_sensitivity.lambda_below_one"
     refusal.offending   # the field, quantity, node or identity at fault, or None
     refusal.remedy      # what to change in order to proceed, or None

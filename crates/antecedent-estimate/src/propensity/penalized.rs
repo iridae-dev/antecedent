@@ -221,7 +221,7 @@ pub enum PropensityPenalty {
     RidgeLogistic(RidgeTuning),
     /// Lasso logistic: penalty and selected support both chosen on each fold's training
     /// rows. Cross-fitted only; a full-sample lasso is refused
-    /// (`selection_inference_not_licensed`) because selection on the evaluation rows is not
+    /// (`selection_inference_not_supported`) because selection on the evaluation rows is not
     /// excluded.
     Lasso(RidgeTuning),
 }
@@ -233,8 +233,8 @@ pub enum NuisanceFallback {
     #[default]
     None,
     /// Fall back to a flexible machine-learning learner (forest, boosting). Closed: that
-    /// destination has no cross-fitted support or uncertainty license, so a failed fit is
-    /// refused with the failure recorded (`nuisance_fallback_not_licensed`).
+    /// destination has no cross-fitted support or uncertainty support, so a failed fit is
+    /// refused with the failure recorded (`nuisance_fallback_not_supported`).
     Ml,
     /// On a failed GLM propensity fit, run the whole cross-fitted route again with a
     /// ridge-logistic propensity of this tuning (same estimand, the destination's claim).
@@ -357,9 +357,9 @@ impl PropensityNuisance {
     #[must_use]
     pub fn lasso_not_cross_fitted() -> EstimationError {
         refuse(
-            antecedent_core::reason_code!("selection_inference_not_licensed"),
+            antecedent_core::reason_code!("selection_inference_not_supported"),
             "penalized_propensity.selection_closed",
-            "a lasso propensity is licensed only inside the cross-fitted untrimmed AllObserved \
+            "a lasso propensity is supported only inside the cross-fitted untrimmed AllObserved \
              mean ATE, where the support is selected on training rows only; a full-sample \
              lasso selects covariates on the rows it scores, so no interval is valid after \
              that selection",
@@ -375,7 +375,7 @@ impl PropensityNuisance {
     pub fn record_failed_fit(&self, error: EstimationError) -> EstimationError {
         if self.fallback != NuisanceFallback::None && matches!(error, EstimationError::Stats(_)) {
             let tail = if self.fallback == NuisanceFallback::Ml {
-                "the declared ML fallback has no support or uncertainty license for this estimand"
+                "the declared ML fallback has no support or uncertainty support for this estimand"
             } else {
                 "the declared fallback runs only on the cross-fitted untrimmed AllObserved mean \
                  ATE, and this route refits full-sample nuisances"
@@ -390,7 +390,7 @@ impl PropensityNuisance {
         // the refusal; whatever that fit did not measure stays absent.
         let fields = error.refusal_fields().map(std::borrow::Cow::into_owned);
         EstimationError::refused_detail_with_fields(
-            antecedent_core::reason_code!("nuisance_fallback_not_licensed"),
+            antecedent_core::reason_code!("nuisance_fallback_not_supported"),
             "penalized_propensity.fallback_closed",
             format!(
                 "the primary nuisance fit failed ({error}); {tail}, so the failed fit is \
@@ -406,8 +406,8 @@ impl PropensityNuisance {
     /// # Errors
     ///
     /// `error` unchanged when no fallback is declared (or the primary is not a GLM fit), and
-    /// `nuisance_fallback_not_licensed` for the machine-learning destination, which has no
-    /// cross-fitted license; both leave the failed fit on the result.
+    /// `nuisance_fallback_not_supported` for the machine-learning destination, which has no
+    /// cross-fitted support; both leave the failed fit on the result.
     pub(crate) fn resolve_failed_fit(
         &self,
         error: EstimationError,
@@ -421,7 +421,7 @@ impl PropensityNuisance {
         match &self.fallback {
             NuisanceFallback::Ml => Err(Self::refuse_fallback(
                 &error,
-                "the declared ML fallback has no support or uncertainty license for this \
+                "the declared ML fallback has no support or uncertainty support for this \
                  estimand",
             )),
             _ => Err(error),
@@ -588,12 +588,12 @@ pub(crate) fn fold_supports(
         .collect()
 }
 
-/// Whether a score table's provenance marks a score table whose interval is not licensed:
+/// Whether a score table's provenance marks a score table whose interval is not supported:
 /// whole-cluster (cluster-DML) cross-fitting, learner-supplied joint-cell nuisances, or a
 /// factorized joint-cell family.
 ///
 /// Such a table is a point-and-score artifact unless a separate dependence receipt
-/// licenses its covariance and interval. The cluster-DML route supplies that receipt;
+/// supports its covariance and interval. The cluster-DML route supplies that receipt;
 /// factorized joint cells do not. Ridge- and lasso-penalized propensity tables are not
 /// withheld: their intervals are the routes of `docs/guides/penalized-aipw.md`.
 #[must_use]
@@ -992,7 +992,7 @@ mod tests {
     }
 
     #[test]
-    fn lasso_is_licensed_inside_the_cross_fit_and_refused_outside_it() {
+    fn lasso_is_supported_inside_the_cross_fit_and_refused_outside_it() {
         assert!(PropensityNuisance::lasso().validate_for_execution().is_ok());
         assert!(PropensityNuisance::default().validate_for_execution().is_ok());
         assert!(
@@ -1001,7 +1001,7 @@ mod tests {
                 .is_ok()
         );
         let error = PropensityNuisance::lasso_not_cross_fitted();
-        assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
+        assert!(error.to_string().contains("selection_inference_not_supported"), "{error}");
         assert!(
             PropensityNuisance::lasso().is_lasso() && !PropensityNuisance::default().is_lasso()
         );
@@ -1039,7 +1039,7 @@ mod tests {
             .resolve_failed_fit(failure())
             .unwrap_err();
         let text = error.to_string();
-        assert!(text.contains("nuisance_fallback_not_licensed"), "{text}");
+        assert!(text.contains("nuisance_fallback_not_supported"), "{text}");
         assert!(text.contains("primary nuisance fit failed"), "{text}");
         // No fallback declared: the original failure is the result.
         let plain = PropensityNuisance::default().resolve_failed_fit(failure()).unwrap_err();

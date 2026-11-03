@@ -100,7 +100,7 @@ evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "design_ranking_composes_the_existing_ranker"
 limitations = "Implementation-exists evidence: the cited assertion design_ranking_composes_the_existing_ranker shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. Adapters: design_rank_* in crates/antecedent/tests/identity_contract.rs (licensed-cell gate, then this ranker). Does not invent a parallel ranking API."
+notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. Adapters: design_rank_* in crates/antecedent/tests/identity_contract.rs (supported-cell gate, then this ranker). Does not invent a parallel ranking API."
 
 [[capabilities]]
 id = "design_state.incremental.particle_graph_score"

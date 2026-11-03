@@ -317,7 +317,7 @@ fn attestation_does_not_stand_in_for_required_verification() {
 }
 
 #[test]
-fn a_receipt_for_another_request_or_a_native_licence_is_refused() {
+fn a_receipt_for_another_request_or_a_native_support_is_refused() {
     let first = law("trial_a", "do(a=1)", "req-1");
     let receipt_for_first = verified(&first);
     let second = law("trial_a", "do(a=1)", "req-2");
@@ -334,12 +334,12 @@ fn a_receipt_for_another_request_or_a_native_licence_is_refused() {
     );
     let native = source(
         first,
-        ExternalTrustState::NativeLicensed,
+        ExternalTrustState::NativeSupported,
         SourceTrustRequirement::AttestationAccepted,
         EvidenceBasis::Undeclared,
     );
     check(
-        &native.admit().expect_err("native licence"),
+        &native.admit().expect_err("native support"),
         "interface_contract_invalid",
         "provider_transport.native_trust_claimed",
     );

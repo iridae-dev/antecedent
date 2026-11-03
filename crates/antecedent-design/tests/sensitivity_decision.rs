@@ -16,8 +16,8 @@ use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{
-    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, DecisionSwitch,
-    LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport, SamplingInterval, SamplingReport,
+    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, DecisionSwitch, NoRobustReason,
+    PointSupport, SUPPORTED_SAMPLING_COMPOSITIONS, SamplingInterval, SamplingReport,
     SamplingStatus, ScenarioCoverage, SensitivityArtifact, SensitivityDecisionSpec,
     SensitivityOutcome, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm, contract_from_artifact, evaluate_sensitivity_decision,
@@ -67,7 +67,7 @@ fn withheld() -> UncertaintyRelationship {
         },
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
-            reason_code: "cell_not_licensed".into(),
+            reason_code: "not_supported".into(),
             detail: "joint_sensitivity.interval_withheld".into(),
         },
     }
@@ -303,16 +303,16 @@ fn assumption_range_is_not_a_sampling_interval() {
         }
     );
 
-    // Asking for the composition is refused; the licensed list is empty.
-    assert!(LICENSED_SAMPLING_COMPOSITIONS.is_empty());
+    // Asking for the composition is refused; the supported list is empty.
+    assert!(SUPPORTED_SAMPLING_COMPOSITIONS.is_empty());
     let contract = contract_from_artifact(&reported, invariant_policy()).unwrap();
     let spec = SensitivityDecisionSpec {
         sampling_composition: Some("conservative_endpoint_percentile_bootstrap".into()),
         ..SensitivityDecisionSpec::default()
     };
     let error = evaluate_sensitivity_decision(&contract, &reported, &spec).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
-    assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_licensed");
+    assert_eq!(error.reason_code(), "not_supported");
+    assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_supported");
 
     // An artifact that claims a composition is refused at construction.
     let mut claimed = with_interval;
@@ -329,8 +329,8 @@ fn assumption_range_is_not_a_sampling_interval() {
     };
     let error = SensitivityArtifact::new(p).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("sensitivity_decision_composition.composition_not_licensed"));
+    assert_eq!(code, "not_supported");
+    assert!(message.starts_with("sensitivity_decision_composition.composition_not_supported"));
 }
 
 #[test]
@@ -498,7 +498,7 @@ fn joint_result(
     JointSensitivityView {
         inference_claim: "assumption_range".into(),
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
-        withheld_reason_code: "cell_not_licensed".into(),
+        withheld_reason_code: "not_supported".into(),
         withheld_detail: "joint_sensitivity.interval_withheld".into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
@@ -559,7 +559,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     assert_eq!(decided.coverage, ScenarioCoverage::VertexCertified);
     assert!(matches!(
         decided.sampling,
-        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "cell_not_licensed"
+        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "not_supported"
     ));
 
     // A status quo of 0.25 sits inside the range once the lower end falls below it,

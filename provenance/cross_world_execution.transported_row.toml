@@ -6,13 +6,13 @@ copied_comments = false
 copied_tests = false
 
 # Explicit judgment, not an unfilled field: this record names a CLOSED row of the cross-world capability
-# matrix. No joint theorem composes a transport licence with factual abduction in a target population, so
+# matrix. No joint theorem composes transport support with factual abduction in a target population, so
 # nothing is implemented that a paper introduces; the static additive linear case keeps its own
 # theorem-scoped record (counterfactual.transported_additive).
 papers = []
 
 implementation_deviations = [
-  "The transported cross-world row is closed, not executed: no joint theorem composes a transport licence with factual abduction in a target population, so a transported request refuses with cell_not_licensed (cross_world_execution.transported_row_closed) and names the unmet prerequisites (the transport licence, the target-population abduction receipt and the cross-population invariance of the exogenous law). The fixed-population cross-world licence is treated as met, so it is not listed.",
+  "The transported cross-world row is closed, not executed: no joint theorem composes transport support with factual abduction in a target population, so a transported request refuses with not_supported (cross_world_execution.transported_row_closed) and names the unmet prerequisites (the transport support, the target-population abduction receipt and the cross-population invariance of the exogenous law). The fixed-population cross-world support is treated as met, so it is not listed.",
   "The one transported cell that opens is the static additive linear path-specific contrast, which keeps its own theorem-scoped route and refusals (counterfactual.transported_additive); it does not abduce a target-population unit.",
 ]
 
@@ -32,19 +32,19 @@ kind = "closed_variant"
 rationale = "The closed transported row of the cross-world capability matrix: every transported request outside the static additive linear theorem route is refused with the closed row's code, detail, remedy and named unmet prerequisites, before any work."
 no_independent_algorithm = "matrix.rs decide() and the executor's static check only look rows up and build a refusal; there is no estimator, no abduction in a target population and no numerical step. The one opened transported cell is the theorem-scoped static additive route covered by counterfactual.transported_additive."
 covered_by = ["counterfactual.transported_additive"]
-record_sha256 = "80160089d3c34d23706b96a77597805a3c3e18569bfd7d64de5f8c5a5ad3f788"
+record_sha256 = "704ee066af295db9a273bb2fa90d47530c112a3619f5c5041daa25a76e4229b5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/matrix.rs"
-sha256 = "c949ee4c3f80a036c41a0c925088321c6380cc4512e124e91917f1c8ba632e3c"
+sha256 = "05c76ce4f1028f0f615ed2b4f8cdd61923c20299a0e65e057cb443b0c59c0386"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "856a07f32cb4cb69d8c3738b32104af998b4829587ccaf27feed6f333f3687ab"
+sha256 = "a3130b1c2c96e3bff61878b3f817e9a451cedec93fabc5257ddf508883481029"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/cross_world_execution_transported_row.rs"
-sha256 = "21e8f08d35d50bbb1d7910887e9330d30fbd880dd7205ef12476c08d64c47d17"
+sha256 = "1ced7c6a562d098d381c1ccdce4b8da170b771e3b9f33ab864ca1f3758324eda"

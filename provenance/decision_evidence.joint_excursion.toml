@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
   "Joint outcome coordinates share the original unit-period pairs and the cluster ratio covariance. The lagged excursion includes carryover under the recorded assignment law and is not a sustained intervention effect.",
-  "The independent rational reference covers one lag-one, two-outcome design with equal assignment probabilities; it does not establish calibration or a license.",
+  "The independent rational reference covers one lag-one, two-outcome design with equal assignment probabilities; it does not establish calibration or support.",
   "The decision-evidence producer retains the native joint-design compiler excursion recipe and executed law.",
 ]
 

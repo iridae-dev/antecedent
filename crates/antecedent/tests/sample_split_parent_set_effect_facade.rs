@@ -353,7 +353,7 @@ fn an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed() {
     )
     .unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
+    assert!(text.contains("not_supported"), "{text}");
     assert!(text.contains("parent_set_effect.treatment_parents_ambiguous"), "{text}");
     assert!(text.contains("h - n0"), "{text}");
     assert!(text.contains("no completion is chosen"), "{text}");
@@ -454,7 +454,7 @@ fn a_maximum_degree_above_four_is_refused_with_both_degrees_named() {
     )
     .unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
+    assert!(text.contains("not_supported"), "{text}");
     assert!(text.contains("parent_set_effect.degree_above_supported"), "{text}");
     assert!(text.contains("declared maximum graph degree is 5"), "{text}");
     assert!(text.contains("supported maximum is 4"), "{text}");
@@ -526,7 +526,7 @@ fn the_result_preserves_the_graph_status_and_the_attestation_reports_it() {
         }
         Err(error) => {
             let text = error.to_string();
-            assert!(text.contains("cell_not_licensed"), "{text}");
+            assert!(text.contains("not_supported"), "{text}");
             assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
         }
     }
@@ -617,7 +617,7 @@ fn an_unmeasured_variable_count_is_computed_and_never_attested() {
     let result = estimate(&study, ParentSetOptions::linear(4));
     assert!(result.reported().lower < result.reported().upper);
     let text = result.measure(&ctx()).unwrap_err().to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
+    assert!(text.contains("not_supported"), "{text}");
     assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
 }
 
@@ -766,7 +766,7 @@ fn each_background_knowledge_regime_runs_end_to_end_on_the_known_truth_study() {
 #[test]
 fn a_tight_declared_degree_runs_end_to_end_on_a_degree_three_study() {
     let scm =
-        Scm::with_degree(Topology::HubConfoundedMultiPath, 10, WEIGHT_SEED, Variant::Licensed, 3);
+        Scm::with_degree(Topology::HubConfoundedMultiPath, 10, WEIGHT_SEED, Variant::Supported, 3);
     assert!(scm.degrees().iter().all(|&d| d <= 3));
     let columns = scm.simulate(ROWS, DATA_SEED);
     let study = Study { data: table(&scm, &columns), scm };

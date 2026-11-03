@@ -165,10 +165,10 @@ def _refuse_structure(graph: object) -> None:
         return
     if isinstance(graph, AcceptedGraph) or hasattr(graph, "nodes"):
         raise CausalUnsupportedError(
-            "cross_world.graph_outside_contract: only a supplied explicit Dag is licensed; "
+            "cross_world.graph_outside_contract: only a supplied explicit Dag is supported; "
             "accepted, uncertain, latent-confounded (Admg), equivalence-class and temporal "
             "structures are refused",
-            reason_code="cell_not_licensed",
+            reason_code="not_supported",
         )
     raise CausalTypeError("graph must be a Dag")
 

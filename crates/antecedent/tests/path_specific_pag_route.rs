@@ -314,7 +314,7 @@ fn an_invisible_mediator_outcome_edge_refuses_the_natural_direct_effect() {
 }
 
 #[test]
-fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unlicensed_refuter_state() {
+fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unsupported_refuter_state() {
     let result = Study::tabular(parented_data())
         .graph(parented_pag())
         .query(path_through_a())
@@ -323,7 +323,7 @@ fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unlicensed_refuter
         .build()
         .and_then(|built| built.run(&ExecutionContext::for_tests(47)))
         .unwrap();
-    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|r| r.refuter.starts_with("target.")));
 }

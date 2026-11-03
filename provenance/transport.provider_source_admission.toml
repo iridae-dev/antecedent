@@ -13,7 +13,7 @@ papers = []
 implementation_deviations = [
   "Decides from declarations only: a declared population is the producer's declaration, not proof that the data came from it, and verification receipts cover provider behaviour at exact requests, not the truth of an invariance assumption.",
   "Attestation and exact-request verification stay distinct: a provider only attested is refused where the route requires verification.",
-  "An admitted source is an external claim in the evidence ledger and never native target data; a handoff stays a transported external claim and its calibration label is never raised. No interval, posterior or calibration is licensed.",
+  "An admitted source is an external claim in the evidence ledger and never native target data; a handoff stays a transported external claim and its calibration label is never raised. No interval, posterior or calibration is supported.",
   "A consumer that accepts only native target data refuses the claim; the portable record (transport_handoff_v1) is re-derived by a consumer, not trusted.",
 ]
 upstream_implementations_observed = []
@@ -28,14 +28,14 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Admission of external transport providers and consumers through the one interface contract, decided from declarations before any number is computed."
 no_independent_algorithm = "Declaration checks and typed refusals; the transport numerics are other records."
-record_sha256 = "d485b57364e2fac0a8a1f5e51456aaa0086de274166ee7bbe6db25a5a8f8c755"
+record_sha256 = "4120df271e5b65a2f53a65a8be04c3426e0971dbcc8e46822ceddbf26f33f043"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/provider_transport.rs"
-sha256 = "ac401816f66c5ac4617ec64ecbb8794496b3e2c1e923b16be0440c795e0e36cf"
+sha256 = "9f3f69534053b9a9425c0519b77d9752ca177a063158a21ee4fcfe950f8c2d53"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/provider_transport.rs"
-sha256 = "85900308e2246b9eb912db3d9da6759a91e1948e75dfe5ebeead27652596a1a0"
+sha256 = "ee653a790c7a7fd5db402e5c0b5750116cfe556f80c1eda417a5c44857b8d2a2"

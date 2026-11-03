@@ -32,7 +32,7 @@ pub use antecedent_estimate::measurement::continuous::{
 };
 use antecedent_estimate::measurement::{
     ContinuousErrorData, DataBinding, MeasurementError, correct_continuous_error,
-    interval_not_licensed,
+    interval_not_supported,
 };
 
 use super::measurement_model::{
@@ -221,9 +221,9 @@ impl ContinuousMeasurementEstimate {
     /// An interval for the corrected coefficient.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `measurement_model.interval_closed`.
+    /// Always `not_supported` with `measurement_model.interval_closed`.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(refusal_of(&interval_not_licensed()))
+        Err(refusal_of(&interval_not_supported()))
     }
 
     /// Artifact bytes of the result.

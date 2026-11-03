@@ -228,7 +228,7 @@ fn marginal_contrasts_need_no_coupling_and_interval_readings_are_closed() {
     for reading in [RequestedReading::Interval, RequestedReading::Posterior] {
         let asked = FiniteExecutionRequest { reading, ..base.clone() };
         let (code, detail) = refusal_of(exec.execute(&asked, &ctx()));
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert!(detail.starts_with("joint_law_propagation."), "{detail}");
     }
 }
@@ -561,9 +561,9 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     let transported =
         FiniteExecutionRequest { target_population: Some("pop-b".to_owned()), ..base.clone() };
     let err = exec.execute(&transported, &ctx()).expect_err("closed");
-    assert_eq!(err.refusal().unwrap().code, "cell_not_licensed");
+    assert_eq!(err.refusal().unwrap().code, "not_supported");
     assert_eq!(err.refusal().unwrap().detail, "cross_world_execution.transported_row_closed");
-    assert!(err.missing().iter().any(|m| m == "transport_license_missing"));
+    assert!(err.missing().iter().any(|m| m == "transport_support_missing"));
     assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
     assert!(err.refusal().unwrap().remedy.is_some());
 
@@ -582,7 +582,7 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     let (code, detail) = refusal_of(exec.execute(&sampled, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("cell_not_licensed", "cross_world_execution.sampled_abduction_not_licensed")
+        ("not_supported", "cross_world_execution.sampled_abduction_not_supported")
     );
 
     // Refuted evidence: the complier-only model cannot produce X=1, Y=0.

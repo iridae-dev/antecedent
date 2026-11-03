@@ -2,7 +2,7 @@
 //! on the stage planner, the invalidation log, claim freshness and the evidence
 //! ledger, and a fresh consumer replays the exported verification.
 //!
-//! Hand oracles (planner dependency rules, retarget licensed): replacing the
+//! Hand oracles (planner dependency rules, retarget supported): replacing the
 //! data snapshot recomputes the score artifact, the law and the decision and
 //! leaves identification reused; changing the target population recomputes the
 //! law and the decision and leaves the score artifact reused.
@@ -67,7 +67,7 @@ fn plan(previous: &StageIdentities, requested: &StageIdentities) -> RecalcPlan {
     RecalcPlan::plan(
         previous,
         requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
 }
 
@@ -195,7 +195,7 @@ fn a_target_change_recomputes_the_law_and_never_inherits_its_calibration() {
     assert!(law.calibration.newly_required);
     assert!(law.withdrawn_for(WithdrawalKind::Calibration));
     let refusal = verification.require_valid("law").expect_err("refused");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     // the score artifact and identification do not depend on the target
     assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
     // the decision rests on a law that must be recomputed; its point value is not withdrawn
@@ -341,7 +341,7 @@ fn invalidation_log_and_claim_freshness_drive_the_classification() {
     assert_eq!(verification.classify("other_report").expect("c").class, Revalidation::Withdrawn);
     assert_eq!(verification.classify("report").expect("c").class, Revalidation::StillValid);
     let refusal = verification.require_valid("other_report").expect_err("withdrawn");
-    assert_eq!(refusal.code, "claim_license_withdrawn");
+    assert_eq!(refusal.code, "claim_support_withdrawn");
     assert_eq!(refusal.detail, "composition_verification.input_retired");
 }
 

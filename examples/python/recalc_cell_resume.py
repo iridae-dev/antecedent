@@ -5,7 +5,7 @@ treatments and keeps the per-unit scores. Each change is then planned and receip
 a new utility recomputes only the decision, a compatible target-population change reweights the
 frozen scores, and neither refits (the fit count comes from the estimator's own instrument).
 ``export_frozen_scores`` writes the scores, with no data and no model, as a checksummed artifact
-that ``resume_from_scores`` reloads in any interpreter; the one licensed operation there is a
+that ``resume_from_scores`` reloads in any interpreter; the one supported operation there is a
 retarget, and anything needing the data or a fit is refused before any work."""
 
 from __future__ import annotations

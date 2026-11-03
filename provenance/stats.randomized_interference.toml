@@ -51,4 +51,4 @@ sha256 = "2b5227f3933c735c3cc2824f1ae7e85d3ef6119f27ff05e83a6d9fe3e4717644"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/randomized_interference/expected.json"
-sha256 = "5d995fe5bf284a37a9fecf13f9bd5ae725721336d21bb04a489212e5635aa8ed"
+sha256 = "4f6bd3452d24411805b9e57d62612f2bc61b1f672e0a84193c3281352e4bbc3e"

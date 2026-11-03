@@ -158,7 +158,7 @@ impl SourceBackedSensitivity {
             "premises_digest":self.original.premises_digest,"data_digest":self.original.data_digest,
             "source_provenance":self.original.body.provenance,
             "source_verified":true,"verification_scope":"original stored assumptions and exact provider laws replayed; premises are declared",
-            "native_authority_issued":false,"calibration_license_issued":false,
+            "native_authority_issued":false,"calibration_support_issued":false,
             "uncertainty":self.surface.uncertainty(),
             "coordinates":self.surface.quantities().iter().map(|q| &q.quantity).collect::<Vec<_>>(),
             "lineage":lineage

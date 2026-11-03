@@ -97,7 +97,7 @@ fn derive(
     let envelope = claim(value, units);
     let source = BridgeSource { claim: &envelope, quantity: &contract.source.quantity };
     PreparedScientificBridge::prepare(contract.clone())
-        .expect("licensed")
+        .expect("supported")
         .derive_with_standard_error(&source, standard_error)
         .expect("derived")
 }
@@ -339,7 +339,7 @@ fn affine_intervals_are_the_exact_transform_of_the_source_interval() {
         let built = construct_bridged_claim_interval(result.bridged(), Some(se), level).unwrap();
         compare(name, &built.interval, [num(&f, 7), num(&f, 8), num(&f, 9), num(&f, 10)]);
         let published = result.bridged_interval(level).expect("an exact transform needs no record");
-        assert_eq!(published.licensed_by, "exact_transform_of_declared_source_interval");
+        assert_eq!(published.supported_by, "exact_transform_of_declared_source_interval");
     }
 }
 

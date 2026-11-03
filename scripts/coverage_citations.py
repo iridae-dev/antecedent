@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Coverage figures in licensed-row limitations come from coverage records.
+"""Coverage figures in supported-row limitations come from coverage records.
 
     python3 scripts/coverage_citations.py check   # used by gate_coverage_citations.sh
-    python3 scripts/coverage_citations.py cite    # add record citations to parity/support_licensed.toml
+    python3 scripts/coverage_citations.py cite    # add record citations to parity/support_cells.toml
 
 A cell that quotes a measured coverage declares `coverage_figures`. Each entry
 names the coverage-record ids already cited for that figure (`cites`) or a probe
@@ -34,7 +34,7 @@ from pathlib import Path
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
-LICENSED = ROOT / "parity/support_licensed.toml"
+SUPPORTED = ROOT / "parity/support_cells.toml"
 RECORDS = ROOT / "parity/coverage_records.toml"
 
 DISCLOSURE = "not a registry value"
@@ -220,7 +220,7 @@ def open_items() -> tuple[set[str], list[str]]:
     records = load_records()
     items: set[str] = set()
     problems: list[str] = []
-    for cell in tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", []):
+    for cell in tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
         for lo, hi in sentences(text):
@@ -474,7 +474,7 @@ def _structured_problems(cell: dict, records: dict[str, dict]) -> list[str]:
 def check() -> list[str]:
     records = load_records()
     problems: list[str] = []
-    for cell in tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", []):
+    for cell in tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
         for rid in RECORD_RE.findall(text):
@@ -621,7 +621,7 @@ def cite_text(text: str, records: dict[str, dict]) -> str:
 
 def cite() -> int:
     records = load_records()
-    raw = LICENSED.read_text(encoding="utf-8")
+    raw = SUPPORTED.read_text(encoding="utf-8")
     changed = 0
 
     def repl(m: re.Match) -> str:
@@ -635,7 +635,7 @@ def cite() -> int:
         return f'limitations = "{escaped}"'
 
     out = re.sub(r'(?m)^limitations = ".*"$', repl, raw)
-    LICENSED.write_text(out, encoding="utf-8", newline="\n")
+    SUPPORTED.write_text(out, encoding="utf-8", newline="\n")
     return changed
 
 

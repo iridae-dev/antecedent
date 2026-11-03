@@ -401,17 +401,17 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
         advanced.consume_smoothed_dose(relabelled)
 
 
-def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
+def test_the_unmeasured_interval_route_refuses_with_not_supported():
     query, data = fixture()
     study = advanced.prepare_smoothed_dose(
         query, data, options=options(bootstrap=199), execution=ac.Execution(seed=4)
     )
     with pytest.raises(CausalUnsupportedError, match="dose_response.interval_withheld") as info:
         require_success(study.interval())
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     result = require_success(study.estimate())
     assert result.uncertainty["status"] == "withheld"
-    assert result.uncertainty["reason"] == "cell_not_licensed"
+    assert result.uncertainty["reason"] == "not_supported"
     assert result.interval is None
     consumed = advanced.consume_smoothed_dose(bytes(result.export()))
     assert consumed.uncertainty == result.uncertainty
@@ -439,7 +439,7 @@ def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(desig
     result = require_success(study.posterior(posterior_model()))
     row = result.posterior
     assert row.estimator == "bayesian.smoothed_dose"
-    assert (row.uncertainty, row.calibration, row.licensed) == ("posterior", "unmeasured", False)
+    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "unmeasured", False)
     assert row.coordinates == ("psi_h(1)", "psi_h(2)", "psi_h(3)")
     # psi_h(a) = a^2 + h^2/5 + mean_T(z) (1 + a/2) for the observed target sample.
     target = np.asarray(data.covariates["z"])[~np.asarray(data.source)]

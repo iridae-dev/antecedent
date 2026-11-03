@@ -125,7 +125,7 @@ fn codetermined_bayesian_joint_level_matches_the_closed_form_additive_law() {
     assert_eq!(plan.identifier.as_deref(), Some("generalized.adjustment"));
     let click = prepared.estimate(&data, &context).unwrap();
     for result in [&one_shot, &click] {
-        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert!(result.refutations.is_empty());
         let got = value(result);
         assert!(

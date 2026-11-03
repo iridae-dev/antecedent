@@ -81,7 +81,7 @@ impl PyCompiledCategoricalPosteriorCandidate {
         let receipt = self.prepared.receipt();
         (
             self.prepared.program().route().to_owned(),
-            self.prepared.program().scientific().licensed(),
+            self.prepared.program().scientific().supported(),
             receipt.source().to_vec(),
             receipt.program().to_vec(),
         )

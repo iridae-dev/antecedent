@@ -58,7 +58,7 @@ record_sha256 = "73991bc55ef39fad6364329397bf38d0d20ef3bb9ad5a9fe30550a07455c484
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/learned_joint_transport.rs"
-sha256 = "900650394815fc18d15d63928a5cb798fea1b07893cf09915609039f0cab48f2"
+sha256 = "e81c90bc40bd4984d8f242251d795f2ac5963935a416544ccac34879cb73068d"
 
 [[method_review.artifacts]]
 role = "assertion"

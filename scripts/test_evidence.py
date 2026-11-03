@@ -553,7 +553,7 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
 def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
     """Exact Rust acceptance assertions from the existing source registry.
 
-    Classification does not grant a license or verify execution. Ordinary
+    Classification does not grant support or verify execution. Ordinary
     nextest runs exclude these assertions; the explicit calibration-acceptance
     lane runs them after the required records exist.
     """
@@ -1391,7 +1391,7 @@ AXIS_KEYS = ("query", "graph_class", "structure", "inference", "validation")
 
 
 def row_evidence_problems(row: dict) -> list[str]:
-    """Why a licensed row's `evidence_test` / `evidence_assertion` is not evidence for it.
+    """Why a supported row's `evidence_test` / `evidence_assertion` is not evidence for it.
 
     The cited test must be an executing test (Rust: listed by `cargo test -- --list`
     and not by `--list --ignored`; Python: collected by pytest with no static skip).
@@ -1448,7 +1448,7 @@ _INSPECTS_PLAN = re.compile(
 def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
     """Why `body` (a test with the helpers it calls) is not checked-execution evidence.
 
-    Checked execution runs a licensed route from its retained checked operation
+    Checked execution runs a supported route from its retained checked operation
     with no builder alive: the test discards its builder (`drop(builder…)`,
     `del builder`, `builder = None`), executes the prepared plan (`execute`,
     `estimate…`, `interval`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
@@ -1494,9 +1494,9 @@ def checked_execution_citation_problems(test_rel: str, assertion: str) -> list[s
 
 
 def checked_execution_problems(row: dict) -> list[str]:
-    """Why a licensed row's `checked_execution` does not cover its `estimators`.
+    """Why a supported row's `checked_execution` does not cover its `estimators`.
 
-    One entry per licensed estimator, in the same set as `estimators` with no
+    One entry per supported estimator, in the same set as `estimators` with no
     duplicates; each entry names the executing test that drops its builder,
     executes the retained plan for that estimator, and inspects it."""
     estimators = row.get("estimators")
@@ -1504,7 +1504,7 @@ def checked_execution_problems(row: dict) -> list[str]:
     if not isinstance(estimators, list) or not estimators:
         return ["checked_execution requires a non-empty estimators list"]
     if not isinstance(entries, list) or not entries:
-        return ["checked_execution is required: one entry per licensed estimator"]
+        return ["checked_execution is required: one entry per supported estimator"]
     problems: list[str] = []
     named: list[str] = []
     for i, entry in enumerate(entries, 1):
@@ -1528,7 +1528,7 @@ def checked_execution_problems(row: dict) -> list[str]:
         problems.append("checked_execution names an estimator twice")
     if set(named) != set(estimators):
         problems.append(
-            f"checked_execution estimators {sorted(set(named))} != licensed estimators {sorted(set(estimators))}"
+            f"checked_execution estimators {sorted(set(named))} != supported estimators {sorted(set(estimators))}"
         )
     return problems
 

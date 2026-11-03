@@ -47,7 +47,7 @@ sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
-sha256 = "c6f1ae6f48151a43228dc942b68adb445d7691a69380a703455558dea358472d"
+sha256 = "7e99ed2821b5677124c9a38bc981d1176f739df0a59ffd2ae2da79b5234f5a1c"
 
 [[method_review.artifacts]]
 role = "assertion"

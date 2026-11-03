@@ -184,7 +184,7 @@ def test_unknown_dependence_refuses_the_variance_but_not_the_point(sources, targ
 def test_the_interval_route_is_closed(transported) -> None:
     with pytest.raises(tmt.TypedMechanismRefusal) as caught:
         transported.interval()
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
 
 
 def test_identity_is_verified_only_against_what_it_re_derives(

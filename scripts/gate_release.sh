@@ -30,10 +30,10 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches]" >&2
+  echo "usage: $0 [--section inventory|capability|capability-python|capability-facade-0|capability-facade-1|capability-estimate|capability-identify|capability-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches) ;; *)
+case "$section" in all|inventory|capability|capability-python|capability-facade-0|capability-facade-1|capability-estimate|capability-identify|capability-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
@@ -67,7 +67,7 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
-echo "== promotion evidence inventory =="
+echo "== capability evidence inventory =="
 python3 scripts/release_evidence_report.py
 
 echo "== inherited calibration debt and current inference contract inventory =="
@@ -82,17 +82,17 @@ echo "== public API snapshots =="
 bash scripts/gate_public_api.sh
 fi
 
-if [[ "$section" == all || "$section" == promotion ]]; then
-section_start promotion
+if [[ "$section" == all || "$section" == capability ]]; then
+section_start capability
 # Frozen or carried-forward cells remain closed until their cited evidence executes.
-echo "== promotion records =="
-bash scripts/gate_promotion.sh
-section_end promotion
+echo "== capability records =="
+bash scripts/gate_capability_records.sh
+section_end capability
 fi
 
-if [[ "$section" == promotion-* ]]; then
+if [[ "$section" == capability-* ]]; then
 section_start "$section"
-bash scripts/gate_promotion.sh --evidence-group "${section#promotion-}"
+bash scripts/gate_capability_records.sh --evidence-group "${section#capability-}"
 section_end "$section"
 fi
 
@@ -127,9 +127,9 @@ fi
 if [[ "$section" == all || "$section" == support || "$section" == checked ]]; then
 section_start checked
 
-# Every licensed cell executes each licensed estimator from a retained checked
+# Every supported cell executes each supported estimator from a retained checked
 # operation with no builder alive: the checked_execution citations on
-# parity/support_licensed.toml run here, grouped by test target.
+# parity/support_cells.toml run here, grouped by test target.
 echo "== checked execution evidence =="
 bash scripts/gate_checked_execution.sh
 section_end checked
@@ -297,7 +297,7 @@ if ! git diff --exit-code -- docs/support-matrix.md \
 fi
 if ! git diff --exit-code -- docs/release-notes/ \
     ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
-  echo "generator rewrote historical release notes; freeze those licensed blocks"
+  echo "generator rewrote historical release notes; freeze those supported blocks"
   git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
   exit 1
 fi

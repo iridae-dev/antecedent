@@ -6,17 +6,17 @@
 //! sequence, so this route requires one, declared with `BayesianConfig::design_model`:
 //!
 //! * the carryover (`None` or `FirstOrder`); unrestricted carryover has no likelihood in which
-//!   the direct effect is identified and is refused with `cell_not_licensed`, naming first-order
+//!   the direct effect is identified and is refused with `not_supported`, naming first-order
 //!   carryover and washout periods as the next attempts;
 //! * the within-sequence dependence (independent, compound symmetric or autoregressive with a
-//!   stated correlation); an unspecified dependence is refused with `cell_not_licensed`, naming
+//!   stated correlation); an unspecified dependence is refused with `not_supported`, naming
 //!   the declared families and a sensitivity grid as the next attempt;
 //! * the period adjustment and the diagonal Normal-Inverse-Gamma prior.
 //!
 //! The estimand is the constant direct effect of the declared model, with the carryover, the
 //! sustained effect and the period contrasts where declared; it is not the Horvitz-Thompson
 //! schedule average, which it equals when the effect is constant. Rows of a sequence must be in
-//! period order. The route is explicitly unlicensed and uncalibrated, and its draws are the
+//! period order. The route is explicitly unsupported and uncalibrated, and its draws are the
 //! exact Student-t marginals' quantile grid.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -69,7 +69,7 @@ pub(super) fn admit(
     };
     if model.carryover == CarryoverDeclaration::Unrestricted {
         return Err(crate::compile_reason!(
-            "cell_not_licensed",
+            "not_supported",
             "switchback_posterior.carryover_unrestricted: unrestricted treatment carryover has \
              no likelihood in which the direct effect is identified. Next attempt: declare \
              first-order carryover, or randomize with washout periods that make the no-carryover \
@@ -78,7 +78,7 @@ pub(super) fn admit(
     }
     if model.dependence == SequenceDependence::Unspecified {
         return Err(crate::compile_reason!(
-            "cell_not_licensed",
+            "not_supported",
             "switchback_posterior.dependence_undeclared: a posterior over switchback effects \
              needs a stated within-sequence dependence model; the design-based sandwich has no \
              likelihood. Next attempt: declare independent, compound-symmetric or autoregressive \

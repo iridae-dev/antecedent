@@ -27,7 +27,7 @@
 //! # Topology and attestation
 //!
 //! Each topology of the measured family has its own coverage record, and a table does not announce
-//! its topology. [`ParentSetEffect::measure`] therefore licenses an interval only when the
+//! its topology. [`ParentSetEffect::measure`] therefore supports an interval only when the
 //! records of every topology in [`TOPOLOGIES`] attest the construction at this variable count,
 //! degree, transformation and analysis row count: the conservative intersection.
 //!
@@ -264,7 +264,7 @@ impl ParentSetEffect {
     }
 
     /// The bases of every topology's record, in [`TOPOLOGIES`] order. A table does not announce
-    /// its topology, so [`Self::measure`] licenses the interval only when every one attests.
+    /// its topology, so [`Self::measure`] supports the interval only when every one attests.
     #[must_use]
     pub fn keyed_bases(&self) -> Vec<CalibrationBasis> {
         self.run.keyed_bases()
@@ -280,7 +280,7 @@ impl ParentSetEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_parent_set_effect`], and `cell_not_licensed`
+    /// The refusals of [`estimate_parent_set_effect`], and `not_supported`
     /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
     /// record measured this construction at this variable count, degree and analysis row count.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {

@@ -13,7 +13,7 @@
 //! including the intercept. The score is the mean of the inverse link over posterior draws. A
 //! prior standard deviation is not a penalty, and that posterior mean is not the penalized mode.
 //!
-//! A single dependent series is refused. Nothing here registers a licensed route.
+//! A single dependent series is refused. Nothing here registers a supported route.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

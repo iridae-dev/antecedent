@@ -1,6 +1,6 @@
 """Scientific demonstrations through released Python producers and independent consumers.
 
-Calibrated scalar examples execute their public routes regardless of promotion bookkeeping.
+Calibrated scalar examples execute their public routes regardless of capability bookkeeping.
 Broader unsupported methods retain explicit refusals; point results retain their stated scope.
 """
 
@@ -50,7 +50,7 @@ ROOT = REPO_ROOT
 
 
 def _registry() -> dict[str, dict[str, Any]]:
-    with (ROOT / "parity" / "promotion.toml").open("rb") as handle:
+    with (ROOT / "parity" / "capability_records.toml").open("rb") as handle:
         records = tomllib.load(handle)["record"]
     return {r["id"]: r for r in records}
 
@@ -61,15 +61,15 @@ def _route_is_closed(record_id: str, route: str) -> bool:
 
 
 def _refused_closed(call: Any, record_id: str, route: str, detail: str) -> None:
-    """Refuse with ``cell_not_licensed`` and the frozen detail while the registry says closed.
+    """Refuse with ``not_supported`` and the frozen detail while the registry says closed.
 
-    A route the registry has since opened is not called: its demonstration is a licence test.
+    A route the registry has since opened is not called: its demonstration is support test.
     """
     if not _route_is_closed(record_id, route):
         return
     with pytest.raises(CausalUnsupportedError) as caught:
         call()
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     assert detail in str(caught.value)
     assert_registered_refusal(caught.value)
 
@@ -165,7 +165,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
     assert not hasattr(result, "weights") and not hasattr(result, "mass")
     with pytest.raises(transport.CpdagScenarioRefusal) as aggregate:
         result.aggregate_interval()
-    assert aggregate.value.reason_code == "scenario_aggregate_not_licensed"
+    assert aggregate.value.reason_code == "scenario_aggregate_not_supported"
     assert aggregate.value.detail == "scenarios.shared_data_aggregate"
 
     # Scenario-specific evidence: a completion whose own evidence lacks a variable is missing
@@ -520,8 +520,8 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
 
     # Transported counterfactual: closed, naming exactly the gates still missing.
     gates = (
-        "transport_license_missing",
-        "fixed_population_temporal_license_missing",
+        "transport_support_missing",
+        "fixed_population_temporal_support_missing",
         "cross_population_assumptions_missing",
     )
     _refused_closed(
@@ -542,7 +542,7 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
         )
     # Every gate and factor present still does not open the cell: the joint cross-world theorem
     # is not derived.
-    assert passed.value.reason_code == "cell_not_licensed"
+    assert passed.value.reason_code == "not_supported"
     assert passed.value.detail == "transported_counterfactual.route_frozen"
     assert passed.value.missing_gates == ()
 

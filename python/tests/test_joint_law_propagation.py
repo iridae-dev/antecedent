@@ -274,7 +274,7 @@ def test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled() -> N
     for closed in (claim.interval, claim.posterior):
         with pytest.raises(R) as error:
             closed()
-        assert error.value.reason_code == "cell_not_licensed"
+        assert error.value.reason_code == "not_supported"
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.detail == "joint_law_propagation.interval_route_closed"

@@ -91,7 +91,7 @@ fn local_quadratic_reference(dose: &[f64], y: &[f64], at: f64, h: f64) -> ([f64;
 /// local quadratic, so the temporal level and slope are the static randomized-dose row (and its
 /// bias-aware extension) on the same rows. The only differences are the cluster correction
 /// `g / (g - 1)` on the sandwich variance (every row is its own cluster), so the temporal
-/// interval is never narrower than the static one, and the fact that both are unlicensed with
+/// interval is never narrower than the static one, and the fact that both are unsupported with
 /// calibration unmeasured.
 #[test]
 fn horizon_one_local_quadratic_dose_grid_reproduces_the_static_randomized_dose_row() {
@@ -166,7 +166,7 @@ fn horizon_one_local_quadratic_dose_grid_reproduces_the_static_randomized_dose_r
             assert!(temporal_half - static_half < 0.1 * static_half, "{label}");
             assert_eq!(aware.intervals[j].calibration, IntervalCalibration::Unmeasured);
         }
-        assert!(!fit.licensed);
+        assert!(!fit.supported);
         assert_eq!(fit.calibration.as_ref(), "unmeasured");
     }
 }

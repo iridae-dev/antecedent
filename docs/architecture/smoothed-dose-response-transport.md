@@ -2,7 +2,7 @@
 
 One cell: a randomized continuous dose from a trial, transported to a covariate-shifted
 target population, reported on a grid of at most 16 doses at one declared bandwidth.
-Record `transport.smoothed_dose_response` in `parity/promotion.toml`;
+Record `transport.smoothed_dose_response` in `parity/capability_records.toml`;
 refusal details live in the `dose_response` namespace. The scope summary is in
 [the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport).
 
@@ -205,7 +205,7 @@ the misspecification test). It says how much the *fitted* curve bends, not the t
 
 The analytic influence-function standard error is
 `sqrt(sum_T (nu_hat - psi_hat)^2 + sum_S (omega w (Y - mu_hat))^2) / n_0`. It is a
-diagnostic only and never a licensed claim.
+diagnostic only and never a supported claim.
 
 ## Numerical verification (executed)
 
@@ -303,7 +303,7 @@ The estimator is `antecedent_estimate::smoothed_dose_interval_internal`. It is c
 only under the `calibration-internal` feature, which only dev-dependencies enable, and
 the calibration harness `crates/antecedent/tests/smoothed_dose_calibration.rs` measures
 it. The two design-specific coverage records have been measured. The public
-route remains closed (`cell_not_licensed`, `dose_response.interval_withheld`)
+route remains closed (`not_supported`, `dose_response.interval_withheld`)
 despite the measured interval coordinate.
 
 A replicate:

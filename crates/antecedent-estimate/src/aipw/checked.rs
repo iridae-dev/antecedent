@@ -8,7 +8,7 @@ use super::{
     PropensityNuisance, TargetPopulation, trim_of,
 };
 
-/// Licensed procedure retained by the checked frequentist AIPW ATE route.
+/// Supported procedure retained by the checked frequentist AIPW ATE route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CheckedAipwProcedure {
     /// Logistic propensity and arm-specific OLS outcome nuisances with cross-fitted scores.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Release closure: the notes describe every registry cell with its real claim.
 
-The claim vocabulary is the one in the header of parity/promotion.toml (`inference_claim`):
+The claim vocabulary is the one in the header of parity/capability_records.toml (`inference_claim`):
 
   point_only           exact or plug-in point, no interval
   calibrated           interval with a coverage record at its own coordinate
@@ -51,7 +51,7 @@ from pathlib import Path
 from _repo import REPO_ROOT as REPO
 
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
-RECORDS = "parity/promotion.toml"
+RECORDS = "parity/capability_records.toml"
 COVERAGE = "parity/coverage_records.toml"
 SNAPSHOT_DIR = "parity/release_snapshots"
 CELLS_BEGIN = "<!-- generated:release-claims:cells:begin -->"
@@ -131,11 +131,18 @@ def project_record(rec: dict) -> dict:
         "consumer_question": str(rec.get("consumer_question") or ""),
         "graph_class": str(rec.get("graph_class") or ""),
         "guarantee": str(rec.get("guarantee") or ""),
-        "inference_claim": rec.get("inference_claim"),
+        # An interval claim reads "calibrated" to release readers once a coverage record
+        # backs it; the registry itself only says `interval`.
+        "inference_claim": reader_claim(rec.get("inference_claim")),
         "coverage_records": list(rec.get("coverage_records") or []),
         "bounds": bounds,
         "routes": routes,
     }
+
+
+def reader_claim(claim: str | None) -> str | None:
+    """The claim as release readers see it: the registry's `interval` reads `calibrated`."""
+    return "calibrated" if claim == "interval" else claim
 
 
 def dump_snapshot(version: str, records: list[dict], present: set[str], queries: list[str]) -> str:
@@ -216,10 +223,10 @@ def live_projection(root: Path) -> tuple[list[dict], set[str]]:
 
 def zero_cell_queries(root: Path) -> list[str]:
     axes = load_required(root, "parity/support_axes.toml").get("queries") or []
-    licensed = {
-        cell.get("query") for cell in load_required(root, "parity/support_licensed.toml").get("cell", [])
+    supported = {
+        cell.get("query") for cell in load_required(root, "parity/support_cells.toml").get("cell", [])
     }
-    return [query for query in axes if query not in licensed]
+    return [query for query in axes if query not in supported]
 
 
 def source_for(
@@ -232,8 +239,14 @@ def source_for(
     rendered from live data."""
     snap = load_snapshot(root, version)
     if snap is not None:
+        # A frozen snapshot is read in the same reader-facing vocabulary as live records,
+        # whichever spelling of the interval claim it was frozen with.
+        records = [
+            {**rec, "inference_claim": reader_claim(rec.get("inference_claim"))}
+            for rec in snap.get("record") or []
+        ]
         return (
-            list(snap.get("record") or []),
+            records,
             set(snap.get("coverage_present") or []),
             list(snap.get("zero_cell_queries") or []),
         )
@@ -252,8 +265,8 @@ def cells_body(records: list[dict], present: set[str]) -> str:
 
 def refusals_body(queries: list[str]) -> str:
     if not queries:
-        return "No root query is without a licensed cell.\n"
-    lines = ["Root queries with no licensed cell:", ""]
+        return "No root query is without a supported cell.\n"
+    lines = ["Root queries with no supported cell:", ""]
     lines += [f"- `{query}`" for query in queries]
     return "\n".join(lines) + "\n"
 
@@ -355,7 +368,7 @@ def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
     claim = rec["inference_claim"]
     if claim == "calibrated":
         owed = list(rec.get("coverage_records") or [])
-        if not owed or not all(c in present for c in owed) or not licensed_uncertainty(rec):
+        if not owed or not all(c in present for c in owed) or not supported_uncertainty(rec):
             return "point_only", True
     return claim, False
 
@@ -377,9 +390,9 @@ def closed_uncertainty(rec: dict) -> list[dict]:
     ]
 
 
-def licensed_uncertainty(rec: dict) -> bool:
+def supported_uncertainty(rec: dict) -> bool:
     return any(
-        r.get("stage") == "uncertainty" and r.get("status") == "licensed"
+        r.get("stage") == "uncertainty" and r.get("status") == "supported"
         for r in rec.get("routes") or []
     )
 
@@ -406,7 +419,7 @@ def guarantee_text(rec: dict) -> str:
     note = ""
     if q is not None:
         note = f" (complete only {q}" if q else " (complete as inherited from the cited theorem"
-        if not licensed_uncertainty(rec):
+        if not supported_uncertainty(rec):
             note += "; sampling interval not offered"
         note += ")"
     return f"`{g}`{note}"
@@ -428,7 +441,7 @@ def entry_text(rec: dict, present: set[str]) -> str:
     ]
     if pending:
         lines.append(
-            "- Interval: withheld. The interval route is closed (`cell_not_licensed`) until its "
+            "- Interval: withheld. The interval route is closed (`not_supported`) until its "
             "coverage records are measured; the result is the point only."
         )
     elif closed_uncertainty(rec):
@@ -658,7 +671,7 @@ def _rec(
     cov: list[str] | None = None,
     guarantee: str = "sound_incomplete",
     closed: bool = False,
-    status: str = "promoted",
+    status: str = "supported",
 ) -> dict:
     rec = {
         "id": f"synth.cell_{i.lower()}",
@@ -676,11 +689,11 @@ def _rec(
                 "name": "r",
                 "stage": "uncertainty",
                 "status": "closed",
-                "reason_code": "cell_not_licensed",
+                "reason_code": "not_supported",
             }
         ]
     elif claim == "calibrated":
-        rec["routes"] = [{"name": "r", "stage": "uncertainty", "status": "licensed"}]
+        rec["routes"] = [{"name": "r", "stage": "uncertainty", "status": "supported"}]
     return rec
 
 
@@ -773,7 +786,7 @@ def self_test() -> int:
         (root / RECORDS).write_text(_toml(recs), encoding="utf-8", newline="\n")
         (root / COVERAGE).write_text("", encoding="utf-8", newline="\n")
         (root / "parity/support_axes.toml").write_text('queries = []\n', encoding="utf-8")
-        (root / "parity/support_licensed.toml").write_text('', encoding="utf-8")
+        (root / "parity/support_cells.toml").write_text('', encoding="utf-8")
         (root / "Cargo.toml").write_text(
             '[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n"
         )

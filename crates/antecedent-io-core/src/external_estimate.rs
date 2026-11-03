@@ -72,7 +72,7 @@ pub struct ExternalEstimateAttach {
 ///
 /// Only a fully identified parent (`nonparametrically_identified` or
 /// `identified_under_parametric_restrictions`) can carry an attested estimate: a partially
-/// identified, graph-dependent or refused parent licenses no point value to attach to.
+/// identified, graph-dependent or refused parent supports no point value to attach to.
 ///
 /// # Errors
 ///

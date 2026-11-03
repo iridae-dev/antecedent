@@ -41,7 +41,7 @@ record_sha256 = "b76cfffb3b1ad71ad67a8a885a9ebb1c77eaa753385e1f1ac54eabc3e2b507f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_link.rs"
-sha256 = "4fe573917864e4d053f14b87b238d2cba5e07c19137906747eb409e00d22b8b9"
+sha256 = "6006f8c19d102bdb214ff77cf92b9cdf0db11233e7356538191f18c399cb9be0"
 
 [[method_review.artifacts]]
 role = "assertion"

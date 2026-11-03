@@ -72,8 +72,8 @@ fn schema_vocabularies_equal_the_compiled_enums() {
     );
     let cells = enum_of(&schema, "support_cell_status");
     for status in [
-        antecedent::CellStatus::Licensed,
-        antecedent::CellStatus::Refused,
+        antecedent::CellStatus::Supported,
+        antecedent::CellStatus::NotSupported,
         antecedent::CellStatus::NotApplicable { reason: "" },
     ] {
         assert!(cells.contains(status.as_str()), "{}", status.as_str());
@@ -97,8 +97,8 @@ fn failures() -> Vec<CausalError> {
     vec![
         antecedent::unsupported_reason!("attested_not_reverifiable", "names differ"),
         antecedent::support_reason!(
-            "data_modality_not_licensed",
-            "that cell is not licensed for this data modality"
+            "data_modality_not_supported",
+            "that cell is not supported for this data modality"
         ),
         CausalError::Cancelled { stage: "identify" },
         CausalError::Resource { message: "scratch budget exceeded".into() },
@@ -270,7 +270,7 @@ fn operation_status_follows_applicability_then_readiness() {
     use OperationReadiness as R;
     use SemanticApplicability as A;
     let of = HostStatus::of_operation_parts;
-    assert_eq!(of(A::Licensed, Some(R::Executable)), HostStatus::Supported);
+    assert_eq!(of(A::Supported, Some(R::Executable)), HostStatus::Supported);
     for readiness in [
         R::ReviewRequired,
         R::AssumptionMissing,
@@ -279,17 +279,17 @@ fn operation_status_follows_applicability_then_readiness() {
         R::RuntimeUnavailable,
         R::UnknownSupport,
     ] {
-        assert_eq!(of(A::Licensed, Some(readiness)), HostStatus::Partial, "{readiness:?}");
+        assert_eq!(of(A::Supported, Some(readiness)), HostStatus::Partial, "{readiness:?}");
     }
-    assert_eq!(of(A::Licensed, Some(R::EmpiricalSupportFailed)), HostStatus::Unsupported);
-    assert_eq!(of(A::Unlicensed, Some(R::Executable)), HostStatus::Unsupported);
+    assert_eq!(of(A::Supported, Some(R::EmpiricalSupportFailed)), HostStatus::Unsupported);
+    assert_eq!(of(A::Unsupported, Some(R::Executable)), HostStatus::Unsupported);
     assert_eq!(of(A::Impossible, None), HostStatus::Unsupported);
     assert_eq!(of(A::Unknown, None), HostStatus::Partial);
     assert_eq!(
-        HostStatus::of_operation_names("licensed", Some("executable")),
+        HostStatus::of_operation_names("supported", Some("executable")),
         Some(HostStatus::Supported)
     );
-    assert_eq!(HostStatus::of_operation_names("licensed", Some("typo")), None);
+    assert_eq!(HostStatus::of_operation_names("supported", Some("typo")), None);
 }
 
 /// The tiny linear study the identity regression suite also runs.

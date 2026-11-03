@@ -6,13 +6,13 @@ copied_comments = false
 copied_tests = false
 
 # No primary paper: a closed variant. A recovery or error-control statement about the graph
-# discovered on one dataset cannot be licensed (faithfulness and causal sufficiency are not
-# testable from that dataset), and no interval is licensed for rows that discovery used, so
-# there is nothing to cite. The interval that is licensed, on disjoint rows, is its own record.
+# discovered on one dataset cannot be supported (faithfulness and causal sufficiency are not
+# testable from that dataset), and no interval is supported for rows that discovery used, so
+# there is nothing to cite. The interval that is supported, on disjoint rows, is its own record.
 papers = [
 ]
 implementation_deviations = [
-  "Intentionally publishes nothing: per-dataset recovery and error-control claims stay closed with cell_not_licensed because faithfulness and causal sufficiency are untestable; an interval on the rows discovery used stays closed because that construction has no measured coverage. Recovery over a declared family is published only as a measured table in the documentation. A discovered structure supplies no selection diagram, and no envelope across an equivalence class is offered.",
+  "Intentionally publishes nothing: per-dataset recovery and error-control claims stay closed with not_supported because faithfulness and causal sufficiency are untestable; an interval on the rows discovery used stays closed because that construction has no measured coverage. Recovery over a declared family is published only as a measured table in the documentation. A discovered structure supplies no selection diagram, and no envelope across an equivalence class is offered.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -24,15 +24,15 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "closed_variant"
 rationale = "Closed variant: recovery and error-control statements about the graph discovered on one dataset are refused."
-no_independent_algorithm = "claims.rs returns cell_not_licensed for the claim kinds; nothing is computed."
-record_sha256 = "3f2043a32caae9483357514609e53c20095bc284da439dfad463d773a865376b"
+no_independent_algorithm = "claims.rs returns not_supported for the claim kinds; nothing is computed."
+record_sha256 = "611bc7450c1061cc58d921dd9506c68efc1cfdd6c094085fb90ccc9a451de8af"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/claims.rs"
-sha256 = "715136995bb7ce5154e8b501052c2ed1339d35f5c02ed1497e6b2285900223b4"
+sha256 = "55b369cee8853420bd6ae2c45dca2fcb5ea035a8a6dbf4544caba5ca3d99f2b8"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/selective_discovery.rs"
-sha256 = "702098f1a5bb8e1b8c9b74ea5c9031f2d8637c34abbec03dbb94c95a9d494d1e"
+sha256 = "e0855cacc00049739c28a1506f4fbc59e433f33856a3b5df4d419e690b53dc77"

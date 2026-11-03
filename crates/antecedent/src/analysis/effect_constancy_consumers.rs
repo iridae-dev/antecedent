@@ -2,7 +2,7 @@
 //!
 //! an independently consumed effect-constancy artifact is required. Transport contrasts are diagnostic,
 //! source-bank preferences are explicitly data dependent, and policy comparisons are affine
-//! point evaluations. Neither non-rejection nor agreement licenses transport or pooling.
+//! point evaluations. Neither non-rejection nor agreement supports transport or pooling.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -66,8 +66,8 @@ pub struct ConstancyPriorRanking {
     pub ranked: Vec<CompatibilityReport>,
     /// Explicitly true: selecting a prior with target estimates is data dependent.
     pub data_dependent_selection: bool,
-    /// Always false; ranking supplies no automatic pooling or posterior transfer license.
-    pub posterior_transfer_licensed: bool,
+    /// Always false; ranking supplies no automatic pooling or posterior transfer support.
+    pub posterior_transfer_supported: bool,
 }
 
 /// One original supported effect and the actual input supplied to the policy engine.
@@ -299,7 +299,7 @@ impl ConstancyConsumers {
             scores,
             ranked,
             data_dependent_selection: true,
-            posterior_transfer_licensed: false,
+            posterior_transfer_supported: false,
         })
     }
 

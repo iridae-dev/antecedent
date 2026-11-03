@@ -55,7 +55,7 @@ struct Sample {
     kernel_solves: u64,
 }
 fn portable(session: &RecalcSession, r: &RecalcRequest, n: usize, law: LawValue) -> Option<()> {
-    let artifact = freeze_crossfit_scores(session, n as u64, RetargetSupport::Licensed).ok()?;
+    let artifact = freeze_crossfit_scores(session, n as u64, RetargetSupport::Supported).ok()?;
     let bytes = artifact.to_bytes("generic-aipw-known-target-se").ok()?;
     let checked = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity())).ok()?;
     let row_ids = ScoreTable::from_frozen(&checked).ok()?.row_index.to_vec();

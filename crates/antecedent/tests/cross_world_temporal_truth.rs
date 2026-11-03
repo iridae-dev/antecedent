@@ -533,7 +533,7 @@ fn builder(
     }
 }
 
-/// Every coordinate of the three rules: the validations each structure is licensed under.
+/// Every coordinate of the three rules: the validations each structure is supported under.
 fn coordinates() -> Vec<(Class, Structure, Vec<RefuteSuite>)> {
     let mut out = Vec::new();
     for class in [Class::Dag, Class::Cpdag, Class::Pag] {
@@ -593,13 +593,13 @@ fn temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite() {
                                     .unwrap_or_else(|e| panic!("{label}: {e}"));
                             assert_eq!(
                                 study.support_status(),
-                                Some(CellStatus::Licensed),
+                                Some(CellStatus::Supported),
                                 "{label}"
                             );
                             let result = study.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
                             assert_eq!(
                                 result.support_status(),
-                                Some(CellStatus::Licensed),
+                                Some(CellStatus::Supported),
                                 "{label}"
                             );
                             let tol = tolerance(&pin, key, bayesian, class);
@@ -757,7 +757,7 @@ fn temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder
                             }
                             assert_eq!(
                                 result.support_status(),
-                                Some(CellStatus::Licensed),
+                                Some(CellStatus::Supported),
                                 "{label}"
                             );
                             assert!(

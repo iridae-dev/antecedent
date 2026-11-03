@@ -13,7 +13,7 @@ implementation_deviations = [
   "Model-fit counts come from the executing regression component. They are distinct from nuisance-fold fits and frozen-score computations. Zero-model historical receipts retain their five-count wire and digest; nonzero model counts participate in receipt identity and semantic verification.",
   "Retained coefficients and joint covariance support only declared compatible contrasts and point predictions. New rows or outcomes, feature/coding/link/fit changes invalidate the fit; unsupported target laws and provider/prior operations remain typed refusals.",
   "Identity-link contrasts use coefficient differences and the full covariance directly, avoiding cancellation of large predicted levels; fixed target weights are validated before this algebraic reduction. The registered vector fixture checks a large-baseline fractional contrast against the existing public regression engine.",
-  "Reuse preserves estimator inference status. Analytic covariance and p-values remain reported diagnostics with calibration unmeasured; no confidence interval or coverage license is added.",
+  "Reuse preserves estimator inference status. Analytic covariance and p-values remain reported diagnostics with calibration unmeasured; no confidence interval or coverage support is added.",
   "An independently consumed historical receipt recreates no fitted state. A fresh process needs supplied compatible data and recomputes, or receives an explicit unavailable-state refusal.",
 ]
 upstream_implementations_observed = []
@@ -35,7 +35,7 @@ limitations = "Five seeded designs (OLS with two vector treatments and with a sc
 assumptions = ["The target law is the retained rows reweighted by the supplied weights; the row law is treated as fixed, so the standard error is conditional on it and excludes target-law estimation (the record states this).", "The delta-method standard error uses the retained coefficient covariance as supplied; no robust or bootstrap variance is reviewed.", "Fits are converged and full rank; the reference refits from the data to 40 digits so only the product's solve tolerance separates them."]
 sources = ["https://en.wikipedia.org/wiki/Delta_method", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The effect and the delta-method standard error equal the 40-digit refit-and-contrast reference on all five designs: the identity link cancels the intercept and adjustment block exactly, and the logit and Poisson gradients include the adjustment columns through the row-wise mean derivatives with the normalized target weights.", "A wrong-length treatment setting, a wrong-length or negative weight vector, an all-zero weight vector and a setting outside the observed binary support are refused.", "No product defect was found in this record."]
-record_sha256 = "a87664d2bcf1186c410bf8a3e177f9f6a922118c127b6ff83867642427eecb46"
+record_sha256 = "286fe4ec17556a26d2359b245afafa33eb25188d0520e82200bf3e977638261e"
 
 [[method_review.artifacts]]
 role = "implementation"

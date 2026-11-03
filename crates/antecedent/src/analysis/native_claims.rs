@@ -416,7 +416,7 @@ impl NativeResponseClaim {
     /// typed response and never from artifact metadata.
     #[must_use]
     pub const fn trust(&self) -> DistributionTrust {
-        DistributionTrust::NativeLicensed
+        DistributionTrust::NativeSupported
     }
 
     /// Calibration status of the response's uncertainty.
@@ -612,7 +612,7 @@ impl NativeResponseClaim {
                     .collect(),
             ),
             calibration: self.calibration,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         };

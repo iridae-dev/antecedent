@@ -16,7 +16,7 @@ complete = true
 # Completeness includes inline Rust unit tests and transitively included test
 # modules. This indexes sources, not successful execution. Evidence roles are
 # joined from capability/support/oracle declarations by scripts/evidence_audit.py;
-# the registry does not grant scientific or calibration licenses.
+# the registry does not grant scientific or calibration supports.
 
 [[test]]
 id = "joint-native-experiment-python-workflow"
@@ -733,10 +733,10 @@ path = "crates/antecedent/tests/transport_interference_cell_evidence.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "unlicensed-refuter-states-and-mechanism-bootstrap"
+id = "unsupported-refuter-states-and-mechanism-bootstrap"
 crate = "antecedent"
-cargo_target = "unlicensed_refuter_states_and_mechanism_bootstrap"
-path = "crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs"
+cargo_target = "unsupported_refuter_states_and_mechanism_bootstrap"
+path = "crates/antecedent/tests/unsupported_refuter_states_and_mechanism_bootstrap.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6001,17 +6001,17 @@ suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response
 gates = ["inventory", "named"]
 
 [[test]]
-id = "licensed-compiler"
+id = "supported-compiler"
 crate = "antecedent"
-cargo_target = "licensed_compiler"
-path = "crates/antecedent/tests/licensed_compiler.rs"
+cargo_target = "supported_compiler"
+path = "crates/antecedent/tests/supported_compiler.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "licensed-static-cells"
+id = "supported-static-cells"
 crate = "antecedent"
-cargo_target = "licensed_static_cells"
-path = "crates/antecedent/tests/licensed_static_cells.rs"
+cargo_target = "supported_static_cells"
+path = "crates/antecedent/tests/supported_static_cells.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6335,7 +6335,7 @@ id = "per-population-discovery-facade"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/per_population_discovery_facade.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6366,7 +6366,7 @@ id = "policy-python-parity"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/policy_python_parity.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6374,15 +6374,15 @@ id = "policy-value-route"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/policy_value_route.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "population-license"
+id = "population-support"
 crate = "antecedent"
 cargo_target = "suite_06"
-path = "crates/antecedent/tests/population_license.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+path = "crates/antecedent/tests/population_support.rs"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6390,7 +6390,7 @@ id = "portable-predictor-resume"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/portable_predictor_resume.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6398,7 +6398,7 @@ id = "posterior-boundaries-facade"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/posterior_boundaries_facade.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6406,7 +6406,7 @@ id = "posterior-mean-decision"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/posterior_mean_decision.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6414,7 +6414,7 @@ id = "practitioner-facade"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/practitioner_facade.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6429,7 +6429,7 @@ id = "predictive-assessment-facade"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/predictive_assessment_facade.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6453,7 +6453,7 @@ id = "preflight-reproducers"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/preflight_reproducers.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6496,7 +6496,7 @@ id = "production-replicates"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/production_replicates.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6504,7 +6504,7 @@ id = "projection-wide"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/projection_wide.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6512,7 +6512,7 @@ id = "proposal-arrival"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/proposal_arrival.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6520,7 +6520,7 @@ id = "provider-callbacks"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/provider_callbacks.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6535,7 +6535,7 @@ id = "randomized-precision-intervals"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/randomized_precision_intervals.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6543,7 +6543,7 @@ id = "randomized-trial-route"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/randomized_trial_route.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6551,7 +6551,7 @@ id = "rank-drop-estimate"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/rank_drop_estimate.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6559,7 +6559,7 @@ id = "recalc-adjusted"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_adjusted.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6567,7 +6567,7 @@ id = "recalc-attempt"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_attempt.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6575,7 +6575,7 @@ id = "recalc-bayesian"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_bayesian.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6583,7 +6583,7 @@ id = "recalc-bayesian-standing"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_bayesian_standing.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6591,7 +6591,7 @@ id = "recalc-cell"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_cell.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6599,7 +6599,7 @@ id = "recalc-composite"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_composite.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6607,7 +6607,7 @@ id = "recalc-design"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_design.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6615,7 +6615,7 @@ id = "recalc-dr"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_dr.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6623,7 +6623,7 @@ id = "recalc-external"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_external.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6638,7 +6638,7 @@ id = "recalc-joint-bayesian-standing"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_joint_bayesian_standing.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6646,7 +6646,7 @@ id = "recalc-receipt"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_receipt.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6654,7 +6654,7 @@ id = "recalc-static"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_static.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6662,7 +6662,7 @@ id = "recalc-temporal"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/recalc_temporal.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6670,7 +6670,7 @@ id = "facade-refusal-fields-existing-sites"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/refusal_fields_existing_sites.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6678,7 +6678,7 @@ id = "refusal-remedy"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/refusal_remedy.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7507,10 +7507,10 @@ path = "crates/antecedent/tests/treatment_score_product.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "unlicensed-design-routes"
+id = "unsupported-design-routes"
 crate = "antecedent"
-cargo_target = "unlicensed_design_routes"
-path = "crates/antecedent/tests/unlicensed_design_routes.rs"
+cargo_target = "unsupported_design_routes"
+path = "crates/antecedent/tests/unsupported_design_routes.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -8862,17 +8862,17 @@ path = "python/tests/test_learned_transport.py"
 gates = ["inventory"]
 
 [[test]]
-id = "licensed-artifacts-python"
+id = "supported-artifacts-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_licensed_artifacts.py"
+path = "python/tests/test_supported_artifacts.py"
 gates = ["inventory"]
 
 [[test]]
-id = "licensed-staged-python"
+id = "supported-staged-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_licensed_staged.py"
+path = "python/tests/test_supported_staged.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10041,7 +10041,7 @@ gates = ["inventory"]
 id = "support-closed-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_support_closed.py"
+path = "python/tests/test_support_refusal_reasons.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10515,10 +10515,10 @@ suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route,
 gates = ["inventory", "named"]
 
 [[test]]
-id = "unlicensed-design-routes-python"
+id = "unsupported-design-routes-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_unlicensed_design_routes.py"
+path = "python/tests/test_unsupported_design_routes.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10809,10 +10809,10 @@ path = "scripts/test_parent_calibration_replay.py"
 gates = ["inventory"]
 
 [[test]]
-id = "promotion-refusal-helpers-script"
+id = "capability-refusal-helpers-script"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_promotion_refusal_helpers.py"
+path = "scripts/test_capability_refusal_helpers.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10872,10 +10872,10 @@ path = "scripts/test_rust_source.py"
 gates = ["inventory"]
 
 [[test]]
-id = "snapshot-promotion-baseline-script"
+id = "snapshot-capability-baseline-script"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_snapshot_promotion_baseline.py"
+path = "scripts/test_snapshot_capability_baseline.py"
 gates = ["inventory"]
 
 [[test]]
@@ -11460,10 +11460,10 @@ path = "crates/antecedent/src/analysis/proof_support.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "engineering-crates-antecedent-src-analysis-query-license"
+id = "engineering-crates-antecedent-src-analysis-query-support"
 crate = "antecedent"
 cargo_target = "lib"
-path = "crates/antecedent/src/analysis/query_license.rs"
+path = "crates/antecedent/src/analysis/query_support.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -18511,7 +18511,7 @@ id = "adaptive-policy-model-source"
 crate = "antecedent"
 cargo_target = "suite_06"
 path = "crates/antecedent/tests/adaptive_policy_model_source.rs"
-suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_license, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
+suite_map_line = "suite_06: adaptive_policy_model_source, per_population_discovery_facade, policy_python_parity, policy_value_route, posterior_boundaries_facade, population_support, portable_predictor_resume, posterior_mean_decision, practitioner_facade, predictive_assessment_facade, preflight_reproducers, production_replicates, projection_wide, proposal_arrival, provider_callbacks, randomized_precision_intervals, randomized_trial_route, rank_drop_estimate, recalc_adjusted, recalc_attempt, recalc_bayesian, recalc_bayesian_standing, recalc_cell, recalc_composite, recalc_design, recalc_dr, recalc_external, recalc_joint_bayesian_standing, recalc_receipt, recalc_static, recalc_temporal, refusal_fields_existing_sites, refusal_remedy"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -20459,10 +20459,10 @@ path = "python/tests/test_numpy_scalar_ingress.py"
 gates = ["inventory"]
 
 [[test]]
-id = "promotion-checker-trust"
+id = "capability-checker-trust"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_promotion_checker_trust.py"
+path = "scripts/test_capability_checker_trust.py"
 gates = ["inventory"]
 
 # Source inventory only; feature-gated modules require their declared features to run.
@@ -20692,10 +20692,10 @@ path = "python/src/discovered_transport_api.rs"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-inventory-python-src-prepared-api-prepare-unlicensed-design-rs"
+id = "audit-inventory-python-src-prepared-api-prepare-unsupported-design-rs"
 crate = "python"
 cargo_target = "lib"
-path = "python/src/prepared_api/prepare_unlicensed_design.rs"
+path = "python/src/prepared_api/prepare_unsupported_design.rs"
 gates = ["inventory"]
 
 [[test]]
@@ -20797,10 +20797,10 @@ path = "scripts/test_gate_cyclic_systems.py"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-inventory-scripts-test-gate-promotion-override-guard-py"
+id = "audit-inventory-scripts-test-gate-capability-override-guard-py"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_gate_promotion_override_guard.py"
+path = "scripts/test_gate_capability_records_override_guard.py"
 gates = ["inventory"]
 
 [[test]]

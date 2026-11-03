@@ -562,8 +562,8 @@ impl PreparedStudy {
             }
             _ => {
                 return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::Refused,
-                    message: "PreparedStudy::refute is licensed for AverageEffect and scalar \
+                    id: crate::support::SupportRefusal::NotSupported,
+                    message: "PreparedStudy::refute is supported for AverageEffect and scalar \
                               InterventionResponse",
                 });
             }
@@ -721,8 +721,8 @@ impl PreparedStudy {
         crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
         out.predictive_checks = validated.view.predictive_checks;
         out.posterior = validated.view.posterior;
-        // A suite whose cell executes unlicensed (the Bayesian intervention-level
-        // refuter state) must not inherit the licensed status of the estimate.
+        // A suite whose cell executes unsupported (the Bayesian intervention-level
+        // refuter state) must not inherit the supported status of the estimate.
         out.support_status = support_status;
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
@@ -1292,9 +1292,9 @@ impl PreparedStudy {
 
 /// The support status after a second click under `suite` of a handle built under `built`.
 ///
-/// A suite whose cell is licensed keeps the prior status. A cell the closed rules mark as
-/// executing unlicensed runs and reports `Refused`. Any other unlicensed cell refuses the click,
-/// as the build would have refused it, provided the cell of the built suite is licensed (a
+/// A suite whose cell is supported keeps the prior status. A cell the closed rules mark as
+/// executing unsupported runs and reports `Refused`. Any other unsupported cell refuses the click,
+/// as the build would have refused it, provided the cell of the built suite is supported (a
 /// coordinate the matrix cannot place is not evidence against the click).
 fn support_after_suite_change(
     prior: Option<crate::support::CellStatus>,
@@ -1306,19 +1306,16 @@ fn support_after_suite_change(
     ),
     (built, suite): (RefuteSuite, RefuteSuite),
 ) -> Result<Option<crate::support::CellStatus>, CausalError> {
-    use crate::support::{CellStatus, classify, executes_unlicensed, support_cell_named};
+    use crate::support::{CellStatus, classify, support_cell_named};
     let Some(cell) = support_cell_named(query, class, source, inference, suite) else {
         return Ok(prior);
     };
-    if classify(cell) == CellStatus::Licensed {
+    if classify(cell) == CellStatus::Supported {
         return Ok(prior);
     }
-    if executes_unlicensed(cell) {
-        return Ok(Some(CellStatus::Refused));
-    }
-    let built_licensed = support_cell_named(query, class, source, inference, built)
-        .is_some_and(|built_cell| classify(built_cell) == CellStatus::Licensed);
-    if built_licensed {
+    let built_supported = support_cell_named(query, class, source, inference, built)
+        .is_some_and(|built_cell| classify(built_cell) == CellStatus::Supported);
+    if built_supported {
         crate::support::refuse_if_not_applicable(cell).map(Some)
     } else {
         Ok(prior)
@@ -1339,13 +1336,13 @@ mod suite_support_tests {
         let coordinates =
             (&query, "CoDetermined", StructureSource::Explicit, &InferenceMode::Frequentist);
         let kept = support_after_suite_change(
-            Some(CellStatus::Licensed),
+            Some(CellStatus::Supported),
             coordinates,
             (RefuteSuite::None, RefuteSuite::None),
         );
-        assert_eq!(kept.unwrap(), Some(CellStatus::Licensed));
+        assert_eq!(kept.unwrap(), Some(CellStatus::Supported));
         let refused = support_after_suite_change(
-            Some(CellStatus::Licensed),
+            Some(CellStatus::Supported),
             coordinates,
             (RefuteSuite::None, RefuteSuite::Full),
         );

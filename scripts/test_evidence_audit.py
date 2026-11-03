@@ -39,7 +39,7 @@ class Classification(unittest.TestCase):
             self.assertEqual(reason_obligation(Path(name), "calibration_reason"), "calibration")
             self.assertEqual(reason_obligation(Path(name), "reason_code"), "runtime_refusal")
         self.assertEqual(reason_obligation(Path("python_products.toml"), "reason"), "python_product")
-        self.assertEqual(reason_obligation(Path("support_licensed.toml"), "calibration_reason"), "calibration")
+        self.assertEqual(reason_obligation(Path("support_cells.toml"), "calibration_reason"), "calibration")
         body = "pub const fn code(&self) -> &'static str {\n        match self { Self::Missing => \"no_device\" }\n    }"
         fallback = "impl FallbackReason {\n    " + body + "\n}"
         path = Path("crates/antecedent-learn-burn/src/policy.rs")
@@ -345,7 +345,7 @@ class Classification(unittest.TestCase):
             (root / "m.rs").write_text("// changed implementation\n", encoding="utf-8")
             self.assertTrue(problems(record))
 
-    def test_software_fixture_cannot_be_promoted_to_known_truth_by_an_origin_tag(self):
+    def test_software_fixture_cannot_be_raised_to_known_truth_by_an_origin_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "expected.json"

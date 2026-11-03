@@ -59,7 +59,7 @@ pub use antecedent_stats::adaptive_inference::group_sequential::SpendingFunction
 
 /// Obligations inspected before the existing ranker runs.
 ///
-/// This is not a second ranker. Unlicensed candidates become typed violations,
+/// This is not a second ranker. Unsupported candidates become typed violations,
 /// not proxy scores.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DesignRankPreview {
@@ -78,7 +78,7 @@ pub struct DesignRankPreview {
 /// Rank candidate designs under an objective, with no contract binding.
 ///
 /// Crate-internal: the public entries are [`preview_design_rank`] and
-/// [`rank_designs_bound`], which refuse an unlicensed or unprepared contract and
+/// [`rank_designs_bound`], which refuse an unsupported or unprepared contract and
 /// report the candidates the objective cannot score before this ranker runs.
 ///
 /// # Errors
@@ -102,7 +102,7 @@ where
 ///
 /// # Errors
 ///
-/// Unlicensed or unprepared contracts, or a width ranking across incomparable
+/// Unsupported or unprepared contracts, or a width ranking across incomparable
 /// estimands without a common decision utility.
 pub fn preview_design_rank<A, O>(
     contract: &CausalContract,
@@ -129,7 +129,7 @@ pub fn preview_design_rank<A, O>(
 ///
 /// # Errors
 ///
-/// Unlicensed/unprepared contracts, incomparable width targets, or ranker failure.
+/// Unsupported/unprepared contracts, incomparable width targets, or ranker failure.
 pub fn rank_designs_bound<A, O>(
     contract: &CausalContract,
     ranker: &DesignRanker,
@@ -156,9 +156,9 @@ where
 }
 
 fn require_rankable_contract(contract: &CausalContract) -> Result<(), CausalError> {
-    if !matches!(contract.support_status, Some(CellStatus::Licensed)) {
+    if !matches!(contract.support_status, Some(CellStatus::Supported)) {
         return Err(CausalError::Unsupported {
-            message: crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
+            message: crate::error::RANK_DESIGNS_REQUIRES_SUPPORT,
         });
     }
     if contract.identities.identification_product.is_none() {
@@ -218,7 +218,7 @@ fn inspect_rank_binding<A, O>(
         rank_obligation(
             "design.candidate_mapping",
             "candidate_to_design_map",
-            "each candidate must map onto a licensed add-units, extend-series, pulse-window, or measure-covariate contract",
+            "each candidate must map onto a supported add-units, extend-series, pulse-window, or measure-covariate contract",
         ),
         rank_obligation(
             "design.cost_constraints",
@@ -351,7 +351,7 @@ fn collect_width_violations(
             }
         };
         if let Some(detail) = detail {
-            violations.push(violation(index, "unlicensed_candidate", detail));
+            violations.push(violation(index, "unsupported_candidate", detail));
         }
     }
 }
@@ -379,10 +379,10 @@ fn collect_id_violations<A, O>(
                 Some("more observational units do not solve structural non-identification")
             }
             CandidateDesign::Measure(_) if unlock.is_empty() => {
-                Some("measure_covariate requires a licensed identification update")
+                Some("measure_covariate requires a supported identification update")
             }
             CandidateDesign::Intervene(_) if unlock.is_empty() && !intervene => {
-                Some("pulse-window / intervention requires a licensed identification update")
+                Some("pulse-window / intervention requires a supported identification update")
             }
             CandidateDesign::ObserveEnvironment(_) if env_unlock.is_empty() => {
                 Some("extend-series identification requires a declared environment unlock")
@@ -390,14 +390,14 @@ fn collect_id_violations<A, O>(
             _ => None,
         };
         if let Some(detail) = detail {
-            violations.push(violation(index, "unlicensed_candidate", detail));
+            violations.push(violation(index, "unsupported_candidate", detail));
         }
     }
 }
 
 /// Without a decision registry the ranking is unresolved (returns `true`). With one,
 /// a candidate the signal assigns no sample size has no data model for the
-/// value-of-information update and is unlicensed; the ranker would not score it.
+/// value-of-information update and is unsupported; the ranker would not score it.
 fn collect_decision_violations<O>(
     candidates: &[CandidateDesign],
     signal: Option<&dyn DecisionSignal<O>>,
@@ -416,7 +416,7 @@ fn collect_decision_violations<O>(
         if signal.sample_size(candidate).is_none() {
             violations.push(violation(
                 index,
-                "unlicensed_candidate",
+                "unsupported_candidate",
                 "decision signal declares no sample size for this candidate",
             ));
         }
@@ -535,7 +535,7 @@ pub struct StudyDesignRanking {
 /// variables become the unlock list for `query`, and its
 /// [`DurableStudyCandidate::design_action`] is what the ranker scores. Every other
 /// study is reported in [`StudyDesignRanking::unverified`] and as an
-/// `unlicensed_candidate` violation, so a study that merely names a variable (or only
+/// `unsupported_candidate` violation, so a study that merely names a variable (or only
 /// adds rows) is never credited. Any unlock entries already in `eval` are kept.
 ///
 /// For studies that set variables, supply `eval.identified_under_intervention` from
@@ -570,7 +570,7 @@ where
         .map(|study| {
             violation(
                 study.index,
-                "unlicensed_candidate",
+                "unsupported_candidate",
                 "the repair search did not verify this study sufficient on its own",
             )
         })

@@ -145,7 +145,7 @@ pub struct DiscoveredTransportRefusal {
     /// For a refusal of the estimation step: `(member index, reason)` for every member that
     /// is not identified or not estimable. Empty otherwise.
     pub member_reasons: Vec<(usize, String)>,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: String,
 }
 

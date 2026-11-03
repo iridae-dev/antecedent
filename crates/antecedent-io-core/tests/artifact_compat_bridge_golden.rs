@@ -136,7 +136,7 @@ fn derived() -> (BridgedClaim, ClaimEnvelope, ScientificQuantity) {
     let quantity = contract.source.quantity.clone();
     let bridged =
         derive_bridged_claim(&contract, &BridgeSource { claim: &source, quantity: &quantity })
-            .expect("licensed bridge");
+            .expect("supported bridge");
     (bridged, source, quantity)
 }
 

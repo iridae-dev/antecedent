@@ -135,10 +135,10 @@ class PlanUncertaintyDemand(ResultModel):
 
 
 class PlanSupportView(ResultModel):
-    """Support-matrix cell and licensing status."""
+    """Support-matrix cell and support status."""
 
     coordinate: str | None = None
-    licensed: bool = False
+    supported: bool = False
     status: str | None = None
 
 

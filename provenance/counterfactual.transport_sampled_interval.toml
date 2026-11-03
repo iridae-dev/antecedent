@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
-  "The interval is the delta-method Wald interval of the open record, clamped to [0, 1]. It is reported only as a measured scalar bound to a currently attesting coverage record of the whole method (identification replay, table estimation, delta standard error); outside the measured construction it refuses cell_not_licensed.",
+  "The interval is the delta-method Wald interval of the open record, clamped to [0, 1]. It is reported only as a measured scalar bound to a currently attesting coverage record of the whole method (identification replay, table estimation, delta standard error); outside the measured construction it refuses not_supported.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -27,7 +27,7 @@ limitations = "Five count tables of the chain design (20000, 400 and 64 units sa
 assumptions = ["Each table is a multinomial sample of independent units with fixed N; the variance is conditional on the identified functional being smooth at the observed shares and every cell used being observed.", "The gradient step is a relative 1e-5 central difference, so the product's standard error carries an O(h^2) discretization error relative to the exact gradient; the review bounds it empirically.", "The reference differentiates the closed-form functional of this one design; agreement shows the variance formula and the differencing, not that the same formula is right for other estimands."]
 sources = ["https://en.wikipedia.org/wiki/Delta_method", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The delta standard error equals the 50-digit reference (analytic gradient by numerical differentiation of the closed form, multinomial variance with the single-stratum correction term) to 1e-6 relative on all five tables, so the central-difference step and the (sum p g)^2 term are right for independent units.", "The Wald interval equals the clamped reference at the lower and the upper boundary, both clamps bind in the fixtures, any level other than 0.95 is refused with level_not_measured, and the interval stays inside [0, 1].", "No product defect was found in this record."]
-record_sha256 = "d9fc2909a9e712c9f7f9b3bbffb753f99130a85405fd52045dd61f61f6a417de"
+record_sha256 = "48987efb2b2458bad177ee058d67da391e2a5c8aca47a998f25d0711a618e461"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -42,7 +42,7 @@ sha256 = "161291957e9c0cda16e32ab41909fb9619731f1d70e77a682d6703cb83d124c0"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
-sha256 = "8e01a397a3247560f205c24ef3b896310d45e5a08c63a5b7338b13a5cd2b5103"
+sha256 = "2eab1c5651405aecd5e35ff17c484c2248b6f5b754693dce43d01f9d6873c1f1"
 
 [[method_review.artifacts]]
 role = "reference"

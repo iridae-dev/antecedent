@@ -13,7 +13,7 @@
 //! configured estimator performs under the declared sampling design. Layer five quotes
 //! the adjustment design a linear adjustment fits and states, with the reason, when a
 //! route fits no single quoted adjustment design. Layer six names the claim kind the
-//! retained identification licenses.
+//! retained identification supports.
 //!
 //! A query whose actions have no portable world-indexed statement (a callback action)
 //! lowers to its typed functional, keyed by the canonical digest of the query.
@@ -248,7 +248,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         query_variables: Arc::clone(&record.query_variables),
         source_digest,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
-        licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
+        supported: matches!(study.support_status, Some(crate::support::CellStatus::Supported)),
         support_status: study.support_status,
     };
 
@@ -621,7 +621,7 @@ fn identification_status(caches: &[IdentificationCache]) -> Option<Identificatio
     })
 }
 
-/// The claim an identification status licenses, as the claim reader classifies it.
+/// The claim an identification status supports, as the claim reader classifies it.
 const fn claim_kind(status: IdentificationStatus) -> ClaimKind {
     match status {
         IdentificationStatus::NonparametricallyIdentified

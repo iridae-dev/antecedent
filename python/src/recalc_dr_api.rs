@@ -357,7 +357,7 @@ pub struct PyDrSession {
 impl PyDrSession {
     fn capabilities(&self) -> RecalcCapabilities {
         RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: antecedent_core::recalc::RequestSupport::OnGrid,
             boundary: self.inner.boundary(),
         }

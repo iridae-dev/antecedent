@@ -26,13 +26,13 @@ use super::functional::OutcomeFunctional;
 /// horizon) use this as their fallback ceiling only when no budget is declared.
 pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
 
-/// Licensed temporal-response query policy, for language facades.
+/// Supported temporal-response query policy, for language facades.
 ///
 /// [`TemporalResponseSpec::validate`] is the semantic authority. Bindings may
 /// duplicate checks for early errors but must read these values rather than
 /// defining them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct TemporalResponseLicense {
+pub struct TemporalResponseSupport {
     /// Largest horizon count the query contract accepts. The contract has no
     /// fixed count: the execution memory budget bounds materialization, so this
     /// is `usize::MAX`.
@@ -136,7 +136,7 @@ pub struct TemporalResponseSpec {
     /// Outcome evaluation horizons in time steps after the policy origin (each ≥ 1).
     /// Strictly increasing; at least one entry.
     pub horizons: Arc<[u32]>,
-    /// Temporal intervention policy. Licensed 0.7 cells are Pulse and
+    /// Temporal intervention policy. Supported 0.7 cells are Pulse and
     /// single-step Sustained; Dynamic is refused here (use `TemporalEffectQuery`).
     pub policy: TemporalPolicy,
     /// Optional max history lag (steps) when unfolding; `None` = planner default.
@@ -170,10 +170,10 @@ impl TemporalResponseSpec {
     /// Default `treatment_lag` (policy origin `-lag`).
     pub const DEFAULT_TREATMENT_LAG: u32 = 1;
 
-    /// Machine-readable license for facades. Python must not hard-code these.
+    /// Machine-readable support for facades. Python must not hard-code these.
     #[must_use]
-    pub const fn license() -> TemporalResponseLicense {
-        TemporalResponseLicense {
+    pub const fn support() -> TemporalResponseSupport {
+        TemporalResponseSupport {
             max_horizons: usize::MAX,
             max_cells: usize::MAX,
             allowed_policies: Self::ALLOWED_POLICIES,
@@ -182,9 +182,9 @@ impl TemporalResponseSpec {
         }
     }
 
-    /// Parse a licensed response-policy wire tag at treatment offset `at`.
+    /// Parse a supported response-policy wire tag at treatment offset `at`.
     ///
-    /// Sustained is the licensed single-step window `[at, at]`.
+    /// Sustained is the supported single-step window `[at, at]`.
     ///
     /// # Errors
     ///
@@ -987,13 +987,13 @@ impl ResponseQuery {
         Ok(())
     }
 
-    /// Licensed static pairs that may ride a temporal curve. Anything else
-    /// refuses with [`TEMPORAL_OBSERVATION_UNLICENSED`].
+    /// Supported static pairs that may ride a temporal curve. Anything else
+    /// refuses with [`TEMPORAL_OBSERVATION_UNSUPPORTED`].
     ///
     /// # Errors
     ///
-    /// Unlicensed mechanism/assumption pair on a temporal attachment.
-    pub fn require_licensed_temporal_observation(&self) -> Result<(), QueryError> {
+    /// Unsupported mechanism/assumption pair on a temporal attachment.
+    pub fn require_supported_temporal_observation(&self) -> Result<(), QueryError> {
         if self.temporal.is_none() {
             return Ok(());
         }
@@ -1002,12 +1002,14 @@ impl ResponseQuery {
                 if self.observation_assumptions.is_empty() {
                     Ok(())
                 } else {
-                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed))
+                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
                 }
             }
             ObservationSpec::Selected { .. } => match single_observation_assumption(self) {
                 Some(ObservationAssumption::OutcomeIndependentGiven(_)) => Ok(()),
-                _ => Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed)),
+                _ => {
+                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
+                }
             },
             ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
                 match single_observation_assumption(self) {
@@ -1018,20 +1020,20 @@ impl ResponseQuery {
                         Ok(())
                     }
                     _ => Err(QueryError::InvalidResponse(
-                        ResponseFault::TemporalObservationUnlicensed,
+                        ResponseFault::TemporalObservationUnsupported,
                     )),
                 }
             }
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
-                Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed))
+                Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
             }
         }
     }
 }
 
-/// Stable compile/execute refusal for an unlicensed temporal observation pair.
-pub const TEMPORAL_OBSERVATION_UNLICENSED: &str =
-    "temporal response observation pair is not licensed";
+/// Stable compile/execute refusal for an unsupported temporal observation pair.
+pub const TEMPORAL_OBSERVATION_UNSUPPORTED: &str =
+    "temporal response observation pair is not supported";
 
 fn single_observation_assumption(query: &ResponseQuery) -> Option<&ObservationAssumption> {
     if query.observation_assumptions.len() != 1 {
@@ -1051,16 +1053,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn temporal_response_license_is_the_facade_contract() {
-        let license = TemporalResponseSpec::license();
-        assert_eq!(license.max_horizons, usize::MAX);
-        assert_eq!(license.max_cells, usize::MAX);
-        assert_eq!(license.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
-        assert_eq!(license.default_policy, TemporalResponseSpec::POLICY_PULSE);
-        assert!(license.allowed_policies.contains(&license.default_policy));
-        assert_eq!(license.default_treatment_lag, TemporalResponseSpec::DEFAULT_TREATMENT_LAG);
-        let at = -i32::try_from(license.default_treatment_lag).unwrap();
-        assert!(TemporalResponseSpec::parse_policy(license.default_policy, at).is_ok());
+    fn temporal_response_support_is_the_facade_contract() {
+        let support = TemporalResponseSpec::support();
+        assert_eq!(support.max_horizons, usize::MAX);
+        assert_eq!(support.max_cells, usize::MAX);
+        assert_eq!(support.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
+        assert_eq!(support.default_policy, TemporalResponseSpec::POLICY_PULSE);
+        assert!(support.allowed_policies.contains(&support.default_policy));
+        assert_eq!(support.default_treatment_lag, TemporalResponseSpec::DEFAULT_TREATMENT_LAG);
+        let at = -i32::try_from(support.default_treatment_lag).unwrap();
+        assert!(TemporalResponseSpec::parse_policy(support.default_policy, at).is_ok());
         assert!(TemporalResponseSpec::parse_policy("dynamic", at).is_err());
         let many: Vec<u32> = (1..=100_000).collect();
         assert!(TemporalResponseSpec::new(many, TemporalPolicy::pulse(at), None).is_ok());
@@ -1181,10 +1183,10 @@ mod tests {
     }
 
     #[test]
-    fn temporal_observation_license_matches_static_1_3_pairs() {
+    fn temporal_observation_support_matches_static_1_3_pairs() {
         let query = temporal_curve();
         assert!(query.validate().is_ok());
-        assert!(query.require_licensed_temporal_observation().is_ok());
+        assert!(query.require_supported_temporal_observation().is_ok());
 
         let selected = query.clone().with_observation(
             ObservationSpec::Selected {
@@ -1195,7 +1197,7 @@ mod tests {
             [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
         );
         assert!(selected.validate().is_ok());
-        assert!(selected.require_licensed_temporal_observation().is_ok());
+        assert!(selected.require_supported_temporal_observation().is_ok());
 
         let right = query.clone().with_observation(
             ObservationSpec::RightCensored {
@@ -1206,7 +1208,7 @@ mod tests {
             },
             [ObservationAssumption::IndependentGiven(Arc::from([]))],
         );
-        assert!(right.require_licensed_temporal_observation().is_ok());
+        assert!(right.require_supported_temporal_observation().is_ok());
 
         let cox = query.clone().with_observation(
             ObservationSpec::LeftCensored {
@@ -1217,7 +1219,7 @@ mod tests {
             },
             [ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(0)]))],
         );
-        assert!(cox.require_licensed_temporal_observation().is_ok());
+        assert!(cox.require_supported_temporal_observation().is_ok());
 
         let interval = query.with_observation(
             ObservationSpec::IntervalCensored {
@@ -1228,7 +1230,7 @@ mod tests {
             [ObservationAssumption::IndependentGiven(Arc::from([]))],
         );
         assert!(interval.validate().is_ok());
-        let err = interval.require_licensed_temporal_observation().unwrap_err();
-        assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED));
+        let err = interval.require_supported_temporal_observation().unwrap_err();
+        assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED));
     }
 }

@@ -553,7 +553,7 @@ fn joint_law_consume(
 }
 
 /// The refusal of an interval or posterior reading of a composed quantity (always
-/// `cell_not_licensed`).
+/// `not_supported`).
 #[pyfunction]
 fn joint_law_closed_reading(reading: &str) -> String {
     let Some(parsed) = RequestedReading::from_name(reading) else {
@@ -777,7 +777,7 @@ fn joint_law_transported_spread_aligned(
 
 /// The interval reading of a sealed claim: the artifact is verified and replayed, then resolved
 /// against the shipped coverage records for its composed coordinate, construction and the
-/// declared evidence size. The caller supplies no record. Returns the licence JSON or the typed
+/// declared evidence size. The caller supplies no record. Returns the support JSON or the typed
 /// refusal.
 #[pyfunction]
 #[pyo3(signature = (artifact, construction, evidence_rows, cancel=None))]
@@ -794,17 +794,17 @@ fn joint_law_check_composed_interval(
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
     match claim.check_composed_interval(construction, evidence_rows) {
-        Ok(licence) => (
+        Ok(support) => (
             Some(
                 json!({
-                    "coordinate_id": licence.coordinate_id(),
-                    "record_id": licence.record_id(),
-                    "construction": licence.construction(),
-                    "nominal_level": licence.nominal_level(),
-                    "label": licence.label(),
-                    "declared_evidence_rows": licence.declared_evidence_rows(),
-                    "lower": licence.bounds().map(|b| b.0),
-                    "upper": licence.bounds().map(|b| b.1),
+                    "coordinate_id": support.coordinate_id(),
+                    "record_id": support.record_id(),
+                    "construction": support.construction(),
+                    "nominal_level": support.nominal_level(),
+                    "label": support.label(),
+                    "declared_evidence_rows": support.declared_evidence_rows(),
+                    "lower": support.bounds().map(|b| b.0),
+                    "upper": support.bounds().map(|b| b.1),
                 })
                 .to_string(),
             ),

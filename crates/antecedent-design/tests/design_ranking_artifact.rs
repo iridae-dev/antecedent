@@ -372,7 +372,7 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
 
     // An external law relabelled native trust.
     let mut edited = wire.clone();
-    candidate_mut(&mut edited, "cand-1").trust = "native_licensed".into();
+    candidate_mut(&mut edited, "cand-1").trust = "native_supported".into();
     let error = consume_wire(&resealed(edited), &open()).unwrap_err();
     assert!(
         matches!(&error, DesignRankingArtifactError::SignalInconsistent { slot: "trust", .. }),
@@ -671,7 +671,7 @@ fn native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not(
         consumed.candidates.iter().map(|c| (c.semantic_id.as_str(), c)).collect();
     assert_eq!(by_id["a_native"].replay, ReplayKind::NativeExactRecomputed);
     assert!(by_id["a_native"].natively_replayed());
-    assert_eq!(by_id["a_native"].trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(by_id["a_native"].trust, SignalTrustLabel::NativeSupported);
     assert_eq!(by_id["b_posterior"].replay, ReplayKind::AttestedLawArithmetic);
     assert_eq!(by_id["b_posterior"].update_mode, SignalUpdateMode::ExternalPosterior);
     assert_eq!(by_id["c_values"].replay, ReplayKind::AttestedValuesCombined);
@@ -719,7 +719,7 @@ fn attested_decision_values_stay_attested_when_altered_or_relabelled() {
     {
         let c = candidate_mut(&mut edited, "values");
         c.update_mode = "native_update".into();
-        c.trust = "native_licensed".into();
+        c.trust = "native_supported".into();
         c.provider = None;
         c.attestor = None;
     }

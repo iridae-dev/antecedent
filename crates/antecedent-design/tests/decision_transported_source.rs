@@ -39,7 +39,7 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_transported_source::{
-    DETAIL_CALIBRATION_INFLATED, DETAIL_IDENTITY_INCOMPLETE, DETAIL_INTERVAL_NOT_LICENSED,
+    DETAIL_CALIBRATION_INFLATED, DETAIL_IDENTITY_INCOMPLETE, DETAIL_INTERVAL_NOT_SUPPORTED,
     DETAIL_LAW_NOT_SUPPLIED, DETAIL_MIXED_TRANSPORTS, DETAIL_NATIVE_LABEL, DETAIL_NOT_IN_TARGET,
     DETAIL_SUPPORT_BELOW_POLICY, DETAIL_SUPPORT_INFLATED, TransportDeclaration, TransportedDemand,
     TransportedRefusal, TransportedRepresentation, TransportedResponse, TransportedRoute,
@@ -240,9 +240,9 @@ fn a_point_refuses_every_request_that_needs_a_law_or_an_interval() {
         &accepting(),
     )
     .unwrap_err();
-    assert_eq!(error, TransportedRefusal::IntervalNotLicensed);
-    assert_eq!(error.code(), "cell_not_licensed");
-    assert_eq!(error.detail(), DETAIL_INTERVAL_NOT_LICENSED);
+    assert_eq!(error, TransportedRefusal::IntervalNotSupported);
+    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.detail(), DETAIL_INTERVAL_NOT_SUPPORTED);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn the_default_policy_does_not_accept_a_transported_claim() {
             required: SupportStatus::Supported,
         }
     );
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "not_supported");
     assert_eq!(error.detail(), DETAIL_SUPPORT_BELOW_POLICY);
 }
 
@@ -409,7 +409,7 @@ fn a_transported_law_answers_a_probability_criterion_and_refuses_an_interval() {
         &accepting(),
     )
     .unwrap_err();
-    assert_eq!(error, TransportedRefusal::IntervalNotLicensed);
+    assert_eq!(error, TransportedRefusal::IntervalNotSupported);
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn a_transported_law_is_never_labelled_exact_measured_or_native() {
         assert_eq!(error.detail(), DETAIL_CALIBRATION_INFLATED);
     }
     let law =
-        transported_law(DistributionCalibration::PointOnly, DistributionTrust::NativeLicensed);
+        transported_law(DistributionCalibration::PointOnly, DistributionTrust::NativeSupported);
     let error = TransportedResponse::declared_law(law, &declaration()).unwrap_err();
     assert_eq!(error, TransportedRefusal::NativeLabelOnTransported);
     assert_eq!(error.detail(), DETAIL_NATIVE_LABEL);
@@ -945,6 +945,6 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
         export_transported_decision(&contract, &response, &strict, "strict")
             .unwrap_err()
             .to_string(),
-        "reason=cell_not_licensed: transported_decision.transported_not_accepted: reason=cell_not_licensed: transported_decision.transported_not_accepted"
+        "reason=not_supported: transported_decision.transported_not_accepted: reason=not_supported: transported_decision.transported_not_accepted"
     );
 }

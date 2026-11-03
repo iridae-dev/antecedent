@@ -1,6 +1,6 @@
-"""Shared expectation for loading a licensed result from bytes alone.
+"""Shared expectation for loading a supported result from bytes alone.
 
-Every licensed route executes through a sealed checked operation. Loading its
+Every supported route executes through a sealed checked operation. Loading its
 export either replays a verified program (``acceptance.verified``) or, when the
 consumer cannot re-execute the sealed operation without the retained proof,
 recognizes the artifact, verifies its contract and identities, keeps the recorded

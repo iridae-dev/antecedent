@@ -44,22 +44,22 @@ record_sha256 = "b355908c6b2035da512b4783aeabd9d33c882cf0d46279d59acda5534d30839
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/gaussian.rs"
-sha256 = "5f877b50fdaa2898bea8edac5e44e214714bea2c5c8985ea174a09e629cbd48d"
+sha256 = "eaaf50d71f49bff37b3f1ee1bd06f70d5cebf52bb966bb525541a7def1ce1052"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/tabular.rs"
-sha256 = "3f883472fe1b858ed48b468dd41997a3f580d16ea7f9b27943ff82111a921bb2"
+sha256 = "e8e1ca1cd6251fc5790e97e3fe114153b6d0b332f26d5ad818e16a08feeb048f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/uncertainty.rs"
-sha256 = "ec9d197147c5f53ebc27896b3f076ebb9bf94596594aa0064d46ccd5db0d005f"
+sha256 = "da01ff0d5da4fe2425e6505187e7718c31172721a1fd2fc4e230610296031be0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/acyclic_joint_model_reference.rs"
-sha256 = "010516653110e072d0500fa400b4393c6235ab5234980762418d4b0690147e4b"
+sha256 = "15e254e8c224e9b67ec72086a384d88f6167f3dcc1a1a01fb646ac890ab6826a"
 
 [[method_review.artifacts]]
 role = "reference"

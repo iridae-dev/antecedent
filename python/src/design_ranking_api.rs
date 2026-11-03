@@ -218,7 +218,7 @@ fn consume_design_ranking(
     })
 }
 
-/// The structural ordering when no probabilistic model is licensed:
+/// The structural ordering when no probabilistic model is supported:
 /// `(ranking json, refusal json)`.
 #[pyfunction]
 fn rank_structural_designs(py: Python<'_>, candidates_json: &str) -> PyResult<ConsumePayload> {

@@ -40,10 +40,10 @@ pub struct JointSamplingWire {
     pub coverage_target: String,
     /// `withheld`.
     pub status: String,
-    /// `cell_not_licensed`.
+    /// `not_supported`.
     pub reason_code: String,
     /// Always `None` from a public producer; a consumer refuses a value
-    /// (`cell_not_licensed` / `joint_sensitivity.interval_withheld`).
+    /// (`not_supported` / `joint_sensitivity.interval_withheld`).
     pub interval: Option<[f64; 2]>,
 }
 

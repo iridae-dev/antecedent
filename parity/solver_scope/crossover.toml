@@ -1,6 +1,6 @@
 # Serial versus parallel column-pivoted QR. Means of five release-profile runs
 # after one warmup, from qr_serial_and_parallel_durations. Serial is one worker.
-# Parallel is available_parallelism on this host (10). This is not a promotion threshold.
+# Parallel is available_parallelism on this host (10). This is not a threshold for enabling parallelism.
 
 schema = 1
 parallel_workers = 10

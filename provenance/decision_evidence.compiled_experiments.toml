@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
   "Complete cluster randomization uses the existing multivariate Neyman estimator, retaining separate conservative arm covariance matrices. Fixed pretreatment adjustment is computed from retained cluster totals; only centered adjustment restores arm means to the original scale.",
   "Matched-pair assignment retains full treated and reference covariance over independent randomized pairs. The switchback route reuses the existing sequence sandwich with zero washout and a declared no-carryover premise; joint covariance is obtained by polarization.",
-  "The compilation records source values, assignment design, exposure assumptions, intervention identities, and consistency declarations. Numerical execution does not grant a support license or calibration to a derived nonlinear decision.",
+  "The compilation records source values, assignment design, exposure assumptions, intervention identities, and consistency declarations. Numerical execution does not grant a support or calibration to a derived nonlinear decision.",
 ]
 upstream_implementations_observed = []
 test_sources = [

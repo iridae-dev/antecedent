@@ -17,7 +17,7 @@
     "context_only_outputs": [
       "formula label 'direct'",
       "notes text",
-      "the licensed status, estimand method and cached-identification diagnostics the same test asserts"
+      "the supported status, estimand method and cached-identification diagnostics the same test asserts"
     ],
     "independence_basis": "The generator evaluates the inverse-odds weighted sum stated in the fixture notes on the four-row table in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the weighting formula stated in the fixture notes: this reference does not derive that formula from transport theory and would not detect a wrong formula.",
     "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
@@ -42,10 +42,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
-          "sha256": "bf5c2288628c72926eca63d858f2a0530de9fc06b4cce7a9697c6b9d6e4eccb4"
+          "sha256": "31860d895425282c61c3184a829c76be8d9388650e7279a9177441c4796cb653"
         }
       ],
-      "fixture_payload_sha256": "fe5af72d2b16c5493b62460482674462623d44acacda710c4a06582b639f1baf"
+      "fixture_payload_sha256": "2222f728dadd67a3c662d0e6b3a470fecf342db1d4df86bdbcd2f90fc7803548"
     }
   }
 }

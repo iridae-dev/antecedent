@@ -385,7 +385,7 @@ mod tests {
         )
         .unwrap();
         // The retained history estimator has no certified studentization. Its
-        // former generic interval must refuse rather than borrow the licensed
+        // former generic interval must refuse rather than borrow the supported
         // balanced-unit estimator's authority.
         let config = DependentIntervalConfig {
             replicates: 20,

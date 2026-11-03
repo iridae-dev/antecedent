@@ -35,7 +35,7 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
         == "insufficient_independent_subject_support_or_degenerate_score"
     )
     assert result.longitudinal_regime.probability_ownership == "known_sequential_randomization"
-    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert result.longitudinal_regime.support_status == "unsupported_point_utility"
     assert "known_sequential_randomization" in " ".join(result.assumptions or [])
     assert result.answer.kind == "structured"
     assert (
@@ -151,7 +151,7 @@ def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_val
     assert fit.rule_version == "v1"
     assert fit.rule_provenance == "study-protocol-7"
     assert fit.uncertainty == "point_only_no_interval"
-    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.support_status == "unsupported_point_utility"
     assert require_success(antecedent.analyze(data, query=query)).longitudinal_regime == fit
     result_wire = require_success(antecedent.load(bytes(result.export()))).decoded_artifact.payload[
         "longitudinal_regime"
@@ -284,7 +284,7 @@ def test_g_formula_regime_uses_main_analysis_and_round_trips_method():
     assert result.longitudinal_regime.value == pytest.approx(3.5)
     assert result.longitudinal_regime.method == "g_formula"
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
-    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert result.longitudinal_regime.support_status == "unsupported_point_utility"
     assert "conditional_period_reward_validity" in " ".join(result.assumptions or [])
     assert (
         require_success(antecedent.analyze(data, query=query)).longitudinal_regime
@@ -349,7 +349,7 @@ def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
     assert result.longitudinal_regime.method == "sequential_dr"
     assert result.longitudinal_regime.value == pytest.approx(direct.value)
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
-    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert result.longitudinal_regime.support_status == "unsupported_point_utility"
     assert (
         result.longitudinal_regime.interval_reason
         == "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"
@@ -399,7 +399,7 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     assert value.value_standard_error is None
     assert value.value_interval_95 is None
     assert value.uncertainty == "point_only_no_interval"
-    assert value.support_status == "unlicensed_point_utility"
+    assert value.support_status == "unsupported_point_utility"
     assert result.answer.detail == "longitudinal_regime_point_only"
     artifact = require_success(
         antecedent.load(bytes(result.export(artifact_id="sequential-dr-interval")))
@@ -433,8 +433,8 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     value = result.longitudinal_regime
     assert value.value_interval_95[0] < 5.0 < value.value_interval_95[1]
     assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
-    assert value.support_status == "licensed"
-    assert result.longitudinal_regime.support_status == "licensed"
+    assert value.support_status == "supported"
+    assert result.longitudinal_regime.support_status == "supported"
     assert result.reasoning.support.payload["matrix_coordinate"].startswith(
         "graphless:longitudinal_regime/"
     )
@@ -458,10 +458,10 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     ).longitudinal_regime
     assert unsupported.value_interval_95 is None
     assert unsupported.uncertainty == "point_only_no_interval"
-    assert unsupported.support_status == "unlicensed_point_utility"
+    assert unsupported.support_status == "unsupported_point_utility"
 
 
-def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_support():
+def test_two_period_sequential_dr_graphless_support_requires_calibrated_subject_support():
     n = 500
     treatment = [[i % 5 < 2, (i // 5) % 5 < 2] for i in range(n)]
     outcomes = [2.0 + sum(actions) + ((i % 7) - 3) / 10 for i, actions in enumerate(treatment)]
@@ -483,14 +483,14 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
     result = require_success(antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**args)))
     value = result.longitudinal_regime
     assert value.value_interval_95 is not None
-    assert value.support_status == "licensed"
-    assert result.longitudinal_regime.support_status == "licensed"
+    assert value.support_status == "supported"
+    assert result.longitudinal_regime.support_status == "supported"
     artifact = require_success(
-        antecedent.load(bytes(result.export(artifact_id="two-period-dr-license")))
+        antecedent.load(bytes(result.export(artifact_id="two-period-dr-support")))
     )
     assert (
         artifact.decoded_artifact.payload["longitudinal_regime"]["graphless_support_status"]
-        == "licensed"
+        == "supported"
     )
     args["subject_ids"] = args["subject_ids"][:499]
     args["treatment_history"] = args["treatment_history"][:499]
@@ -504,7 +504,7 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
         antecedent.analyze({"y": outcomes[:499]}, query=LongitudinalRegime(**args))
     )
     assert small.longitudinal_regime.value_interval_95 is None
-    assert small.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert small.longitudinal_regime.support_status == "unsupported_point_utility"
 
 
 def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation():
@@ -555,7 +555,7 @@ def test_msm_retained_matches_direct_and_round_trips_pointwise_uncertainty():
     assert all(value > 0.0 and np.isfinite(value) for value in fit.standard_errors)
     assert fit.observed_subjects == 16
     assert fit.uncertainty == "pointwise_subject_clustered_cr1_no_interval"
-    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.support_status == "unsupported_point_utility"
     assert "additive_marginal_structural_mean" in " ".join(result.assumptions or [])
     assert require_success(antecedent.analyze({"y": y}, query=query)).longitudinal_regime == fit
     artifact = require_success(antecedent.load(bytes(result.export()))).decoded_artifact

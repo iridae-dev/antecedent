@@ -138,7 +138,7 @@ def test_python_closure_follows_calls_not_strings() -> None:
 def test_forwarded_ignored_test_macros_bind_only_actual_arguments() -> None:
     from tempfile import TemporaryDirectory
 
-    from promotion_source import ignored_test_literals
+    from capability_source import ignored_test_literals
 
     source = r"""
 const SHARED: &[&str] = &["shared_rho_0.0", "shared_rho_0.5"];
@@ -171,7 +171,7 @@ outer!(current, SHARED);
 def test_macro_cycles_and_uninvoked_definitions_emit_no_tests() -> None:
     from tempfile import TemporaryDirectory
 
-    from promotion_source import ignored_test_literals
+    from capability_source import ignored_test_literals
 
     source = r"""
 macro_rules! unused {

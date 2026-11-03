@@ -626,7 +626,7 @@ impl ValidationSuite {
     /// This is a *per-run, data-dependent* skip (this validator did not fit this run's
     /// problem), not the support matrix's permanent typed impossibility
     /// (`SupportRefusal::NotApplicable` / wire `not_applicable`); the same validator can
-    /// run cleanly on a different dataset against the same licensed cell.
+    /// run cleanly on a different dataset against the same supported cell.
     #[must_use]
     pub fn not_applicable_only(outcomes: &[ValidationOutcome]) -> Vec<(ValidatorId, Arc<str>)> {
         outcomes
@@ -926,7 +926,7 @@ fn linear_paths(problem: &RefutationProblem<'_>) -> (bool, bool) {
     let method = problem.estimand.method_kind().ok();
     let static_linear = problem.estimand.is_adjustment_shaped()
         && problem.estimator.is_none_or(|e| {
-            // Conditional's licensed number is the interaction-model scalar at Ē[W].
+            // Conditional's supported number is the interaction-model scalar at Ē[W].
             // That is an effect, so the effect suite runs; skipping it because the
             // estimator id is not `linear.adjustment.ate` is a demotion.
             matches!(e, "linear.adjustment.ate" | "conditional.linear.adjustment")

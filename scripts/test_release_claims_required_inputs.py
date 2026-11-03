@@ -11,7 +11,7 @@ class RequiredReleaseInputs(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
-            paths = [gate.RECORDS, gate.COVERAGE, "parity/support_axes.toml", "parity/support_licensed.toml"]
+            paths = [gate.RECORDS, gate.COVERAGE, "parity/support_axes.toml", "parity/support_cells.toml"]
             for rel in paths:
                 (root / rel).write_text("", encoding="utf-8")
             self.assertEqual(gate.live_projection(root), ([], set()))

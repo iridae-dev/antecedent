@@ -13,7 +13,7 @@ CI run or evidence registry, rather than adding cut checklists or temporary
 status pages to the published docs tree. The standing release procedure is in
 `development.md`.
 
-Publication exclusions are declared in `scripts/docs_publication.toml`. Evidence-linked audit sources stay at their existing paths so calibration references remain stable; MkDocs and `scripts/package_docs.py` exclude them from shipped outputs. Bounds tokens are resolved from `parity/promotion.toml` at publication time. Never replace them with copied constants in source guides.
+Publication exclusions are declared in `scripts/docs_publication.toml`. Evidence-linked audit sources stay at their existing paths so calibration references remain stable; MkDocs and `scripts/package_docs.py` exclude them from shipped outputs. Bounds tokens are resolved from `parity/capability_records.toml` at publication time. Never replace them with copied constants in source guides.
 
 Complete runnable code can be embedded with `<!-- example: examples/python/name.py -->`; the build reads the tested source rather than maintaining a second copy.
 

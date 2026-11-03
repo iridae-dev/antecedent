@@ -341,7 +341,7 @@ fn a_refused_assessment_does_not_seal() {
     let error = PredictiveAssessmentArtifact::seal(&iid, &ctx()).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "sampling_dependence_unknown");
-    assert_eq!(detail, "predictive_assessment.iid_not_licensed_for_dependent_design");
+    assert_eq!(detail, "predictive_assessment.iid_not_supported_for_dependent_design");
 }
 
 #[test]

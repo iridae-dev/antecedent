@@ -100,7 +100,7 @@ fn recalculated(
     RecalcPlan::plan(
         session.identities(),
         &requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
     .recomputed()
 }

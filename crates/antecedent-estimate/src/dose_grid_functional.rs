@@ -39,7 +39,7 @@
 //!   the variance is the Newey-West (Bartlett, declared lag) long-run variance of the
 //!   linearized score series. Clusters and weights compose; clusters and a lag do not (a
 //!   panel needs both a unit and a time, which this row does not take) and are refused.
-//!   The clustered DML AIPW cell does not license any of these elsewhere.
+//!   The clustered DML AIPW cell does not support any of these elsewhere.
 //! * **Support.** Per requested dose: `OutsideEmpiricalSupport` when the dose lies
 //!   outside the observed dose range, `WeakOverlap` when the Kish effective sample
 //!   size of the Gaussian local weights is below the declared minimum, else
@@ -84,7 +84,7 @@ const Z_95: f64 = antecedent_stats::NORMAL_Q975;
 /// Fewest effective rows a local quadratic can be asked to stand on.
 const MINIMUM_ESS_FLOOR: f64 = 3.0;
 
-/// What licenses reading the fitted conditional mean as the dose response.
+/// What supports reading the fitted conditional mean as the dose response.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DoseDesign {
     /// The dose is randomized (independent of the potential-outcome process).
@@ -618,7 +618,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             SupportStatus::Supported => {}
             SupportStatus::WeakOverlap => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("cell_not_licensed"),
+                    antecedent_core::reason_code!("not_supported"),
                     "dose_grid.insufficient_local_weight",
                     &format!(
                         "dose {at} has local effective sample size below the declared minimum"
@@ -627,7 +627,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             }
             _ => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("cell_not_licensed"),
+                    antecedent_core::reason_code!("not_supported"),
                     "dose_grid.unsupported_dose",
                     &format!("dose {at} is outside the observed dose support"),
                 ));
@@ -680,7 +680,7 @@ fn fit_at(
     }
     .map_err(|error| {
         refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "dose_grid.insufficient_local_weight",
             &format!("the local quadratic could not be fitted at dose {at}: {error}"),
         )
@@ -1365,7 +1365,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
         )
         .ok_or_else(|| {
             refuse(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "dose_grid.insufficient_local_weight",
                 &format!("the local quadratic is singular at dose {at}"),
             )

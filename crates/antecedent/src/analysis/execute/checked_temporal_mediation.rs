@@ -679,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn checked_operation_executes_every_fixed_temporal_dag_license_coordinate() {
+    fn checked_operation_executes_every_fixed_temporal_dag_support_coordinate() {
         let (data, graph) = fixture();
         let ctx = ExecutionContext::for_tests(817);
         for accepted in [false, true] {

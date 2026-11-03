@@ -15,7 +15,7 @@ papers = []
 implementation_deviations = [
  "The statistic is −mean k-th NN Euclidean distance in the concatenated (X, Y, Z) features, not a mutual-information estimator.",
  "Conditional permutation shuffles Y within exact strata when Z has few distinct joint levels and otherwise, for a single continuous Z, within size-2 windows of rows sorted by Z, not a full within-neighborhood conditional permutation scheme. A continuous conditioning set of two or more variables is refused: no row grouping keeps near-Z rows close enough for the permutation null to hold Type I error.",
- "Block-preserving permutation is licensed only when Z is empty; with a conditioning set a requested block size is refused.",
+ "Block-preserving permutation is supported only when Z is empty; with a conditioning set a requested block size is refused.",
  "Without an explicit replicate count the permutation null uses 49 draws, so the smallest attainable p-value is 0.02; discovery refuses an alpha the test cannot resolve.",
  "mixed_knn_dependence rank-transforms columns that look discrete, then runs the same test. That preprocessing is not a published mixed-data CI procedure.",
 ]
@@ -35,7 +35,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Four tie-rich series of 8 to 9 rows on a decimal grid (k = 1 and 2), with every distinct arrangement of Y enumerated (at most 1680). The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 would not be detected. The statistic is asserted to 1e-12. Conditioning sets and the stratified null are not enumerated. The tie slack was applied to this test because it shares the defect class found in the distance-correlation and discrete tests; none of the four series failed before the slack was added, so no wrong p-value from this test was observed. The reference script is not run in a locked, isolated environment and is not wired into any gate."
 sources = ["https://mpmath.org/"]
 findings_resolved = ["The statistic equals the 60-digit value on all four series and the p-value equals the exactly enumerated null.", "The permuted statistic is now compared with the relative slack used by the discrete tests (null_reaches_observed), because the mean of k-th neighbour distances is summed in row order and a permutation that relabels the grid reorders the sum; the strict comparison was a latent hazard, not an observed failure."]
-record_sha256 = "6791cde376f9ac03017210c681549655b23ebff5f75a13822a13b3de1fb08484"
+record_sha256 = "e3bfe0970469c1cdc7ed43f5ef4cd1645e8f9354f8549b9dcc044d7317827854"
 
 [[method_review.artifacts]]
 role = "implementation"

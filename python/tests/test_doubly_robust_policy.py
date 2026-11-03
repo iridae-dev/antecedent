@@ -41,7 +41,7 @@ def test_doubly_robust_policy_value_recovers_known_truth_and_score_se():
     assert result.prediction_ownership == "held_out_disjoint_subject_ids"
     assert result.propensity_min == result.propensity_max == pytest.approx(0.5)
     assert result.uncertainty == "row_score_standard_error_independent_subjects"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 def test_native_doubly_robust_policy_accepts_strided_propensities():
@@ -150,10 +150,10 @@ def test_policy_artifact_answer_preserves_typed_values_and_uncertainty():
     }
     answer = answer_from_artifact({"claim": {"kind": "policy_value"}}, payload)
     assert answer.kind == "policy_value"
-    # An unset license loads as the label the live estimate publishes.
+    # An unset support loads as the label the live estimate publishes.
     assert answer.structured == {
         **payload["policy_value"],
-        "graphless_support_status": "unlicensed_point_utility",
+        "graphless_support_status": "unsupported_point_utility",
     }
 
 
@@ -191,7 +191,7 @@ def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
     assert regret.regret == pytest.approx(0.6, abs=1e-3)
     assert result.policy_value.incremental_value == pytest.approx(0.3, abs=1e-3)
     assert regret.interval_95[0] <= regret.regret <= regret.interval_95[1]
-    assert result.policy_value.support_status == "licensed"
+    assert result.policy_value.support_status == "supported"
     loaded = require_success(ant.load(bytes(result.export(artifact_id="finite-class-regret"))))
     assert loaded.answer.structured["regret"]["selected_index"] == 1
     with pytest.raises(CausalValueError, match="regret training IDs"):
@@ -308,7 +308,7 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
         )
 
 
-def test_unlicensed_policy_value_answer_round_trips_through_load():
+def test_unsupported_policy_value_answer_round_trips_through_load():
     query = policy.PolicyValue(
         outcome="y",
         assignment=[False, True, False, True],
@@ -317,10 +317,10 @@ def test_unlicensed_policy_value_answer_round_trips_through_load():
         evaluation_subject_ids=["a", "b", "c", "d"],
     )
     result = require_success(ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none"))
-    assert result.policy_value.support_status == "unlicensed_point_utility"
-    loaded = require_success(ant.load(bytes(result.export(artifact_id="policy-unlicensed"))))
+    assert result.policy_value.support_status == "unsupported_point_utility"
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="policy-unsupported"))))
     assert loaded.answer == result.answer
-    assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
+    assert loaded.answer.structured["graphless_support_status"] == "unsupported_point_utility"
 
 
 def test_policy_value_without_predictions_survives_dataclasses_replace():
@@ -361,7 +361,7 @@ def test_retained_policy_reports_held_out_ranked_uplift_bins():
     assert [bin.effect for bin in bins] == pytest.approx([4.0, 0.0])
     assert [bin.evaluation_rows for bin in bins] == [4, 4]
     assert all(bin.standard_error >= 0 for bin in bins)
-    assert result.policy_value.support_status == "unlicensed_point_utility"
+    assert result.policy_value.support_status == "unsupported_point_utility"
     assert require_success(
         ant.load(bytes(result.export(artifact_id="ranked-policy")))
     ).answer.structured["uplift_bins"][0]["effect"] == pytest.approx(4.0)
@@ -450,7 +450,7 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         uplift_training_subject_ids=["fixed-rank-train"],
     )
     fixed_result = require_success(ant.analyze({"y": outcome}, query=fixed_query, refute="none"))
-    assert fixed_result.policy_value.support_status == "licensed"
+    assert fixed_result.policy_value.support_status == "supported"
     assert fixed_result.policy_value.policy_value_interval_95 is not None
     assert all(point.interval_95 is not None for point in fixed_result.policy_value.uplift_bins)
     loaded = require_success(ant.load(bytes(result.export(artifact_id="top-k-uplift-interval"))))
@@ -511,7 +511,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         result.policy_value.uncertainty
         == "multi_action_ipw_row_score_standard_error_independent_subjects"
     )
-    assert result.policy_value.support_status == "unlicensed_point_utility"
+    assert result.policy_value.support_status == "unsupported_point_utility"
     assert any(
         "action probabilities" in assumption for assumption in result.policy_value.assumptions
     )
@@ -592,7 +592,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         baseline_groups=["g0"] * n,
     )
     result = require_success(ant.analyze({"y": outcomes}, query=query, refute="none"))
-    assert result.policy_value.support_status == "licensed"
+    assert result.policy_value.support_status == "supported"
     points = result.policy_value.multi_action_cate
     assert len(points) == 2
     for point, truth in zip(points, (1.0, 3.0), strict=True):
@@ -604,7 +604,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
     assert loaded.answer.structured["multi_action_cate"][0]["interval_95"] == pytest.approx(
         points[0].interval_95
     )
-    assert loaded.answer.structured["graphless_support_status"] == "licensed"
+    assert loaded.answer.structured["graphless_support_status"] == "supported"
 
     thin = policy.MultiActionPolicyValue(
         outcome="y",
@@ -650,7 +650,7 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         < answer.incremental_value
         < answer.incremental_value_interval_95[1]
     )
-    assert answer.support_status == "licensed"
+    assert answer.support_status == "supported"
     # Treating a third of the rows adds 2 / 3 at cost 0.1 / 3 over the baseline mean 1.2, so the
     # value is 1.2 + 2 / 3 - 0.1 / 3 and the increment over treating nobody is 2 / 3 - 0.1 / 3.
     assert answer.policy_value == pytest.approx(1.2 + 2 / 3 - 0.1 / 3, abs=0.02)
@@ -678,7 +678,7 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         < crossfit_result.policy_value
         < crossfit_result.policy_value_interval_95[1]
     )
-    assert crossfit_result.support_status == "licensed"
+    assert crossfit_result.support_status == "supported"
     assert crossfit_result.policy_value == pytest.approx(1.2 + 2 / 3 - 0.1 / 3, abs=0.02)
     assert crossfit_result.incremental_value == pytest.approx(2 / 3 - 0.1 / 3, abs=0.02)
 

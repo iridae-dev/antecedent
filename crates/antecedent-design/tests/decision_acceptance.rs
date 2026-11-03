@@ -2,7 +2,7 @@
 //! structural decision policy.
 //!
 //! Every expected number below is enumerated by hand from the frozen text of
-//! `parity/promotion.toml`, never read back from the code under test.
+//! `parity/capability_records.toml`, never read back from the code under test.
 
 use std::path::{Path, PathBuf};
 
@@ -641,7 +641,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
     let mean =
         evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &sampled).unwrap();
     assert!(near(mean.value, 1.5));
-    // Draw dependence and MC calibration are undeclared; no SE is licensed.
+    // Draw dependence and MC calibration are undeclared; no SE is supported.
     assert!(mean.standard_error.is_none());
     let variance =
         evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &sampled).unwrap();

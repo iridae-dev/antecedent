@@ -14,7 +14,7 @@ upstream_implementations_observed = []
 implementation_deviations = [
   "A decision-time empirical mean probability contrast under a Bernoulli logit or probit GLM. Intervention regime columns, including explicitly declared treatment-derived interactions, change together; lag columns remain observed. The link-scale treatment coefficient is not reported as the mean-scale causal contrast.",
   "Uses unpenalized maximum likelihood and Fisher delta-method uncertainty conditional on the empirical covariate distribution. Separated fits are refused instead of silently introducing a ridge penalty. Identity and other unsupported links, missing lag columns and a single dependent series are refused.",
-  "The panel facade takes only the earliest full lag-window row from each independent subject, rather than treating pooled within-subject rows as independent. This sampling construction and temporal causal identification are additional repository contracts, not consequences of the static GLM reference. This record does not license a route or assert calibration.",
+  "The panel facade takes only the earliest full lag-window row from each independent subject, rather than treating pooled within-subject rows as independent. This sampling construction and temporal causal identification are additional repository contracts, not consequences of the static GLM reference. This record does not support a route or assert calibration.",
 ]
 
 test_sources = [
@@ -34,12 +34,12 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One 140-row design with an intercept, a treatment, a continuous lag and a treatment-by-lag interaction (two regime columns, one held lag); logit with prior scales 2 and 0.3, and probit with scale 2. The frequentist estimate agrees to a relative 1e-9, the standard error and regime coefficients to 1e-8, the contrast at the Laplace mode to 1e-7, and the posterior-mean contrast over 60,000 draws within five Monte Carlo standard errors of the exact Gaussian expectation. Not exercised: separated fits (refused), a Poisson or other link (refused), more than one held lag, and the draw-level standard deviation of the contrast against an exact value. No coverage is measured. The cited publication was not retrieved."
 sources = ["https://doi.org/10.1201/9780203753736", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the maximum-likelihood coefficients, the regime-averaged contrast, the Fisher delta-method standard error (including the probit expected weight phi^2 / (Phi (1 - Phi))), the Laplace mode with the observed probit Hessian and the posterior-mean contrast agree with the multiprecision reference.", "For both links the posterior mean of the contrast differs from the contrast at the mode (by about 2e-4 at prior scale 2 and 3e-4 at scale 0.3 on the reference data), as the record states."]
-record_sha256 = "cb956b945c47375c1d4c34c3cc1fde2d98954686331d7b01b008ac6d177902b7"
+record_sha256 = "aa6960eab89d60175f532e5da512f993caeb808eded97d363770edddb1c2fe24"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_link.rs"
-sha256 = "4fe573917864e4d053f14b87b238d2cba5e07c19137906747eb409e00d22b8b9"
+sha256 = "6006f8c19d102bdb214ff77cf92b9cdf0db11233e7356538191f18c399cb9be0"
 
 [[method_review.artifacts]]
 role = "assertion"

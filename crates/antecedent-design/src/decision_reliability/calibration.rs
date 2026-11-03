@@ -1,13 +1,13 @@
-//! Calibration coordinates, licensed routes and the known-optimum simulation design.
+//! Calibration coordinates, supported routes and the known-optimum simulation design.
 //!
 //! A ranking or optimality probability, or an interval for a selected decision, is a
 //! claim about the *whole procedure*: the candidate-set size, the Monte Carlo budget and
 //! the selection rule together. Component Monte Carlo error alone does not cover the
-//! selected decision. A route is licensed at a coordinate exactly when a current,
+//! selected decision. A route is supported at a coordinate exactly when a current,
 //! attesting, non-boundary coverage record measured that construction and the
-//! coordinate lies inside the range it measured ([`license_route_at`] resolves the
+//! coordinate lies inside the range it measured ([`support_route_at`] resolves the
 //! record through the shipped coverage table). At any other coordinate the route is
-//! closed with a typed `cell_not_licensed` refusal and only point diagnostics are
+//! closed with a typed `not_supported` refusal and only point diagnostics are
 //! published.
 //!
 //! [`KnownOptimumDesign`] is the data-generating process the measurement uses: a
@@ -148,11 +148,11 @@ pub struct ClosedRoute {
 
 /// Query axis name every decision-reliability coverage record carries.
 pub const RECORD_QUERY: &str = "DecisionReliability";
-/// Nominal level [`license_route`] resolves at.
-pub const DEFAULT_LICENSE_LEVEL: f64 = 0.95;
+/// Nominal level [`support_route`] resolves at.
+pub const DEFAULT_SUPPORT_LEVEL: f64 = 0.95;
 
 impl PublishedRoute {
-    /// Estimator label and interval method of the record that licenses the route.
+    /// Estimator label and interval method of the record that supports the route.
     #[must_use]
     pub const fn record_construction(self) -> (&'static str, &'static str) {
         match self {
@@ -172,7 +172,7 @@ impl PublishedRoute {
 
 /// Candidate-set size bands a coverage record is keyed by, inclusive on both ends.
 ///
-/// A record measured at several sizes inside a band licenses every size of the band,
+/// A record measured at several sizes inside a band supports every size of the band,
 /// and only because each size visited passed; a size above the last band has no
 /// record and is closed. The width of a band is what the measurement has to visit: a
 /// selection correction grows with the logarithm of the count, and the best-candidate
@@ -225,7 +225,7 @@ pub fn calibration_basis(
 }
 
 /// The basis under the key of records that measured one exact candidate count. Such a
-/// record licenses exactly that count; a measurement now keys by band
+/// record supports exactly that count; a measurement now keys by band
 /// ([`calibration_basis`]).
 fn exact_count_basis(
     route: PublishedRoute,
@@ -279,42 +279,42 @@ fn basis_with_functional(
     })
 }
 
-/// Ask for a published route at a coordinate, at [`DEFAULT_LICENSE_LEVEL`].
+/// Ask for a published route at a coordinate, at [`DEFAULT_SUPPORT_LEVEL`].
 ///
 /// # Errors
-/// [`ReliabilityError::CellNotLicensed`] unless a coverage record measured this route
+/// [`ReliabilityError::NotSupported`] unless a coverage record measured this route
 /// at this coordinate.
-pub fn license_route(
+pub fn support_route(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
 ) -> Result<(), ReliabilityError> {
-    license_route_at(route, coordinate, DEFAULT_LICENSE_LEVEL)
+    support_route_at(route, coordinate, DEFAULT_SUPPORT_LEVEL)
 }
 
 /// Ask for a published route at a coordinate and nominal level.
 ///
-/// The route is licensed only when the shipped coverage table holds a current,
+/// The route is supported only when the shipped coverage table holds a current,
 /// attesting, non-boundary record whose construction equals [`calibration_basis`] (or,
 /// for a record measured at one exact count, that count) and whose measured sample-size
 /// range contains the coordinate's Monte Carlo budget.
 /// Nothing a caller passes can open a route.
 ///
 /// # Errors
-/// [`ReliabilityError::CellNotLicensed`] for every other coordinate.
-pub fn license_route_at(
+/// [`ReliabilityError::NotSupported`] for every other coordinate.
+pub fn support_route_at(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
     level: f64,
 ) -> Result<(), ReliabilityError> {
-    let licensed =
+    let supported =
         [calibration_basis(route, coordinate, level), exact_count_basis(route, coordinate, level)]
             .into_iter()
             .flatten()
             .any(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
-    if licensed {
+    if supported {
         Ok(())
     } else {
-        Err(ReliabilityError::CellNotLicensed {
+        Err(ReliabilityError::NotSupported {
             route: route.as_str(),
             coordinate: coordinate.describe(),
         })
@@ -326,11 +326,11 @@ pub fn license_route_at(
 pub fn closed_routes(coordinate: &CalibrationCoordinate) -> Vec<ClosedRoute> {
     PublishedRoute::ALL
         .into_iter()
-        .filter(|&route| license_route(route, coordinate).is_err())
+        .filter(|&route| support_route(route, coordinate).is_err())
         .map(|route| ClosedRoute {
             route,
             coordinate: coordinate.describe(),
-            code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+            code: antecedent_core::reason_code!("not_supported").to_owned(),
             remedy: "point diagnostics only: a coverage record at this candidate-set size, \
                      Monte Carlo budget and selection rule would be needed"
                 .to_owned(),

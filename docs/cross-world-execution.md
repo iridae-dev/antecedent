@@ -38,7 +38,7 @@ the declaration that would open it; it is not a cache miss.
 | fixed-population two-slice temporal counterfactual | executed, staged with abduction reuse |
 | fixed-population temporal counterfactual, any horizon and any number of named action histories | executed, staged with abduction reuse (`GeneralTemporalExecutor`); sealed as `temporal_counterfactual_general_v1`. The two-slice, two-history route keeps its stable `temporal_counterfactual_v1` layout |
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
-| transported cross-world execution | closed: `cell_not_licensed`, prerequisites named |
+| transported cross-world execution | closed: `not_supported`, prerequisites named |
 | latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
 | declared model whose joint exogenous space exceeds the enumeration bound | executed by exact variable elimination (`exogenous_method = variable_elimination`); `route_not_supported` (`cross_world_execution.elimination_bound_exceeded`) only when the elimination order needs a table above its bound |
 | incompatible history, soft interventions, fitting a finite SCM from data | closed |
@@ -111,7 +111,7 @@ Bounds (registered in `parity/limits.toml`):
 
 Every result is `point_only` from an exact computation (enumeration or variable elimination) on a declared model; model
 adequacy is a premise, not a check. A posterior reading and a sampled posterior
-(`ExogenousInference::PosteriorSampling`) are closed with `cell_not_licensed`:
+(`ExogenousInference::PosteriorSampling`) are closed with `not_supported`:
 the mechanisms are declared and the exogenous posterior is enumerated exactly, so
 there is no parameter uncertainty a posterior could describe, and sampling only
 adds Monte Carlo error to an exact value. The unqualified `interval()` is closed.
@@ -125,10 +125,10 @@ sampling from the derived whole-path spread:
 | `fixed_units` | the mean of the realized counterfactual outcomes of these units | `sum v_i / n^2` |
 
 Both are normal intervals at 0.95, are conditional on the declared mechanisms
-being the truth, and are licensed only by a currently attesting whole-path
+being the truth, and are supported only by a currently attesting whole-path
 coverage record for the model class (at most three variables of two to four
 levels, exact enumeration, the mechanisms' own population), the quantity, the unit
-sampling and the unit count; otherwise they refuse with `cell_not_licensed`.
+sampling and the unit count; otherwise they refuse with `not_supported`.
 
 Measured design (`cross_world_interval_calibration.rs`): response-type finite
 Markovian SCMs with unit-level evidence of the observed treatment and outcome, the

@@ -2,7 +2,7 @@
 //!
 //! The section is optional on the result body and absent on every other result, so their bodies
 //! and digests are unchanged. A `TemporalDesign` query requires it. A loader checks that the
-//! section's design is the query's, that it claims no licence or calibration and publishes no
+//! section's design is the query's, that it claims no support or calibration and publishes no
 //! scalar interval beside it, that every coordinate array is aligned and finite, that each
 //! pointwise interval is ordered, that a band names coordinates in range and contains their
 //! pointwise intervals, and that Holm-adjusted p-values are probabilities.
@@ -18,7 +18,7 @@ use crate::{CausalQueryWire, IoError};
 /// Relative slack of the covariance's symmetry and Cauchy-Schwarz checks.
 const COVARIANCE_SLACK: f64 = 1e-9;
 
-/// A temporal-design result with its uncertainty (unlicensed, calibration unmeasured).
+/// A temporal-design result with its uncertainty (unsupported, calibration unmeasured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TemporalDesignWire {
@@ -77,7 +77,7 @@ pub struct TemporalDesignWire {
     /// Always `unmeasured`.
     pub calibration: String,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 /// Check a temporal-design section against its query.
@@ -98,13 +98,13 @@ pub(in crate::analysis_result_artifact) fn validate_temporal_design(
     if section.design != query.design_name() {
         return fail("the design does not belong to the query");
     }
-    if section.licensed
+    if section.supported
         || section.calibration != "unmeasured"
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
     {
-        return fail("a temporal-design result claims no licence, calibration or scalar interval");
+        return fail("a temporal-design result claims no support, calibration or scalar interval");
     }
     let k = section.coordinates.len();
     if k == 0

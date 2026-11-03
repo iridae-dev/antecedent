@@ -218,7 +218,7 @@ def test_evaluate_response_grid_retains_local_failures_after_builder_disposal(st
 def test_statistical_grid_paired_contrast_and_catalog_permutation():
     _, identified, catalog, data = fixture(statistical=True)
     # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
-    # fewer replicates run cleanly but withhold the contrast interval as unlicensed.
+    # fewer replicates run cleanly but withhold the contrast interval as unsupported.
     result = grid_result(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7)
     assert (
         result.points[0]["uncertainty"]["replicate_ids"]
@@ -504,7 +504,7 @@ def test_prepare_response_grid_retains_family_plan_after_builder_disposal():
 
 def calibration_case(seed, parameter=0, bootstrap=40):
     # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
-    # fewer replicates run cleanly but withhold the contrast interval as unlicensed.
+    # fewer replicates run cleanly but withhold the contrast interval as unsupported.
     """Reproducible unequal-size Bernoulli arms; exact means follow by total probability."""
     import random
 

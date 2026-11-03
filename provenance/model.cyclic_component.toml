@@ -38,4 +38,4 @@ record_sha256 = "fa4f82e783953ea5e0080dabce8e1d8d057748fb05163c4dd4a5d3213b6f864
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/cyclic_component.rs"
-sha256 = "f7c6c6d1d503f27fd4e9d3d44ad1ab32dcbfd04ce7b9d1d8214118b6f507625c"
+sha256 = "ec70412a376a3975ddf7dcfc0d5e7c285ad9944acc2db37c2f924014cbeb86b4"

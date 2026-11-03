@@ -14,7 +14,7 @@ Registered external cyclic mechanisms follow the same untrusted-input rule; see
 * A **provider** (trusted to be run, not to be correct) returns hostile values,
   fails, hangs, cancels, changes hidden state or has side effects.
 * **Metadata** claims authority it does not have: native trust, a joint law,
-  an identification licence, an interval.
+  an identification evidence, an interval.
 
 Out of scope here: the isolation of a provider that is supplied as a closure in
 the host process. A closure runs with the host's authority; this library does
@@ -52,7 +52,7 @@ decoding. There is no new JSON, no new text parser and no new foreign format.
 
 | Entry point | What it reads | Bounds applied before the payload is interpreted | Checks after decode |
 | --- | --- | --- | --- |
-| `CallbackResultArtifact::from_bytes`, `::inspect`, `::from_meta` (facade: `consume_callback_result`, `inspect_callback_result`, `CallbackSession::resume`) | `callback_result_v1` container: section `callback_result_meta` (CBOR) and `callback_result_values` (bytes) | Total bytes at most 24 MiB (`MAX_CALLBACK_RESULT_ARTIFACT_BYTES`); the container checks the declared uncompressed sections against it; exactly two sections with fixed ids; `values` length a multiple of 8 and at most 1,000,001 words (8 MB) | Version and feature marker; no required features; unknown fields refused by `deny_unknown_fields`; every collection bound below; declaration validated (`CallbackDeclaration::validate`); stored contract equals the declaration's own projection; query validated; output re-validated by `validate_output` against the declared support; declaration, request, output and artifact identities recomputed; a stored `native_licensed` trust refused |
+| `CallbackResultArtifact::from_bytes`, `::inspect`, `::from_meta` (facade: `consume_callback_result`, `inspect_callback_result`, `CallbackSession::resume`) | `callback_result_v1` container: section `callback_result_meta` (CBOR) and `callback_result_values` (bytes) | Total bytes at most 24 MiB (`MAX_CALLBACK_RESULT_ARTIFACT_BYTES`); the container checks the declared uncompressed sections against it; exactly two sections with fixed ids; `values` length a multiple of 8 and at most 1,000,001 words (8 MB) | Version and feature marker; no required features; unknown fields refused by `deny_unknown_fields`; every collection bound below; declaration validated (`CallbackDeclaration::validate`); stored contract equals the declaration's own projection; query validated; output re-validated by `validate_output` against the declared support; declaration, request, output and artifact identities recomputed; a stored `native_supported` trust refused |
 | `contract_from_wire` (existing, reused for the embedded interface contract) | `ContractWire` inside the meta map | At most 256 produced and 256 consumed ports; at most 1024 items per port set; at most 8 operations; sorted and distinct names | Quantity, support and uncertainty vocabularies; identity recomputed |
 | `ScientificQuantityWire` → `ScientificQuantity` (existing, reused for the update observation) | One quantity | Quantity validation | Role vocabulary; non-blank coordinates; canonical conditioning |
 
@@ -101,9 +101,9 @@ item: trailing bytes are refused.
 * **Panics and aborts** of a provider closure are not caught: the library does
   not run a provider on a thread it can discard.
 * **Metadata cannot mint authority.** There is no native trust level in the
-  declaration type; a decoded `native_licensed` is refused; a declared
+  declaration type; a decoded `native_supported` is refused; a declared
   verification is believed only against the receipt it names and covers; a
-  callback result is never an identification licence, joint law or interval.
+  callback result is never an identification evidence, joint law or interval.
 
 ## Residual risks
 

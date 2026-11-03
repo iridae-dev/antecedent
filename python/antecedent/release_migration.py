@@ -93,7 +93,7 @@ class MethodAssignment:
     status: str
     axes: tuple[str, ...]
     narrowed: bool
-    """The previous route was licensed and this method is not."""
+    """The previous route was supported and this method is not."""
 
 
 @dataclass(frozen=True)
@@ -109,7 +109,7 @@ class RouteRecordMigration:
     methods: tuple[MethodAssignment, ...] = ()
     unserved_axes: tuple[str, ...] = ()
     kind: str | None = None
-    unlicensed_methods: tuple[str, ...] = ()
+    unsupported_methods: tuple[str, ...] = ()
     message: str | None = None
 
     @property
@@ -193,7 +193,7 @@ def consume_previous_route_records(
             else (),
             unserved_axes=tuple(row.get("unserved_axes", ())),
             kind=row.get("kind"),
-            unlicensed_methods=tuple(row.get("unlicensed_methods", ())),
+            unsupported_methods=tuple(row.get("unsupported_methods", ())),
             message=row.get("message"),
         )
         for row in rows

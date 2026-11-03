@@ -81,7 +81,7 @@ class DependencyFacets(unittest.TestCase):
         self.assertNotIn("estimate_discovered_transport", code)
         self.assertNotIn("TemporalAlgorithm", code)
 
-    def test_shared_plus_helpers_are_not_licensed_by_plain_pcmci_identity(self):
+    def test_shared_plus_helpers_are_not_supported_by_plain_pcmci_identity(self):
         for name in ("pcmci_plus", "jpcmci", "rpcmci", "orientation_stability"):
             for field in ("estimator", "functional"):
                 self.assertIn(

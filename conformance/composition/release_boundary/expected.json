@@ -41,10 +41,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/composition_release_fixture.rs",
-          "sha256": "8af7341a8e39d349806c42299380286e26d6c7ef920dad854788e0ce1e314dd4"
+          "sha256": "373730e9bca14ed310d65dc0bf26a099a8e8db4d275189c9ff9da644f4263040"
         }
       ],
-      "fixture_payload_sha256": "846c3d92933177ef90f9c9a9476fff2ea80b15b5babfca7abb52674e63cfdc06"
+      "fixture_payload_sha256": "4b1ef2619bd1e570b16358803a46e1b26d0b9830384cc2e52bbcc3813bd1ea5d"
     }
   },
   "scenario": {
@@ -202,7 +202,7 @@
       "detail": "composition_verification.recompute_required"
     },
     "withdrawal": {
-      "code": "claim_license_withdrawn",
+      "code": "claim_support_withdrawn",
       "detail": "composition_verification.input_retired"
     },
     "dependence_gap_ledger": {
@@ -222,7 +222,7 @@
       "detail": "joint_law_propagation.shared_evidence_declared_independent"
     },
     "interval": {
-      "code": "cell_not_licensed"
+      "code": "not_supported"
     }
   },
   "calibration": "unmeasured",

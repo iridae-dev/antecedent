@@ -1,4 +1,4 @@
-//! The unlicensed Bayesian counterparts of the randomized survival and fixed group-dose policy
+//! The unsupported Bayesian counterparts of the randomized survival and fixed group-dose policy
 //! routes, through the public `Study` / `PreparedStudy` flow.
 //!
 //! Each posterior answers the same target as the frequentist row on the same coordinate and
@@ -9,7 +9,7 @@
 //! rows; the dose-policy posterior against the per-group ridge posterior of numpy with scipy
 //! window quadrature and, on a long fixture, against the frequentist kernel estimate. The
 //! retained joint draws, the contracted artifact and its tamper refusals are exercised, and
-//! every refusal names its next attempt. None of these routes is licensed.
+//! every refusal names its next attempt. None of these routes is supported.
 #![allow(
     clippy::float_cmp,
     clippy::needless_range_loop,
@@ -119,7 +119,7 @@ fn survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws()
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.piecewise_survival");
     assert_eq!((row.uncertainty.as_str(), row.calibration.as_str()), ("posterior", "unmeasured"));
-    assert!(!row.licensed);
+    assert!(!row.supported);
     assert_eq!(row.coordinates, ["survival_difference", "rmst_difference"]);
     // Events and exposure by hand; Gamma(1, 1) updates are shape 1 + events, rate 1 + exposure.
     assert_eq!(row.vectors["control_events"], [2.0, 1.0, 1.0]);
@@ -205,25 +205,25 @@ fn survival_posterior_artifact_round_trips_and_refuses_forgeries() {
             "forged-posterior-row",
         )
     };
-    let mut licensed = body.clone();
-    licensed.posterior_row.as_mut().unwrap().licensed = true;
+    let mut supported = body.clone();
+    supported.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
-        encode(&licensed),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
-        "licensed",
+        encode(&supported),
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "supported",
     );
     let mut calibrated = body.clone();
     calibrated.posterior_row.as_mut().unwrap().calibration = "measured".into();
     assert_refused(
         encode(&calibrated),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
         "calibrated",
     );
     let mut misaligned = body.clone();
     misaligned.posterior_row.as_mut().unwrap().covariance = Some(vec![0.0; 3]);
     assert_refused(
         encode(&misaligned),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
         "misaligned",
     );
     let mut inverted = body.clone();
@@ -231,7 +231,7 @@ fn survival_posterior_artifact_round_trips_and_refuses_forgeries() {
     std::mem::swap(&mut row.lower, &mut row.upper);
     assert_refused(
         encode(&inverted),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
         "inverted",
     );
     let mut without_posterior = body.clone();
@@ -395,7 +395,7 @@ fn dose_policy_posterior_matches_the_per_group_conjugate_reference() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.continuous_dose_policy"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.continuous_dose_policy");
-    assert!(!row.licensed);
+    assert!(!row.supported);
     assert_eq!(row.coordinates, ["policy_value", "reference_value", "incremental_value"]);
     // Per-group ridge posteriors from numpy and scipy adaptive quadrature of the window
     // average (not the Gauss-Legendre rule the implementation uses).
@@ -477,11 +477,11 @@ fn dose_policy_artifact_round_trips_and_refuses_forgeries() {
     assert_eq!(body.posterior_row.as_ref(), result.posterior_row());
     assert!(body.continuous_dose_response.is_none() && body.posterior_artifact.is_some());
     let mut forged = body.clone();
-    forged.posterior_row.as_mut().unwrap().licensed = true;
+    forged.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
         antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names.clone(), "x"),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
-        "licensed",
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "supported",
     );
     let mut missing = body;
     missing.posterior_row = None;
@@ -605,7 +605,7 @@ fn quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.randomized_quantile"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.randomized_quantile");
-    assert!(!row.licensed && row.calibration == "unmeasured");
+    assert!(!row.supported && row.calibration == "unmeasured");
     assert_eq!(row.coordinates, ["control_quantile", "treated_quantile", "quantile_difference"]);
     // Bin counts by hand (control 0,2,3,3,2,2,0; treated 0,1,2,3,3,3,0) under a 0.5 prior per
     // bin give total mass 15.5 and these cumulative masses at the grid.
@@ -662,12 +662,12 @@ fn quantile_posterior_artifact_round_trips_and_refuses_forgeries() {
     let encode = |wire: &antecedent_io::AnalysisResultWire| {
         antecedent_io::encode_analysis_result_artifact(wire, header.variable_names.clone(), "x")
     };
-    let mut licensed = body.clone();
-    licensed.posterior_row.as_mut().unwrap().licensed = true;
+    let mut supported = body.clone();
+    supported.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
-        encode(&licensed),
-        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
-        "licensed",
+        encode(&supported),
+        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "supported",
     );
     let mut foreign = body.clone();
     foreign.posterior_row.as_mut().unwrap().estimator = "bayesian.piecewise_survival".into();

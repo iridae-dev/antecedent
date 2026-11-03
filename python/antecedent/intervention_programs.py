@@ -18,10 +18,10 @@ validates it, compiles it once and runs the same executor on every route -- forw
 (:func:`sample_temporal_policy`), plus its replay over a factual panel
 (:func:`counterfactual_temporal_policy`).
 
-The licence of each route for a program is reported by :func:`policy_support` (simulation,
+The support of each route for a program is reported by :func:`policy_support` (simulation,
 counterfactual execution and observational identification, each with the reason code of a refusal
-or the assumption of a conditional licence), :func:`policy_value` runs the program against the
-unintervened model on the same noise, and :class:`PreparedPolicy` compiles and licenses a
+or the assumption of a conditional support), :func:`policy_value` runs the program against the
+unintervened model on the same noise, and :class:`PreparedPolicy` compiles and supports a
 program once for any number of runs; the practitioner handle (:class:`PolicyProgramValue` through
 ``antecedent.prepare``) is the same retained program reached from data and a graph. Identification routes cannot take a transform or a computed
 assignment (its interventional law is not a point mass), so those stay model-based: the values
@@ -541,14 +541,14 @@ def consume_policy_program(
 
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
-    """One route's licence for a program.
+    """One route's support for a program.
 
-    ``licensed`` with an ``assumption`` is a conditional licence (counterfactual execution of a
+    ``supported`` with an ``assumption`` is a conditional support (counterfactual execution of a
     callback assumes it is a function of its declared inputs). A refusal carries the registered
     ``reason_code``, a namespaced ``detail`` and the full ``message``.
     """
 
-    licensed: bool
+    supported: bool
     assumption: str | None
     reason_code: str | None
     detail: str | None
@@ -557,7 +557,7 @@ class RouteDecision:
 
 @dataclass(frozen=True, slots=True)
 class PolicySupport:
-    """The licence of each execution route for one program."""
+    """The support of each execution route for one program."""
 
     simulation: RouteDecision
     counterfactual: RouteDecision
@@ -601,11 +601,11 @@ def _support(fields: Mapping[str, Mapping[str, Any]]) -> PolicySupport:
 
 
 def policy_support(fitted: FittedGcm, programs: Sequence[Program]) -> PolicySupport:
-    """The licence of each route for ``programs`` on ``fitted``, before anything runs.
+    """The support of each route for ``programs`` on ``fitted``, before anything runs.
 
     A refusal on a route names its registered reason code; for example a transform of the
-    generated value is licensed for simulation and counterfactual execution and refused for
-    observational identification with ``policy_route_not_licensed``.
+    generated value is supported for simulation and counterfactual execution and refused for
+    observational identification with ``policy_route_not_supported``.
     """
     return _support(_native.policy_support(native_gcm(fitted), _text(programs)))
 
@@ -638,11 +638,11 @@ def _value(fields: Mapping[str, Any]) -> PolicyValueResult:
 
 
 class PreparedPolicy:
-    """A program compiled and licensed once against one fitted model.
+    """A program compiled and supported once against one fitted model.
 
     Every run reuses the prepared program: :meth:`sample`, :meth:`counterfactual` and
     :meth:`value` are the library's executor on the same program, and equal the one-shot
-    :func:`sample_policy`, :func:`counterfactual_policy` and :func:`policy_value`. The licence is
+    :func:`sample_policy`, :func:`counterfactual_policy` and :func:`policy_value`. The support is
     fixed at preparation (:attr:`support`) and the program's identity is the one
     :func:`policy_program_identity` reports (``None`` for a program that cannot leave the
     process).
@@ -660,7 +660,7 @@ class PreparedPolicy:
 
     @property
     def support(self) -> PolicySupport:
-        """The licence of each route, fixed at preparation."""
+        """The support of each route, fixed at preparation."""
         return _support(self._native.support())
 
     @property
@@ -675,13 +675,13 @@ class PreparedPolicy:
 
     @property
     def model_bindings(self) -> int:
-        """How many fitted models the program's overlay and licence were resolved against."""
+        """How many fitted models the program's overlay and support were resolved against."""
         return int(self._native.model_bindings)
 
     def rebind(self, fitted: FittedGcm) -> PreparedPolicy:
         """The same program bound to another fitted model over the same variables.
 
-        For a model refitted on refreshed data: the overlay and the licence are resolved against
+        For a model refitted on refreshed data: the overlay and the support are resolved against
         ``fitted``; the program is not compiled again (:attr:`program_compilations` is
         unchanged, :attr:`model_bindings` grows by one).
         """
@@ -710,7 +710,7 @@ class PreparedPolicy:
 
 
 def prepare_policy(fitted: FittedGcm, programs: Sequence[Program]) -> PreparedPolicy:
-    """Compile and license ``programs`` once on ``fitted``; see :class:`PreparedPolicy`."""
+    """Compile and support ``programs`` once on ``fitted``; see :class:`PreparedPolicy`."""
     return PreparedPolicy(fitted, programs)
 
 
@@ -721,7 +721,7 @@ class PolicyProgramValue:
     The question ``antecedent.prepare(data, query=..., graph=...)`` takes to answer a policy
     question through the retained handle: the model is fitted on ``data`` along ``graph`` once
     (``candidates`` / ``constraints`` / ``splits`` / ``purge`` are :func:`antecedent.model.fit_gcm`
-    options), the program is compiled and licensed against it once, and every ``estimate`` /
+    options), the program is compiled and supported against it once, and every ``estimate`` /
     ``refresh`` reruns :func:`policy_value` on ``n_draws`` draws without compiling the program
     again. The value is model-based: only its simulation error is quantified.
     """
@@ -758,9 +758,9 @@ class PolicyProgramValue:
 class PolicyContract:
     """What a policy value rests on: the route it ran on and every assumption it needs.
 
-    ``route`` is the licence the value was produced under (``"simulation"``); the licence of the
+    ``route`` is the support the value was produced under (``"simulation"``); the support of the
     other routes is in :attr:`PolicyProgramResult.support`. ``assumptions`` are the structural
-    assumptions of a model-based value plus the conditional licences of the route (for example a
+    assumptions of a model-based value plus the conditional supports of the route (for example a
     callback's), ``mechanisms`` the fitted family of each variable, and ``model_uncertainty`` is
     ``"unquantified"`` (not zero): the fitted parameters are taken as exact.
     """
@@ -777,7 +777,7 @@ class PolicyPreparation:
     """What the retained handle has done: the receipt that a rerun compiled nothing.
 
     ``program_compilations`` stays 1 however many runs and refreshes follow; ``model_bindings``
-    counts the fitted models the compiled overlay and licence were resolved against (one more per
+    counts the fitted models the compiled overlay and support were resolved against (one more per
     refresh); ``runs`` counts the executions of the value.
     """
 
@@ -788,11 +788,11 @@ class PolicyPreparation:
 
 @dataclass(frozen=True, slots=True, repr=False)
 class PolicyProgramResult(ScientificResult):
-    """One run of the prepared policy question: the value, its licence, contract and provenance.
+    """One run of the prepared policy question: the value, its support, contract and provenance.
 
     ``value`` equals, bit for bit, :func:`policy_value` on the same fitted model, program and
     seed; ``support`` is the decision of each route (simulation, counterfactual execution,
-    observational identification) with the assumption of a conditional licence or the reason code
+    observational identification) with the assumption of a conditional support or the reason code
     of a refusal.
     """
 
@@ -828,7 +828,7 @@ class PolicyProgramResult(ScientificResult):
             identification=SlotModel(available=True, summary="model-based policy value"),
             support=SlotModel(
                 available=True,
-                summary="simulation route licensed",
+                summary="simulation route supported",
                 payload={"support": self.support},
             ),
             uncertainty=SlotModel(
@@ -865,7 +865,7 @@ class PolicyProgramResult(ScientificResult):
 
     @property
     def support(self) -> PolicySupport:
-        """The licence of each route for the program."""
+        """The support of each route for the program."""
         return self.value.support
 
     @property

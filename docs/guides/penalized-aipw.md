@@ -45,7 +45,7 @@ coverage records.
 - **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other
   functionals, other target populations and trimmed fits refit full-sample nuisances and
   are refused: `route_not_supported` (`penalized_propensity.scope`) for ridge, and
-  `selection_inference_not_licensed` (`penalized_propensity.selection_closed`) for a lasso,
+  `selection_inference_not_supported` (`penalized_propensity.selection_closed`) for a lasso,
   because a full-sample lasso would select its support on the rows it scores.
 - **Folds.** Five folds from the established seeded, arm-stratified, unit-level plan
   (`fold_seed` is the analysis seed); duplicated rows of one unit share a fold. Fold `k`'s
@@ -198,7 +198,7 @@ adjustment variable ids, and the count) in `penalized_support`, in the table's
 `selected_support=` provenance and in the estimate. The interval is the cross-fitted
 influence-function SE or the refit bootstrap above under (RC). A lasso outside the
 cross-fitted untrimmed `AllObserved` mean ATE is refused with
-`selection_inference_not_licensed`. Where the plain logistic has no maximizer (complete
+`selection_inference_not_supported`. Where the plain logistic has no maximizer (complete
 separation), the L1-penalized objective still has a finite minimizer, so the lasso fits.
 
 ## GLM-to-penalized fallback
@@ -223,11 +223,11 @@ is counted rather than replaced. A fallback is refused beside a declared penalty
 (`invalid_argument`, `penalized_propensity.fallback_with_penalty`): it replaces a failed GLM
 fit, and a penalized primary is not one. On the full-sample routes (trimmed, ATT/ATC,
 predicate) there is no fallback; a failed fit there is recorded in the refusal
-(`nuisance_fallback_not_licensed`).
+(`nuisance_fallback_not_supported`).
 
 `nuisance_fallback="ml"` (a flexible learner) stays closed: its destination has no
-cross-fitted support or uncertainty license, so a failed GLM fit is refused with
-`nuisance_fallback_not_licensed` and the failed fit recorded, and nothing is silently
+cross-fitted support or uncertainty support, so a failed GLM fit is refused with
+`nuisance_fallback_not_supported` and the failed fit recorded, and nothing is silently
 substituted. The fallback is never chosen after seeing a favorable result: it is declared in
 advance and triggered only by a fit failure.
 
@@ -238,8 +238,8 @@ advance and triggered only by a fit failure.
 | `invalid_argument` | `penalized_propensity.invalid_penalty` | empty grid, non-positive or non-finite penalty, or fewer than two inner folds; the fold plan separately enforces its row-count and index-representation limits |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
-| `selection_inference_not_licensed` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
-| `nuisance_fallback_not_licensed` | `penalized_propensity.fallback_closed` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
+| `selection_inference_not_supported` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
+| `nuisance_fallback_not_supported` | `penalized_propensity.fallback_closed` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
 | `cancelled_no_claim` | `penalized_propensity.cancelled` | penalty selection was cancelled; no estimate is reported |
 
 Selection observes cancellation once per penalty of every outer fold, so a cancel is seen
@@ -249,7 +249,7 @@ cancelled bootstrap reports the stop and publishes no SE.
 ## Calibration
 
 The four 95% ridge/lasso analytic and refit-bootstrap coverage records are measured and
-licensed at their exact calibration coordinates. The coverage tests in
+supported at their exact calibration coordinates. The coverage tests in
 `crates/antecedent-estimate/src/calibration_coverage.rs` and the binding check in
 `crates/antecedent/tests/calibration_binding.rs` confirm that each record's nuisance label
 and interval method match the public facade.
@@ -269,7 +269,7 @@ guard, not a record.
 
 ## What these records do not measure
 
-No coverage record licenses the fallback interval. The estimate is a point under the identification assumptions of the
+No coverage record supports the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.
 

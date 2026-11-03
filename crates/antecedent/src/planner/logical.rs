@@ -828,7 +828,7 @@ pub(crate) fn compile_logical_temporal_response(
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate()?;
-    query.require_licensed_temporal_observation()?;
+    query.require_supported_temporal_observation()?;
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;

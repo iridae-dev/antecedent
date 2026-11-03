@@ -12,7 +12,7 @@ papers = [
 implementation_deviations = [
  "Requires already-binned or ordinal integer codes. It does not discretize continuous variables.",
  "Reports a permutation p-value (Y shuffled within exact Z-symbol strata), not the paper's asymptotic chi-square reference distribution.",
- "Blocked permutation is licensed only when Z is empty. A requested block size with nonempty Z refuses.",
+ "Blocked permutation is supported only when Z is empty. A requested block size with nonempty Z refuses.",
  "When no Z stratum varies in both X and Y the permutation null reproduces the observed statistic in every replicate; the test refuses instead of reporting p = 1.",
  "Without an explicit replicate count the permutation null uses 49 draws (smallest attainable p-value 0.02).",
 ]
@@ -33,7 +33,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Six tables of 8 to 9 rows (binary, ternary, negative and large symbol values, two strata, a singleton stratum) for the symbolic statistic with the exact enumeration of every within-stratum arrangement, and three hypergeometric 2x2 tables of 20 to 24 rows for the G-squared permutation null. The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 to 0.02 would not be detected; ties are the target. The statistic is asserted to 1e-12. Larger tables are not enumerated; the sparse-table G-squared guard prevents small tables from being used for G-squared. The reference script is not run in a locked, isolated environment and is not wired into any gate."
 sources = ["https://doi.org/10.1214/aoms/1177732360", "https://mpmath.org/"]
 findings_resolved = ["Defect repaired: the permutation null counted a permuted statistic only when it was at least the observed one in floating point. A permuted table that is a relabeling or transposition of the observed count table has the same statistic as a real number but sums its terms in a different order, so the two differed in the last bits and the tie counted for or against at random; on an 8-row balanced binary table the p-value was 0.254 against an exact 0.486 and a Monte Carlo expectation of 0.486 (the tie class is about half the null). The comparison now allows a relative slack of 1e-12 (null_reaches_observed), shared with the G-squared permutation null, which had the same defect (0.0226 against an exact 0.0391 on a 24-row table in which [[9,3],[3,9]] and its mirror tie).", "The statistic equals the 60-digit plug-in mutual information on every table, with singleton strata excluded from the weights, and the p-value equals the exactly enumerated null on all six tables."]
-record_sha256 = "7a80a418f27af3c98e7dc769829316a7b2c15ce1c35b260aa2034ebe5278fae7"
+record_sha256 = "1f97ebf91d38f80c91bb069f6eb39db54cbcc9559a4699412c11c46fd9c301e5"
 
 [[method_review.artifacts]]
 role = "implementation"

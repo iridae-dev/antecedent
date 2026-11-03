@@ -263,7 +263,7 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
 }
 
 #[test]
-fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
+fn supported_survival_scalar_intervals_round_trip_and_refuse_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -293,12 +293,12 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_survival_scalar_intervals_round",
+        "supported_survival_scalar_intervals_round",
         &prepared,
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [120, 120]);
     // Control: i % 3 == 0 gives 40 of 120 failures at time 1; treated: i % 7 == 0 gives 18 of 120.
@@ -307,11 +307,11 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.difference_band.is_none());
-    let encoded = prepared.encode_contracted_result(&result, "licensed-survival", &ctx).unwrap();
+    let encoded = prepared.encode_contracted_result(&result, "supported-survival", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(
         body.survival.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body.clone();
     forged.survival.as_mut().unwrap().assignment_counts = Some([119, 121]);
@@ -354,12 +354,12 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
     assert!(off_axis.support_status().is_none());
     let encoded = prepared.encode_contracted_result(&off_axis, "entry-off-axis", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
-    body.survival.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    body.survival.as_mut().unwrap().graphless_support_status = Some("supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-entry-license",
+            "forged-entry-support",
         )
         .is_err()
     );
@@ -625,7 +625,7 @@ fn simultaneous_band_withholds_small_arms_without_erasing_scalar_interval() {
 }
 
 #[test]
-fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
+fn supported_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -669,12 +669,12 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_delayed_entry_survival_interval",
+        "supported_delayed_entry_survival_interval",
         &prepared,
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     assert!(curve.bootstrap_replicates_ok.unwrap() >= 299);
@@ -682,11 +682,11 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.difference_band.is_none());
     let encoded =
-        prepared.encode_contracted_result(&result, "licensed-delayed-entry", &ctx).unwrap();
+        prepared.encode_contracted_result(&result, "supported-delayed-entry", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(
         body.survival.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body.clone();
     forged.survival.as_mut().unwrap().assignment_counts = Some([120, 120]);
@@ -711,7 +711,7 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
 }
 
 #[test]
-fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
+fn supported_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -756,12 +756,12 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_fixed_g_ipcw_survival_intervals",
+        "supported_fixed_g_ipcw_survival_intervals",
         &prepared,
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     // A constant censoring survival cancels in the normalised weights, so the curve is the
@@ -774,11 +774,11 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.difference_band.is_none());
-    let encoded = prepared.encode_contracted_result(&result, "licensed-fixed-g", &ctx).unwrap();
+    let encoded = prepared.encode_contracted_result(&result, "supported-fixed-g", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(
         body.survival.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body.clone();
     forged.survival.as_mut().unwrap().graphless_support_status = None;
@@ -786,7 +786,7 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
         antecedent_io::encode_analysis_result_artifact(
             &forged,
             header.variable_names.clone(),
-            "forged-drop-license",
+            "forged-drop-support",
         )
         .is_err()
     );
@@ -803,7 +803,7 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
 }
 
 #[test]
-fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forgery() {
+fn supported_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -865,23 +865,24 @@ fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forge
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_delayed_entry_fixed_g_survival_",
+        "supported_delayed_entry_fixed_g_survival_",
         &prepared,
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [210, 210]);
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.difference_band.is_none());
-    let encoded =
-        prepared.encode_contracted_result(&result, "licensed-delayed-entry-fixed-g", &ctx).unwrap();
+    let encoded = prepared
+        .encode_contracted_result(&result, "supported-delayed-entry-fixed-g", &ctx)
+        .unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(
         body.survival.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body;
     forged.survival.as_mut().unwrap().assignment_counts = Some([160, 160]);
@@ -896,7 +897,7 @@ fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forge
 }
 
 #[test]
-fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
+fn supported_survival_difference_band_round_trips_and_refuses_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -932,19 +933,19 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_survival_difference_band_round_",
+        "supported_survival_difference_band_round_",
         &prepared,
         &result,
         &ctx,
     );
     // Only 100 subjects per arm: the scalar row needs 120, so the scalar route
-    // is off-axis while the band's own 80-per-arm license applies.
+    // is off-axis while the band's own 80-per-arm support applies.
     assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
-    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
     let encoded =
-        prepared.encode_contracted_result(&result, "licensed-survival-band", &ctx).unwrap();
+        prepared.encode_contracted_result(&result, "supported-survival-band", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
     assert_eq!(
@@ -956,7 +957,7 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
             .unwrap()
             .graphless_support_status
             .as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     // Product-limit by hand: the control arm has 20 of 100 events at time 1 and 12 of the 80
     // at risk at time 2 (S = 0.80, 0.68); the treated arm 25 of 100 and 11 of 75 (S = 0.75,
@@ -975,7 +976,7 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
         antecedent_io::encode_analysis_result_artifact(
             &forged,
             header.variable_names.clone(),
-            "forged-drop-band-license",
+            "forged-drop-band-support",
         )
         .is_err()
     );
@@ -992,7 +993,7 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
 }
 
 #[test]
-fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
+fn supported_competing_incidence_band_round_trips_and_refuses_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -1030,20 +1031,20 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "licensed_competing_incidence_band_round_",
+        "supported_competing_incidence_band_round_",
         &prepared,
         &result,
         &ctx,
     );
-    // Cumulative incidence never carries the scalar RMST+horizon license.
+    // Cumulative incidence never carries the scalar RMST+horizon support.
     assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     assert!(curve.rmst_difference_interval.is_none());
     assert!(curve.difference_at_tau_interval.is_some());
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
-    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
     let encoded =
-        prepared.encode_contracted_result(&result, "licensed-incidence-band", &ctx).unwrap();
+        prepared.encode_contracted_result(&result, "supported-incidence-band", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
     assert_eq!(
@@ -1055,7 +1056,7 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
             .unwrap()
             .graphless_support_status
             .as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body;
     forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap().graphless_support_status =
@@ -1064,14 +1065,14 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
         antecedent_io::encode_analysis_result_artifact(
             &forged,
             header.variable_names,
-            "forged-drop-incidence-band-license",
+            "forged-drop-incidence-band-support",
         )
         .is_err()
     );
 }
 
 #[test]
-fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() {
+fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_support() {
     // Cause-specific cumulative incidence has a single scalar and no RMST
     // companion, so the RMST-shaped graphless survival evidence gate cannot
     // certify it. The estimator still publishes the calibrated interval, but it
@@ -1127,12 +1128,12 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() 
     let encoded = prepared.encode_contracted_result(&result, "incidence-off-axis", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
-    body.survival.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    body.survival.as_mut().unwrap().graphless_support_status = Some("supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-incidence-license",
+            "forged-incidence-support",
         )
         .is_err()
     );

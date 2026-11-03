@@ -4,13 +4,13 @@
 //!
 //! Each cell is exactly one of:
 //!
-//! * [`CellStatus::Licensed`]: a design contract, an estimator and an
+//! * [`CellStatus::Supported`]: a design contract, an estimator and an
 //!   uncertainty method exist for the cell, per inferential paradigm listed.
-//!   A licensed cell still reports point values only: the interval and
+//!   A supported cell still reports point values only: the interval and
 //!   guarantee routes stay closed until whole-procedure coverage is measured.
 //! * [`CellStatus::Closed`]: refused with a typed reason. Either the cell is
 //!   not a coherent procedure, or it pairs components that are each delivered
-//!   but whose pairing is not: a guarantee for two components does not license
+//!   but whose pairing is not: a guarantee for two components does not support
 //!   their pairing.
 //! * [`CellStatus::CarriedForward`]: coherent, not delivered, and owned.
 //!
@@ -205,7 +205,7 @@ impl ProcedureCell {
 #[non_exhaustive]
 pub enum CellStatus {
     /// An estimator and uncertainty method exist for these paradigms.
-    Licensed {
+    Supported {
         /// Paradigms with a route for this cell.
         paradigms: &'static [InferenceParadigm],
     },
@@ -216,7 +216,7 @@ pub enum CellStatus {
     },
     /// Refused: every component is delivered but the pairing is not.
     ClosedPairing {
-        /// Why, and what would license it.
+        /// Why, and what would support it.
         reason: &'static str,
     },
     /// Coherent but not delivered; the owner is the named work item.
@@ -233,7 +233,7 @@ impl CellStatus {
     #[must_use]
     pub const fn class(&self) -> &'static str {
         match self {
-            Self::Licensed { .. } => "licensed",
+            Self::Supported { .. } => "supported",
             Self::ClosedIncoherent { .. } => "closed_incoherent",
             Self::ClosedPairing { .. } => "closed_pairing",
             Self::CarriedForward { .. } => "carried_forward",
@@ -295,7 +295,7 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         };
     }
     // Delivered cells, each with its own contract, estimator and method.
-    let licensed = match (cell.assignment, cell.outcome, cell.monitoring, cell.stopping) {
+    let supported = match (cell.assignment, cell.outcome, cell.monitoring, cell.stopping) {
         (A::ThompsonBetaBernoulli, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy) => {
             Some(BAYES_AND_SEQUENCE)
         }
@@ -353,8 +353,8 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         }
         _ => None,
     };
-    if let Some(paradigms) = licensed {
-        return CellStatus::Licensed { paradigms };
+    if let Some(paradigms) = supported {
+        return CellStatus::Supported { paradigms };
     }
     // Components that are not delivered at all, in a fixed priority order.
     let owner = match cell.assignment {
@@ -401,7 +401,7 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         return CellStatus::CarriedForward { owner, reason };
     }
     CellStatus::ClosedPairing {
-        reason: "each component is delivered separately but this pairing has no design contract, estimator or whole-procedure calibration design of its own; a guarantee for two components does not license their pairing",
+        reason: "each component is delivered separately but this pairing has no design contract, estimator or whole-procedure calibration design of its own; a guarantee for two components does not support their pairing",
     }
 }
 
@@ -427,13 +427,13 @@ pub fn procedure_cells() -> Vec<ProcedureCell> {
     cells
 }
 
-/// The cells with at least one licensed paradigm, with those paradigms.
+/// The cells with at least one supported paradigm, with those paradigms.
 #[must_use]
-pub fn licensed_routes() -> Vec<(ProcedureCell, &'static [InferenceParadigm])> {
+pub fn supported_routes() -> Vec<(ProcedureCell, &'static [InferenceParadigm])> {
     procedure_cells()
         .into_iter()
         .filter_map(|cell| match procedure_status(&cell) {
-            CellStatus::Licensed { paradigms } => Some((cell, paradigms)),
+            CellStatus::Supported { paradigms } => Some((cell, paradigms)),
             _ => None,
         })
         .collect()

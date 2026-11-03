@@ -200,7 +200,7 @@ impl TemporalResponseEstimator {
         if query.observation != ObservationSpec::Complete {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
-                "TemporalResponseEstimator requires complete observations; apply a licensed observation correction first",
+                "TemporalResponseEstimator requires complete observations; apply a supported observation correction first",
             ));
         }
         if !matches!(
@@ -278,11 +278,11 @@ impl TemporalResponseEstimator {
             }
             _ => Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
-                "temporal response is licensed only for MeanCurve and InterventionResponse",
+                "temporal response is supported only for MeanCurve and InterventionResponse",
             )),
         }?;
         // Preserve the exact query estimand. Reconstructing it in the numerical
-        // helpers changed Linspace into Values and erased a licensed single-step
+        // helpers changed Linspace into Values and erased a supported single-step
         // Sequence into a plain Set/Soft intervention.
         response.estimand = query.functional.clone();
         Ok(response)
@@ -517,7 +517,7 @@ impl TemporalResponseEstimator {
         };
         pulse_query.validate()?;
         // Multi-step Sustained/Dynamic: temporal linear adjustment currently refuses.
-        // For 0.7 licensed Pulse (and single-step Sustained) this passes; multi-step
+        // For 0.7 supported Pulse (and single-step Sustained) this passes; multi-step
         // policies fail closed here rather than estimating a one-node proxy.
         let adj = TemporalLinearAdjustment { inner: self.inner.clone() };
         if self.allow_gaps {
@@ -599,7 +599,7 @@ impl TemporalResponseEstimator {
             _ => {
                 return Err(EstimationError::unsupported_coded(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "temporal response is licensed only for MeanCurve and InterventionResponse",
+                    "temporal response is supported only for MeanCurve and InterventionResponse",
                 ));
             }
         };

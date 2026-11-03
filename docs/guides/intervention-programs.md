@@ -71,17 +71,17 @@ Conditional sampling refuses to condition on a node carrying a program. Nested c
 and the closed-form temporal response paths refuse programs rather than ignore them; the
 temporal rollout below executes them.
 
-## Licensing by route
+## Support by route
 
 `policy_support(model, interventions)` returns one decision per route:
 
-- *Simulation* and *counterfactual execution* are licensed when the interventions compile into
+- *Simulation* and *counterfactual execution* are supported when the interventions compile into
   a valid overlay. A program has no randomness of its own, so replaying abduced noise through it
   is as well defined as drawing fresh noise.
-- *Observational identification* is licensed only for interventions that reduce to a hard level:
+- *Observational identification* is supported only for interventions that reduce to a hard level:
   a `Set`, or an `Assign` that folds to a constant (the identification layer then sees a `Set`).
   A transform depends on each unit's own noise and an assignment from other variables is a
-  function rather than a level, so both refuse with `policy_route_not_licensed` while remaining
+  function rather than a level, so both refuse with `policy_route_not_supported` while remaining
   simulable.
 
 A policy value is a property of the fitted model, not an identified estimand, so the same
@@ -102,12 +102,12 @@ result.assumptions                    # independent noise, fitted mechanisms tak
 result.provenance                     # the retained provenance record
 ```
 
-`prepare` fits the model once, compiles the program's overlay against it and resolves the licence of
+`prepare` fits the model once, compiles the program's overlay against it and resolves the support of
 each route once (the same `PreparedPolicy` that `prepare_policy` returns); each `ant.estimate` runs the
 policy-value executor on the retained overlay. `ant.rebind(handle, data=new_data)` refits the model and rebinds the
 program to it on a new branch: the program is not compiled again (`model_bindings` counts the models it was
 resolved against). The value reports the Monte Carlo error of the draws only; the fitted model's
-uncertainty is `"unquantified"`. A hard level is licensed for observational identification too and
+uncertainty is `"unquantified"`. A hard level is supported for observational identification too and
 the support decision says so, but the handle always reports the model's value; the identified
 estimand of a level is asked of `prepare` with an `AverageEffect` or `ResponseCurve` question. The
 handle has no refutation, retargeting or portable claim, and `analyze()` refuses the question.
@@ -140,10 +140,10 @@ nothing is replaced by a default or `nan`.
 | `policy_callback_not_portable` | `policy_callback.runtime_binding` | an artifact, identity or wire encoder met a runtime-bound callback |
 | `policy_callback_unrecoverable` | `policy_callback.recovery_mismatch` | a recovery record does not match the implementation supplied for replay |
 
-A callback is licensed for simulation. Counterfactual execution is licensed under a stated
-assumption (`RouteDecision::LicensedUnder`): the callback returns a function of its declared
+A callback is supported for simulation. Counterfactual execution is supported under a stated
+assumption (`RouteDecision::SupportedUnder`): the callback returns a function of its declared
 inputs alone, with no hidden state, clock or randomness. That assumption is not verifiable from a
-function and is reported with the licence. A callback is a function, not a level, so it has no
+function and is reported with the support. A callback is a function, not a level, so it has no
 observational identification.
 
 A callback may read only what it declares: a program that passes a callback any other variable is
@@ -232,13 +232,13 @@ From Python, `antecedent.intervention_programs` builds programs (`transform`, `a
 
 `examples/rust/intervention_programs.rs` and `examples/python/intervention_programs.py` apply the
 price floor `max(10, 0.85 * price)` to a fitted model: sampled forward, replayed on each factual
-unit's own noise, licensed per route and valued against the unintervened model, saved as a portable
+unit's own noise, supported per route and valued against the unintervened model, saved as a portable
 artifact, and written as a batch callback (refused as portable while it is an in-process function,
 saved as a verified record once it is declared from source). Each asserts its results and runs in
 the example suites (`crates/antecedent/tests/examples_run.rs`, `python/tests/test_examples_run.py`).
 
-Python reaches the licences through `antecedent.intervention_programs.policy_support`, the paired
-value against the unintervened model through `policy_value`, a program compiled and licensed once
+Python reaches the supports through `antecedent.intervention_programs.policy_support`, the paired
+value against the unintervened model through `policy_value`, a program compiled and supported once
 through `prepare_policy` (or `antecedent.prepare` with a `PolicyProgramValue`), and the portable encoding of callbacks declared from source through
 `encode_policy_program` / `decode_policy_program(..., callbacks=)`.
 
@@ -267,7 +267,7 @@ Where they differ.
   DoWhy callable is arbitrary Python; Antecedent's counterpart is a batch callback, whose output
   is validated before it reaches the draws and which is refused for export while it is bound to a
   running process.
-- Each route is licensed separately (`policy_support`): simulation and counterfactual execution
+- Each route is supported separately (`policy_support`): simulation and counterfactual execution
   for a valid program, observational identification only for a hard level. DoWhy's
   interventional sampling makes no such statement.
 - Programs have a versioned encoding and an identity that moves with every expression, lag,

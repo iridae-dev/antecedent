@@ -21,7 +21,7 @@ use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
 /// A topological simulation refused a directed cycle and named the next attempt.
 fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
     CompositionError::Numerical {
-        message: antecedent_graph::error::CyclicDagRefusal::unlicensed(
+        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
             antecedent_graph::error::DagOperation::Simulation,
             consumer,
             attempt,
@@ -242,7 +242,7 @@ impl ComposedFinite {
                 return Err(cyclic_simulation_refusal(
                     "composed_finite",
                     "CyclicDigraph::condensation for the feedback structure; \
-                     this executor has no cyclic license and does not enumerate a cycle",
+                     this executor has no cyclic support and does not enumerate a cycle",
                 ));
             };
             done[v] = true;

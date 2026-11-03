@@ -10,7 +10,7 @@
 //! Bayesian-bootstrap posterior of the same functional. Regime survival reads observational
 //! trajectories: its frequentist interval refits the treatment and censoring models in every
 //! subject-bootstrap replicate, and its posterior is the joint-likelihood parametric g-formula.
-//! Every route is unlicensed and its calibration is unmeasured.
+//! Every route is unsupported and its calibration is unmeasured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -277,11 +277,11 @@ impl CheckedTemporalDesignOperation {
             .identify_cached(true)
             .wall_time_ns(super::elapsed_ns(started))
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.temporal_design.unlicensed",
+                "estimate.temporal_design.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 format!(
-                    "unlicensed and uncalibrated route ({} design, {}): the identifying premises \
+                    "unsupported and uncalibrated route ({} design, {}): the identifying premises \
                      are declared and not checked, and no repeated-sampling calibration of the \
                      reported uncertainty has been measured",
                     payload.design, payload.uncertainty
@@ -1029,7 +1029,7 @@ impl CheckedTemporalDesignOperation {
             draws: None,
             uncertainty: Arc::from(output.uncertainty),
             calibration: Arc::from(CALIBRATION),
-            licensed: false,
+            supported: false,
         };
         let posterior = match output.summary {
             Summary::Sampling(sampling) => {

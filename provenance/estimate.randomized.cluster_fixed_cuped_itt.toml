@@ -21,5 +21,5 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-estimate/src/randomized_neyman.rs (fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt: 2,000 complete allocations of 60 unequal clusters at three fixed coefficients, coverage of the unadjusted known ITT)",
- "crates/antecedent/tests/randomized_precision_intervals.rs (cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license)",
+ "crates/antecedent/tests/randomized_precision_intervals.rs (cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support)",
 ]

@@ -2,7 +2,7 @@
 """List or measure the registered Q08/E14 joint-response procedures on a stable SHA.
 
 This runner emits candidate-bound execution logs. It never updates coverage
-licenses or borrows a risk allocation from the frozen historical family.
+supports or borrows a risk allocation from the frozen historical family.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ MANIFEST = ROOT / "parity/joint_response_calibration.toml"
 
 def procedures() -> list[dict]:
     document = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
-    if document["schema"] != 1 or document["grants_release_license"]:
+    if document["schema"] != 1 or document["grants_release_support"]:
         raise ValueError("invalid unmeasured procedure registry")
     rows = document["procedure"]
     ids = set()
@@ -106,7 +106,7 @@ def main() -> int:
             "procedure": row["id"],
             "replicates": args.replicates,
             "manifest_sha256": hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
-            "grants_release_license": False,
+            "grants_release_support": False,
         }
         with log.open("w", encoding="utf-8") as stream:
             stream.write(json.dumps(metadata) + "\n")

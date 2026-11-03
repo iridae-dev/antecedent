@@ -16,21 +16,21 @@
 //!   the bridge's own evidence was established for, the
 //!   [`BridgeMapping`] that carries the value, and, when the evidence was
 //!   established elsewhere than the claim's population, the
-//!   [`TransportabilityPremise`] that licenses carrying it.
+//!   [`TransportabilityPremise`] that supports carrying it.
 //! * [`derive_bridged_claim`] checks the contract against a source claim and
 //!   produces a [`BridgedClaim`]: a new [`crate::ClaimEnvelope`] with its own
 //!   identity (binding the contract, its assumptions and the source claim
 //!   identity), its own provenance chain and a handoff receipt. The source
 //!   claim is not modified and stays separately inspectable; the derived claim
 //!   never reports more than the source held.
-//! * Every route a bridge cannot license is a typed, coded refusal under the
+//! * Every route a bridge cannot support is a typed, coded refusal under the
 //!   `scientific_bridge` detail namespace that names the declaration or
-//!   evidence that would license it: an association offered as an
+//!   evidence that would support it: an association offered as an
 //!   intervention, a proxy offered as a construct, a stated preference offered
 //!   as realized behavior, a predictive importance offered as a causal effect,
 //!   a model score offered as a probability, a scientific endpoint offered as
 //!   a utility, a missing assumption, a population or regime mismatch, a
-//!   transported bridge whose premise is not declared, and an unlicensed
+//!   transported bridge whose premise is not declared, and an unsupported
 //!   substitution between a mean, a predictive law, a posterior, an
 //!   identified set and a joint outcome law.
 //!
@@ -65,9 +65,9 @@ pub use contract::{
     BRIDGE_TARGET_PORT, BridgeAssumption, BridgeContract, BridgeDrawsSource, BridgeEndpoint,
     BridgeInterfaceBasis, BridgeScope, BridgedDistributionClaim, CorrectionDrawLaw, DrawMapping,
     DrawsPlan, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
-    Licensing, MAX_BRIDGE_ASSUMPTIONS, MappedDrawsSummary, MappingUncertainty, NonlinearMap,
-    NonlinearMoment, NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL,
-    PointPropagation, PreservedSupport, PropagatedUncertainty, SourceMappingDependence, SupportMap,
+    MAX_BRIDGE_ASSUMPTIONS, MappedDrawsSummary, MappingUncertainty, NonlinearMap, NonlinearMoment,
+    NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation,
+    PreservedSupport, PropagatedUncertainty, SourceMappingDependence, Support, SupportMap,
     TransportabilityPremise, ValueInterval, bridged_distribution_claim_id, nonlinear_expectation,
     point_propagation_unavailable, preserved_support, support_image,
 };
@@ -83,5 +83,5 @@ pub use mapping::{
 };
 pub use refusal::{
     BridgeRefusal, chain_stage_not_affine, draws_outside_domain, draws_unusable,
-    interval_not_licensed, wrong_value_kind,
+    interval_not_supported, wrong_value_kind,
 };

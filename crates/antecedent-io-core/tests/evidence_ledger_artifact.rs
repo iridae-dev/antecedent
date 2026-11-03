@@ -196,9 +196,9 @@ fn a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses() {
     let record = consumed.ledger().result(f.envelope).expect("result");
     assert_eq!(record.claim_class.as_str(), "assumption_range");
     let refusal = consumed.ledger().request_interval(f.envelope).unwrap_err();
-    assert_eq!(refusal.kind, antecedent_contract::evidence_ledger::RefusalKind::NotLicensed);
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "evidence_ledger.interval_not_licensed");
+    assert_eq!(refusal.kind, antecedent_contract::evidence_ledger::RefusalKind::NotSupported);
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "evidence_ledger.interval_not_supported");
     assert!(
         refusal.message.contains("assumption_range claim"),
         "the refusal names the result's claim class: {}",
@@ -383,7 +383,7 @@ fn a_resealed_covariance_or_range_edit_no_longer_binds_to_the_ledger_result() {
 }
 
 #[test]
-fn a_synthesis_method_that_the_ledger_operation_does_not_license_is_refused() {
+fn a_synthesis_method_that_the_ledger_operation_does_not_support_is_refused() {
     let mut f = fixture();
     // random effects over the assumption-range result: the ledger recorded no independence
     f.records.push(SynthesisRecord {
@@ -582,15 +582,15 @@ fn repeated_observation_use_survives_export_flagged() {
 }
 
 #[test]
-fn an_exported_result_carries_no_interval_license() {
+fn an_exported_result_carries_no_interval_support() {
     let f = fixture();
     let bytes = EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "evidence-ledger-4")
         .expect("export");
     let consumed = EvidenceLedgerArtifact::from_bytes(&bytes, None).expect("consume");
     for result in [f.pooled, f.covariance, f.envelope, f.borrowed] {
         let error = consumed.ledger().request_interval(result).expect_err("closed");
-        assert_eq!(error.code, "cell_not_licensed");
-        assert_eq!(error.detail, "evidence_ledger.interval_not_licensed");
+        assert_eq!(error.code, "not_supported");
+        assert_eq!(error.detail, "evidence_ledger.interval_not_supported");
     }
     assert_eq!(
         consumed.ledger().result(f.envelope).expect("result").claim_class.as_str(),

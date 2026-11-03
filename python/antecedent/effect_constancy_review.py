@@ -1,7 +1,7 @@
 """Downstream advisory consumers of independently verified effect-constancy evidence.
 
 Transport still needs identification. Prior preferences are data dependent and do not
-license pooling. Policy agreement is a point comparison with no generalization guarantee.
+support pooling. Policy agreement is a point comparison with no generalization guarantee.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ class PriorSourceRanking:
     inference_claim: str
     caveats: tuple[str, ...]
     data_dependent_selection: bool
-    posterior_transfer_licensed: bool
+    posterior_transfer_supported: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +164,7 @@ def rank_prior_sources(
         ev["inference_claim"],
         tuple(ev["caveats"]),
         out["data_dependent_selection"],
-        out["posterior_transfer_licensed"],
+        out["posterior_transfer_supported"],
     )
 
 

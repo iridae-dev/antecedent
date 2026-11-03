@@ -318,7 +318,7 @@ fn a_linear_gaussian_composition_supplies_a_replayed_point_per_action() {
     let inspection = inspect_origin(&sourced.origin);
     assert_eq!(inspection.kind, "composed_mechanism");
     assert_eq!(inspection.representation, "point_only");
-    assert_eq!(inspection.interval_region, "not_licensed");
+    assert_eq!(inspection.interval_region, "not_supported");
     assert!(!inspection.transported);
 }
 
@@ -365,9 +365,9 @@ fn a_point_composition_refuses_laws_intervals_and_the_wrong_family() {
     let error = evaluate(&mean, &source, InverseDemand { interval_region: true }).unwrap_err();
     assert_eq!(
         error,
-        ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::ComposedMechanism)
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::ComposedMechanism)
     );
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "not_supported");
 
     // A finite-distribution query of a linear-Gaussian composition is refused by the
     // composition itself and keeps its registered code.
@@ -471,7 +471,7 @@ fn a_composition_with_admitted_mechanisms_is_a_transported_claim() {
         .inverse_forward_source(&gaussian_actions(), Some(receipt.clone()), native(), &ctx())
         .unwrap_err();
     assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "not_supported");
 
     let source = prepared
         .inverse_forward_source(
@@ -571,7 +571,7 @@ fn a_transported_response_is_read_only_when_accepted_and_carries_its_receipt() {
     let error = evaluate(&query, &source, InverseDemand { interval_region: true }).unwrap_err();
     assert_eq!(
         error,
-        ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::TransportedResponse)
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::TransportedResponse)
     );
 
     // The sealed artifact binds the whole receipt: another transport at the same values

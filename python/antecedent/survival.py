@@ -5,7 +5,7 @@ explicit marginal independent-entry path for left truncation. Retained
 ``analyze`` queries can report pointwise bootstrap intervals and simultaneous
 curve bands when their subject-level inference gates pass. Direct estimation
 utilities report points only. Neither path adds a graphless support-matrix
-license or verifies a caller-supplied censoring model.
+support or verifies a caller-supplied censoring model.
 """
 
 from __future__ import annotations
@@ -165,7 +165,7 @@ class SurvivalDifferenceBand:
     replicates_ok: int
     level: float = 0.95
     method: str = "subject_stratified_bootstrap_supremum"
-    support_status: str = "unlicensed_simultaneous_band"
+    support_status: str = "unsupported_simultaneous_band"
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +187,7 @@ class SurvivalEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "independent_right_censoring_within_arm",
@@ -212,7 +212,7 @@ class IPCWSurvivalEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "correct_caller_supplied_conditional_censoring_survival",
@@ -238,7 +238,7 @@ class IPCWCumulativeIncidenceEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",
@@ -329,7 +329,7 @@ class CumulativeIncidenceEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",

@@ -156,7 +156,7 @@ class PreparedPolicyAnalysis:
             execution=self.execution,
         )
         conditional = tuple(
-            f"{route} licence: {decision.assumption}"
+            f"{route} support: {decision.assumption}"
             for route in ("simulation", "counterfactual", "identification")
             if (decision := getattr(value.support, route)).assumption
         )
@@ -192,9 +192,9 @@ class PreparedPolicyAnalysis:
             ),
             support=SlotModel(
                 available=self._completed,
-                summary="route licences resolved against fitted mechanisms"
+                summary="route supports resolved against fitted mechanisms"
                 if self._completed
-                else "mechanism-dependent route licences resolve on execution",
+                else "mechanism-dependent route supports resolve on execution",
             ),
             uncertainty=SlotModel(
                 available=True,

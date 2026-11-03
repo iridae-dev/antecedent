@@ -1503,7 +1503,7 @@ mod tests {
 
     #[test]
     fn single_step_sustained_and_dynamic_reuse_pulse_backdoor_set() {
-        // Same confounded template as above. Licensed single-step Sustained
+        // Same confounded template as above. Supported single-step Sustained
         // (and a one-offset Dynamic) must not relabel General ID as
         // temporal.backdoor.unfolded with Z = ∅.
         let mut template = TemporalDag::empty();

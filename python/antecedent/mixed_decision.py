@@ -631,7 +631,7 @@ def replay_decision(
     """Replay the combined ``(mean, variance)`` of an exported decision without current authority.
 
     A historical joint-law artifact is replayed through the same path. The numbers are those the
-    artifact was sealed with; nothing here says the decision is still licensed.
+    artifact was sealed with; nothing here says the decision is still supported.
 
     Raises:
         MixedDecisionRefusal: an identity that differs from ``expected_identity`` or an

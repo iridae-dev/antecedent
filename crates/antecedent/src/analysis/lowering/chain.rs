@@ -18,7 +18,7 @@
 //! 5. one physical operator per stage, with the output bytes the table admits;
 //! 6. the claim demand.
 //!
-//! Lowering computes no number and grants no licence: a chain value is a labelled
+//! Lowering computes no number and grants no support: a chain value is a labelled
 //! point or uncalibrated spread, and an interval of a composed quantity stays
 //! closed without a measured coverage record.
 //!
@@ -215,7 +215,7 @@ pub(crate) fn lower_chain(
         query_variables: Arc::from(Vec::new()),
         source_digest: None,
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(

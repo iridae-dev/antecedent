@@ -125,7 +125,7 @@ def quasi_rollout_from_wire(wire: Any) -> QuasiRolloutEstimate | None:
             (str(name), float(value)) for name, value in wire.get("diagnostics") or ()
         ),
         calibration=str(wire.get("calibration", "unmeasured")),
-        licensed=bool(wire.get("licensed", False)),
+        supported=bool(wire.get("supported", False)),
     )
 
 
@@ -161,5 +161,5 @@ def quasi_rollout_from_raw(raw: Any) -> QuasiRolloutEstimate | None:
         critical_value=section.critical_value,
         diagnostics=tuple((str(name), float(value)) for name, value in section.diagnostics),
         calibration=str(section.calibration),
-        licensed=bool(section.licensed),
+        supported=bool(section.supported),
     )

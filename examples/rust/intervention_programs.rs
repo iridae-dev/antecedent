@@ -2,7 +2,7 @@
 //!
 //! A transform replaces the value a node's mechanism generated; the node keeps its incoming
 //! edges and its noise. The same program is sampled forward, replayed on each factual unit's
-//! own abduced noise, licensed per route and valued against the unintervened model, saved as a
+//! own abduced noise, supported per route and valued against the unintervened model, saved as a
 //! portable artifact and, as a batch callback, saved only as a verified record of its source: an
 //! in-process function has no durable encoding.
 //!
@@ -132,14 +132,14 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 3. Each route is licensed separately. A transform is simulable and replayable but is a
+    // 3. Each route is supported separately. A transform is simulable and replayable but is a
     //    function of each unit's noise, not a level, so it has no observational identification.
     let support = policy_support(&fitted.model, std::slice::from_ref(&floor));
-    assert_eq!(support.simulation, RouteDecision::Licensed);
-    assert_eq!(support.counterfactual, RouteDecision::Licensed);
+    assert_eq!(support.simulation, RouteDecision::Supported);
+    assert_eq!(support.counterfactual, RouteDecision::Supported);
     match &support.identification {
         RouteDecision::Refused { code, .. } => {
-            assert_eq!(code.as_str(), "policy_route_not_licensed")
+            assert_eq!(code.as_str(), "policy_route_not_supported")
         }
         other => panic!("a transform has no identification route, got {other:?}"),
     }
@@ -220,7 +220,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let value = policy_value(&fitted.model, std::slice::from_ref(&floor), DEMAND, 4_000, &ctx)?;
     // The floor lowers most prices, and demand falls with price.
     assert!(value.mean_difference > 5.0 * value.difference_simulation_stderr);
-    assert!(value.support.simulation.is_licensed());
+    assert!(value.support.simulation.is_supported());
     Ok(())
 }
 

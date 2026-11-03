@@ -41,7 +41,7 @@ def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects
     assert sum(weight for _, weight in result.donor_weights) == pytest.approx(1.0)
     assert sum(weight for _, weight in result.time_weights) == pytest.approx(1.0)
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "no_concurrent_treated_unit_specific_shock" in result.assumptions
 
 
@@ -55,7 +55,7 @@ def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights(
     assert fit.estimate == pytest.approx(direct.estimate)
     assert dict(fit.donor_weights) == pytest.approx(dict(direct.donor_weights))
     assert dict(fit.time_weights) == pytest.approx(dict(direct.time_weights))
-    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.support_status == "unsupported_point_utility"
     assert fit.uncertainty == "point_only"
     assert np.isnan(result.estimate.se_analytic)
     prepared = antecedent.prepare(rows, query=query)

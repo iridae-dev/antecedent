@@ -1,7 +1,7 @@
 //! Python bindings for structural transport and randomized interference.
 //!
 //! Transport identification is a stage (`identify_transport`). Estimation of
-//! both licensed cells runs on the prepared study (`PreparedAnalysis.
+//! both supported cells runs on the prepared study (`PreparedAnalysis.
 //! prepare_transport` / `prepare_interference`); this module owns the query
 //! builders those entry points share and the result sections they report.
 
@@ -932,7 +932,7 @@ pub(crate) fn parse_catalog(
             weights: binding
                 .getattr("weights_snapshot")?
                 .extract::<Option<String>>()?
-                .map(|s| antecedent_core::LicensedWeights { snapshot_identity: Arc::from(s) }),
+                .map(|s| antecedent_core::SupportedWeights { snapshot_identity: Arc::from(s) }),
         });
     }
     let target_sampling =
@@ -940,7 +940,7 @@ pub(crate) fn parse_catalog(
             None => None,
             Some("supplied_population_law") => Some(TargetSampling::SuppliedPopulationLaw),
             Some("representative_sample") => Some(TargetSampling::RepresentativeSample),
-            Some("licensed_weighted_design") => Some(TargetSampling::LicensedWeightedDesign),
+            Some("supported_weighted_design") => Some(TargetSampling::SupportedWeightedDesign),
             Some("convenience_sample") => Some(TargetSampling::ConvenienceSample),
             _ => return Err(crate::value_err("unknown target sampling")),
         };

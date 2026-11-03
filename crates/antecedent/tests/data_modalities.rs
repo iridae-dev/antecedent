@@ -404,7 +404,7 @@ fn prepared_series_handle_refuses_panel_data() {
 #[test]
 fn panel_refuses_units_with_mixed_regularity() {
     // A horizon of h steps must mean one duration in every unit, so the panel
-    // license refuses mixed sampling intervals on every route, not only on
+    // support refuses mixed sampling intervals on every route, not only on
     // prepare (a refresh also checks each unit against the frozen regularity).
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: xy_series_regular(120, 0.1, 1) },

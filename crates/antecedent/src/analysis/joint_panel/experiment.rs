@@ -394,7 +394,7 @@ fn validate_update(
 ) -> Result<(), JointPanelError> {
     update
         .bridge
-        .check_licensing()
+        .check_support()
         .map_err(|error| JointPanelError::compile(format!("{error:?}")))?;
     if update.bridge.estimand_bridge.is_none()
         || update.bridge.source_dependence.is_none()

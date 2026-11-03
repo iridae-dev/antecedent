@@ -42,7 +42,7 @@ target), :class:`RegimeSurvivalContrast`, :class:`ObservationalExcursion` and
 result is ``result.temporal_design`` (:class:`TemporalDesignEstimate`), which a loaded
 artifact reads back equal.
 
-Every result is unlicensed and its calibration is unmeasured. Frequentist intervals are
+Every result is unsupported and its calibration is unmeasured. Frequentist intervals are
 cluster-robust (a whole-procedure bootstrap for the quantile functional and regime survival,
 which need ``bootstrap=``); Bayesian results are a Bayesian bootstrap over independent units
 (regime survival: the joint-likelihood parametric g-formula). See
@@ -125,7 +125,7 @@ class TemporalDesignResult:
     draws: int | None
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
 
     def coordinate(self, name: str) -> tuple[float, float, float]:
         """``(estimate, lower, upper)`` of the named coordinate."""
@@ -248,5 +248,5 @@ def estimate_temporal_design(
         draws=section.draws,
         uncertainty=section.uncertainty,
         calibration=section.calibration,
-        licensed=section.licensed,
+        supported=section.supported,
     )

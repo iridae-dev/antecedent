@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The existing normal-normal future-study operation is applied to a derived temporal contrast only when a sampling interval and an explicit same-design and constant per-independent-unit variance assumption are present.",
-  "The proposed count is complete independent subjects, matched pairs or assignment sequences, never period rows or decisions; variance scaling is a planning assumption, not a licensed posterior or calibrated claim.",
+  "The proposed count is complete independent subjects, matched pairs or assignment sequences, never period rows or decisions; variance scaling is a planning assumption, not a supported posterior or calibrated claim.",
   "The independent threshold reference uses the closed form expectation of the positive part of a centered Gaussian and checks the variance scaling using independent units.",
 ]
 

@@ -2,7 +2,7 @@
 //!
 //! Format version 1, kind marker `array_fit_replay_v1`. The request carries the design the
 //! product was fitted on; the stored result is the posterior summary of that nuisance, labelled
-//! with its target, the meaning of its uncertainty and the premises declared. It is unlicensed
+//! with its target, the meaning of its uncertainty and the premises declared. It is unsupported
 //! with calibration unmeasured, and a consumer refuses any other value.
 //!
 //! The product is a posterior of the treatment model only. Its scores are in-sample summaries,
@@ -33,8 +33,8 @@ use crate::IoError;
 pub const ARRAY_FIT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const ARRAY_FIT_ARTIFACT_FEATURE: &str = "array_fit_replay_v1";
-/// Licensing state of this product.
-pub const ARRAY_FIT_LICENSING: &str = "unlicensed";
+/// Support state of this product.
+pub const ARRAY_FIT_SUPPORT: &str = "unsupported";
 /// Calibration state of this product.
 pub const ARRAY_FIT_CALIBRATION: &str = "unmeasured";
 
@@ -235,8 +235,8 @@ pub struct ArrayFitResultWire {
     pub target: String,
     /// What the uncertainty is: a standard error, a posterior, or a nuisance posterior.
     pub uncertainty: String,
-    /// Always `unlicensed`.
-    pub licensing: String,
+    /// Always `unsupported`.
+    pub support: String,
     /// Always `unmeasured`.
     pub calibration: String,
     /// Named reals, in a fixed order.
@@ -354,7 +354,7 @@ fn finish(
         estimator_id: meta.id.to_owned(),
         target: meta.target.to_owned(),
         uncertainty: meta.uncertainty.to_owned(),
-        licensing: ARRAY_FIT_LICENSING.to_owned(),
+        support: ARRAY_FIT_SUPPORT.to_owned(),
         calibration: ARRAY_FIT_CALIBRATION.to_owned(),
         values,
         draws,
@@ -611,10 +611,10 @@ impl ArrayFitArtifactWire {
         if self.required_features != [ARRAY_FIT_ARTIFACT_FEATURE] {
             return Err(unsupported("required features"));
         }
-        if self.result.licensing != ARRAY_FIT_LICENSING
+        if self.result.support != ARRAY_FIT_SUPPORT
             || self.result.calibration != ARRAY_FIT_CALIBRATION
         {
-            return Err(unsupported("this family is unlicensed and its calibration unmeasured"));
+            return Err(unsupported("this family is unsupported and its calibration unmeasured"));
         }
         if self.result.estimator_id != self.request.estimator_id() {
             return Err(unsupported("the result belongs to another estimator"));

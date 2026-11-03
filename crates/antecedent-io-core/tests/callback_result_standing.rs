@@ -1,6 +1,6 @@
 //! A declared exact-request verification is not confirmed by a result artifact:
 //! no receipt travels with it, so the result stands as diagnostic, as it does on
-//! the live path, and an edit that stamps it as licensed is refused.
+//! the live path, and an edit that stamps it as supported is refused.
 
 use std::collections::BTreeSet;
 
@@ -121,7 +121,7 @@ fn a_verified_declaration_without_a_receipt_consumes_as_diagnostic() {
     assert_eq!(consumed.record(), &record);
 
     // Stamping the label the unconfirmed declaration did not earn is refused.
-    let error = resealed(meta, &vals, |m| m.standing = "licensed_external".into())
+    let error = resealed(meta, &vals, |m| m.standing = "supported_external".into())
         .expect_err("standing edited");
     match error {
         CallbackResultArtifactError::IdentityMismatch { field } => assert_eq!(field, "standing"),
@@ -130,8 +130,8 @@ fn a_verified_declaration_without_a_receipt_consumes_as_diagnostic() {
 }
 
 #[test]
-fn an_attested_declaration_keeps_its_licensed_external_label() {
+fn an_attested_declaration_keeps_its_supported_external_label() {
     let record = cdf_record();
     let (_, meta) = CallbackResultArtifact::seal(&record).expect("seals");
-    assert_eq!(meta.standing, "licensed_external");
+    assert_eq!(meta.standing, "supported_external");
 }

@@ -122,7 +122,7 @@ pub enum ProductRefusal {
     /// An identified product or assembled functional relies on an unsupported world.
     #[error("an identified joint claim relies on non-identified world {world:?}")]
     IdentifiedWithoutWorldSupport {
-        /// World whose outcome or claim class does not license identification.
+        /// World whose outcome or claim class does not support identification.
         world: ScientificWorldId,
     },
     /// The product claims identification beyond its assembled-functional outcome.

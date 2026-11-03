@@ -28,7 +28,7 @@ class PanelImputationResult:
     point response of every imputation, ``imputed_cells`` the cells imputed per imputation
     model variable, and ``assumptions`` the imputation model declarations, including the
     identity ``digest``. Pooling is conditional on the declared missing-at-random model and
-    grants no causal license.
+    grants no causal support.
     """
 
     programs: tuple[str, ...]

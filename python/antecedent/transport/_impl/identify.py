@@ -61,7 +61,7 @@ class TransportQuery:
     the selection diagram's populations and mechanism-selection targets, and
     ``source_experiments`` the variables randomized in the source.
 
-    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Admg``,
+    :func:`antecedent.analyze` estimates the supported cell (explicit ``Admg``,
     Frequentist, validation ``none``): a mean :class:`antecedent.ResponseCurve`
     transported from trial to target by binary trial-to-target IPW. It reads
     three data columns named by the keyword-only fields: ``trial`` (source-trial
@@ -635,11 +635,11 @@ def estimate_trial_effect(
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
 
-    This is an unlicensed utility: it calls the
+    This is an unsupported utility: it calls the
     trial-to-target estimator directly and returns bare numbers, with no study,
     contract, export or calibration slot. ``antecedent.analyze(data, graph=Admg,
     query=TransportQuery(..., trial=, selection_probability=,
-    treatment_probability=))`` is the licensed, study-retaining path.
+    treatment_probability=))`` is the supported, study-retaining path.
 
     ``identification`` must be the result of :func:`identify` for this query.
     Identification and estimation stay separate operations, but the estimator

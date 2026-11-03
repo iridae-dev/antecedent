@@ -3625,10 +3625,10 @@ id = "policy_unsupported_execution_route_refused"
 area = "policy_validation"
 workflow = "antecedent.fit_model(...).sample_interventional"
 configuration = { policy = "x := max(10, 0.85 * x)", requested_route = "observational_identification" }
-expected = { kind = "refusal", outputs = ["names the route and the licensed routes"], refusal = "policy route not licensed" }
+expected = { kind = "refusal", outputs = ["names the route and the supported routes"], refusal = "policy route not supported" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 1965983, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_licensed_separately" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_supported_separately" }
 
 [[case]]
 id = "policy_valid_composition_orders_by_dependency"
@@ -3641,14 +3641,14 @@ dataset = { generator = "gaussian_chain_known_moments", seed = 7091087, n = 1000
 evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::policies_are_evaluated_in_dependency_order_not_declaration_or_node_order" }
 
 [[case]]
-id = "policy_licenses_simulation_counterfactual_and_identification_separately"
+id = "policy_supports_simulation_counterfactual_and_identification_separately"
 area = "policy_validation"
 workflow = "antecedent.fit_model(...).policy_support"
 configuration = { policy = "x := max(10, 0.85 * x)", routes = ["simulation", "counterfactual", "observational_identification"] }
-expected = { kind = "value", outputs = ["a separate support decision per route", "each decision cites its reason code", "a route licensed for simulation is not assumed licensed for identification"] }
+expected = { kind = "value", outputs = ["a separate support decision per route", "each decision cites its reason code", "a route supported for simulation is not assumed supported for identification"] }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 5215020, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_licensed_separately" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_supported_separately" }
 
 [[case]]
 id = "python_callback_batch_matches_equivalent_expression"

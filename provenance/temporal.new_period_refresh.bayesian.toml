@@ -30,7 +30,7 @@ record_sha256 = "260b7003c882d142d4029537e2c66c6c9f749e0306715440918b10325f0f8cf
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

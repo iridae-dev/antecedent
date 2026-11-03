@@ -267,7 +267,7 @@ fn x8t_artifact_false_labelled_premises_are_refused_even_when_resealed() {
                 .refusal()
                 .expect("the core refusal");
             assert_eq!(refusal.detail, detail);
-            assert_eq!(refusal.code, "cell_not_licensed");
+            assert_eq!(refusal.code, "not_supported");
         }
     }
 }
@@ -350,7 +350,7 @@ fn x8t_artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     let mut on_mediator = request();
     on_mediator.selections = selection("m");
     let refusal = refusal_of(&on_mediator);
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert!(refusal.witness.is_none());
     // Undeclared premises refuse with the core's own detail.
     let mut undeclared = request();

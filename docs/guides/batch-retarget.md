@@ -4,7 +4,7 @@ A batch answers many average-effect questions on one table. Two additions: the b
 entry points take the same typed estimator configurations as `analyze`, and a completed batch
 can **retarget** a declared family of claims to caller-declared populations and report their
 joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
-the 95% max-t simultaneous band is licensed for complete families at its measured
+the 95% max-t simultaneous band is supported for complete families at its measured
 coordinate (see [The simultaneous interval](#the-simultaneous-interval)).
 
 ## Typed estimator configurations
@@ -133,7 +133,7 @@ retarget's conditions: iid rows or the declared independent cluster units, fixed
 weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
 The 95% iid interval's coverage record has been measured for 800–3200 rows, and the
-complete-family route is licensed at that coordinate:
+complete-family route is supported at that coordinate:
 `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
 covered" event;
 other levels, smaller samples and cluster or dyadic dependence coordinates are not covered
@@ -145,7 +145,7 @@ polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never
 and a matrix that is not a unit-diagonal positive semidefinite correlation refused
 (`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses
 `batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`). A partial
-or point-only family has no band and refuses `cell_not_licensed`
+or point-only family has no band and refuses `not_supported`
 (`batch_retarget.partial_family` / `batch_retarget.point_only_member`); the Python result
 reports that refusal when `simultaneous_interval()` is called.
 
@@ -206,13 +206,13 @@ family refuses `batch_retarget.covariance_unavailable`.
 Every claim and contrast is reported. A member that cannot be retargeted (weighted overlap
 failure, misaligned weights, no scores, a quantile or exceedance grid) is a failed member with
 its typed refusal; a contrast reading a failed claim fails with it, and the covariance covers
-only the surviving members. `complete_family()` raises `cell_not_licensed`
+only the surviving members. `complete_family()` raises `not_supported`
 (`batch_retarget.partial_family`) naming the failed members: surviving members are never a
 complete-family claim.
 
 A penalized-propensity score table (`Aipw(propensity_penalty=...)`) retargets like an
 unpenalized one: its members are `ok`, the family carries the plug-in score covariance and its
-contrasts have standard errors. Only a table whose interval is not licensed (a learner-supplied
+contrasts have standard errors. Only a table whose interval is not supported (a learner-supplied
 or factorized joint-cell table) retargets to a point: its members are `point_only`, the family
 carries no covariance, and a complete-family request refuses
 (`batch_retarget.point_only_member`).

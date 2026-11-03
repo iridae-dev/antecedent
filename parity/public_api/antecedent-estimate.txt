@@ -1,6 +1,9 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub const fn antecedent_estimate::categorical_treatment_posterior::categorical_candidate_prior() -> antecedent_estimate::categorical_treatment_posterior::CategoricalPosteriorPrior
+#[doc(hidden)] pub fn antecedent_estimate::categorical_treatment_posterior::categorical_candidate_spec(declared_levels: &[alloc::string::String]) -> antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec
+#[doc(hidden)] pub fn antecedent_estimate::categorical_treatment_posterior::categorical_prior_predictive_calibration_basis(rows: usize, levels: usize) -> antecedent_core::calibration_basis::CalibrationBasis
 #[doc(hidden)] pub fn antecedent_estimate::check_membership_overlap(membership: &[f64], options: &antecedent_estimate::LearnedContinuousOptions) -> core::result::Result<(), antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::learned_continuous::parse_learned_continuous_sampling(name: &str) -> core::result::Result<antecedent_estimate::TrialSampling, antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::learned_continuous::parse_learned_continuous_target(name: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
@@ -12932,7 +12935,7 @@ pub const antecedent_estimate::MIN_COMPONENTS_PER_FOLD_FLOOR: usize
 pub const antecedent_estimate::MIN_CONTROLLED_DRAWS: usize
 pub const antecedent_estimate::MIN_REPLICATES: usize
 pub const antecedent_estimate::PERCENTILE_BOOTSTRAP: &str
-pub const antecedent_estimate::POINT_CDE_UNLICENSED: &str
+pub const antecedent_estimate::POINT_CDE_UNSUPPORTED: &str
 pub const antecedent_estimate::POSTERIOR_EQUAL_TAIL: &str
 pub const antecedent_estimate::PROPENSITY_FIT_STAGE: &str
 pub const antecedent_estimate::REFIT_BOOTSTRAP_UNCERTAINTY_KIND: &str
@@ -13006,7 +13009,7 @@ pub const antecedent_estimate::choice_inference::OPERATING_CHARACTERISTICS_STATE
 pub const antecedent_estimate::choice_inference::POOLED_DEPENDENCE: &str
 pub const antecedent_estimate::choice_inference::QUERY: &str
 pub const antecedent_estimate::cohort_linear_effect::DETAIL_LEVEL_INVALID: &str
-pub const antecedent_estimate::cohort_linear_effect::DETAIL_NOT_LICENSED: &str
+pub const antecedent_estimate::cohort_linear_effect::DETAIL_NOT_SUPPORTED: &str
 pub const antecedent_estimate::cohort_linear_effect::DETAIL_REQUIRES_NATIVE_FIT: &str
 pub const antecedent_estimate::cohort_linear_effect::ESTIMATOR_ID: &str
 pub const antecedent_estimate::cohort_linear_effect::FIT_DIGEST_VARIABLE: &str
@@ -13027,7 +13030,7 @@ pub const antecedent_estimate::count_fitted_posterior::MAX_DRAWS: usize
 pub const antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION: f64
 pub const antecedent_estimate::count_fitted_posterior::MAX_ENUMERATION_WORK: usize
 pub const antecedent_estimate::count_fitted_posterior::MEASURED_DRAW_CLASSES: [u32; 2]
-pub const antecedent_estimate::counterfactual_transport_sampled::DETAIL_INTERVAL_NOT_LICENSED: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::DETAIL_INTERVAL_NOT_SUPPORTED: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_ENVELOPE_ONLY: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_EXACT_ON_ESTIMATED_TABLES: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_IDENTIFIED: &str
@@ -13076,12 +13079,14 @@ pub const antecedent_estimate::joint_bayesian_transport::DETAIL_PRIOR_DIMENSION:
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_ROUTE_FROZEN: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_SINGULAR_FIT: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_SOURCE_DEPENDENCE: &str
+pub const antecedent_estimate::joint_bayesian_transport::DETAIL_SUPPORT_RESOURCE_LIMIT: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_TOO_MANY_DRAWS: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_TOO_MANY_PARAMETERS: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_UNSUPPORTED_GRAPH: &str
 pub const antecedent_estimate::joint_bayesian_transport::DETAIL_WEAK_OVERLAP: &str
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_DRAWS: usize
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PARAMETERS: usize
+pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_SUPPORT_WORK: u64
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER: &str
 pub const antecedent_estimate::joint_design::capabilities::JOINT_DESIGN_CAPABILITIES: [antecedent_estimate::joint_design::capabilities::JointDesignCapability; 7]
 pub const antecedent_estimate::joint_panel::family::MAX_SPATIAL_GROUPS: usize
@@ -13110,6 +13115,7 @@ pub const antecedent_estimate::learned_joint_transport::DETAIL_PRIOR_DIMENSION: 
 pub const antecedent_estimate::learned_joint_transport::DETAIL_RANK_DEFICIENT: &str
 pub const antecedent_estimate::learned_joint_transport::DETAIL_ROUTE_FROZEN: &str
 pub const antecedent_estimate::learned_joint_transport::DETAIL_SOURCE_DEPENDENCE: &str
+pub const antecedent_estimate::learned_joint_transport::DETAIL_SUPPORT_RESOURCE_LIMIT: &str
 pub const antecedent_estimate::learned_joint_transport::DETAIL_TOO_MANY_DRAWS: &str
 pub const antecedent_estimate::learned_joint_transport::DETAIL_TOO_MANY_PARAMETERS: &str
 pub const antecedent_estimate::learned_joint_transport::DETAIL_UNSUPPORTED_GRAPH: &str
@@ -13197,6 +13203,8 @@ pub const antecedent_estimate::temporal_dependent_interval::TEMPORAL_INTERVAL_TO
 pub const antecedent_estimate::temporal_dependent_interval::TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str
 pub const antecedent_estimate::temporal_dependent_interval::TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str
 pub const antecedent_estimate::temporal_design::DEFAULT_BAND_REPLICATES: usize
+pub const antecedent_estimate::temporal_design::MAX_BAND_REPLICATES: usize
+pub const antecedent_estimate::temporal_design::MAX_BAND_WORK: u128
 pub const antecedent_estimate::temporal_design::MIN_CLUSTERS: usize
 pub const antecedent_estimate::temporal_design::NOMINAL_LEVEL: f64
 pub const antecedent_estimate::temporal_design::dose::MIN_LOCAL_ESS: f64
@@ -13838,6 +13846,7 @@ pub field antecedent_estimate::FrontDoorFunctional::backend: antecedent_stats::f
 pub field antecedent_estimate::FrontDoorFunctional::bootstrap_replicates: u32
 pub field antecedent_estimate::FrontDoorFunctional::outcome_model: antecedent_estimate::FrontDoorOutcomeModel
 pub field antecedent_estimate::FrontDoorFunctional::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::FrontDoorFunctional::sampling_design: antecedent_estimate::util::SamplingDeclaration
 pub field antecedent_estimate::FrontDoorTwoStage::backend: antecedent_stats::faer_backend::FaerBackend
 pub field antecedent_estimate::FrontDoorTwoStage::inference: antecedent_estimate::InferenceSpec
 pub field antecedent_estimate::FrontDoorTwoStage::overlap: antecedent_estimate::OverlapPolicy
@@ -14977,7 +14986,6 @@ pub field antecedent_estimate::categorical_treatment_posterior::CategoricalTreat
 pub field antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior::reference: alloc::string::String
 pub field antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior::variance_shape_and_scale: (f64, f64)
 pub field antecedent_estimate::categorical_treatment_posterior::ContrastPosterior::from: alloc::string::String
-pub field antecedent_estimate::categorical_treatment_posterior::ContrastPosterior::interval: [f64; 2]
 pub field antecedent_estimate::categorical_treatment_posterior::ContrastPosterior::mean: f64
 pub field antecedent_estimate::categorical_treatment_posterior::ContrastPosterior::posterior: antecedent_estimate::gaussian_linear_posterior::StudentPosterior
 pub field antecedent_estimate::categorical_treatment_posterior::ContrastPosterior::probability_positive: f64
@@ -15191,6 +15199,7 @@ pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableRep
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::observed_cells: usize
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::pseudo_count: core::option::Option<f64>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::smoothed: bool
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::stratified: bool
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::structural_zeros: usize
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::total: u64
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::unseen_cells: usize
@@ -18338,6 +18347,7 @@ pub fn <antecedent_estimate::FrontDoorFunctional>::fn new() -> Self
 pub fn <antecedent_estimate::FrontDoorFunctional>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedFrontDoorProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::FrontDoorFunctional>::fn prepare_checked(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize) -> core::result::Result<antecedent_estimate::CheckedFrontDoorPreparation, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::FrontDoorFunctional>::fn rebind_checked(&self, checked: &antecedent_estimate::CheckedFrontDoorPreparation, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent_estimate::CheckedFrontDoorPreparation, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::FrontDoorFunctional>::fn with_sampling_design(self, design: antecedent_core::sampling_design::SamplingDesign) -> Self
 pub fn <antecedent_estimate::FrontDoorTwoStage>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_estimate::FrontDoorTwoStage>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::FrontDoorTwoStage>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
@@ -19037,6 +19047,7 @@ pub fn <antecedent_estimate::nested_markov_binary::NestedParameters>::fn cell_pr
 pub fn <antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty>::fn calibration_basis(&self, functional: antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises>::const fn sequentially_ignorable() -> Self
 pub fn <antecedent_estimate::nonlinear_sde_fit::SdeIdentificationFailure>::const fn code(self) -> &'static str
+pub fn <antecedent_estimate::nonlinear_sde_fit::SdeReport>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn evaluation_fold(&self) -> u32
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn rows(&self) -> &[antecedent_estimate::nuisance_cache::PredictedRow]
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::fn try_new(evaluation_fold: u32, rows: &[antecedent_estimate::nuisance_cache::PredictedRow]) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
@@ -19226,6 +19237,7 @@ pub fn <antecedent_estimate::sequential_crossfit::SequentialNuisanceStore>::fn l
 pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn first(self) -> antecedent_estimate::sequential_crossfit::ActionLevel
 pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn new(first: antecedent_estimate::sequential_crossfit::ActionLevel, second: antecedent_estimate::sequential_crossfit::ActionLevel) -> Self
 pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn second(self) -> antecedent_estimate::sequential_crossfit::ActionLevel
+pub fn <antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosterior>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::streamed_iv::StreamedIvEstimate>::fn into_effect(self, assumptions: antecedent_core::assumption::AssumptionSet, overlap: antecedent_estimate::OverlapPolicy, se_kind: antecedent_estimate::AnalyticSeKind) -> antecedent_estimate::EffectEstimate
 pub fn <antecedent_estimate::temporal_dependent_interval::DependentInterval>::fn calibration_basis(&self) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_estimate::temporal_dependent_interval::DependentInterval>::fn contains(&self, value: f64) -> bool
@@ -19518,9 +19530,9 @@ pub fn antecedent_estimate::effect_constancy::test_effect_constancy(partitions: 
 pub fn antecedent_estimate::effective_rows(scores: &[f64]) -> f64
 pub fn antecedent_estimate::empirical_table::assemble_grid_point_laws(input: &antecedent_estimate::StatisticalTransportInput, functional: &antecedent_identify::sid::BoundTransportFunctional, options: &antecedent_estimate::EmpiricalTableOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_expr::exact::ExactTransportData, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::empirical_table::fit_empirical_joint(sample: &antecedent_estimate::RegimeSample, axes: &[antecedent_expr::exact::DiscreteAxis], options: &antecedent_estimate::EmpiricalTableOptions, rows: core::option::Option<&[antecedent_data::global_index::GlobalId]>) -> core::result::Result<antecedent_expr::exact::ExactDiscreteLaw, antecedent_estimate::EstimationError>
-pub fn antecedent_estimate::empirical_table::licensed_iid_dependence(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, samples: &[antecedent_estimate::RegimeSample]) -> bool
-pub fn antecedent_estimate::empirical_table::licensed_iid_regimes(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, regimes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::RegimeId>) -> bool
 pub fn antecedent_estimate::empirical_table::sample_key(sample: &antecedent_estimate::RegimeSample) -> (alloc::sync::Arc<str>, alloc::sync::Arc<str>, antecedent_core::ids::RegimeId, alloc::vec::Vec<(u32, u64)>)
+pub fn antecedent_estimate::empirical_table::supported_iid_dependence(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, samples: &[antecedent_estimate::RegimeSample]) -> bool
+pub fn antecedent_estimate::empirical_table::supported_iid_regimes(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, regimes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::RegimeId>) -> bool
 pub fn antecedent_estimate::empirical_table::validate_options(options: &antecedent_estimate::EmpiricalTableOptions) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::empirical_threshold_grid(y: &[f64], points: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::endpoint_components(first: &[u32], second: &[u32]) -> alloc::vec::Vec<u32>
@@ -19646,7 +19658,7 @@ pub fn antecedent_estimate::kernel_bias_factor(influence: &[f64], block: usize) 
 pub fn antecedent_estimate::kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64
 pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument_posterior(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, prior_sd: f64, sampling: antecedent_estimate::DrawSpec, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior, antecedent_estimate::EstimationError>
-pub fn antecedent_estimate::latent_class_effects::fit_latent_class_effects(data: &antecedent_estimate::latent_class_effects::LatentClassData<'_>, config: &antecedent_estimate::latent_class_effects::LatentClassConfig) -> core::result::Result<antecedent_estimate::latent_class_effects::LatentClassResult, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::latent_class_effects::fit_latent_class_effects(data: &antecedent_estimate::latent_class_effects::LatentClassData<'_>, config: &antecedent_estimate::latent_class_effects::LatentClassConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::latent_class_effects::LatentClassResult, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::learned_continuous::estimate_learned_continuous_analytic_interval(id: &antecedent_identify::transport::TransportIdentification, input: &antecedent_estimate::TrialAipwInput, options: &antecedent_estimate::LearnedContinuousOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::LearnedContinuousEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::learned_continuous::learned_continuous_analytic_interval(input: &antecedent_estimate::TrialAipwInput, run: &antecedent_estimate::LearnedContinuousEstimate, coverage_level: f64) -> core::result::Result<(f64, (f64, f64)), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::learned_joint_transport::fit_learned_joint_transport(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::learned_joint_transport::LearnedJointModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: core::option::Option<&antecedent_estimate::joint_bayesian_transport::TargetData>, options: &antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::learned_joint_transport::LearnedJointFit, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
@@ -19681,7 +19693,7 @@ pub fn antecedent_estimate::measurement::continuous::correct_continuous_error(mo
 pub fn antecedent_estimate::measurement::correct_classical_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, data: &antecedent_estimate::measurement::LinearMeasuredData<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedLinearEffect, antecedent_estimate::measurement::MeasurementError>
 pub fn antecedent_estimate::measurement::correct_latent_posterior_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, data: &antecedent_estimate::measurement::PosteriorLinearData<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedPosteriorLinearEffect, antecedent_estimate::measurement::MeasurementError>
 pub fn antecedent_estimate::measurement::correct_repeated_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, outcome: &[f64], replicate_values: &[f64], replicate_counts: &[u32], covariates: &[f64], covariate_count: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedLinearEffect, antecedent_estimate::measurement::MeasurementError>
-pub fn antecedent_estimate::measurement::interval_not_licensed() -> antecedent_estimate::measurement::MeasurementError
+pub fn antecedent_estimate::measurement::interval_not_supported() -> antecedent_estimate::measurement::MeasurementError
 pub fn antecedent_estimate::measurement_transport::transport_measurement_model(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, data: &antecedent_estimate::measurement::DataBinding) -> core::result::Result<antecedent_estimate::measurement_transport::TransportedMeasurementModel, antecedent_estimate::measurement::MeasurementError>
 pub fn antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence(request: antecedent_estimate::measurement_transport_pooled::PooledDifferentialRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement_transport_pooled::PooledDifferentialCorrection, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::mechanism_discrepancy::normal_upper_quantile(tail: f64) -> f64
@@ -19719,7 +19731,7 @@ pub fn antecedent_estimate::nested_markov_binary::plugin_means(counts: &antecede
 pub fn antecedent_estimate::nested_markov_binary::refuse_public_interval_route() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal(input: &antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: &antecedent_estimate::nested_markov_binary::FitOptions, nominal_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::nominal_z_transport_interval(functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, replicates: u32, coverage_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::result::Result<antecedent_estimate::NominalZTransportInterval, &'static str>, antecedent_estimate::EstimationError>
-pub fn antecedent_estimate::nonlinear_mediation::estimate_nonlinear_mediation(input: &antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'_>, premises: &antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises, config: &antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig) -> core::result::Result<antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimate, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::nonlinear_mediation::estimate_nonlinear_mediation(input: &antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'_>, premises: &antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises, config: &antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::nonlinear_sde_fit::fit_sde_quasi_likelihood(compiled: &antecedent_model::nonlinear_sde::CompiledSde, coordinates: &[usize], observation: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>, prior: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>, trajectories: &[antecedent_estimate::nonlinear_sde_fit::SdeTrajectory], policy: antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nonlinear_sde_fit::SdeFit, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
 pub fn antecedent_estimate::nonlinear_sde_fit::sde_quasi_log_likelihood(compiled: &antecedent_model::nonlinear_sde::CompiledSde, theta: &[f64], observation: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeObservationModel>, prior: core::option::Option<&antecedent_estimate::nonlinear_sde_fit::SdeFilterPrior>, trajectories: &[antecedent_estimate::nonlinear_sde_fit::SdeTrajectory], policy: antecedent_estimate::nonlinear_sde_fit::SdeFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
 pub fn antecedent_estimate::nonlinear_sde_fit::sde_report(compiled: &antecedent_model::nonlinear_sde::CompiledSde, fit: core::option::Option<antecedent_estimate::nonlinear_sde_fit::SdeFit>, initial: &[f64], policy: &antecedent_model::nonlinear_sde::SdeSimulationPolicy, worlds: &[antecedent_model::nonlinear_sde::SdeWorld], contrasts: &[antecedent_model::nonlinear_sde::SdeContrast], parameter_draws: usize, parameter_seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::nonlinear_sde_fit::SdeReport, antecedent_estimate::nonlinear_sde_fit::SdeFitError>
@@ -20877,6 +20889,7 @@ pub struct antecedent_estimate::nonlinear_sde_fit::SdeObservation
 pub struct antecedent_estimate::nonlinear_sde_fit::SdeObservationModel
 pub struct antecedent_estimate::nonlinear_sde_fit::SdeParameterUncertainty
 pub struct antecedent_estimate::nonlinear_sde_fit::SdeReport
+pub struct antecedent_estimate::nonlinear_sde_fit::SdeReport has private fields
 pub struct antecedent_estimate::nonlinear_sde_fit::SdeTrajectory
 pub struct antecedent_estimate::nonlinear_sde_fit::SdeWorldParameterSpread
 pub struct antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
@@ -21064,6 +21077,7 @@ pub struct antecedent_estimate::smoothed_dose::SmoothedDoseGridPoint
 pub struct antecedent_estimate::smoothed_dose::SmoothedDoseModels
 pub struct antecedent_estimate::smoothed_dose::SmoothingBiasDiagnostic
 pub struct antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosterior
+pub struct antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosterior has private fields
 pub struct antecedent_estimate::smoothed_dose_posterior::SmoothedDosePosteriorModel<'a>
 pub struct antecedent_estimate::staggered_event_study::EventTimeEffect
 pub struct antecedent_estimate::staggered_event_study::GroupTimeAtt
@@ -21299,7 +21313,7 @@ pub use antecedent_estimate::cell_aipw::CellSaturatedAipw = antecedent_estimate:
 pub use antecedent_estimate::cell_aipw::CellScoreSpec = antecedent_estimate::CellScoreSpec
 pub use antecedent_estimate::cell_aipw::ContinuousCellSpec = antecedent_estimate::ContinuousCellSpec
 pub use antecedent_estimate::cell_aipw::MAX_JOINT_BINARY = antecedent_estimate::MAX_JOINT_BINARY
-pub use antecedent_estimate::cell_aipw::POINT_CDE_UNLICENSED = antecedent_estimate::POINT_CDE_UNLICENSED
+pub use antecedent_estimate::cell_aipw::POINT_CDE_UNSUPPORTED = antecedent_estimate::POINT_CDE_UNSUPPORTED
 pub use antecedent_estimate::cell_aipw::SharedCellInputs = antecedent_estimate::SharedCellInputs
 pub use antecedent_estimate::cell_minus_control_contrast = antecedent_estimate::cell_aipw::cell_minus_control_contrast
 pub use antecedent_estimate::choice_inference::ChoiceKernel = antecedent_stats::adaptive_inference::ChoiceKernel
@@ -21418,8 +21432,6 @@ pub use antecedent_estimate::learned_trial::TrialAipwOptions = antecedent_estima
 pub use antecedent_estimate::learned_trial::TrialSampling = antecedent_estimate::TrialSampling
 pub use antecedent_estimate::learned_trial::estimate_trial_aipw = antecedent_estimate::estimate_trial_aipw
 pub use antecedent_estimate::learned_trial_uncertainty = antecedent_estimate::learned_trial::learned_trial_uncertainty
-pub use antecedent_estimate::licensed_iid_dependence = antecedent_estimate::empirical_table::licensed_iid_dependence
-pub use antecedent_estimate::licensed_iid_regimes = antecedent_estimate::empirical_table::licensed_iid_regimes
 pub use antecedent_estimate::linear_path_product_restriction = antecedent_estimate::frontdoor::linear_path_product_restriction
 pub use antecedent_estimate::logit_probability_interval = antecedent_estimate::functional_distribution::logit_probability_interval
 pub use antecedent_estimate::longitudinal_regime = antecedent_stats::longitudinal_regime
@@ -21579,6 +21591,8 @@ pub use antecedent_estimate::statistical_transport::percentile_interval = antece
 pub use antecedent_estimate::summarize_functional = antecedent_estimate::retarget::summarize_functional
 pub use antecedent_estimate::summarize_functional_with = antecedent_estimate::retarget::summarize_functional_with
 pub use antecedent_estimate::support_from_functional_eval = antecedent_estimate::functional_distribution::support_from_functional_eval
+pub use antecedent_estimate::supported_iid_dependence = antecedent_estimate::empirical_table::supported_iid_dependence
+pub use antecedent_estimate::supported_iid_regimes = antecedent_estimate::empirical_table::supported_iid_regimes
 pub use antecedent_estimate::supported_min_draws = antecedent_estimate::bayesian::supported_min_draws
 pub use antecedent_estimate::tempering_capped_from_notes = antecedent_estimate::serial_dependence::tempering_capped_from_notes
 pub use antecedent_estimate::tempering_inestimable_from_notes = antecedent_estimate::serial_dependence::tempering_inestimable_from_notes

@@ -42,32 +42,32 @@ identity, no topological order and no classification.
 
 For an earlier snapshot, a current snapshot and the observed effects:
 
-* **still_valid**: nothing it rests on changed and no license it states was
+* **still_valid**: nothing it rests on changed and no support it states was
   lost. The earlier numbers and uncertainty stand.
 * **recompute**: data, evidence, a model or representation version or a
   structural derivation it uses changed. The earlier fit and uncertainty carry
   no authority. Reusing a structural derivation after compatible data
   replacement recomputes the numbers; it never retains the old fit
   (`structure_reused_fit_not_retained`).
-* **withdrawn** (no longer licensed): an input it cannot do without was
+* **withdrawn** (no longer supported): an input it cannot do without was
   retired, replaced or removed; coordinates it answers are outside the
   support; a provider's trust no longer holds; a stage cannot be executed; or
   the calibration it states does not hold at its coordinate.
 
 Numerical invalidation and withdrawal are reported apart: a claim can need
-recomputation without losing any license, and can be withdrawn with its point
+recomputation without losing any support, and can be withdrawn with its point
 value intact. A calibration withdrawal does not propagate across a data
 dependency; support, trust and retirement withdrawals propagate along every
-dependency. Stage reuse never proves a claim still licensed: support, trust and
+dependency. Stage reuse never proves a claim still supported: support, trust and
 calibration are rechecked at the current coordinates.
 
 ### Calibration
 
-A record held at coordinate `c` is licensed only at the claim's own
-coordinate. A record inherited from an upstream node is licensed only when that
+A record held at coordinate `c` is supported only at the claim's own
+coordinate. A record inherited from an upstream node is supported only when that
 node currently holds the same record at the same coordinate (not retired, not
 unsupported, not untrusted). Otherwise the claim is withdrawn for calibration
-(`cell_not_licensed`, `composition_verification.calibration_not_held`) and
+(`not_supported`, `composition_verification.calibration_not_held`) and
 reports the state `lost` and that a new calibration is required. A record
 established for one target population is therefore never inherited by a claim
 about another: a changed target is a changed coordinate.
@@ -111,8 +111,8 @@ each kind of change has a fixed outcome:
 | Change | Keeps | Recomputes | Refuses |
 |---|---|---|---|
 | `refresh` with new outcome-only data | the structural derivation (graph, identification, bridge form), the version labels, the support and provider-trust standings | every node that reads the data: the score artifact, the law, a bridged claim, a transported result, the decision. The earlier fit and uncertainty carry no authority (`structure_reused_fit_not_retained`) | a fit or an interval carried across: `claim_revalidation_required` |
-| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that no longer holds it: `cell_not_licensed`; coordinates outside the support: `claim_license_withdrawn` |
-| ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_license_withdrawn` |
+| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that no longer holds it: `not_supported`; coordinates outside the support: `claim_support_withdrawn` |
+| ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_support_withdrawn` |
 | provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a re-verified provider | claims resting on the provider while its trust does not hold |
 | `export` and `load` | the graphs, the observed effects, the declared shared-data relations, every classification and the lineage identity | the classification, on load, from the stored graphs and effects | a stored class, reason, authority, calibration state or lineage identity that does not replay; an identity other than the retained one |
 
@@ -129,7 +129,7 @@ verification classifies claims and produces no estimate. An interval belongs to
 the route that produced the claim and is read there, at that route's own measured
 coordinate; a recomputed claim is read through its producing route again. The
 inheritance of a record across targets is closed by logic, since coverage is a
-property of the method at one target (`cell_not_licensed`). A dependence that is not declared as an
+property of the method at one target (`not_supported`). A dependence that is not declared as an
 edge is not detected; identities, coordinates, supports, trust standings and
 calibration records are declarations.
 
@@ -138,8 +138,8 @@ calibration records are declarations.
 | Code | Detail | Remedy |
 |---|---|---|
 | `claim_revalidation_required` | `composition_verification.recompute_required` | recompute from the changed upstream objects |
-| `claim_license_withdrawn` | `support_withdrawn`, `provider_trust_withdrawn`, `input_retired`, `stage_unexecutable` | restore the license named by the origin |
-| `cell_not_licensed` | `composition_verification.calibration_not_held` | establish a record at the claim's coordinate or report the point value |
+| `claim_support_withdrawn` | `support_withdrawn`, `provider_trust_withdrawn`, `input_retired`, `stage_unexecutable` | restore the support named by the origin |
+| `not_supported` | `composition_verification.calibration_not_held` | establish a record at the claim's coordinate or report the point value |
 | `invalid_argument` | `graph_invalid`, `unknown_claim`, `replay_mismatch`, `ledger_mismatch` | fix the declaration or regenerate |
 | `route_not_supported` | `identity_mismatch` | supply the artifact with the retained identity |
 

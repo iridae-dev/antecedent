@@ -39,7 +39,7 @@ Temporal dose-over-horizon and policy-path queries live on
 - Positional `(treatment, outcome)` arguments are unchanged. Temporal
   fields are keyword-only on the Python dataclasses.
 
-`PulseEffect` / `SustainedEffect` remain public names. On licensed
+`PulseEffect` / `SustainedEffect` remain public names. On supported
 TemporalDag cells they dispatch through `execute_temporal` directly to
 `TemporalLinearAdjustment`, the same lower-level estimator machinery the
 dose × horizon surface (`TemporalResponseEstimator`) is built on — they are
@@ -94,7 +94,7 @@ are identified by unfolding alone. The calibration key carries the construction 
 A temporal response estimator evaluates a dose × horizon surface (row-major
 `ResponseValue::Surface` with `dimension = 2`: dose major, then horizon)
 via linear g-computation on the unfolded backdoor design. Soft /
-sequenced temporal policies that are licensed evaluate through the same
+sequenced temporal policies that are supported evaluate through the same
 unfolded design with mechanism overlays; everything else refuses.
 
 Result axes match static response: structural identification, empirical
@@ -106,7 +106,7 @@ cell supported) rather than the union of horizon ranges. Per-cell labels
 live in `SupportReport.point_status`. Static curves keep worst-over-points.
 
 Known-truth evidence is not a single DGP. `temporal_dose_horizon` pins the
-unconfounded linear surface, bands, and licensed intervention overlays.
+unconfounded linear surface, bands, and supported intervention overlays.
 `temporal_confounded_pulse` pins identification under confounding:
 adjustment set `{Z@-1}` at horizon 1, method `temporal.backdoor.unfolded`,
 and the structural estimate (empty `Z` recovers the confounded association).
@@ -116,9 +116,9 @@ the long-horizon empty set at the short cell is the confounded association.
 `temporal_horizon_support` pins mixed
 per-horizon empirical support.
 
-### Support matrix (0.7 licensed subset)
+### Support matrix (0.7 supported subset)
 
-License:
+Support:
 
 | query | graph_class | structure | inference | validation |
 |-------|-------------|-----------|-----------|------------|
@@ -133,7 +133,7 @@ numerically, as a two-point contrast, with the dose × horizon surface on the
 shared fixture (`conformance/response/temporal_dose_horizon`) — shared
 lower-level adjustment machinery, not derivation from the surface. Multi-step
 Sustained remains estimator-refused. All other nearby allowlist rows stay
-refused. Python query construction reads `TemporalResponseSpec::license()`
+refused. Python query construction reads `TemporalResponseSpec::support()`
 (horizon cap, allowed policies, default lag) rather than defining those
 values.
 
@@ -142,7 +142,7 @@ and validation ≠ `none` remain refused / n/a / allowlisted as today.
 
 `ResponseCurve` / `InterventionResponse` without a temporal attachment
 remain n/a on temporal graph classes (static queries are not temporal
-cells). With a temporal attachment they are the licensed cells above.
+cells). With a temporal attachment they are the supported cells above.
 
 ### CausalState
 
@@ -164,10 +164,10 @@ static responses.
 - `parity/support_n_a.toml` no longer blanket-blocks
   `ResponseCurve` / `InterventionResponse` on every temporal graph class;
   static (no temporal attachment) vs temporal cells are distinguished at
-  classification time and by licensed/closed/n_a predicates.
+  classification time and by supported/closed/n_a predicates.
 - Provenance records, frozen conformance fixtures, staged-path tests,
   artifact round trips, and a hot-path bench are merge requirements for
-  every newly licensed cell.
+  every newly supported cell.
 - Package version is 0.7.0.
 
 ## Note: reuse by the two-step temporal transport sequence
@@ -186,5 +186,5 @@ What the sequence does not reuse: the response-curve functionals, temporal artif
 and the `TemporalDag` attachment of a response query. The sequence is a fixed-horizon
 (2), hard-sequence transport claim on an explicit diagram, decided by the classical
 sID route with a discrete exact provider; temporal sampling intervals, initial-state
-uncertainty and new-period refresh are not licensed. Its artifact is its own format
+uncertainty and new-period refresh are not supported. Its artifact is its own format
 (`temporal_transport_sequence_v1`), not the 0.4 response format.

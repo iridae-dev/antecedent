@@ -217,6 +217,6 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
         if consumer is None:
             raise CausalUnsupportedError(
                 "nested_markov.route_frozen: posterior consumer remains closed pending calibration",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         return cls._from_native(consumer(artifact, expected_identity))

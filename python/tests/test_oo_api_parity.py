@@ -91,7 +91,7 @@ def test_sustained_vs_pulse_policy_accepted():
             refute=False,
         )
     )
-    # Licensed SustainedEffect is the single-step window at -treatment_lag,
+    # Supported SustainedEffect is the single-step window at -treatment_lag,
     # so it matches Pulse at the same lag under temporal linear adjustment.
     sustained = require_success(
         antecedent.analyze(
@@ -376,7 +376,7 @@ def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
     )
     assert [r.candidate_index for r in ranking.ranked] == [1, 0]
     assert [(v.candidate_index, v.constraint) for v in ranking.violations] == [
-        (2, "unlicensed_candidate")
+        (2, "unsupported_candidate")
     ]
 
     # EVSI(n) = |Δβ| s_n G(|μ_b − μ₀| / s_n), s_n² = τ⁴n / (nτ² + σ²),

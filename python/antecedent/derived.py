@@ -32,10 +32,10 @@ still ``point_only``.
 
 Refused, with a registered reason code:
 
-* an interval (``level=...``): ``penalized_interval_not_licensed``;
+* an interval (``level=...``): ``penalized_interval_not_supported``;
 * an interval over a learner-supplied family (``nuisance="random_forest"`` with ``level=...``)
   and a machine-learning name that is not a declared learner (``"ml"``, ``"neural_network"``,
-  ...): ``ml_nuisance_not_licensed``; ``"lasso"``: ``selection_inference_not_licensed``;
+  ...): ``ml_nuisance_not_supported``; ``"lasso"``: ``selection_inference_not_supported``;
 * an inconsistent declaration, leakage, illegal values: ``derived_treatment_invalid``;
 * a rank-deficient adjustment design: ``design_rank_deficient``.
 """

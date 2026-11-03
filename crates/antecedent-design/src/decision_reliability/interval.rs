@@ -32,7 +32,7 @@
 //! construction, not a claim. [`DerivedUncertainty::publish`] returns `Ok` only when a
 //! current, attesting coverage record measured the route at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule, coupling and serial
-//! dependence) and refuses with `cell_not_licensed` everywhere else.
+//! dependence) and refuses with `not_supported` everywhere else.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -41,7 +41,7 @@ use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route_at};
+use super::calibration::{CalibrationCoordinate, PublishedRoute, support_route_at};
 use super::draws::{CandidateCoupling, DecisionDraws};
 use super::mc_error::{McEstimate, PairCoupling};
 use super::report::{
@@ -311,7 +311,7 @@ impl DerivedUncertainty {
     /// Ask to publish a route from this derivation.
     ///
     /// # Errors
-    /// [`ReliabilityError::CellNotLicensed`] until a coverage record measures the route
+    /// [`ReliabilityError::NotSupported`] until a coverage record measures the route
     /// at [`Self::coordinate`].
     pub fn publish(&self, route: PublishedRoute) -> Result<(), ReliabilityError> {
         // The measured utility and ranking-probability intervals are marginal; a
@@ -321,12 +321,12 @@ impl DerivedUncertainty {
         let marginal_only =
             matches!(route, PublishedRoute::RankingProbability | PublishedRoute::UtilityInterval);
         if marginal_only && self.request.multiplicity != IntervalMultiplicity::Marginal {
-            return Err(ReliabilityError::CellNotLicensed {
+            return Err(ReliabilityError::NotSupported {
                 route: route.as_str(),
                 coordinate: self.coordinate.describe(),
             });
         }
-        license_route_at(route, &self.coordinate, self.request.level)
+        support_route_at(route, &self.coordinate, self.request.level)
     }
 
     /// One combined uncertainty number.
@@ -512,7 +512,7 @@ fn confidence_set(
         return Ok(make(ConfidenceSetBasis::MarginalBonferroni, ids.clone(), 0.0));
     }
     // The paired construction is chosen by the candidate count alone: the method an interval
-    // is licensed under must not change with the draw count. Its cost is cancellable and each
+    // is supported under must not change with the draw count. Its cost is cancellable and each
     // difference estimate is admitted against the context's budgets.
     if retained <= MAX_PAIRED_COMPARISON_CANDIDATES {
         let tail = alpha / (retained as f64 - 1.0);

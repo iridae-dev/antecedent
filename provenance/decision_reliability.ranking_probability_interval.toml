@@ -12,7 +12,7 @@ papers = [
   { title = "Hsu (1981), Simultaneous Confidence Intervals for All Distances from the Best, Annals of Statistics 9(5)", sections = ["simultaneous confidence intervals for all distances from the best"] },
 ]
 implementation_deviations = [
-  "Publishes a ranking probability, utility interval, optimality confidence set and selection-corrected interval only where a current attesting whole-procedure coverage record measured them at the candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; the record is resolved from the shipped coverage table and every other coordinate refuses cell_not_licensed.",
+  "Publishes a ranking probability, utility interval, optimality confidence set and selection-corrected interval only where a current attesting whole-procedure coverage record measured them at the candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; the record is resolved from the shipped coverage table and every other coordinate refuses not_supported.",
 ]
 upstream_implementations_observed = []
 modules = ["crates/antecedent-design/src/decision_reliability/ranking.rs", "crates/antecedent-design/src/decision_reliability/interval.rs"]
@@ -27,29 +27,29 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The ranking statements of rank_validated in crates/antecedent-design/src/decision_reliability/ranking.rs (probability of being best with ties shared, probability of being among the best k, probability of beating a baseline with ties counting one half, each as a mean of a per-draw series with the draw-dependence declaration) and their Wilson score intervals at the effective sample size in interval.rs, with the multiplicity adjustment and the refusal to publish a simultaneous request. It relies on the mc_error review of decision_reliability.sampled_decision for the series standard error and effective size and on the norm_inv kernel. Not the coverage table that licenses publication, which this record's deviations describe and which is covered by the existing calibration tests."
+scope = "The ranking statements of rank_validated in crates/antecedent-design/src/decision_reliability/ranking.rs (probability of being best with ties shared, probability of being among the best k, probability of beating a baseline with ties counting one half, each as a mean of a per-draw series with the draw-dependence declaration) and their Wilson score intervals at the effective sample size in interval.rs, with the multiplicity adjustment and the refusal to publish a simultaneous request. It relies on the mc_error review of decision_reliability.sampled_decision for the series standard error and effective size and on the norm_inv kernel. Not the coverage table that supports publication, which this record's deviations describe and which is covered by the existing calibration tests."
 assumptions = ["Candidate draws are paired by index only on a shared simulation (an independent-stream ranking is refused with a joint-law requirement, which this review observed when its first scenario was built that way).", "The Wilson interval treats the effective sample size as the binomial sample size; for a dependent or weighted stream that is an approximation the product states."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with definitions evaluated by an executing reference written for this review (standard library only; exact rational arithmetic for the Maritz-Jarrett weights); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
-limitations = "Four scenarios with ranking requests (3 to 4 candidates on shared draws; 100 to 900 draws; a baseline and top-k of 1, 2 and 3; marginal and simultaneous multiplicity; exact ties on a coarse grid; lognormal(0, 1.2) importance weights; an AR(1) stream with batch means) compare every probability, its standard error, its effective size and its Wilson end points with a direct enumeration at 1e-8 to 1e-12 relative. The Hsu (1981) simultaneous-intervals paper is cited for the best-candidate set, which the product builds with Bonferroni critical values instead; that set is checked in the derived_uncertainty review, not here, and neither paper was retrieved. Not covered: many candidates (the rank tables are quadratic in candidates), top-k of the full candidate count, ranking under non-expected-utility functionals, and the licensing table. No coverage of the Wilson interval for dependent or weighted streams is measured."
+limitations = "Four scenarios with ranking requests (3 to 4 candidates on shared draws; 100 to 900 draws; a baseline and top-k of 1, 2 and 3; marginal and simultaneous multiplicity; exact ties on a coarse grid; lognormal(0, 1.2) importance weights; an AR(1) stream with batch means) compare every probability, its standard error, its effective size and its Wilson end points with a direct enumeration at 1e-8 to 1e-12 relative. The Hsu (1981) simultaneous-intervals paper is cited for the best-candidate set, which the product builds with Bonferroni critical values instead; that set is checked in the derived_uncertainty review, not here, and neither paper was retrieved. Not covered: many candidates (the rank tables are quadratic in candidates), top-k of the full candidate count, ranking under non-expected-utility functionals, and the support table. No coverage of the Wilson interval for dependent or weighted streams is measured."
 sources = ["https://doi.org/10.1080/01621459.1927.10502953"]
 findings_resolved = ["No defect found: best, top-k and baseline probabilities (ties shared, baseline ties one half) and their Wilson intervals agree with direct enumeration, the clamp to [0, 1] holds at probabilities of 0 and 1, and a simultaneous request refuses to publish a ranking probability."]
-record_sha256 = "b06a1a816df97c320f9523c8e5bd8ff573f43a734e6eca5f277e2a7f2d245fd5"
+record_sha256 = "baa3bf27ca4fc3e70e2a99ec535d56d64a053a12f987985d30637040b5f85558"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/ranking.rs"
-sha256 = "eae6fb33553dd0b34be16e6f3b8854de17d4f800405149d4bdeb8adc76b94c3a"
+sha256 = "3551209e93700b60e79f6cdcd9a871a8593e25d10a441174f734afbe9f22230e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/interval.rs"
-sha256 = "1a62a592ffcea5ef33f0c159160bd1da2b95c3ce57cd4df9a7c6cf64ea5e3efc"
+sha256 = "fc8556d61a4d33d95360a19cd353a7640a675ead61f9fe6282e07b37f537f96e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
-sha256 = "2b3403b216ecfd4241c5a1d6c91b3a0b42ec4863e05d37d844c301381a014005"
+sha256 = "4177dfefe54de8216399f2ad5f4c20e4481b106b199caec104dcedf63439d5a5"
 
 [[method_review.artifacts]]
 role = "reference"

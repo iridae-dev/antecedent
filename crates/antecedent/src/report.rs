@@ -1019,17 +1019,14 @@ fn summary_section(input: &ReportInput<'_>) -> Section {
     }
     readings.push(
         match contract.support_status {
-            Some(CellStatus::Licensed) => "The route is a licensed support-matrix cell.",
-            Some(CellStatus::Allowlisted { .. }) => {
-                "The route runs without a licence (a retained compatibility status)."
-            }
+            Some(CellStatus::Supported) => "The route is a supported support-matrix cell.",
             Some(CellStatus::NotApplicable { .. }) => {
                 "The combination is typed impossible: the support matrix marks it not applicable."
             }
-            Some(CellStatus::Refused) => {
-                "The cell is in the product but is not licensed, and the matrix refuses it."
+            Some(CellStatus::NotSupported) => {
+                "The cell is in the product but is not supported, and the matrix refuses it."
             }
-            None => "The query is off the support-matrix axis; no matrix licence applies to it.",
+            None => "The query is off the support-matrix axis; no matrix support applies to it.",
         }
         .to_owned(),
     );
@@ -1321,12 +1318,12 @@ fn support_section(input: &ReportInput<'_>) -> Section {
         let support = plan.support();
         let mut cell = Vec::new();
         fact(&mut cell, "Coordinate", opt_str(support.coordinate()));
-        fact(&mut cell, "Licensed", yes_no(support.licensed()));
+        fact(&mut cell, "Supported", yes_no(support.supported()));
         fact(&mut cell, "Status", opt_str(support.status().map(CellStatus::as_str)));
         blocks.push(Block::Subheading("Support cell of the program".to_owned()));
         blocks.push(Block::Facts(cell));
     }
-    Section { title: "Support and licence", blocks }
+    Section { title: "Support", blocks }
 }
 
 /// The mixture over structures a plan carries, when it carries one.
@@ -1580,7 +1577,7 @@ fn limits_section(input: &ReportInput<'_>) -> Section {
         });
     }
     if !capability.neighbors.is_empty() {
-        blocks.push(Block::Subheading("Licensed neighbours".to_owned()));
+        blocks.push(Block::Subheading("Supported neighbours".to_owned()));
         blocks.push(Block::Text(
             "A neighbour changes the stated premises; it is not a fallback.".to_owned(),
         ));
@@ -1618,7 +1615,7 @@ fn limits_section(input: &ReportInput<'_>) -> Section {
         ("Layers the premises invalidate".to_owned(), layers(&capability.invalidated_layers[..])),
     ]));
     blocks.push(Block::Text(
-        "This report restates the contract. It computes no estimate, grants no licence, and a \
+        "This report restates the contract. It computes no estimate, grants no support, and a \
          status recorded here is the status the records carry."
             .to_owned(),
     ));

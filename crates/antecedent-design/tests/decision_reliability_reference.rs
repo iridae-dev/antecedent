@@ -281,7 +281,7 @@ fn derived_uncertainty_matches_the_definition_level_reference() {
             assert!(
                 matches!(
                     got.publish(PublishedRoute::RankingProbability),
-                    Err(ReliabilityError::CellNotLicensed { .. })
+                    Err(ReliabilityError::NotSupported { .. })
                 ),
                 "{name}"
             );

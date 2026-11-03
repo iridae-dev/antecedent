@@ -41,7 +41,7 @@ is refused over a mean-only claim as ``unsupported_law``. A bundle never claims
 that a serialized result recreates an executable study. Independently checked
 ``recalculation_receipt`` nodes report historical work and supply no live state
 or provider authentication. ``frozen_scores`` nodes retain their original
-snapshot and executed-fit identities for the separately licensed same-row
+snapshot and executed-fit identities for the separately supported same-row
 retarget operation. Connecting a receipt to scores checks both bindings; a
 changed fit refuses even when the data snapshot is the same.
 

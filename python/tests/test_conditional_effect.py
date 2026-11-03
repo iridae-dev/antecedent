@@ -59,7 +59,7 @@ def test_conditional_bayesian_consults_prior():
 
 
 def test_handle_conditional_bayesian_uses_staged_estimator():
-    """analyze is prepare().estimate(); Bayesian ConditionalEffect stays licensed."""
+    """analyze is prepare().estimate(); Bayesian ConditionalEffect stays supported."""
     rng = np.random.default_rng(12)
     t, w = rng.normal(size=(2, 100))
     data = {"t": t, "w": w, "y": 2 * t + 0.5 * t * w + rng.normal(scale=0.2, size=100)}

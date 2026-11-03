@@ -175,7 +175,7 @@ impl SceneClaim {
     }
 }
 
-/// Everything that decides which claims about one target are licensed.
+/// Everything that decides which claims about one target are supported.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransportScene {
     /// The target population.
@@ -350,7 +350,7 @@ pub enum TransportReason {
 }
 
 impl TransportReason {
-    /// Whether the reason withdraws a license (as opposed to staling the numbers).
+    /// Whether the reason withdraws support (as opposed to staling the numbers).
     #[must_use]
     pub const fn is_withdrawal(&self) -> bool {
         matches!(

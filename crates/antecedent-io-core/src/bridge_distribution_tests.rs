@@ -427,7 +427,7 @@ fn a_trial_line_neither_truncates_nor_extrapolates_a_law() {
         bridge_draws(&trial_contract(ValueKind::Posterior), &posterior_table(&source), None, 5)
             .expect_err("draws outside the validated range [0, 4]");
     assert_eq!(refused.detail, "scientific_bridge.draws_outside_domain");
-    assert_eq!(refused.code, "bridge_mapping_not_licensed");
+    assert_eq!(refused.code, "bridge_mapping_not_supported");
 }
 
 #[test]
@@ -439,7 +439,7 @@ fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged() {
     let refused =
         bridge_draws(&bridge, &posterior_table(&source), Some(ClaimKind::Associational), 1)
             .expect_err("associational");
-    assert_eq!(refused.code, "cell_not_licensed");
+    assert_eq!(refused.code, "not_supported");
     assert_eq!(refused.detail, "scientific_bridge.source_not_draws");
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // A bootstrap is neither a posterior nor a predictive law.
@@ -625,7 +625,7 @@ fn a_bridge_is_a_measurement_mapping_stage_and_a_chain_propagates_it_jointly() {
         stages.clone(),
     );
     let record = PropagationChainRecordWire::seal(draft, &ExecutionContext::for_tests(17))
-        .expect("the chain is licensed");
+        .expect("the chain is supported");
     let stage = record.results.iter().find(|r| r.stage == "terminal").expect("stage");
     let utility = record.results.iter().find(|r| r.stage == "utility").expect("utility");
 
@@ -712,7 +712,7 @@ fn a_correction_chain_reproduces_the_direct_draws_bridge_bit_for_bit_and_replays
         bridge_draws(&correction_contract(), &correction_table(&source, "schema:flag"), None, 13)
             .expect("correction");
     let parts = bridged.chain_stage("correction").expect("a correction is a stage");
-    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("licensed");
+    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("supported");
     let stage = record.results.iter().find(|r| r.stage == "correction").expect("stage");
     // The same inputs give exactly the same rows: the stage's moments are the draws' moments.
     let (mean, variance) = sample_moments(&bridged.mapped_column());
@@ -777,7 +777,7 @@ fn a_correction_chain_feeds_a_utility_the_joint_law_of_the_corrected_rate() {
         stages,
     );
     let record = PropagationChainRecordWire::seal(draft, &ExecutionContext::for_tests(17))
-        .expect("the chain is licensed");
+        .expect("the chain is supported");
     let utility = record.results.iter().find(|r| r.stage == "utility").expect("utility");
     let rows = source.len() as f64;
     let expectation: f64 =
@@ -803,7 +803,7 @@ fn a_denominator_that_can_be_zero_or_a_rate_outside_its_range_is_refused_by_the_
     let refused =
         seal_stage(crossing, parts.stage.clone()).expect_err("a denominator crossing zero");
     assert_eq!(refusal_detail(refused), "propagation_chain.denominator_not_bounded");
-    // A Youden index above zero but below the model's smallest licensed value is refused too.
+    // A Youden index above zero but below the model's smallest supported value is refused too.
     let mut thin = parts.sources.clone();
     let specificity: Vec<f64> = thin[2].values.iter().map(|b| f64::from_bits(*b)).collect();
     for (bits, spec) in thin[1].values.iter_mut().zip(&specificity).take(1) {
@@ -827,7 +827,7 @@ fn a_latent_to_measured_correction_is_the_forward_map_of_the_rates() {
         bridge_draws(&contract, &correction_table(&source, "construct:disease"), None, 13)
             .expect("forward correction");
     let parts = bridged.chain_stage("forward").expect("a forward correction is a stage");
-    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("licensed");
+    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("supported");
     let stage = record.results.iter().find(|r| r.stage == "forward").expect("stage");
     let (mean, variance) = sample_moments(&bridged.mapped_column());
     assert_eq!(stage.value("mean").unwrap().to_bits(), mean.to_bits());
@@ -856,7 +856,7 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
     assert!(has(&parts.sources[3], "disturbance"));
     assert!(parts.sources[..3].iter().all(|s| !has(s, "disturbance")));
 
-    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("licensed");
+    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("supported");
     let stage = record.results.iter().find(|r| r.stage == "line").expect("stage");
     let (mean, variance) = sample_moments(&bridged.mapped_column());
     // The same inputs give exactly the bridged draws.
@@ -871,7 +871,7 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
         ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2)),
     );
     let mean_record =
-        seal_stage(parts.sources[..3].to_vec(), mean_stage).expect("the mean line is licensed");
+        seal_stage(parts.sources[..3].to_vec(), mean_stage).expect("the mean line is supported");
     let line = mean_record.results.iter().find(|r| r.stage == "mean_line").expect("mean line");
     let line_variance = line.value("variance").unwrap();
     let residuals = bridged.affine_columns().and_then(|a| a.residuals.clone()).expect("residuals");

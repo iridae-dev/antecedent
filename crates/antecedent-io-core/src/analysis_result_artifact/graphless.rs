@@ -56,24 +56,24 @@ fn interval_bound_replay(relative: f64, center: f64, span: f64) -> ReplayToleran
 const MIN_EXPECTED_ARM_UNITS: f64 = 40.0;
 /// Fewest observed rows in each arm of a small-arm Student interval.
 const MIN_SMALL_ARM_UNITS: usize = 2;
-/// Fewest rows in all of a trial that publishes a small-arm Student interval. A licence
+/// Fewest rows in all of a trial that publishes a small-arm Student interval. Support
 /// boundary, not a parser bound: the interval's coverage was only measured from this size, so
 /// a stored interval claiming it below the boundary is a forgery whatever its bytes.
 const MIN_SMALL_ARM_ROWS: usize = 100;
 
 /// Whether a stored graphless support status matches the independently
-/// recomputed license for a row. This is only the status comparison shared
-/// across the families; each family's eligibility recompute (`*_licensed`) is
+/// recomputed support for a row. This is only the status comparison shared
+/// across the families; each family's eligibility recompute (`*_supported`) is
 /// deliberately kept self-contained as a forgery check across the trust
 /// boundary and is never routed through the execute/contract classifier.
 /// `allow_legacy_missing` permits a `None` status to stand in for an
-/// unlicensed row on artifacts written before the field existed.
+/// unsupported row on artifacts written before the field existed.
 pub(in crate::analysis_result_artifact) fn graphless_status_ok(
     actual: Option<&str>,
-    licensed: bool,
+    supported: bool,
     allow_legacy_missing: bool,
 ) -> bool {
-    actual == licensed.then_some("licensed") || (allow_legacy_missing && actual.is_none())
+    actual == supported.then_some("supported") || (allow_legacy_missing && actual.is_none())
 }
 
 /// `C(n, k)` with the same multiply-then-divide recurrence the artifact
@@ -315,7 +315,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
     };
     let has_interval = randomized.interval_95.is_some();
     // The small-arm Student interval of an ANCOVA or a complete randomization is a construction
-    // of its own: it stands where the normal interval is unsupported and no licence row names it.
+    // of its own: it stands where the normal interval is unsupported and no support row names it.
     let small_arm_uncertainty = match &query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::Itt
@@ -487,7 +487,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         }
         _ => normal_interval,
     };
-    let graphless_licensed =
+    let graphless_supported =
         graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
             graphless_admits(
                 GraphlessSupportKey { family, design: design_key, method, inference_claim: claim },
@@ -635,7 +635,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         || randomized.assignment_design != design
         || !graphless_status_ok(
             randomized.graphless_support_status.as_deref(),
-            graphless_licensed,
+            graphless_supported,
             allow_legacy_graphless_missing,
         )
         || (randomized.uncertainty != expected_uncertainty
@@ -762,7 +762,7 @@ pub(in crate::analysis_result_artifact) fn validate_ratio_graphless(
     } else {
         "local_quadratic_cubic_rbc_hc0_delta"
     };
-    let ratio_licensed = graphless_admits(
+    let ratio_supported = graphless_admits(
         GraphlessSupportKey {
             family: "local_polynomial_ratio",
             design: ratio_design,
@@ -808,7 +808,7 @@ pub(in crate::analysis_result_artifact) fn validate_ratio_graphless(
         || fit.n_left < 3
         || fit.n_right < 3
         || (!legacy_point_only && fit.uncertainty != "rbc_hc0_delta_normal_fixed_bandwidth")
-        || !graphless_status_ok(fit.graphless_support_status.as_deref(), ratio_licensed, true)
+        || !graphless_status_ok(fit.graphless_support_status.as_deref(), ratio_supported, true)
     {
         return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
     }
@@ -1019,7 +1019,7 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
             && query.prediction_fold_ids == query.fold_ids,
         ..GraphlessAssignmentSupport::default()
     };
-    let has_license =
+    let has_support =
         |design: &str, method: &str, claim: &str, support: GraphlessAssignmentSupport| {
             graphless_admits(
                 GraphlessSupportKey {
@@ -1031,11 +1031,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 support,
             )
         };
-    let graphless_dr_licensed = query.method == "sequential_dr"
+    let graphless_dr_supported = query.method == "sequential_dr"
         && matches!(query.periods, 2 | 3)
         && eligible_dr
         && regime.value_interval_95.is_some()
-        && has_license(
+        && has_support(
             if query.periods == 2 {
                 "known_sequential_randomized_two_period"
             } else {
@@ -1046,13 +1046,13 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
             regime_support,
         );
     // Two-period fixed-known-Q g-formula: io recomputes the calibrated
-    // interval in `g_formula_expected`, so the license requires that exact
+    // interval in `g_formula_expected`, so the support requires that exact
     // interval to be published against the two-period fixed-Q row.
-    let graphless_g_formula_licensed = query.method == "g_formula"
+    let graphless_g_formula_supported = query.method == "g_formula"
         && query.periods == 2
         && g_formula_expected.is_some()
         && regime.value_interval_95.is_some()
-        && has_license(
+        && has_support(
             "known_sequential_randomized_two_period",
             "fixed_known_q_g_formula_scores",
             "conditional_q_pointwise_95_normal_interval",
@@ -1061,11 +1061,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
     // Additive MSM: io establishes support through `eligible_msm` and the
     // published intercept and per-period coefficient intervals, matched to
     // the additive-MSM row for the intercept-and-period-effects claim.
-    let graphless_msm_licensed = query.method == "marginal_structural_model"
+    let graphless_msm_supported = query.method == "marginal_structural_model"
         && eligible_msm
         && regime.value_interval_95.is_some()
         && regime.period_intervals_95.len() == query.periods
-        && has_license(
+        && has_support(
             "known_sequential_randomized_additive_msm",
             "stabilized_ipw_cr1_scores",
             "intercept_and_period_effects_pointwise_95_normal_intervals",
@@ -1076,15 +1076,15 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 ..regime_support
             },
         );
-    let graphless_licensed =
-        graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
+    let graphless_supported =
+        graphless_dr_supported || graphless_g_formula_supported || graphless_msm_supported;
     if !graphless_status_ok(
         regime.graphless_support_status.as_deref(),
-        graphless_licensed,
+        graphless_supported,
         allow_legacy_graphless_missing,
     ) {
         return Err(IoError::Convert(
-            "longitudinal regime graphless license does not match evidenced support".into(),
+            "longitudinal regime graphless support does not match evidenced support".into(),
         ));
     }
     if regime.method != query.method
@@ -1715,7 +1715,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
             .uplift_training_subject_ids
             .iter()
             .all(|id| !query.evaluation_subject_ids.contains(id));
-    let licensed = graphless_admits(
+    let supported = graphless_admits(
         GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim },
         GraphlessAssignmentSupport {
             assignment_unit: "unit",
@@ -1739,7 +1739,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
             ..GraphlessAssignmentSupport::default()
         },
     );
-    if !graphless_status_ok(policy.graphless_support_status.as_deref(), licensed, true) {
+    if !graphless_status_ok(policy.graphless_support_status.as_deref(), supported, true) {
         return Err(IoError::Convert(
             "policy graphless support status does not match exact design and interval evidence"
                 .into(),
@@ -1748,7 +1748,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
     Ok(())
 }
 
-/// Uncertainty label of the augmented panel's unlicensed whole-cluster resample interval.
+/// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
 const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
     "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_unmeasured";
 
@@ -2019,7 +2019,7 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     && se.is_finite()
                     && se > 0.0 =>
             {
-                // The unlicensed whole-cluster resample interval: the normal interval of its
+                // The unsupported whole-cluster resample interval: the normal interval of its
                 // interquartile bootstrap standard error, never published as the scalar's.
                 let radius = antecedent_stats::NORMAL_Q975 * se;
                 let tolerance =
@@ -2049,8 +2049,8 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
     };
     let min_cell_clusters =
         cell_clusters.iter().flatten().map(std::collections::BTreeSet::len).min().unwrap_or(0);
-    let did_licensed = if query.staggered_event_study {
-        // Post-adoption event-time intervals: license the representative
+    let did_supported = if query.staggered_event_study {
+        // Post-adoption event-time intervals: support the representative
         // group-time ATT interval when its adoption cohort and the
         // never-treated controls each clear the independent-cluster gate.
         let mut clusters_by_cohort =
@@ -2120,7 +2120,7 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
         || !event_study_valid
         || !event_intervals_valid
         || !augmented_valid
-        || !graphless_status_ok(did.graphless_support_status.as_deref(), did_licensed, true)
+        || !graphless_status_ok(did.graphless_support_status.as_deref(), did_supported, true)
         || (query.repeated_cross_section
             && (duplicate_subject
                 || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
@@ -2220,8 +2220,8 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
     };
     // The paired RMST + horizon survival scalar route is fixed by the
     // query's entry and censoring facets. Delayed entry, fixed-known-G IPCW,
-    // and the combined route each have a distinct (design, method) licensed
-    // row; cumulative incidence has no RMST companion and is never licensed.
+    // and the combined route each have a distinct (design, method) supported
+    // row; cumulative incidence has no RMST companion and is never supported.
     let scalar_design = if query.delayed_entry.is_some() {
         "delayed_entry_two_arm_individual_randomized"
     } else {
@@ -2232,7 +2232,7 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
     } else {
         "arm_stratified_subject_bootstrap_ipcw_product_limit"
     };
-    let scalar_licensed = query.target_cause.is_none()
+    let scalar_supported = query.target_cause.is_none()
         && pointwise_bootstrap
         && curve.bootstrap_replicates_ok.is_some_and(|ok| ok >= 299)
         && curve.assignment_counts.is_some_and(|[control, treated]| {
@@ -2256,10 +2256,10 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
                 },
             )
         });
-    // The simultaneous band is its own licensed claim, carried on the band's
+    // The simultaneous band is its own supported claim, carried on the band's
     // own `graphless_support_status`. It publishes only for the unweighted,
     // no-entry route, and covers the survival or cumulative-incidence grid.
-    let band_licensed = curve.difference_band.as_ref().is_some_and(|band| {
+    let band_supported = curve.difference_band.as_ref().is_some_and(|band| {
         band_valid
             && band.replicates_ok >= 399
             && curve.assignment_counts.is_some_and(|[control, treated]| {
@@ -2300,13 +2300,13 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
             != (!query.censoring_columns.is_empty())
                 .then_some("caller_supplied_fixed_not_fitted_or_verified")
         || !(point_only || pointwise_bootstrap)
-        || !graphless_status_ok(curve.graphless_support_status.as_deref(), scalar_licensed, false)
+        || !graphless_status_ok(curve.graphless_support_status.as_deref(), scalar_supported, false)
         || !graphless_status_ok(
             curve
                 .difference_band
                 .as_ref()
                 .and_then(|band| band.graphless_support_status.as_deref()),
-            band_licensed,
+            band_supported,
             false,
         )
         || (curve.assignment_counts.is_some_and(|counts| counts.contains(&0)))
@@ -2381,7 +2381,7 @@ const SEQUENTIAL_CONTRAST_POSTERIOR: &str = "modular_bayesian_bootstrap_posterio
 
 /// Recompute an observational sequential contrast from its retained scores.
 ///
-/// The result is unlicensed: there is no support coordinate to compare, so the check is that it
+/// The result is unsupported: there is no support coordinate to compare, so the check is that it
 /// claims none and that every reported summary is the summary of the retained scores.
 #[allow(
     clippy::float_cmp,
@@ -2432,7 +2432,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
         || !near(fit.control_mean, mean(&fit.control_scores))
         || !fit.minimum_action_probability.is_finite()
         || fit.minimum_action_probability < fit.min_probability
-        || fit.licensed
+        || fit.supported
         || fit.calibration != "unmeasured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
@@ -2479,7 +2479,7 @@ const HISTORY_MATCH_UNCERTAINTY: &str =
 
 /// Recompute a within-period history-matched contrast from its retained pairs.
 ///
-/// The result is unlicensed and carries no top-level summary, so the check is that it claims none
+/// The result is unsupported and carries no top-level summary, so the check is that it claims none
 /// and that the contrast, the weight total, the Abadie-Imbens standard error and the Newey-West
 /// standard error and interval over the matched periods are those of the retained pairs, their
 /// periods and their within-arm variance estimates.
@@ -2513,7 +2513,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         && near(fit.weight_total, total)
         && near(fit.contrast, weighted / total);
     if !structure_ok
-        || fit.licensed
+        || fit.supported
         || fit.calibration != "unmeasured"
         || fit.uncertainty != HISTORY_MATCH_UNCERTAINTY
         || result.estimate.is_some()

@@ -842,7 +842,7 @@ impl EvidenceLedgerHandle {
     }
 
     /// The measured 95% interval of a pooled result, or the typed refusal
-    /// (`cell_not_licensed`) when no currently attesting coverage record
+    /// (`not_supported`) when no currently attesting coverage record
     /// governs the construction.
     fn pooled_interval(&self, result: &str) -> PyResult<Refused<String>> {
         crate::catch_ffi(|| {

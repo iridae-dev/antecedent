@@ -578,7 +578,7 @@ fn validate_result_refuses_scalar_estimate_under_not_identified() {
     result.identification.status = "not_identified".into();
     assert_eq!(result.estimate, Some(1.0));
     let err = encode_analysis_result_artifact(&result, names.clone(), "uid").unwrap_err();
-    assert!(err.to_string().contains("does not license a scalar estimate"), "{err}");
+    assert!(err.to_string().contains("does not support a scalar estimate"), "{err}");
     result.estimate = None;
     result.standard_error = None;
     assert!(encode_analysis_result_artifact(&result, names, "uid-ok").is_ok());
@@ -1251,7 +1251,7 @@ fn temporal_design_result() -> AnalysisResultWire {
         draws: None,
         uncertainty: "cluster_bootstrap".into(),
         calibration: "unmeasured".into(),
-        licensed: false,
+        supported: false,
     });
     result
 }
@@ -1338,7 +1338,7 @@ fn quasi_rollout_intervals_bands_and_diagnostics_must_be_finite() {
             replicates_failed: 0,
             critical_value: Some(2.2),
             diagnostics: vec![("pre_trend_p".into(), 0.4)],
-            licensed: false,
+            supported: false,
         };
         edit(&mut rollout);
         result.quasi_rollout = Some(rollout);

@@ -76,7 +76,7 @@ pub const MAX_UNKNOWN_DIMENSIONS: usize = 12;
 pub const SEPARATION_STATEMENT: &str = "a sampling interval, an identified set and an assumption range are different objects; the assumption range is not a probability law and no sampling interval has been composed into it";
 
 /// Statement carried by every delta-method interval.
-pub const DELTA_METHOD_STATEMENT: &str = "first-order delta method through the conservative Neyman covariance of the arm-mean estimators; calibration is unmeasured and no support license is inherited from the components";
+pub const DELTA_METHOD_STATEMENT: &str = "first-order delta method through the conservative Neyman covariance of the arm-mean estimators; calibration is unmeasured and no support is inherited from the components";
 
 /// Why a request, a declaration or a combination of evidence is refused.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -118,7 +118,7 @@ pub enum EvidenceRefusal {
     /// The assignment design is not one the joint route supports, or two designs differ.
     #[error("assignment design `{0}` has no joint route or does not match the other evidence")]
     UnsupportedAssignmentDesign(String),
-    /// Evidence from different sources cannot be combined without a licensed dependence route.
+    /// Evidence from different sources cannot be combined without a supported dependence route.
     #[error(
         "evidence `{left}` and `{right}` share or have unknown dependence; independence was not declared"
     )]
@@ -560,8 +560,8 @@ pub struct JointExperimentEvidence {
     pub design_contract_id: Option<String>,
     /// Inspectable design details accompanying that identity.
     pub design_details: Option<DesignDetails>,
-    /// Route license of each component's marginal effect, when one was earned; informational.
-    pub marginal_licenses: Vec<Option<String>>,
+    /// Route support of each component's marginal effect, when one was earned; informational.
+    pub marginal_supports: Vec<Option<String>>,
 }
 
 impl JointExperimentEvidence {
@@ -728,16 +728,16 @@ impl JointExperimentEvidence {
             exposure,
             design_contract_id: None,
             design_details: None,
-            marginal_licenses: vec![None; k],
+            marginal_supports: vec![None; k],
         })
     }
 
-    /// Attach the route license each component's marginal effect earned (informational: a
+    /// Attach the route support each component's marginal effect earned (informational: a
     /// derived quantity never inherits it).
     #[must_use]
-    pub fn with_marginal_licenses(mut self, licenses: Vec<Option<String>>) -> Self {
-        if licenses.len() == self.components.len() {
-            self.marginal_licenses = licenses;
+    pub fn with_marginal_supports(mut self, supports: Vec<Option<String>>) -> Self {
+        if supports.len() == self.components.len() {
+            self.marginal_supports = supports;
         }
         self
     }
@@ -887,10 +887,10 @@ impl JointExperimentEvidence {
             exposure,
             design_contract_id: None,
             design_details: None,
-            marginal_licenses: self
-                .marginal_licenses
+            marginal_supports: self
+                .marginal_supports
                 .iter()
-                .chain(&other.marginal_licenses)
+                .chain(&other.marginal_supports)
                 .cloned()
                 .collect(),
         })

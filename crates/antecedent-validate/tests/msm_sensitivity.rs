@@ -225,7 +225,7 @@ fn msm_refuses_malformed_inputs_and_sampling_composition() {
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.sampling_composition = Some("percentile_bootstrap_of_bounds".into());
     let error = msm_ate_sensitivity(&two_strata(), &spec).unwrap_err();
-    assert_eq!(refusal(&error), ("cell_not_licensed", "msm_sensitivity.composition_not_licensed"));
+    assert_eq!(refusal(&error), ("not_supported", "msm_sensitivity.composition_not_supported"));
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.grid_points = 1;
     assert_eq!(
@@ -268,7 +268,7 @@ fn msm_keeps_the_assumption_range_distinct_from_sampling() {
     assert_eq!(result.inference_claim, "assumption_range");
     assert_eq!(result.uncertainty.sampling_interval, "sampling interval: not reported");
     assert_eq!(result.uncertainty.sampling_interval, MSM_SAMPLING_STATEMENT);
-    assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
+    assert_eq!(result.uncertainty.reason_code, "not_supported");
     assert_eq!(result.uncertainty.detail, "msm_sensitivity.interval_withheld");
     assert!(result.normalization.contains("not Hajek"));
 }

@@ -123,7 +123,7 @@ impl CountFittedObservation {
     /// The measured equal-tailed posterior interval at `level`.
     ///
     /// # Errors
-    /// `cell_not_licensed` when the construction (level, prior, a draw count below the
+    /// `not_supported` when the construction (level, prior, a draw count below the
     /// supported minimum, complete rows, sample size) has no currently attesting coverage
     /// record, or when the Monte Carlo error of an endpoint exceeds its declared share of
     /// the interval width (`measured_interval.draws_not_converged`).

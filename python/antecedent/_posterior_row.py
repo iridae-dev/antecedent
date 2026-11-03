@@ -1,4 +1,4 @@
-"""The retained posterior of an unlicensed Bayesian randomized-design row.
+"""The retained posterior of an unsupported Bayesian randomized-design row.
 
 ``result.posterior_row`` is what the Rust result carries for ``bayesian.piecewise_survival``
 (the treated-minus-control survival and restricted-mean contrast of a randomized survival
@@ -9,7 +9,7 @@ variance is known, and the named scalar and vector summaries of the row.
 
 The posterior is that of a declared likelihood and prior, the study's
 ``Bayesian(design_model=...)``; the prior supplies no identifying premise. The row is never
-licensed: ``licensed`` is always ``False`` and ``calibration`` is ``"unmeasured"``, so no
+supported: ``supported`` is always ``False`` and ``calibration`` is ``"unmeasured"``, so no
 coverage claim is made for any interval.
 """
 
@@ -26,13 +26,13 @@ __all__ = ["PosteriorRowEstimate"]
 
 @dataclass(frozen=True, slots=True)
 class PosteriorRowEstimate:
-    """Posterior of one unlicensed Bayesian randomized-design row."""
+    """Posterior of one unsupported Bayesian randomized-design row."""
 
     estimator: str
     target: str
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
     coordinates: tuple[str, ...]
     mean: tuple[float, ...]
     lower: tuple[float, ...]
@@ -56,7 +56,7 @@ class PosteriorRowEstimate:
             target=section.target,
             uncertainty=section.uncertainty,
             calibration=section.calibration,
-            licensed=bool(section.licensed),
+            supported=bool(section.supported),
             coordinates=tuple(section.coordinates),
             mean=tuple(float(v) for v in section.mean),
             lower=tuple(float(v) for v in section.lower),
@@ -81,7 +81,7 @@ class PosteriorRowEstimate:
             target=str(wire["target"]),
             uncertainty=str(wire["uncertainty"]),
             calibration=str(wire["calibration"]),
-            licensed=bool(wire["licensed"]),
+            supported=bool(wire["supported"]),
             coordinates=tuple(str(name) for name in wire["coordinates"]),
             mean=tuple(float(v) for v in wire["mean"]),
             lower=tuple(float(v) for v in wire["lower"]),

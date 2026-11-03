@@ -76,7 +76,7 @@ struct PanelExperimentIdentityView<'a> {
 pub struct PanelExperimentExecutionSource<'a> {
     /// Actual full compiled/frozen original panel.
     pub panel: PanelExecutionProgram,
-    /// Actual fully licensed estimand bridge, including uncertain mapping and dependence.
+    /// Actual fully supported estimand bridge, including uncertain mapping and dependence.
     pub bridge: &'a BridgeContract,
     /// Current ledger whose selected source identities authorized the native update.
     pub ledger: &'a EvidenceLedger,

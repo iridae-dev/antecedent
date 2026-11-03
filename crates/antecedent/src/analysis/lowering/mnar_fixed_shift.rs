@@ -44,7 +44,7 @@ pub(crate) fn lower(source: &FixedShiftSource) -> Result<LoweredProgram, CausalE
         query_variables: variables,
         source_digest: Some(source_id),
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(

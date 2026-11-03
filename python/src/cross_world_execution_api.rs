@@ -188,7 +188,7 @@ fn pick<T: Copy>(name: &str, all: &[(&str, T)], what: &str) -> Result<T, String>
     })
 }
 
-/// Decide a matrix cell. Returns the licensed row's JSON or the refusal JSON.
+/// Decide a matrix cell. Returns the supported row's JSON or the refusal JSON.
 #[pyfunction]
 #[allow(clippy::too_many_arguments, reason = "one argument per matrix dimension")]
 #[allow(
@@ -623,7 +623,7 @@ fn cross_world_whole_path_verify(
     })
 }
 
-/// The interval of a sealed execution under a declared unit sampling, licensed only by a
+/// The interval of a sealed execution under a declared unit sampling, supported only by a
 /// currently attesting whole-path coverage record. The artifact is consumed (replayed) first.
 #[pyfunction]
 #[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
@@ -678,13 +678,13 @@ fn cross_world_measured_interval(
     })
 }
 
-/// The refusal of an interval or posterior reading (always `cell_not_licensed`).
+/// The refusal of an interval or posterior reading (always `not_supported`).
 #[pyfunction]
 fn cross_world_closed_reading(reading: &str) -> String {
     let detail = match reading {
         "interval" => "cross_world_execution.interval_route_closed",
         "posterior" => "cross_world_execution.posterior_route_closed",
-        "sampled_abduction" => "cross_world_execution.sampled_abduction_not_licensed",
+        "sampled_abduction" => "cross_world_execution.sampled_abduction_not_supported",
         _ => {
             return invalid_json(
                 "cross_world_execution.invalid_request",
@@ -693,7 +693,7 @@ fn cross_world_closed_reading(reading: &str) -> String {
         }
     };
     json!({
-        "code": antecedent_core::reason_code!("cell_not_licensed"),
+        "code": antecedent_core::reason_code!("not_supported"),
         "stage": STAGE,
         "detail": detail,
         "message": format!("cross-world reading refused: {detail}"),

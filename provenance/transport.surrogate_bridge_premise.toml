@@ -38,9 +38,9 @@ record_sha256 = "c966aaef4b8ebb0e8a1057a4c418e821279e79ba9c90461129b674fdd89562c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/transported_bridge.rs"
-sha256 = "f48f69c9d35cd1941044795dcac110d084ebd97d6707b41bcce393c02b03ab96"
+sha256 = "f0a3109778a372541c925ec651aede58a3ca384bf6463c1d355c594de48a9d85"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transported_bridge.rs"
-sha256 = "e559780329b4191deda0941186a369a7dafe255b9a82d4cb8a7dad48218e8cbc"
+sha256 = "085ec67a3946758d5a5b4ec35002f6ab4faba80f3fcf2d2aa3f33c4d313be5e4"

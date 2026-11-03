@@ -191,7 +191,7 @@ pub struct TransportAnswer {
     pub contrast: Option<(f64, f64)>,
     /// Whether every member derived the same expression.
     pub expressions_agree: bool,
-    /// The interval on the contrast of a point answer, when requested and licensed.
+    /// The interval on the contrast of a point answer, when requested and supported.
     pub interval: Option<ContrastInterval>,
     /// Why there is no interval, when there is none.
     pub interval_reason: Option<&'static str>,
@@ -224,7 +224,7 @@ pub struct MemberEstimate {
     pub means: Vec<f64>,
     /// `last - first` mean, when there are two levels or more.
     pub contrast: Option<f64>,
-    /// The pointwise interval on the contrast, when requested and licensed.
+    /// The pointwise interval on the contrast, when requested and supported.
     pub contrast_interval: Option<(f64, f64)>,
     /// The retained transport grid of this member as a durable artifact.
     pub artifact: Vec<u8>,

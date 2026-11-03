@@ -7,10 +7,10 @@
 - **Inference:** frequentist
 - **Identifier:** none
 - **Estimator:** none
-- **Support status:** refused
+- **Support status:** not\_supported
 
 - No claim is attached: this report reads the contract before any execution, and no estimate is stated.
-- The cell is in the product but is not licensed, and the matrix refuses it.
+- The cell is in the product but is not supported, and the matrix refuses it.
 
 ## Identification
 
@@ -39,9 +39,9 @@ The uncertainty slot is unavailable: execution\_specific.
 
 Calibration is read from a claim; none is attached.
 
-## Support and licence
+## Support
 
-- **Support status:** refused
+- **Support status:** not\_supported
 - **Modality:** tabular
 - **Inference:** frequentist
 - **Query kind:** ChangeAttribution
@@ -50,14 +50,14 @@ Calibration is read from a claim; none is attached.
 
 ### Support slot
 
-- **Matrix status:** refused
+- **Matrix status:** not\_supported
 - **Matrix coordinate:** ChangeAttribution:Admg:explicit:Frequentist:full
 - **Empirical support:** unavailable:not\_evaluated
 
 ## Refusals and limits
 
 - **Operation:** inspect
-- **Applicability:** unlicensed
+- **Applicability:** unsupported
 - **Readiness:** none
 - **Coordinate:** ChangeAttribution:Admg:explicit:Frequentist:full
 
@@ -75,9 +75,9 @@ Next actions are suggestions for the caller; none is taken automatically.
 
 | Action | Description |
 | --- | --- |
-| consider\_licensed\_neighbor | choose an explicit licensed neighbor; never an automatic fallback |
+| consider\_supported\_neighbor | choose an explicit supported neighbor; never an automatic fallback |
 
-### Licensed neighbours
+### Supported neighbours
 
 A neighbour changes the stated premises; it is not a fallback.
 
@@ -409,7 +409,7 @@ A neighbour changes the stated premises; it is not a fallback.
 - **Layers the premises preserve:** target
 - **Layers the premises invalidate:** support, identification, results
 
-This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.
+This report restates the contract. It computes no estimate, grants no support, and a status recorded here is the status the records carry.
 
 ## Identities
 

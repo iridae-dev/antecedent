@@ -705,7 +705,7 @@ def test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouch
     counted = [_counted(law) for law in case.laws()]
     with pytest.raises(CausalUnsupportedError) as refused:
         require_success(second.bind_snapshot(counted))
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "not_supported"
     assert (
         abs(require_success(second.estimate()).probability - float(shifted_truth))
         <= EXACT_TOLERANCE
@@ -847,7 +847,7 @@ def test_selection_on_the_outcome_mechanism_is_not_transportable():
     assert identified.status == "identified", identified.decision
 
 
-def test_missing_evidence_names_the_regime_that_would_license_the_query():
+def test_missing_evidence_names_the_regime_that_would_support_the_query():
     case, alternative = missing_experiment_pair()
     # Independently: with the experiment withheld two models agree on every
     # supplied table and differ on the target (19/32 against 23/64).
@@ -920,7 +920,7 @@ def test_zero_conditioning_mass_is_a_typed_refusal_not_a_number():
 
 
 # ---------------------------------------------------------------------------
-# Refusals name what would license the request.
+# Refusals name what would support the request.
 # ---------------------------------------------------------------------------
 
 
@@ -1020,12 +1020,12 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
     with pytest.raises(CausalValueError):
         derivation.evaluate(evidence=swapped)
 
-    # A counted (empirical) law is not licensed: sampled inference is another route.
+    # A counted (empirical) law is not supported: sampled inference is another route.
     counted = list(laws)
     counted[0] = _counted(counted[0])
     with pytest.raises(CausalUnsupportedError) as raised:
         derivation.evaluate(evidence=counted)
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"
     assert "counterfactual_transport.sampled_inference_closed" in str(raised.value)
 
     # Levels that are not the declared ones.
@@ -1371,12 +1371,12 @@ def test_large_samples_converge_to_the_enumerated_truth_with_four_distinct_label
         "exact_on_estimated_tables_not_population_laws"
     )
     assert result.labels["point_estimate"] == "plug_in_point_estimate"
-    assert result.labels["statistical_inference"] == "withheld_cell_not_licensed"
+    assert result.labels["statistical_inference"] == "withheld_not_supported"
     assert result.point["smoothed"] is False
     # The interval is never published; the standard error is the only uncertainty.
     assert result.interval["available"] is False
-    assert result.interval["reason"] == "cell_not_licensed"
-    assert result.interval["detail"] == "counterfactual_transport_sampled.interval_not_licensed"
+    assert result.interval["reason"] == "not_supported"
+    assert result.interval["detail"] == "counterfactual_transport_sampled.interval_not_supported"
     assert result.interval["calibration_reason"] == "estimator_grid_not_measured"
     se = result.standard_error
     assert se is not None

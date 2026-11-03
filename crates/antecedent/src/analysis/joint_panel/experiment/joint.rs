@@ -1,7 +1,7 @@
 //! Joint experimental conditioning: several mapped functionals of one retained panel posterior,
 //! updated together under their declared sampling covariance.
 //!
-//! Each component keeps its own licensed [`BridgeContract`], response functional and paired
+//! Each component keeps its own supported [`BridgeContract`], response functional and paired
 //! per-draw affine mapping, and passes the same validation as a single-component update. What
 //! this adds is the likelihood: the experiment's estimators are not independent, so the update
 //! conditions the shared draws on their joint Gaussian law instead of a product of marginals.
@@ -25,11 +25,11 @@ const MAX_BIAS_COMPONENTS: usize = 12;
 /// The `format` discriminator of a joint experiment artifact.
 const JOINT_EXPERIMENT_FORMAT: &str = "joint_panel_joint_experiment_v1";
 
-/// One experimental component: the licensed translation of one measured quantity to one
+/// One experimental component: the supported translation of one measured quantity to one
 /// functional of the retained response, with its paired per-draw affine realization.
 #[derive(Clone, Debug)]
 pub struct PanelJointExperimentComponent {
-    /// Licensed translation. Its source is this component's experimental quantity.
+    /// Supported translation. Its source is this component's experimental quantity.
     pub bridge: BridgeContract,
     /// Time functional of the retained worlds that the bridge's target names exactly.
     pub functional: JointPanelResponseFunctional,

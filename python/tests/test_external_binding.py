@@ -74,7 +74,7 @@ def test_bound_claim_is_inspectable_exportable_and_never_native():
     assert np.allclose(claim.values, [1.0, 3.0, 5.0])
     assert claim.native is False
     assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
-    assert claim.trust is not ProviderTrust.NATIVE_LICENSED
+    assert claim.trust is not ProviderTrust.NATIVE_SUPPORTED
     # Provider declared no support, so it is missing evidence, not supported.
     assert claim.support == ("missing_evidence",) * 3
     assert claim.support_status == "missing_evidence"
@@ -174,7 +174,7 @@ def test_verified_trust_is_recomputed_from_independent_probes():
     provider = _provider(capabilities=("mean",))
     claim = _spec().bind(_response(provider=provider, attested_by=None, probes=probes))
     assert claim.trust is ProviderTrust.VERIFIED_EXTENSION
-    assert claim.trust is not ProviderTrust.NATIVE_LICENSED
+    assert claim.trust is not ProviderTrust.NATIVE_SUPPORTED
 
     with pytest.raises(CausalUnsupportedError) as missing:
         _spec().bind(_response(attested_by=None, probes=probes[:2]))
@@ -267,13 +267,13 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     assert [q.conditioning[0].value_id for q in offered] == ["0", "1", "2"]
     assert {q.regime_id for q in offered} == {external.OBSERVATIONAL}
 
-    with pytest.raises(CausalUnsupportedError) as unlicensed:
+    with pytest.raises(CausalUnsupportedError) as unsupported:
         base.bind(_response(quantities=offered))
     # Without any equivalence the first observed difference is the conditioning.
-    assert unlicensed.value.detail == "external_response_binding.coordinate_conditioning"
-    assert (unlicensed.value.expected, unlicensed.value.supplied) == ("", "a=0")
-    assert unlicensed.value.offending == "coordinate[0]"
-    assert "checked equivalence" in unlicensed.value.remedy
+    assert unsupported.value.detail == "external_response_binding.coordinate_conditioning"
+    assert (unsupported.value.expected, unsupported.value.supplied) == ("", "a=0")
+    assert unsupported.value.offending == "coordinate[0]"
+    assert "checked equivalence" in unsupported.value.remedy
 
     spec = dataclasses.replace(base, equivalences=(base.observational_equivalence("backdoor:x"),))
     claim = spec.bind(_response(quantities=offered))
@@ -284,7 +284,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     assert "equivalence:backdoor:x" in [link.id for link in claim.lineage]
     assert "transformation" in claim.stages_behind()
 
-    # A dose mapped to the wrong intervention is not licensed.
+    # A dose mapped to the wrong intervention is not supported.
     crossed = external.Equivalence.conditioned(
         spec.graph_id, "a", {"0": "do(a=0)", "1": "do(a=2)", "2": "do(a=1)"}, "backdoor:x"
     )
@@ -293,7 +293,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     assert wrong.value.detail == "external_response_binding.unchecked_observational_law"
     assert wrong.value.offending == "coordinate[1]"
 
-    # Nothing else about the coordinate is rescued by the licence.
+    # Nothing else about the coordinate is rescued by the support.
     wrong_population = (
         offered[0],
         dataclasses.replace(offered[1], population_id="source"),

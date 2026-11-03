@@ -10,7 +10,7 @@
 //! result body), unsealed and re-sealed, and asserts its named refusals.
 //!
 //! The smoothed dose-response interval and the joint-sensitivity sampling uncertainty
-//! are not measured here: their routes stay closed (`cell_not_licensed`), and `scripts/gate_decision_exit.sh`
+//! are not measured here: their routes stay closed (`not_supported`), and `scripts/gate_decision_exit.sh`
 //! reports the calibration state separately. No story attaches an interval.
 //!
 //! Registered in `scripts/decision_exit_report.py` (`DECISION_STORIES`).
@@ -195,7 +195,7 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
         let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
         assert_eq!(
             coded(&prepared.refresh(counted, &ctx).unwrap_err()),
-            ("cell_not_licensed", "admg_transport.interval_withheld".into())
+            ("not_supported", "admg_transport.interval_withheld".into())
         );
         let produced: Vec<Vec<u64>> =
             result.distributions().iter().map(|d| bits(&d.probabilities)).collect();
@@ -386,7 +386,7 @@ fn story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
         // The interval route is closed until it is measured.
         assert_eq!(
             coded(&prepared.interval(&ctx).unwrap_err()),
-            ("cell_not_licensed", "dose_response.interval_withheld".into())
+            ("not_supported", "dose_response.interval_withheld".into())
         );
         let produced = plan.estimate().clone();
         (plan.export().unwrap(), produced)
@@ -678,7 +678,7 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
     w.body.sampling.interval = Some([0.1, 0.9]);
     assert_eq!(
         refused(&sensitivity_reseal(w)),
-        ("cell_not_licensed", "joint_sensitivity.interval_withheld".to_owned())
+        ("not_supported", "joint_sensitivity.interval_withheld".to_owned())
     );
 }
 
@@ -1145,7 +1145,7 @@ fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identificati
             let one = point.atoms.iter().position(|a| a[0].as_f64() == Some(1.0)).unwrap();
             assert!((point.probabilities[one] - model.interventional(1, 0, level)).abs() < 1e-12);
         }
-        // A counted law is a sampled provider: refused as not licensed.
+        // A counted law is a sampled provider: refused as not supported.
         let law = model.observed_law();
         let counts: Vec<u64> = law.probabilities().iter().map(|_| 1).collect();
         let uniform = ExactDiscreteLaw::try_new(
@@ -1161,8 +1161,8 @@ fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identificati
         .with_empirical_counts(counts)
         .unwrap();
         let error = prepared.refresh(uniform, &ctx).unwrap_err();
-        assert_eq!(error.reason_code(), Some("cell_not_licensed"));
-        assert!(error.to_string().contains("recovery.empirical_not_licensed"), "{error}");
+        assert_eq!(error.reason_code(), Some("not_supported"));
+        assert!(error.to_string().contains("recovery.empirical_not_supported"), "{error}");
         (
             result.export_named(&prepared, &names).unwrap(),
             bits(result.recovered().law().probabilities()),

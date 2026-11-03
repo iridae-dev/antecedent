@@ -57,7 +57,7 @@ DOC_FILES = ("docs", "README.md")
 DOC_EXTRA = (
     "parity/producer_consumer.toml",
     "parity/transport_stages.toml",
-    "parity/promotion.toml",
+    "parity/capability_records.toml",
 )
 
 

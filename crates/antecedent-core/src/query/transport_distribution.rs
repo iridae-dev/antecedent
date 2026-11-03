@@ -22,7 +22,7 @@ use super::transport_catalog::{
     SamplingSelection, project_law,
 };
 
-/// One distribution a catalog supplies, or a licensed projection of one.
+/// One distribution a catalog supplies, or a supported projection of one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CatalogDistribution {
     /// The catalog entry this distribution is (or was projected from).
@@ -57,7 +57,7 @@ pub struct CatalogDistribution {
     pub sampling: Option<SamplingDesign>,
     /// Declared dependence of the bound snapshot.
     pub dependence: Option<DependenceGroup>,
-    /// Licensed projections applied since the catalog entry, in order.
+    /// Supported projections applied since the catalog entry, in order.
     pub projections: Arc<[EvidenceProjection]>,
 }
 
@@ -123,7 +123,7 @@ impl CatalogDistribution {
         matches!(self.availability, DistributionAvailability::Joint)
     }
 
-    /// Apply a licensed projection, recording it and keeping the source entry.
+    /// Apply a supported projection, recording it and keeping the source entry.
     ///
     /// # Errors
     ///

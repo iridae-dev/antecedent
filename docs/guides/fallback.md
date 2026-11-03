@@ -103,7 +103,7 @@ described object say so, and the host record (`antecedent.host.fallback_response
 an outcome varies with predictors in the observed data. It answers a different question from a
 causal query. Identification is **not claimed**, the result is never the effect of an
 intervention, and it ranks no action. Every standard error, spread and posterior it reports is
-unlicensed: no coverage record names any of them, and the calibration label is `unmeasured`.
+unsupported: no coverage record names any of them, and the calibration label is `unmeasured`.
 
 ```python
 import antecedent as ant

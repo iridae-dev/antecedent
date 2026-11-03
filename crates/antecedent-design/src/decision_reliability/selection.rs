@@ -9,7 +9,7 @@
 //!   quadrature when the noise is declared independent, and by the dependence-free
 //!   union bound `s_max * sqrt(2 ln N)` otherwise. An observed nonnegative sample
 //!   covariance is only a diagnostic; it does not establish nonnegative population
-//!   covariance and cannot license the Sudakov-Fernique comparison. The bound is an
+//!   covariance and cannot support the Sudakov-Fernique comparison. The bound is an
 //!   expectation over repetitions of the whole selection, not an interval for this
 //!   realization;
 //! * a **held-out re-evaluation** of the selected candidate on a stream independent of
@@ -410,7 +410,7 @@ pub fn winners_curse_bound(
         (groups.len() <= MAX_QUADRATURE_GROUPS).then(|| expected_maximum_independent(&groups));
     // The sample covariance route is descriptive only. Its sign does not establish
     // the population covariance ordering required by Sudakov-Fernique, so only an
-    // independent-stream declaration licenses the exact independent Gaussian maximum.
+    // independent-stream declaration supports the exact independent Gaussian maximum.
     let gaussian_valid = noise_dependence == NoiseDependence::IndependentStreams;
     let (bound, bound_kind) = match gaussian {
         Some(g) if gaussian_valid && g <= union_bound => (g, BoundKind::GaussianExpectedMaximum),

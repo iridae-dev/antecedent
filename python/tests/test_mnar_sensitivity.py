@@ -82,12 +82,12 @@ def test_mnar_sampling_interval_is_conditional_and_separate_from_the_range() -> 
     point = next(p for p in result.grid if p.parameter == 2.0)
     assert point.sampling is None
     assert result.mar.sampling is None
-    assert result.sampling_status == "cell_not_licensed"
+    assert result.sampling_status == "not_supported"
     assert all(t.kind != "excludes_null" for t in result.tipping)
     with pytest.raises(mnar.MnarSensitivityRefusal) as withheld:
         result.tipping_point("excludes_null")
-    assert withheld.value.code == "cell_not_licensed"
-    assert withheld.value.detail == "mnar_sensitivity.sampling_interval_not_licensed"
+    assert withheld.value.code == "not_supported"
+    assert withheld.value.detail == "mnar_sensitivity.sampling_interval_not_supported"
     envelope = result.assumption_range
     effects = [p.effect for p in result.grid]
     assert (envelope.effect_lower, envelope.effect_upper) == (min(effects), max(effects))
@@ -161,8 +161,8 @@ def test_mnar_refuses_undeclared_unbounded_and_unsupported() -> None:
 
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(sampling_composition="add the interval to the range")
-    assert info.value.detail == "mnar_sensitivity.composition_not_licensed"
-    assert info.value.code == "cell_not_licensed"
+    assert info.value.detail == "mnar_sensitivity.composition_not_supported"
+    assert info.value.code == "not_supported"
 
 
 def test_mnar_argument_errors_are_domain_errors() -> None:

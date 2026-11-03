@@ -4,7 +4,7 @@
 //! the least-squares fit in 40-digit arithmetic, forms the residual autocorrelations
 //! `r_k = sum_{t>k} e_t e_{t-k} / sum e_t^2`, the statistic `Q = n (n + 2) sum r_k^2 / (n - k)` and
 //! its chi-square upper-tail probability on `m` degrees of freedom. The gate is the arithmetic
-//! that licenses or refuses the route, so its statistic, p-value and refusal threshold are pinned
+//! that supports or refuses the route, so its statistic, p-value and refusal threshold are pinned
 //! here; the invalid-gate refusals are pinned as well, the full route is run against the exact
 //! Normal-Inverse-Gamma posterior of the treatment coefficient, and the refusal flips at the
 //! reference p-value.

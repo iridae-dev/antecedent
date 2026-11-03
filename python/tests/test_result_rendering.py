@@ -174,7 +174,7 @@ def test_parametric_identification_keeps_its_qualifier():
     assert staged.verdict == "identified"
 
 
-def test_licensed_design_routes_are_nonparametric():
+def test_supported_design_routes_are_nonparametric():
     from test_transport_interference_lifecycle import (
         _interference_design,
         _interference_query,

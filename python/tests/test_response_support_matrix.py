@@ -5,8 +5,8 @@ Covers two branch-review defects fixed together:
 * The native response preparation (python/src/response_api.rs) now consults the
   generated support matrix itself (`antecedent::support::refuse_if_not_applicable`)
   instead of being enforced only by hand-typed Python literals that could drift
-  from `parity/support_closed.toml`. Admg InterventionResponse cheap/full is
-  licensed on the plugin-level suite; this file pins that the closed rule is gone.
+  from `parity/support_refusal_reasons.toml`. Admg InterventionResponse cheap/full is
+  supported on the plugin-level suite; this file pins that the closed rule is gone.
 * `AcceptedGraph.analyze(..., query=ResponseCurve(...))` now threads
   `structure_accepted` down to the native call's `accepted=` parameter, so the
   response family is not silently misclassified as `explicit` structure the way
@@ -24,7 +24,7 @@ from antecedent.outcomes import require_success
 from _repo_text import REPO_ROOT, load_toml
 
 _REPO_ROOT = REPO_ROOT
-_SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"
+_SUPPORT_REFUSAL_REASONS_TOML = _REPO_ROOT / "parity" / "support_refusal_reasons.toml"
 
 
 def _curve_table(n: int = 60, seed: int = 7):
@@ -46,8 +46,8 @@ _LINE = [_INTERCEPT + _SLOPE * g for g in (0.5, 1.0, 1.5)]
 
 
 def test_admg_intervention_cheap_is_not_a_closed_rule():
-    """Admg IR cheap/full is licensed plugin-level; closed rule #3 is gone."""
-    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
+    """Admg IR cheap/full is supported plugin-level; closed rule #3 is gone."""
+    rules = load_toml(_SUPPORT_REFUSAL_REASONS_TOML)["closed"]
     matches = [
         rule
         for rule in rules
@@ -83,13 +83,13 @@ def test_accepted_graph_analyze_response_curve_threads_accepted():
     )
 
 
-def test_path_distribution_graph_posterior_is_licensed_and_the_prepare_gate_is_gone():
-    """A graph posterior of path-restricted effects or distributions executes, licensed.
+def test_path_distribution_graph_posterior_is_supported_and_the_prepare_gate_is_gone():
+    """A graph posterior of path-restricted effects or distributions executes, supported.
 
-    Every atom is answered by the executor its own structure has. The cell is licensed, so no
+    Every atom is answered by the executor its own structure has. The cell is supported, so no
     closed rule remains for it, and the prepare routing gate that once refused it is gone.
     """
-    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
+    rules = load_toml(_SUPPORT_REFUSAL_REASONS_TOML)["closed"]
     matches = [
         rule
         for rule in rules
@@ -133,7 +133,7 @@ def _handle_response_kwargs(**overrides):
 
 
 def test_handle_response_bayesian_curve_uses_staged_path():
-    """analyze is prepare().estimate(); Bayesian ResponseCurve stays licensed."""
+    """analyze is prepare().estimate(); Bayesian ResponseCurve stays supported."""
     result = require_success(
         antecedent.analyze(
             _DATA,
@@ -149,7 +149,7 @@ def test_handle_response_bayesian_curve_uses_staged_path():
     np.testing.assert_allclose(np.asarray(result.response.values).flatten(), _LINE, atol=0.01)
 
 
-def test_handle_response_bayesian_derivative_is_licensed():
+def test_handle_response_bayesian_derivative_is_supported():
     result = require_success(
         antecedent.analyze(
             _DATA,
@@ -162,7 +162,7 @@ def test_handle_response_bayesian_derivative_is_licensed():
     # The data are 2 t + noise: the average derivative is the fitted slope (observed gap 0.09).
     assert abs(_SLOPE - 2.0) < 0.1
     assert result.effect == pytest.approx(_SLOPE, abs=0.15)
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def test_bayesian_derivative_refuses_a_backend_it_does_not_use():

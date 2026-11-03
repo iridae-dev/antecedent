@@ -201,7 +201,7 @@ fn functional_bayesian_path_distribution_and_admg() {
     );
 }
 
-/// Bayesian front-door ADMG ATE on every licensed coordinate: explicit and
+/// Bayesian front-door ADMG ATE on every supported coordinate: explicit and
 /// accepted structure × `none`/`cheap`/`full`, fresh and prepared. The frozen
 /// binary law has front-door effect 0.282 (`admg_frontdoor_functional`); the
 /// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
@@ -243,7 +243,7 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
             );
             for result in [&fresh, &click] {
                 let label = format!("accepted={accepted} suite={suite:?}");
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                 assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
                 let posterior = result.posterior.as_ref().expect("Bayesian ADMG posterior");
@@ -349,7 +349,7 @@ fn distribution_bayesian_known_truth() {
         assert!((p1 - posterior.draws.column(0).unwrap()[draw]).abs() < 1e-12);
     }
 
-    // A distribution need not have a scalar mean: the same licensed path
+    // A distribution need not have a scalar mean: the same supported path
     // must produce joint probability draws for joint outcomes and IDC tables.
     for conditional in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {

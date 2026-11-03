@@ -1,7 +1,7 @@
 //! Portable claim envelope over a compiled contract and one result.
 //!
 //! A program defines an analysis. A claim records what a particular
-//! execution or licensed derivation concludes. Receiving bytes,
+//! execution or supported derivation concludes. Receiving bytes,
 //! understanding semantics, verifying dependencies, and being able to
 //! execute remain separate states.
 //!
@@ -552,19 +552,19 @@ impl ClaimDomainAxis {
     }
 }
 
-/// Licensed composition that may produce a derived claim. Comparison is not synthesis.
+/// Supported composition that may produce a derived claim. Comparison is not synthesis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ClaimOperation {
     /// Expose differences without pooling.
     Compare,
-    /// Contrast requiring a licensed joint uncertainty contract.
+    /// Contrast requiring a supported joint uncertainty contract.
     Contrast,
-    /// Aggregate requiring a licensed joint inference contract.
+    /// Aggregate requiring a supported joint inference contract.
     Aggregate,
     /// Retarget within an existing certified derivation.
     Retarget,
-    /// Pool / synthesize. Unlicensed; not transport.
+    /// Pool / synthesize. Unsupported; not transport.
     Pool,
 }
 
@@ -581,7 +581,7 @@ impl ClaimOperation {
         }
     }
 
-    /// Whether this operation synthesizes a new licensed claim.
+    /// Whether this operation synthesizes a new supported claim.
     #[must_use]
     pub const fn synthesizes(self) -> bool {
         matches!(self, Self::Contrast | Self::Aggregate | Self::Pool)
@@ -686,7 +686,7 @@ impl SharedEvidenceRef {
     }
 }
 
-/// Freshness as of a receiver's last verified snapshot. Timestamps do not license.
+/// Freshness as of a receiver's last verified snapshot. Timestamps do not support.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct ClaimFreshness {
@@ -862,11 +862,11 @@ pub struct DerivedClaim {
     pub receipt: HandoffReceipt,
 }
 
-/// Outcome of a claimed composition. Unlicensed synthesis keeps parents intact.
+/// Outcome of a claimed composition. Unsupported synthesis keeps parents intact.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DerivedClaimOutcome {
-    /// Licensed derivation with parent receipts.
+    /// Supported derivation with parent receipts.
     Derived(Box<DerivedClaim>),
     /// Comparison-only: differences without a pooled claim.
     Comparison(ClaimCompatibility),
@@ -974,7 +974,7 @@ pub fn claim_compatibility(
             ClaimCompatibility::new(operation, unresolved.is_empty(), unresolved, restriction)
         }
         ClaimOperation::Contrast | ClaimOperation::Aggregate => {
-            if !alignment_is_licensed(parents, alignment) {
+            if !alignment_is_supported(parents, alignment) {
                 unresolved.push(Arc::from("alignment"));
             }
             let restriction = unresolved
@@ -987,7 +987,7 @@ pub fn claim_compatibility(
             operation,
             false,
             [Arc::from("transport")],
-            Some(Arc::from("unlicensed_synthesis")),
+            Some(Arc::from("unsupported_synthesis")),
         ),
     }
 }
@@ -1012,10 +1012,10 @@ fn alignment_token(value: &str) -> Option<&str> {
     (ALIGNMENT_KINDS.contains(&kind) && !id.is_empty()).then_some(stripped)
 }
 
-/// Alignment is licensed only when every parent declares the same draw set
+/// Alignment is supported only when every parent declares the same draw set
 /// (`kind:id` equality) and was computed on the same data snapshot: replicates
 /// from different snapshots are unrelated draws however they are labelled.
-fn alignment_is_licensed(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
+fn alignment_is_supported(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
     let snapshot = parents.first().map(|parent| parent.identities.data_snapshot);
     if parents.iter().any(|parent| Some(parent.identities.data_snapshot) != snapshot) {
         return false;
@@ -1851,7 +1851,7 @@ fn refuse_derived(
     DerivedClaimOutcome::Refused { restriction: restriction.into(), parents, compatibility }
 }
 
-/// Why `derived` is not a licensed derivation of `parents`, if it is not.
+/// Why `derived` is not a supported derivation of `parents`, if it is not.
 ///
 /// A retarget stays within its parents' certified derivation: identification
 /// premises and product are unchanged. No derivation may drop an
@@ -2023,12 +2023,12 @@ mod tests {
     }
 
     #[test]
-    fn unlicensed_pool_refuses_with_parents_intact() {
+    fn unsupported_pool_refuses_with_parents_intact() {
         let left = sample_claim(1, 0.4);
         let right = sample_claim(2, 0.4);
         match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
             DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-                assert_eq!(&*restriction, "unlicensed_synthesis");
+                assert_eq!(&*restriction, "unsupported_synthesis");
                 assert_eq!(parents.as_ref(), [left.claim_id, right.claim_id]);
             }
             other => panic!("expected refusal, got {other:?}"),
@@ -2314,7 +2314,7 @@ mod tests {
             retarget_refusal(&parent, causal).as_deref(),
             Some("associational_parent_derives_causal_claim")
         );
-        // Another noncausal claim over the same association is a licensed derivation.
+        // Another noncausal claim over the same association is a supported derivation.
         assert_eq!(retarget_refusal(&parent, associational_claim(3)), None);
     }
 
@@ -2610,7 +2610,7 @@ mod tests {
                     false,
                 )),
                 SlotAvailability::Available(SupportSlot::new(
-                    "licensed",
+                    "supported",
                     None,
                     SlotAvailability::unavailable("not_evaluated"),
                 )),

@@ -6,8 +6,8 @@
 //! utility, stream coordinate, declaration or claimed value is refused. A consumer that
 //! retained the draws digest, the candidate-set digest or the selecting and validating
 //! stream identities independently also refuses a consistently resealed forgery.
-//! The carried closed-route snapshot may remain more conservative after a new license
-//! is earned; publication always checks the current license independently.
+//! The carried closed-route snapshot may remain more conservative after a new support
+//! is earned; publication always checks the current support independently.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -88,7 +88,7 @@ fn conservative_closure_snapshot(
     let all_route_refusals = PublishedRoute::ALL.map(|route| ClosedRoute {
         route,
         coordinate: coordinate.describe(),
-        code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+        code: antecedent_core::reason_code!("not_supported").to_owned(),
         remedy: "point diagnostics only: a coverage record at this candidate-set size, \
                  Monte Carlo budget and selection rule would be needed"
             .to_owned(),
@@ -178,7 +178,7 @@ impl DecisionReliabilityArtifact {
             &recomputed.coordinate,
         ) {
             // Preserve the exactly digested historical snapshot, never replace it
-            // with newly granted licenses. Every other report field stays exact.
+            // with newly granted supports. Every other report field stays exact.
             recomputed.closed_routes.clone_from(&self.report.closed_routes);
         } else {
             return Err(refused(

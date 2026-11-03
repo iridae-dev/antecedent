@@ -13,7 +13,7 @@
 //! every distinct identified member (distinct by the values of the three components together), each
 //! member read through its own proofs of the three components.
 //!
-//! The state executes under both inference modes and is unlicensed: its verdicts are checks,
+//! The state executes under both inference modes and is unsupported: its verdicts are checks,
 //! not a calibration claim, and no coverage record names it.
 
 use std::sync::Arc;

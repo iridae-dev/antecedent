@@ -228,7 +228,7 @@ fn calibration_from(name: &str) -> Result<DistributionCalibration, ExternalRefus
         "point_only" => Ok(DistributionCalibration::PointOnly),
         other => Err(declared_refusal(
             "bind",
-            "native_claims.calibration_not_licensed",
+            "native_claims.calibration_not_supported",
             None,
             Some("unmeasured,point_only".to_owned()),
             Some(other.to_owned()),
@@ -526,7 +526,7 @@ fn native_response_claim(
         if calibration.is_some_and(|value| value != actual_calibration) {
             return Ok((
                 None,
-                Some(refusal_json(refusal("native_claims.calibration_not_licensed"))?),
+                Some(refusal_json(refusal("native_claims.calibration_not_supported"))?),
             ));
         }
         let context = NativeResponseContext {

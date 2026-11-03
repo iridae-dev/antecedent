@@ -382,13 +382,13 @@ fn class_graph_posterior_inspect_and_execute_agree_on_support_status() {
                 let inspected = builder.clone().inspect().unwrap();
                 assert_eq!(
                     inspected.support_status,
-                    Some(CellStatus::Licensed),
-                    "{label} {inference:?} {suite:?} inspect must publish licensed"
+                    Some(CellStatus::Supported),
+                    "{label} {inference:?} {suite:?} inspect must publish supported"
                 );
                 let preflight = builder.clone().capability().unwrap();
                 assert_eq!(
                     preflight.applicability,
-                    SemanticApplicability::Licensed,
+                    SemanticApplicability::Supported,
                     "{label} {inference:?} {suite:?} capability must agree with inspect"
                 );
                 let built = builder.build().unwrap();
@@ -650,7 +650,7 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
 
 #[test]
 fn class_posterior_frequentist_numeric_pins() {
-    // Licensed evidence entry covering both the disagreeing-estimand fixture
+    // Supported evidence entry covering both the disagreeing-estimand fixture
     // (identified set + retained unidentified mass) and the same-estimand
     // two-atom mixture scalar + joint IF SE pin.
     let pin = known_truth_mixture_pin();

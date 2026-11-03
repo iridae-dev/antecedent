@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let experiment = Study::prepare_joint_panel(data, request, &ctx)?;
     assert!(experiment.inspect().identification.is_identified_claim());
     println!(
-        "whole-program randomization identifies the worlds; model fitting/calibration earns no extra license"
+        "whole-program randomization identifies the worlds; model fitting/calibration earns no extra support"
     );
     Ok(())
 }

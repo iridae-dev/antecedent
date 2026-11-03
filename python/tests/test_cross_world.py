@@ -152,7 +152,7 @@ def test_structures_and_inference_outside_the_cell_are_refused():
     ):
         with pytest.raises(CausalUnsupportedError) as raised:
             path_specific_effect(graph, data, query)
-        assert raised.value.reason_code == "cell_not_licensed"
+        assert raised.value.reason_code == "not_supported"
         assert "cross_world.graph_outside_contract" in str(raised.value)
     for uncertainty in ("interval", "bayesian"):
         with pytest.raises(CausalUnsupportedError) as raised:

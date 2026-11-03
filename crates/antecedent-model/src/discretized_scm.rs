@@ -137,7 +137,7 @@ pub struct BridgeRefusal {
     pub detail: &'static str,
     /// What the refusal is about (a variable, a route).
     pub subject: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
     /// Coherence findings when the composition itself is the defect.
     pub findings: Vec<CoherenceFinding>,
@@ -966,7 +966,7 @@ impl DiscretizedLinearGaussian {
     pub fn uncertainty_refusal(&self, paradigm: InferenceParadigm) -> BridgeRefusal {
         let _ = paradigm;
         BridgeRefusal::new(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             DETAIL_POINT_ONLY,
             "discretization_bridge",
             "use the closed-form composed uncertainty for an interval on the Gaussian model; a discretized value is a point with a computed mean-error bound",
@@ -1217,7 +1217,7 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
     ParityRow {
         route: ParityRoute::ComposedSpreadExceedance,
         frequentist: ParadigmCell::Supported(
-            "uncalibrated spread at the composed coordinate under a licensed dependence route",
+            "uncalibrated spread at the composed coordinate under a supported dependence route",
         ),
         bayesian: ParadigmCell::Closed(
             "exceedance is decided from supplied composed draws against a cutoff; a posterior statement about the composed quantity has no measured calibration",
@@ -1270,7 +1270,7 @@ pub fn parity_row(route: ParityRoute) -> &'static ParityRow {
 /// Admit a paradigm request on a route, or refuse it by its typed closed row.
 ///
 /// # Errors
-/// [`BridgeRefusal`] with `cell_not_licensed`, [`DETAIL_PARADIGM_CLOSED`] and
+/// [`BridgeRefusal`] with `not_supported`, [`DETAIL_PARADIGM_CLOSED`] and
 /// the row's reason as the remedy when the route is closed to the paradigm.
 pub fn require_paradigm(
     route: ParityRoute,
@@ -1284,7 +1284,7 @@ pub fn require_paradigm(
     match cell {
         ParadigmCell::Supported(what) => Ok(what),
         ParadigmCell::Closed(reason) => Err(BridgeRefusal::new(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             DETAIL_PARADIGM_CLOSED,
             format!("{}:{}", route.as_str(), paradigm.as_str()),
             reason,

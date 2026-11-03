@@ -486,7 +486,7 @@ impl TimeFrame {
     }
 }
 
-/// Graph family the target is stated under. This is an assumption, not a license to estimate.
+/// Graph family the target is stated under. This is an assumption, not support to estimate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum GraphFamily {

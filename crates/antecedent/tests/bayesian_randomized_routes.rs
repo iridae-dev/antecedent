@@ -1,5 +1,5 @@
 //! Bayesian arm contrasts and switchback effect of the randomized designs through the public
-//! study facade. The two-arm Gaussian IPW pseudo-posterior is licensed with calibration
+//! study facade. The two-arm Gaussian IPW pseudo-posterior is supported with calibration
 //! unmeasured; other constructions retain their separate scope. Each posterior is compared
 //! with a reference computed outside the library (quadrature of the Beta and Student-t densities,
 //! enumeration of the Beta-Binomial missing-count laws, exact conjugate moments, a whitened
@@ -103,7 +103,7 @@ fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_b
         result.logical_plan.estimator.as_deref(),
         Some("bayesian.randomized_finite_population")
     );
-    assert_eq!(result.support_status(), None, "the Bayesian randomized route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian randomized route is unsupported");
     assert!(result.randomized_effect().is_none());
     // Enumeration of BetaBinomial(6; 4, 2) and BetaBinomial(4; 3, 5) missing counts.
     let (mean, sd, lower, upper) = column(&result, 0);
@@ -115,7 +115,7 @@ fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_b
             && d.message.contains("estimand=finite_population")
     }));
     assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.quasi.bayesian.unlicensed")
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.quasi.bayesian.unsupported")
     );
 }
 
@@ -404,7 +404,7 @@ fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals() {
         None,
     )
     .expect_err("refused");
-    assert_eq!(error.reason_code(), Some("cell_not_licensed"));
+    assert_eq!(error.reason_code(), Some("not_supported"));
     assert!(error.to_string().contains("switchback_posterior.carryover_unrestricted"));
     assert!(error.to_string().contains("washout"));
 
@@ -416,7 +416,7 @@ fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals() {
         None,
     )
     .expect_err("refused");
-    assert_eq!(error.reason_code(), Some("cell_not_licensed"));
+    assert_eq!(error.reason_code(), Some("not_supported"));
     assert!(error.to_string().contains("switchback_posterior.dependence_undeclared"));
     assert!(error.to_string().contains("sensitivity"));
 
@@ -453,11 +453,11 @@ fn encouragement(n: usize, receipt_unrelated: bool) -> (TabularData, RandomizedE
 }
 
 #[test]
-fn the_complier_posterior_recovers_the_known_effect_and_is_unlicensed() {
+fn the_complier_posterior_recovers_the_known_effect_and_is_unsupported() {
     let (data, query) = encouragement(2_000, false);
     let (prepared, result, ctx) = run(&data, query, bayes(None), None).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.complier_effect"));
-    assert_eq!(result.support_status(), None, "the Bayesian complier route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian complier route is unsupported");
     assert_eq!(prepared.retained_operation().name(), "randomized");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
@@ -591,7 +591,7 @@ mod dose_grid_route {
             assert_eq!(consumed.digests(), row.digests());
             let result = consumed.result();
             assert_eq!(result.coordinates, coordinates, "{kind}");
-            assert!(!result.licensed);
+            assert!(!result.supported);
             assert_eq!(result.calibration, "unmeasured");
             // And both equal the independent closed form.
             let exact = result.exact_mean.as_ref().unwrap();
@@ -668,11 +668,11 @@ mod dose_grid_route {
             PosteriorRowArtifactError::ResultMismatch
         );
 
-        // A claimed licence is refused as unsupported semantics before any replay.
-        let mut licensed = sealed;
-        licensed.result.licensed = true;
+        // A claimed support is refused as unsupported semantics before any replay.
+        let mut supported = sealed;
+        supported.result.supported = true;
         assert!(matches!(
-            consume(&reseal(licensed)).unwrap_err(),
+            consume(&reseal(supported)).unwrap_err(),
             PosteriorRowArtifactError::UnsupportedSemantics(_)
         ));
         assert!(matches!(consume(b"not cbor"), Err(PosteriorRowArtifactError::Undecodable(_))));
@@ -785,13 +785,13 @@ fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior() 
         let report = result.missing_data().as_ref().expect("a missing-data report");
         assert_eq!(report.policy().name(), "inverse_probability");
         assert_eq!(report.accounting.rows_total, 24);
-        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
-        assert!(result.posterior_row().unwrap().licensed);
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
+        assert!(result.posterior_row().unwrap().supported);
     }
 }
 
 #[test]
-fn licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update() {
+fn supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update() {
     // In each arm, half the units have baseline z=0 and half z=1, with
     // Y(a)=1+2a+5z+e and balanced e=+-1. Response is 3/4 vs 1/4 by z in
     // control, reversed in treatment. Thus complete-case bias is 2.5, while
@@ -873,7 +873,7 @@ fn licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update(
                 inverse_probability(&[1]),
             )
             .unwrap();
-            assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
             let (mean, sd, _, _) = column(&result, 0);
             close(mean, moments[1].0 - moments[0].0, 5e-3, "known-target posterior mean");
             close(sd, (moments[0].1 + moments[1].1).sqrt(), 6e-3, "known-target posterior spread");
@@ -900,7 +900,7 @@ fn the_weighted_posterior_is_not_the_responder_only_posterior() {
 }
 
 #[test]
-fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
+fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
     use antecedent::analysis::RetainedOperation;
     for design in
         [RandomizationDesign::Bernoulli, RandomizationDesign::Complete { treated_units: 12 }]
@@ -921,7 +921,7 @@ fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
         let prepared = prepare();
         assert!(matches!(prepared.retained_operation(), RetainedOperation::Randomized));
         let result = prepared.estimate_retained(&ctx).unwrap();
-        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
         close(column(&result, 0).0, 1.683_193_067_244_396_4, 5e-3, "retained IPW posterior mean");
         let (contract, claim) = prepared.execution_contract(&result, &ctx).unwrap();
         let bases = result.calibration_bases(&contract).unwrap();
@@ -932,7 +932,7 @@ fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
             && basis.key.structure == "design"));
         // PosteriorRow deliberately does not attach scalar-claim calibration.
         assert!(claim.calibration.basis.is_none());
-        let bytes = prepared.encode_contracted_result(&result, "licensed-ipow", &ctx).unwrap();
+        let bytes = prepared.encode_contracted_result(&result, "supported-ipow", &ctx).unwrap();
         drop(prepared);
         let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance);
@@ -954,7 +954,7 @@ fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
         };
         assert!(antecedent_io::consume_analysis_result_within(&bytes, &bounds).is_err());
         let row = consumed.body.posterior_row.as_ref().unwrap();
-        assert!(row.licensed);
+        assert!(row.supported);
         assert_eq!(row.calibration, "unmeasured");
         let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
         for edit in 0..3 {
@@ -1023,7 +1023,7 @@ fn weighted_bayesian_boundaries_are_typed_refusals() {
 }
 
 #[test]
-fn unlicensed_multi_arm_and_factorial_ipow_are_typed_refusals() {
+fn unsupported_multi_arm_and_factorial_ipow_are_typed_refusals() {
     let (mut y, cells) = four_arm_data();
     for i in [1, 11, 21, 31] {
         y[i] = f64::NAN;

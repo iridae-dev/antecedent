@@ -31,7 +31,7 @@
 //! element or an inconsistency is refused, one detail per defect), recomputes
 //! the canonical identity, asks the contract to admit the stored paradigm
 //! (so a fixed-sample analysis of an adaptive design, or a paradigm the
-//! procedure cell is not licensed for, is refused), recomputes the boundaries
+//! procedure cell is not supported for, is refused), recomputes the boundaries
 //! by numerical integration and replays the observation accounting through the
 //! evidence ledger. Given a procedure section it also rebuilds the declared
 //! procedure through its own checks, recomputes the allocation of every batch
@@ -405,7 +405,7 @@ pub struct MonitoringContractMeta {
     pub contract_identity: String,
     /// Procedure cell identifier.
     pub procedure: String,
-    /// Class of the cell in the procedure matrix (`licensed`).
+    /// Class of the cell in the procedure matrix (`supported`).
     pub cell_class: String,
     /// Stopping boundaries of an alpha-spending rule.
     pub boundaries: Option<BoundaryWire>,
@@ -1128,7 +1128,7 @@ fn check(
     if meta.procedure != contract.cell().identifier() {
         return Err(Error::ReplayMismatch("procedure"));
     }
-    if meta.cell_class != "licensed" {
+    if meta.cell_class != "supported" {
         return Err(Error::ReplayMismatch("cell class"));
     }
     let boundaries = contract_boundaries(&contract)?;
@@ -1229,7 +1229,7 @@ impl AdaptiveMonitoringContractArtifact {
     /// consumer applies; the sealed metadata is returned alongside it.
     ///
     /// # Errors
-    /// A paradigm the contract's cell is not licensed for, a delay or exposure
+    /// A paradigm the contract's cell is not supported for, a delay or exposure
     /// that fails the authorization, a boundary that does not solve, or a
     /// ledger bound.
     pub fn seal(
@@ -1277,7 +1277,7 @@ impl AdaptiveMonitoringContractArtifact {
             paradigm: paradigm.as_str().to_owned(),
             contract_identity: contract.identity().to_hex(),
             procedure: contract.cell().identifier(),
-            cell_class: "licensed".to_owned(),
+            cell_class: "supported".to_owned(),
             boundaries: boundaries.as_ref().map(boundaries_to_wire),
             evidence: evidence_of(contract)?,
             participant_procedure: procedure_wire,
@@ -1411,7 +1411,7 @@ impl AdaptiveMonitoringContractArtifact {
     ///
     /// # Errors
     /// Corruption, another major version, a missing or inconsistent contract
-    /// element, a paradigm the cell is not licensed for, a stored derived value
+    /// element, a paradigm the cell is not supported for, a stored derived value
     /// that does not replay, or an identity that does not match.
     pub fn from_bytes(bytes: &[u8], expected_identity: Option<&str>) -> Result<Self, Error> {
         check(&decode_meta(bytes)?, expected_identity)

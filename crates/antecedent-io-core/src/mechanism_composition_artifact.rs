@@ -21,7 +21,7 @@
 //! is given), or a bug shared by producer and consumer (the same model code
 //! recomputes the result; the independent oracles are in the test suites).
 //! No interval is carried: uncertainty is a parameter-covariance variance of a
-//! functional, labelled with how its dependence was licensed.
+//! functional, labelled with how its dependence was supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -412,7 +412,7 @@ pub enum CompositionResultWire {
         point_bits: u64,
         /// Variance bits (parameter covariance only; not an interval).
         variance_bits: u64,
-        /// How the dependence between mechanisms was licensed.
+        /// How the dependence between mechanisms was supported.
         dependence: String,
         /// Method label.
         method: String,

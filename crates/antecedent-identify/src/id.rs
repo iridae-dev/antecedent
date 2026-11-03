@@ -554,7 +554,7 @@ impl IdIdentifier {
             result.query = CausalQuery::Response(response.clone());
             result.derivation.push(
                 "identify.response.general_id",
-                "binary contrast is an identification witness only; general-ID curve estimation is not licensed",
+                "binary contrast is an identification witness only; general-ID curve estimation is not supported",
             );
             return Ok(result);
         };

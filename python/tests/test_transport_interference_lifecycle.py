@@ -1,7 +1,7 @@
 """TransportQuery and InterferenceQuery on the golden Python lifecycle.
 
-Both licensed design cells run on ``analyze`` and retain a study exactly like
-every other licensed cell::
+Both supported design cells run on ``analyze`` and retain a study exactly like
+every other supported cell::
 
     result = ant.analyze(data, graph=graph, query=query)
     study = result.study
@@ -14,10 +14,10 @@ branch executes on the new data, the export verifies and its answer is the live
 answer, and the calibration slot carries the match key the coverage harness
 binds records under. Operations with no meaning for a design-defined estimand
 (retarget, a second-click refuter suite, a bootstrap) refuse with a registered
-reason code, and so does a construction outside the licensed cell. The
-unlicensed utilities ``transport.estimate_trial_effect`` and
-``interference.estimate`` keep that unlicensed behaviour and call the same Rust
-estimator, so on a licensed construction they report the analysis's point numbers.
+reason code, and so does a construction outside the supported cell. The
+unsupported utilities ``transport.estimate_trial_effect`` and
+``interference.estimate`` keep that unsupported behaviour and call the same Rust
+estimator, so on a supported construction they report the analysis's point numbers.
 """
 
 from __future__ import annotations
@@ -404,7 +404,7 @@ def test_interference_analyze_reproduces_the_conformance_pin():
     assert result.interference.from_probability_method == expected["probability_method"]
 
 
-# --- the unlicensed utilities share the estimator with the licensed path -----------
+# --- the unsupported utilities share the estimator with the supported path -----------
 
 
 def test_trial_effect_utility_and_analysis_share_the_estimator():
@@ -527,7 +527,7 @@ def test_bootstrap_refuses_on_the_design_cells():
     assert raised.value.reason_code == "option_not_applicable"
 
 
-def test_constructions_outside_the_licensed_cells_refuse():
+def test_constructions_outside_the_supported_cells_refuse():
     assignment, data = _interference_design()
     complete = ant.InterferenceQuery(
         interference.CompleteRandomization(UNITS // 2),
@@ -540,7 +540,7 @@ def test_constructions_outside_the_licensed_cells_refuse():
     )
     with pytest.raises(CausalUnsupportedError) as raised:
         require_success(ant.analyze(data, graph=[], query=complete))
-    assert raised.value.reason_code == "construction_not_licensed"
+    assert raised.value.reason_code == "construction_not_supported"
 
     derivative = TransportQuery(
         ant.PointDerivative("a", "y", at=0.5),
@@ -554,7 +554,7 @@ def test_constructions_outside_the_licensed_cells_refuse():
         require_success(
             ant.analyze(_transport_data(200, 7), graph=_transport_graph(), query=derivative)
         )
-    assert raised.value.reason_code == "construction_not_licensed"
+    assert raised.value.reason_code == "construction_not_supported"
 
 
 def test_bayesian_trial_transport_and_validated_interference_axes_on_analyze():
@@ -566,16 +566,16 @@ def test_bayesian_trial_transport_and_validated_interference_axes_on_analyze():
             inference=ant.Bayesian(n_draws=32),
         )
     )
-    assert bayesian.evidence_status == "licensed"
+    assert bayesian.evidence_status == "supported"
     assert bayesian.posterior is not None
     assignment, data = _interference_design()
     # Full validation runs the interference-native suite and an accepted structure runs the
-    # same known-assignment contrast as the explicit one; the licensed table has an evidence
-    # row for each, so both execute licensed.
+    # same known-assignment contrast as the explicit one; the supported table has an evidence
+    # row for each, so both execute supported.
     validated = require_success(
         ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
     )
-    assert validated.evidence_status == "licensed"
+    assert validated.evidence_status == "supported"
     accepted = require_success(
         ant.analyze(
             data,
@@ -583,7 +583,7 @@ def test_bayesian_trial_transport_and_validated_interference_axes_on_analyze():
             query=_interference_query(assignment),
         )
     )
-    assert accepted.evidence_status == "licensed"
+    assert accepted.evidence_status == "supported"
 
 
 def test_route_interference_tabular_accepted():

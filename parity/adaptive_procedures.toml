@@ -1,6 +1,6 @@
 # The adaptive-procedure matrix: assignment policy x outcome structure x
 # monitoring strategy x stopping rule. Every combination is listed once and
-# is exactly one of licensed (an estimator and uncertainty method exist per
+# is exactly one of supported (an estimator and uncertainty method exist per
 # listed paradigm; every interval and guarantee route is closed pending
 # whole-procedure measurement), closed_incoherent, closed_pairing (each
 # component delivered, the pairing not) or carried_forward with an owner.
@@ -18,7 +18,7 @@ assignment = "fixed_randomization"
 outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
-status = "licensed"
+status = "supported"
 paradigms = ["frequentist_fixed_sample"]
 
 [[cell]]
@@ -28,7 +28,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -38,7 +38,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -48,7 +48,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -58,7 +58,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -68,7 +68,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -78,8 +78,8 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/single_outcome/fixed_interim_looks/futility"
@@ -89,7 +89,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -100,7 +100,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -110,8 +110,8 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/single_outcome/group_sequential/no_stopping"
@@ -120,7 +120,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -129,7 +129,7 @@ assignment = "fixed_randomization"
 outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "efficacy"
-status = "licensed"
+status = "supported"
 paradigms = ["frequentist_group_sequential"]
 
 [[cell]]
@@ -140,7 +140,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -151,7 +151,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -161,7 +161,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -171,7 +171,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -182,7 +182,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -193,7 +193,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -204,7 +204,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -215,7 +215,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -225,8 +225,8 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_measures/final_analysis_only/efficacy"
@@ -235,7 +235,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -245,7 +245,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -255,7 +255,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -265,7 +265,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -275,7 +275,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -285,8 +285,8 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_measures/fixed_interim_looks/futility"
@@ -296,7 +296,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -307,7 +307,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -317,8 +317,8 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_measures/group_sequential/no_stopping"
@@ -327,7 +327,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -337,8 +337,8 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_measures/group_sequential/futility"
@@ -348,7 +348,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -359,7 +359,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -369,7 +369,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -379,7 +379,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -390,7 +390,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -401,7 +401,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -412,7 +412,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -423,7 +423,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -434,7 +434,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -444,7 +444,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -454,7 +454,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -464,7 +464,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -474,7 +474,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -484,7 +484,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -495,7 +495,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -506,7 +506,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -517,7 +517,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -528,7 +528,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -538,7 +538,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -549,7 +549,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -560,7 +560,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -571,7 +571,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -581,7 +581,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -591,7 +591,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -602,7 +602,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -613,7 +613,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -624,7 +624,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -635,7 +635,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -644,7 +644,7 @@ assignment = "fixed_randomization"
 outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior"]
 
 [[cell]]
@@ -654,7 +654,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -664,7 +664,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -674,7 +674,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -684,7 +684,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -694,7 +694,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -703,7 +703,7 @@ assignment = "fixed_randomization"
 outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior"]
 
 [[cell]]
@@ -714,7 +714,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -725,7 +725,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -734,7 +734,7 @@ assignment = "fixed_randomization"
 outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior", "decision_theoretic_stopping"]
 
 [[cell]]
@@ -744,7 +744,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -754,8 +754,8 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/categorical_choice/group_sequential/futility"
@@ -765,7 +765,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -776,7 +776,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -786,7 +786,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -796,7 +796,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -807,7 +807,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -818,7 +818,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -829,7 +829,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -840,7 +840,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -849,7 +849,7 @@ assignment = "fixed_randomization"
 outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior"]
 
 [[cell]]
@@ -859,7 +859,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -869,7 +869,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -879,7 +879,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -889,7 +889,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -899,7 +899,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -909,8 +909,8 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_choice/fixed_interim_looks/futility"
@@ -920,7 +920,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -931,7 +931,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -940,7 +940,7 @@ assignment = "fixed_randomization"
 outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior", "decision_theoretic_stopping"]
 
 [[cell]]
@@ -950,7 +950,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -960,8 +960,8 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "fixed_randomization/repeated_choice/group_sequential/futility"
@@ -971,7 +971,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -982,7 +982,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -992,7 +992,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1002,7 +1002,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1013,7 +1013,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1024,7 +1024,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1035,7 +1035,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1046,7 +1046,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1056,8 +1056,8 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "thompson_beta_bernoulli/single_outcome/final_analysis_only/efficacy"
@@ -1066,7 +1066,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1076,7 +1076,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1086,7 +1086,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1096,7 +1096,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1106,7 +1106,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1115,7 +1115,7 @@ assignment = "thompson_beta_bernoulli"
 outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior", "anytime_valid_frequentist"]
 
 [[cell]]
@@ -1126,7 +1126,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1137,7 +1137,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1146,7 +1146,7 @@ assignment = "thompson_beta_bernoulli"
 outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior", "decision_theoretic_stopping"]
 
 [[cell]]
@@ -1156,7 +1156,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1166,8 +1166,8 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "thompson_beta_bernoulli/single_outcome/group_sequential/futility"
@@ -1177,7 +1177,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1188,7 +1188,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1198,7 +1198,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1208,7 +1208,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1219,7 +1219,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1230,7 +1230,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1241,7 +1241,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1252,7 +1252,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1262,8 +1262,8 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "thompson_beta_bernoulli/repeated_measures/final_analysis_only/efficacy"
@@ -1272,7 +1272,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1282,7 +1282,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1292,7 +1292,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1302,7 +1302,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1312,7 +1312,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1322,8 +1322,8 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "thompson_beta_bernoulli/repeated_measures/fixed_interim_looks/futility"
@@ -1333,7 +1333,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1344,7 +1344,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1353,7 +1353,7 @@ assignment = "thompson_beta_bernoulli"
 outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
-status = "licensed"
+status = "supported"
 paradigms = ["bayesian_posterior", "decision_theoretic_stopping", "anytime_valid_frequentist"]
 
 [[cell]]
@@ -1363,7 +1363,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1373,8 +1373,8 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "thompson_beta_bernoulli/repeated_measures/group_sequential/futility"
@@ -1384,7 +1384,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1395,7 +1395,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1405,7 +1405,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1415,7 +1415,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1426,7 +1426,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1437,7 +1437,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1448,7 +1448,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1459,7 +1459,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1470,7 +1470,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1480,7 +1480,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1490,7 +1490,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1500,7 +1500,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1510,7 +1510,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1520,7 +1520,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1531,7 +1531,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1542,7 +1542,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1553,7 +1553,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1564,7 +1564,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1574,7 +1574,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1585,7 +1585,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1596,7 +1596,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1607,7 +1607,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1617,7 +1617,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1627,7 +1627,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1638,7 +1638,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1649,7 +1649,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1660,7 +1660,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1671,7 +1671,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -1681,7 +1681,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1691,7 +1691,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1701,7 +1701,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1711,7 +1711,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1721,7 +1721,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1731,7 +1731,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1741,7 +1741,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1751,7 +1751,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1761,7 +1761,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1771,7 +1771,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1781,7 +1781,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1791,7 +1791,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1801,7 +1801,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1811,7 +1811,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1821,7 +1821,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1831,7 +1831,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1841,7 +1841,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1851,7 +1851,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1861,7 +1861,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1871,7 +1871,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1881,7 +1881,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1891,7 +1891,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1901,7 +1901,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1911,7 +1911,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1921,7 +1921,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1931,7 +1931,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1941,7 +1941,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1951,7 +1951,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1961,7 +1961,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1971,7 +1971,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1981,7 +1981,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -1991,7 +1991,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2001,7 +2001,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2011,7 +2011,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2021,7 +2021,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2031,7 +2031,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2041,7 +2041,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2051,7 +2051,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2061,7 +2061,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2071,7 +2071,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2081,8 +2081,8 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/single_outcome/final_analysis_only/efficacy"
@@ -2091,7 +2091,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2101,7 +2101,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2111,7 +2111,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2121,7 +2121,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2131,7 +2131,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2140,7 +2140,7 @@ assignment = "epsilon_greedy"
 outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
-status = "licensed"
+status = "supported"
 paradigms = ["frequentist_adaptive_weighting", "anytime_valid_frequentist"]
 
 [[cell]]
@@ -2151,7 +2151,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2162,7 +2162,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2172,8 +2172,8 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/single_outcome/group_sequential/no_stopping"
@@ -2182,7 +2182,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2192,8 +2192,8 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/single_outcome/group_sequential/futility"
@@ -2203,7 +2203,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2214,7 +2214,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2224,7 +2224,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2234,7 +2234,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2245,7 +2245,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2256,7 +2256,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2267,7 +2267,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2278,7 +2278,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2287,7 +2287,7 @@ assignment = "epsilon_greedy"
 outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
-status = "licensed"
+status = "supported"
 paradigms = ["frequentist_adaptive_weighting"]
 
 [[cell]]
@@ -2297,7 +2297,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2307,7 +2307,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2317,7 +2317,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2327,7 +2327,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2337,7 +2337,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2347,8 +2347,8 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/repeated_measures/fixed_interim_looks/futility"
@@ -2358,7 +2358,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2369,7 +2369,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2379,8 +2379,8 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/repeated_measures/group_sequential/no_stopping"
@@ -2389,7 +2389,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2399,8 +2399,8 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+reason_code = "not_supported"
+detail = "adaptive_inference.pairing_not_supported"
 
 [[cell]]
 id = "epsilon_greedy/repeated_measures/group_sequential/futility"
@@ -2410,7 +2410,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/futility_boundaries"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2421,7 +2421,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/resource_stopping"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2431,7 +2431,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2441,7 +2441,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2452,7 +2452,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2463,7 +2463,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2474,7 +2474,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2485,7 +2485,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/continuous_monitoring"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2496,7 +2496,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2506,7 +2506,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2516,7 +2516,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2526,7 +2526,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2536,7 +2536,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2546,7 +2546,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2557,7 +2557,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2568,7 +2568,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2579,7 +2579,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2590,7 +2590,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2600,7 +2600,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2611,7 +2611,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2622,7 +2622,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2633,7 +2633,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2643,7 +2643,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2653,7 +2653,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2664,7 +2664,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2675,7 +2675,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2686,7 +2686,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2697,7 +2697,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -2707,7 +2707,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2717,7 +2717,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2727,7 +2727,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2737,7 +2737,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2747,7 +2747,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2757,7 +2757,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2767,7 +2767,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2777,7 +2777,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2787,7 +2787,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2797,7 +2797,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2807,7 +2807,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2817,7 +2817,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2827,7 +2827,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2837,7 +2837,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2847,7 +2847,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2857,7 +2857,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2867,7 +2867,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2877,7 +2877,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2887,7 +2887,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2897,7 +2897,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2907,7 +2907,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2917,7 +2917,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2927,7 +2927,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2937,7 +2937,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2947,7 +2947,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2957,7 +2957,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2967,7 +2967,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2977,7 +2977,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2987,7 +2987,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -2997,7 +2997,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3007,7 +3007,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3017,7 +3017,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3027,7 +3027,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3037,7 +3037,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3047,7 +3047,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3057,7 +3057,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3067,7 +3067,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3077,7 +3077,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3087,7 +3087,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3097,7 +3097,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3108,7 +3108,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3118,7 +3118,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3128,7 +3128,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3138,7 +3138,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3148,7 +3148,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3158,7 +3158,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3169,7 +3169,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3180,7 +3180,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3191,7 +3191,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3202,7 +3202,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3212,7 +3212,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3223,7 +3223,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3234,7 +3234,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3245,7 +3245,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3255,7 +3255,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3265,7 +3265,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3276,7 +3276,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3287,7 +3287,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3298,7 +3298,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3309,7 +3309,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3320,7 +3320,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3330,7 +3330,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3340,7 +3340,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3350,7 +3350,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3360,7 +3360,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3370,7 +3370,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3381,7 +3381,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3392,7 +3392,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3403,7 +3403,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3414,7 +3414,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3424,7 +3424,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3435,7 +3435,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3446,7 +3446,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3457,7 +3457,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3467,7 +3467,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3477,7 +3477,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3488,7 +3488,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3499,7 +3499,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3510,7 +3510,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3521,7 +3521,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3532,7 +3532,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3542,7 +3542,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3552,7 +3552,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3562,7 +3562,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3572,7 +3572,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3582,7 +3582,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3593,7 +3593,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3604,7 +3604,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3615,7 +3615,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3626,7 +3626,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3636,7 +3636,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3647,7 +3647,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3658,7 +3658,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3669,7 +3669,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3679,7 +3679,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3689,7 +3689,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3700,7 +3700,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3711,7 +3711,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3722,7 +3722,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3733,7 +3733,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/upper_confidence_bound"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -3743,7 +3743,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3753,7 +3753,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3763,7 +3763,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3773,7 +3773,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3783,7 +3783,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3793,7 +3793,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3803,7 +3803,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3813,7 +3813,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3823,7 +3823,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3833,7 +3833,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3843,7 +3843,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3853,7 +3853,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3863,7 +3863,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3873,7 +3873,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3883,7 +3883,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3893,7 +3893,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3903,7 +3903,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3913,7 +3913,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3923,7 +3923,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3933,7 +3933,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3943,7 +3943,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3953,7 +3953,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3963,7 +3963,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3973,7 +3973,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3983,7 +3983,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -3993,7 +3993,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4003,7 +4003,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4013,7 +4013,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4023,7 +4023,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4033,7 +4033,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4043,7 +4043,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4053,7 +4053,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4063,7 +4063,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4073,7 +4073,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4083,7 +4083,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4093,7 +4093,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4103,7 +4103,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4113,7 +4113,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4123,7 +4123,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4133,7 +4133,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4144,7 +4144,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4154,7 +4154,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4164,7 +4164,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4174,7 +4174,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4184,7 +4184,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4194,7 +4194,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4205,7 +4205,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4216,7 +4216,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4227,7 +4227,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4238,7 +4238,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4248,7 +4248,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4259,7 +4259,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4270,7 +4270,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4281,7 +4281,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4291,7 +4291,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4301,7 +4301,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4312,7 +4312,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4323,7 +4323,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4334,7 +4334,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4345,7 +4345,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4356,7 +4356,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4366,7 +4366,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4376,7 +4376,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4386,7 +4386,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4396,7 +4396,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4406,7 +4406,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4417,7 +4417,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4428,7 +4428,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4439,7 +4439,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4450,7 +4450,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4460,7 +4460,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4471,7 +4471,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4482,7 +4482,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4493,7 +4493,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4503,7 +4503,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4513,7 +4513,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4524,7 +4524,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4535,7 +4535,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4546,7 +4546,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4557,7 +4557,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4568,7 +4568,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4578,7 +4578,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4588,7 +4588,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4598,7 +4598,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4608,7 +4608,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4618,7 +4618,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4629,7 +4629,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4640,7 +4640,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4651,7 +4651,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4662,7 +4662,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4672,7 +4672,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4683,7 +4683,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4694,7 +4694,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4705,7 +4705,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4715,7 +4715,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4725,7 +4725,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4736,7 +4736,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4747,7 +4747,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4758,7 +4758,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4769,7 +4769,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/contextual_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -4779,7 +4779,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4789,7 +4789,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4799,7 +4799,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4809,7 +4809,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4819,7 +4819,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4829,7 +4829,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4839,7 +4839,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4849,7 +4849,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4859,7 +4859,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4869,7 +4869,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4879,7 +4879,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4889,7 +4889,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4899,7 +4899,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4909,7 +4909,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4919,7 +4919,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4929,7 +4929,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4939,7 +4939,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4949,7 +4949,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4959,7 +4959,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4969,7 +4969,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4979,7 +4979,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4989,7 +4989,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -4999,7 +4999,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5009,7 +5009,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5019,7 +5019,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5029,7 +5029,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5039,7 +5039,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5049,7 +5049,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5059,7 +5059,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5069,7 +5069,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5079,7 +5079,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5089,7 +5089,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5099,7 +5099,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5109,7 +5109,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5119,7 +5119,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5129,7 +5129,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5139,7 +5139,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5149,7 +5149,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5159,7 +5159,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5169,7 +5169,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5180,7 +5180,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5190,7 +5190,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5200,7 +5200,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5210,7 +5210,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5220,7 +5220,7 @@ outcome = "single_outcome"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5230,7 +5230,7 @@ outcome = "single_outcome"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5241,7 +5241,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5252,7 +5252,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5263,7 +5263,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5274,7 +5274,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5284,7 +5284,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5295,7 +5295,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5306,7 +5306,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5317,7 +5317,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5327,7 +5327,7 @@ outcome = "single_outcome"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5337,7 +5337,7 @@ outcome = "single_outcome"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5348,7 +5348,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5359,7 +5359,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5370,7 +5370,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5381,7 +5381,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5392,7 +5392,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5402,7 +5402,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5412,7 +5412,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5422,7 +5422,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5432,7 +5432,7 @@ outcome = "repeated_measures"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5442,7 +5442,7 @@ outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5453,7 +5453,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5464,7 +5464,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5475,7 +5475,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5486,7 +5486,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5496,7 +5496,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5507,7 +5507,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5518,7 +5518,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5529,7 +5529,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5539,7 +5539,7 @@ outcome = "repeated_measures"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5549,7 +5549,7 @@ outcome = "repeated_measures"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5560,7 +5560,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5571,7 +5571,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5582,7 +5582,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5593,7 +5593,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5604,7 +5604,7 @@ monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5614,7 +5614,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5624,7 +5624,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5634,7 +5634,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5644,7 +5644,7 @@ outcome = "hierarchical_clustered"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5654,7 +5654,7 @@ outcome = "hierarchical_clustered"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5665,7 +5665,7 @@ monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5676,7 +5676,7 @@ monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5687,7 +5687,7 @@ monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5698,7 +5698,7 @@ monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5708,7 +5708,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5719,7 +5719,7 @@ monitoring = "group_sequential"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5730,7 +5730,7 @@ monitoring = "group_sequential"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5741,7 +5741,7 @@ monitoring = "group_sequential"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5751,7 +5751,7 @@ outcome = "hierarchical_clustered"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5761,7 +5761,7 @@ outcome = "hierarchical_clustered"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5772,7 +5772,7 @@ monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5783,7 +5783,7 @@ monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5794,7 +5794,7 @@ monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5805,7 +5805,7 @@ monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
@@ -5815,7 +5815,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5825,7 +5825,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5835,7 +5835,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5845,7 +5845,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5855,7 +5855,7 @@ outcome = "categorical_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5865,7 +5865,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5875,7 +5875,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5885,7 +5885,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5895,7 +5895,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5905,7 +5905,7 @@ outcome = "categorical_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5915,7 +5915,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5925,7 +5925,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5935,7 +5935,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5945,7 +5945,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5955,7 +5955,7 @@ outcome = "categorical_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5965,7 +5965,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5975,7 +5975,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5985,7 +5985,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -5995,7 +5995,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6005,7 +6005,7 @@ outcome = "categorical_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6015,7 +6015,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6025,7 +6025,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6035,7 +6035,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6045,7 +6045,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6055,7 +6055,7 @@ outcome = "repeated_choice"
 monitoring = "final_analysis_only"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6065,7 +6065,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6075,7 +6075,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6085,7 +6085,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6095,7 +6095,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6105,7 +6105,7 @@ outcome = "repeated_choice"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6115,7 +6115,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6125,7 +6125,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6135,7 +6135,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6145,7 +6145,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6155,7 +6155,7 @@ outcome = "repeated_choice"
 monitoring = "group_sequential"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6165,7 +6165,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "no_stopping"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6175,7 +6175,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "efficacy"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6185,7 +6185,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "futility"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6195,7 +6195,7 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "resource"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"
 
 [[cell]]
@@ -6205,5 +6205,5 @@ outcome = "repeated_choice"
 monitoring = "continuous_monitoring"
 stopping = "decision_theoretic"
 status = "closed_incoherent"
-reason_code = "cell_not_licensed"
+reason_code = "not_supported"
 detail = "adaptive_inference.cell_closed"

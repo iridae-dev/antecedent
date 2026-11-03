@@ -123,7 +123,7 @@ def test_estimator_menu_lists_eligibility_requirements_and_refusals():
     assert learned.required_laws and learned.required_graph_conditions
     assert learned.nuisance_tasks and learned.support_requirements
     assert set(learned.sampling_design) == set(DESIGNS)
-    assert "cell_not_licensed" in learned.uncertainty_status
+    assert "not_supported" in learned.uncertainty_status
     # Requirements are computed from the certificate, learners and thresholds in force.
     assert any("X=[v0]" in law for law in learned.required_laws)
     assert any("learner linear" in task for task in learned.nuisance_tasks)
@@ -297,13 +297,13 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
         builder_query, builder_data, options=options(bootstrap=199), execution=ac.Execution(seed=4)
     )
     with pytest.raises(
-        CausalUnsupportedError, match="learned_transport.bootstrap_not_licensed"
+        CausalUnsupportedError, match="learned_transport.bootstrap_not_supported"
     ) as info:
         require_success(study.interval())
     assert info.value.reason_code == "estimator_inference_mismatch"
     result = require_success(study.estimate())
     assert result.uncertainty["status"] == "withheld"
-    assert result.uncertainty["reason"] == "cell_not_licensed"
+    assert result.uncertainty["reason"] == "not_supported"
     assert result.interval is None
     assert result.estimate == pytest.approx(2.5, abs=0.15)
     consumed = advanced.consume_learned_continuous(bytes(result.export()))

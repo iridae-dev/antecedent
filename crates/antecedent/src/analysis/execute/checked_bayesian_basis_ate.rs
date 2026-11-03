@@ -20,7 +20,7 @@ use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, Bayesia
 
 const PROOF_REFUSED: &str = "Bayesian basis proof is not justified by its retained graph";
 
-/// The checked graph proof, target, prior and physical plan for the licensed basis ATE.
+/// The checked graph proof, target, prior and physical plan for the supported basis ATE.
 #[derive(Clone)]
 pub(crate) struct CheckedBayesianBasisAteExecution {
     graph: Dag,

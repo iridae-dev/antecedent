@@ -218,7 +218,7 @@ fn a_retarget_onto_unsupported_rows_reports_arm_sizes_and_the_propensity_range()
     assert!(matches!(error.peeled(), CausalError::Support { .. }), "{error:?}");
     assert_eq!(
         error.to_string(),
-        "refused: retarget refused: weighted overlap failed under the declared target weights"
+        "not_supported: retarget refused: weighted overlap failed under the declared target weights"
     );
     assert_eq!(error.reason_code(), Some("positivity_violated"));
     assert!(error.blocker_id().is_some(), "the classification is that of the wrapped refusal");
@@ -280,7 +280,7 @@ fn a_dependence_refusal_before_any_support_is_computed_has_no_numbers() {
         error.peeled(),
         CausalError::Estimate(EstimationError::UnsupportedWithFields { .. })
     ));
-    assert_eq!(error.reason_code(), Some("target_weights_not_licensed"));
+    assert_eq!(error.reason_code(), Some("target_weights_not_supported"));
     let fields = error.refusal_fields().unwrap();
     assert_eq!(fields.stage.as_deref(), Some("retarget"));
     assert_eq!(fields.subject.as_deref(), Some("effect(t -> y)"));
@@ -366,7 +366,7 @@ fn failed_batch_members_carry_the_claim_as_subject_and_only_what_they_measured()
     let spiked = report.claims[1].outcome.as_ref().unwrap_err();
     assert!(spiked.support_refused);
     assert_eq!(spiked.detail.as_deref(), Some("batch_retarget.weighted_overlap_failed"));
-    assert_eq!(spiked.reason_code.as_deref(), Some("cell_not_licensed"));
+    assert_eq!(spiked.reason_code.as_deref(), Some("not_supported"));
     let fields = spiked.fields.as_deref().expect("a failed member carries fields");
     assert_eq!(fields.stage.as_deref(), Some("batch_retarget"));
     assert_eq!(fields.subject.as_deref(), Some("spiked"));

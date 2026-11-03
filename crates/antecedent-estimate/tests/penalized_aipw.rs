@@ -3,7 +3,7 @@
 //! identity, overlap report and retargeting, publish the cross-fitted influence-function SE and
 //! the refit-bootstrap SE (which repeats penalty selection in every replicate), and the
 //! declared GLM-to-penalized fallback runs and records the failed fit it replaced. A scope
-//! outside the license, a machine-learning fallback and a design the outcome stage cannot fit
+//! outside the support, a machine-learning fallback and a design the outcome stage cannot fit
 //! are refused with their reason codes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -726,9 +726,9 @@ fn a_cancelled_refit_bootstrap_is_a_stop_with_no_se() {
 
 /// Outside the untrimmed `AllObserved` mean ATE a penalty has no route: ridge is
 /// `route_not_supported`, and a lasso (which would select on the rows it scores outside the
-/// cross-fit) is `selection_inference_not_licensed`.
+/// cross-fit) is `selection_inference_not_supported`.
 #[test]
-fn a_scope_outside_the_license_is_refused() {
+fn a_scope_outside_the_support_is_refused() {
     let raw = draw(200, 3, 4, Regime::Moderate);
     let (data, estimand, query) = build(&raw);
     let trim = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) };
@@ -737,7 +737,7 @@ fn a_scope_outside_the_license_is_refused() {
     assert!(error.to_string().contains("route_not_supported"), "{error}");
     let trimmed_lasso = AipwAte { overlap: trim, ..lasso(&[1.0], 3) };
     let error = trimmed_lasso.prepare(&data, &estimand, &query).unwrap_err();
-    assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
+    assert!(error.to_string().contains("selection_inference_not_supported"), "{error}");
     // A fallback beside a penalized primary could never run, so it is refused, not ignored.
     let incoherent = AipwAte {
         propensity: PropensityNuisance::ridge_logistic(RidgeTuning::default())
@@ -875,7 +875,7 @@ fn a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded() {
     assert!(matches!(run(&plain(), &separated, 2).unwrap_err(), EstimationError::Stats(_)));
     let error = run(&fallback, &separated, 2).unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("nuisance_fallback_not_licensed"), "{message}");
+    assert!(message.contains("nuisance_fallback_not_supported"), "{message}");
     assert!(message.contains("primary nuisance fit failed"), "{message}");
 
     let healthy = draw(300, 3, 8, Regime::Moderate);

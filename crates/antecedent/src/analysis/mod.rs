@@ -215,7 +215,7 @@ pub mod predictive_assessment;
 mod preflight;
 pub mod propagation_chain;
 pub mod provider_callbacks;
-pub(crate) mod query_license;
+pub(crate) mod query_support;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
@@ -433,7 +433,7 @@ pub use provider_callbacks::{
     CallbackRegistrationError, CallbackResume, CallbackSession, FnCallback, ProviderCallback,
     check_callback_connection, check_claim_to_callback, consume_callback_result,
     export_callback_result, forecast_law_from_sample, inspect_callback_result,
-    predictive_law_source, refuse_identification_licence, refuse_interval, refuse_joint_law,
+    predictive_law_source, refuse_identification_evidence, refuse_interval, refuse_joint_law,
     refuse_native_trust, refuse_posterior_guarantee, register_callback_source,
     supersede_callback_source, verification_holds,
 };
@@ -497,8 +497,8 @@ pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
 pub(crate) use prepared::IdentificationCache;
 
 pub use antecedent_contract::{
-    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, SemanticApplicability,
+    BlockedOperation, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, SemanticApplicability, SupportedNeighbor,
 };
 pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,

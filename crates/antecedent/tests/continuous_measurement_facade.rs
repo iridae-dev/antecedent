@@ -183,7 +183,7 @@ fn the_nonlinear_operation_stays_refused_and_names_the_continuous_entry_point() 
     let prepared = prepare(&classical(0.25), &y, &w);
     let refusal =
         prepared.check_operation(MeasurementOperation::NonlinearOutcomeModel).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert!(refusal.remedy.as_deref().is_some_and(|r| r.contains("estimate_continuous")));
 }
 
@@ -197,7 +197,7 @@ fn interval_and_export_refuse() {
             &ctx(),
         )
         .unwrap();
-    assert_eq!(estimate.interval().unwrap_err().code, "cell_not_licensed");
+    assert_eq!(estimate.interval().unwrap_err().code, "not_supported");
     let export = estimate.export("continuous").unwrap_err();
     assert_eq!(export.code, "route_not_supported");
     assert_eq!(export.detail, "measurement_model.continuous_export");

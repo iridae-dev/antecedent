@@ -153,7 +153,7 @@ impl PyPreparedAnalysis {
                     .map_err(py_err)?
                     .query(query);
                 // The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
-                // response.bayesian over the same closure set (unlicensed).
+                // response.bayesian over the same closure set (unsupported).
                 let builder = if req.opts.inference.is_bayesian() {
                     builder
                 } else {

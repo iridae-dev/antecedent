@@ -118,7 +118,7 @@ impl ProgramLowerings {
                 lowerings.iv = Some(wire);
             }
             CheckedProgramBinding::Linear(operation) => {
-                if linear_lowering_licensed(study, resolved_estimator) {
+                if linear_lowering_supported(study, resolved_estimator) {
                     let (wire, se_kind) = linear_adjustment_lowering(operation, commitments)?;
                     commitments.se_kind = Some(se_kind);
                     lowerings.linear_adjustment = Some(wire);
@@ -355,7 +355,7 @@ fn iv_lowering(
 
 /// The linear adjustment lowering is a program commitment only for the
 /// frequentist route over an explicit or accepted DAG.
-fn linear_lowering_licensed(study: &Study, resolved_estimator: Option<&str>) -> bool {
+fn linear_lowering_supported(study: &Study, resolved_estimator: Option<&str>) -> bool {
     resolved_estimator == Some("linear.adjustment.ate")
         && study.graph.class() == GraphClass::Dag
         && matches!(study.structure_source, StructureSource::Explicit | StructureSource::Accepted)

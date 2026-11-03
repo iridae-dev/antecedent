@@ -314,8 +314,5 @@ print(json.dumps({'verified':r['accepts_as_verified_program'],'unresolved':r['un
     if kind == "rd":
         assert "dependencies.checked_rd_operation" in accepted["unresolved"]
     else:
-        # A checked estimator operation without retained replay data is recognized, not verified.
-        assert accepted == {
-            "verified": "false",
-            "unresolved": "dependencies.checked_estimator_operation",
-        }
+        # A checked estimator operation replays from its retained inputs and is verified.
+        assert accepted == {"verified": "true", "unresolved": ""}

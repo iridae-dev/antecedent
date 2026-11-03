@@ -85,7 +85,7 @@ fn artifact(snapshot: &str, alignment: DrawAlignment, columns: &[&[f64]]) -> Dis
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -282,23 +282,23 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
     // Inside the measured scope (a normal approximation of a linear contrast of aligned
     // draws, from 200 observations) the interval is bound to its attesting record. Mean -0.7,
     // variance 1.61, z(0.975) = 1.959964.
-    let licence = claim.check_composed_interval("normal_approximation", 200).expect("licensed");
-    assert_eq!(licence.label(), "measured_interval");
-    assert!(licence.record_id().starts_with("cov.composed_quantity."));
-    assert!((licence.nominal_level() - 0.95).abs() < 1e-12);
+    let support = claim.check_composed_interval("normal_approximation", 200).expect("supported");
+    assert_eq!(support.label(), "measured_interval");
+    assert!(support.record_id().starts_with("cov.composed_quantity."));
+    assert!((support.nominal_level() - 0.95).abs() < 1e-12);
     let half = 1.959_963_984_540_054 * 1.61_f64.sqrt();
-    let (lower, upper) = licence.bounds().expect("bounds");
+    let (lower, upper) = support.bounds().expect("bounds");
     assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
     assert!((upper - (-0.7 + half)).abs() < 1e-6, "upper {upper}");
 
     // Below the measured size, or with a construction that was not measured, it is closed.
     let error = claim.check_composed_interval("normal_approximation", 100).expect_err("size");
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "not_supported");
     assert_eq!(error.details(), vec!["joint_law_propagation.coverage_record_unmeasured"]);
     let error = claim
         .check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", 200)
         .expect_err("construction");
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "not_supported");
     assert_eq!(error.details(), vec!["joint_law_propagation.interval_route_closed"]);
     let error = claim.check_composed_interval("normal_approximation", 0).expect_err("rows");
     assert_eq!(error.code(), "invalid_argument");
@@ -323,8 +323,8 @@ fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
     .expect("envelope");
     let error =
         envelope.check_composed_interval("normal_approximation", 200).expect_err("envelope");
-    assert_eq!(error.code(), "cell_not_licensed");
-    assert_eq!(error.details(), vec!["joint_law_propagation.spread_needs_licensed_dependence"]);
+    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.details(), vec!["joint_law_propagation.spread_needs_supported_dependence"]);
     assert!(envelope.coordinate_id().is_err());
 
     // A truncated artifact does not rebuild a claim.

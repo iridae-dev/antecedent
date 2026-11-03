@@ -257,7 +257,7 @@ pub(crate) fn admits_boundary_saturation(overlap: OverlapPolicy) -> bool {
 /// `1e-8` of 0 or 1 (refused only when no overlap clip or trim is declared) means some rows
 /// have essentially no chance of the other treatment: a positivity problem in the data, not a
 /// numerical one. It refuses as `positivity_violated`, keeping the fit's diagnostics and
-/// naming the overlap policies that would license an answer. Every other failure keeps its
+/// naming the overlap policies that would support an answer. Every other failure keeps its
 /// own refusal.
 pub(crate) fn propensity_fit_error(error: antecedent_stats::StatsError) -> EstimationError {
     let saturated = matches!(

@@ -1,11 +1,11 @@
 # Discovery, attribution and simulation through the compiler: acceptance evidence.
-# Registration only: every route here executes explicitly unlicensed, with no coverage
-# record, no support-matrix cell and no parity/licensed_routes.toml row.
+# Registration only: every route here executes explicitly unsupported, with no coverage
+# record, no support-matrix cell and no parity/supported_routes.toml row.
 schema = 1
 id = "compiler.structure_routes"
 capability_ids = ["discovery.static", "discovery.temporal", "gcm.attribute", "gcm.simulate", "attribution.mechanism_change_detection", "attribution.unit_change"]
 status = "implemented"
-calibration = "not_licensed"
+calibration = "not_supported"
 reference = "docs/guides/compiled-structure-routes.md"
 limits = "parity/capabilities/route_manifest.toml"
 rust_source = "crates/antecedent/src/analysis/structure_route.rs"

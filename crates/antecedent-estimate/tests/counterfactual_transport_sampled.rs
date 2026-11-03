@@ -253,7 +253,7 @@ fn large_samples_converge_to_the_enumerated_truth_with_four_distinct_labels() {
             assert!(!result.point.as_ref().unwrap().smoothed);
             // The interval route is closed; a standard error is labelled
             // uncalibrated and is the only uncertainty number.
-            assert_eq!(result.inference.interval.code, "cell_not_licensed");
+            assert_eq!(result.inference.interval.code, "not_supported");
             assert_eq!(result.inference.interval.reason, "estimator_grid_not_measured");
             let se = result.inference.standard_error.as_ref().expect("a standard error");
             assert_eq!(se.label, UNCALIBRATED_STANDARD_ERROR);
@@ -451,7 +451,7 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
         (point(&smoothed) - point(&structural)).abs()
             > (point(&vanishing) - point(&structural)).abs()
     );
-    assert_eq!(smoothed.inference.interval.code, "cell_not_licensed");
+    assert_eq!(smoothed.inference.interval.code, "not_supported");
 
     // Envelope: a labelled structural range over a finite family, no single
     // standard error, never an interval.
@@ -727,8 +727,8 @@ fn an_interval_is_never_published_and_the_standard_error_is_labelled_uncalibrate
     let tables = cited_only(&derivation, &sample_laws(&data, 8_000, &mut rng));
     let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
     let interval = &result.inference.interval;
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "counterfactual_transport_sampled.interval_not_licensed");
+    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.detail, "counterfactual_transport_sampled.interval_not_supported");
     assert_eq!(interval.reason, "estimator_grid_not_measured");
     assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
     let se = result.inference.standard_error.as_ref().unwrap();
@@ -842,7 +842,7 @@ fn the_calibration_internal_interval_is_a_candidate_not_a_published_claim() {
     assert!(interval.lower <= point(&result) && point(&result) <= interval.upper);
     assert_eq!(interval.reason, "estimator_grid_not_measured");
     // The published result still carries no interval.
-    assert_eq!(result.inference.interval.code, "cell_not_licensed");
+    assert_eq!(result.inference.interval.code, "not_supported");
     assert!(sampled_transport_wald_interval_internal(&result, 1.5).is_err());
 }
 

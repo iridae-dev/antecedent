@@ -17,7 +17,7 @@
 //! its contract and binds it into its program identity.
 //!
 //! None of these routes is a geometric support-matrix cell. They execute and
-//! stay unlicensed until a coverage record licenses them.
+//! stay unsupported until a coverage record supports them.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1060,7 +1060,7 @@ pub(crate) fn admit(
 
 fn wrong_data(method: &DiscoveryMethod, data: &DiscoverData<'_>) -> CausalError {
     crate::compile_reason!(
-        "data_modality_not_licensed",
+        "data_modality_not_supported",
         "the {} search does not run on {} data",
         method.id(),
         data.modality()

@@ -72,7 +72,7 @@ impl JointPanelResult {
         Ok(values)
     }
     /// Point mean port with exact world, horizon, source and unit bindings.
-    /// This carries no sampling law, calibration or causal license.
+    /// This carries no sampling law, calibration or causal support.
     ///
     /// # Errors
     /// Misaligned or nonfinite response axes are refused.
@@ -446,7 +446,7 @@ impl JointPanelResult {
         self.flatten(rows)?;
         engine::project_panel_responses(rows, weights).map_err(JointPanelError::from)
     }
-    /// One exact prespecified mean functional per world; no uncertainty or causal license is added.
+    /// One exact prespecified mean functional per world; no uncertainty or causal support is added.
     ///
     /// # Errors
     /// Invalid windows/weights or misaligned/nonfinite rows refuse projection.
@@ -663,7 +663,7 @@ pub enum JointPanelContrastUncertainty {
 ///
 /// Every world is evaluated on the same parameter draw, so the cross-world covariance is
 /// carried by the draws and nothing is recovered by subtracting marginal intervals. The
-/// value is conditional on the fitted mechanism; it grants no causal license.
+/// value is conditional on the fitted mechanism; it grants no causal support.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointPanelContrast {
     /// Contrast of the fitted point responses.

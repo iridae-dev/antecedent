@@ -25,7 +25,7 @@ from antecedent.joint_distribution import (
 CANONICAL = {
     "externally_attested": ("external_attested",),
     "verified_extension": ("exact_request_verified", "external_exact_request_verified"),
-    "native_licensed": (),
+    "native_supported": (),
     "unverified": (),
 }
 

@@ -25,7 +25,7 @@ class SourceScans(unittest.TestCase):
         self.assertTrue(posterior_consumer_problems(route, body.replace(
             "del query, data, study, result", "del query, data, study"
         )))
-        self.assertTrue(posterior_consumer_problems({**route, "claim": "calibrated"}, body))
+        self.assertTrue(posterior_consumer_problems({**route, "claim": "interval"}, body))
 
     def test_evidence_collection_includes_calibration_markers_without_running_tests(self):
         from test_evidence import _python_collection

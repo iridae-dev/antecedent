@@ -50,7 +50,7 @@ coverage record is measured and attested, which is calibration work outside this
 row names what it waits for (`deferred_to`) and a strict subset of its required dimensions
 (`deferred_dimensions`); it still needs executing evidence for every other dimension, normally the
 typed refusal while the record is unmeasured. Deferred rows are listed beside the unresolved gaps,
-never counted as earned, and a licence they would grant stays unlicensed.
+never counted as earned, and support they would grant stays unsupported.
 
 ## Commands
 

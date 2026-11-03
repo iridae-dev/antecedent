@@ -38,7 +38,7 @@ samples = 18
 # 30 percent of the cells. `samples` counts the timed rows of target/calibration-timings.tsv
 # the basis cites; 0 means no timed comparable row exists and the figure is an analytic
 # upper bound that a pilot (ANTECEDENT_CALIBRATION_SMOKE) replaces. Nothing here is a
-# measurement and none of it licenses a claim.
+# measurement and none of it supports a claim.
 
 [calibration_capacity."adaptive_procedure_exact_gates"]
 a = 30.0

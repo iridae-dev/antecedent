@@ -49,7 +49,7 @@ pub fn fit_wls(
 /// first-stage regression of the endogenous variable on `[instruments | exogenous]`.
 ///
 /// [`fit_2sls`] never hard-fails on a weak instrument (only on an exactly
-/// degenerate first stage). Licensed IV uncertainty is the Anderson–Rubin set in
+/// degenerate first stage). Supported IV uncertainty is the Anderson–Rubin set in
 /// [`Self::anderson_rubin`], not a Wald / pretest SE.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FirstStageDiagnostics {
@@ -70,7 +70,7 @@ pub struct FirstStageDiagnostics {
     /// is an unbounded ray or the whole line. `None` when the set is empty, a union of
     /// disjoint components, or when AR was withheld (see [`Self::uncertainty_withheld`]).
     pub anderson_rubin: Option<(f64, f64, f64)>,
-    /// Why a licensed IV uncertainty product was withheld (AR union / empty set /
+    /// Why a supported IV uncertainty product was withheld (AR union / empty set /
     /// non-homoskedastic SE kind / numerical failure).
     pub uncertainty_withheld: Option<&'static str>,
 }

@@ -194,11 +194,11 @@ fn a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently() {
     assert!(result.require_value_kind(ValueKind::Posterior).is_ok());
     // No interval without a level, and none outside a measured design.
     let refusal = result.interval().unwrap_err();
-    assert_eq!(code(&refusal), ("cell_not_licensed", "scientific_bridge.interval_not_licensed"));
+    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.interval_not_supported"));
     let refusal = result.bridged_interval(0.95).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("cell_not_licensed", "scientific_bridge.interval_scope_outside_measured")
+        ("not_supported", "scientific_bridge.interval_scope_outside_measured")
     );
 
     // Export, then consume as a fresh consumer that retained the identity.
@@ -241,7 +241,7 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     set.source_value = ValueKind::IdentifiedSet;
     set.target_value = ValueKind::IdentifiedSet;
     let refusal = PreparedScientificBridgeDistribution::prepare(set).unwrap_err();
-    assert_eq!(code(&refusal), ("cell_not_licensed", "scientific_bridge.value_kind_not_carried"));
+    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.value_kind_not_carried"));
     // An uncertain map without a declared dependence is refused before any draw.
     let mut undeclared = uncertain();
     undeclared.source_dependence = None;
@@ -250,7 +250,7 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     // An associational source claim is never a bridge source.
     let prepared = PreparedScientificBridgeDistribution::prepare(uncertain()).unwrap();
     let refusal = prepared.derive(&table, Some(ClaimKind::Associational), 1).unwrap_err();
-    assert_eq!(code(&refusal), ("cell_not_licensed", "scientific_bridge.source_not_draws"));
+    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.source_not_draws"));
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn an_exact_map_publishes_its_interval_as_an_exact_transform_and_a_line_of_few_t
         .unwrap();
     let interval =
         result.bridged_interval(0.95).expect("an exact transform of the source interval");
-    assert_eq!(interval.licensed_by, "exact_transform_of_declared_source_interval");
+    assert_eq!(interval.supported_by, "exact_transform_of_declared_source_interval");
     let sd = result.bridged().source_variance().sqrt();
     let half = antecedent_stats::normal_ppf(0.975) * 2.0 * sd;
     assert!((interval.upper - interval.lower - 2.0 * half).abs() < 1e-9);
@@ -325,7 +325,7 @@ fn a_chain_of_bridge_transport_and_utility_propagates_the_mapping_and_the_source
         stages,
     );
     let ctx = ExecutionContext::for_tests(31);
-    let chain = PropagationChain::seal(draft, &ctx).expect("a licensed chain");
+    let chain = PropagationChain::seal(draft, &ctx).expect("a supported chain");
     let mapped = chain.stage("terminal").expect("bridged stage");
     assert!((mapped.value("mean").unwrap() - result.mean()).abs() < 1e-9);
     // The utility is the expectation of the utility of each joint draw of the bridged and

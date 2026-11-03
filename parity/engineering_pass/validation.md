@@ -34,9 +34,9 @@ This run deliberately exposed integration defects rather than providing a green
 completion result: 24 failures concerned one-shot static cross-world admission,
 configuration test setup, cancelled refresh publication and typed smoothed-dose
 artifact refusal. Those fixes and their regressions are subject to the final
-rerun below. Nine failures concern preexisting missing measured-license
-attestation; [their exact disposition](license_disposition.md) preserves all
-assertions and measured records. Initial source licensing was audited without
+rerun below. Nine failures concern preexisting missing measured-support
+attestation; [their exact disposition](support_disposition.md) preserves all
+assertions and measured records. Initial source support was audited without
 claiming an initial numerical run.
 
 ## Broad integration and final focused rerun
@@ -50,9 +50,9 @@ The run executed **5,422 tests across 191 binaries: 5,406 passed, 16 failed,
 568 skipped** (567 existing ignored tests plus that one prevalidated test).
 Duration 578.844s.
 
-Eleven failures require already-missing measured-license attestation, including
+Eleven failures require already-missing measured-support attestation, including
 two additional independent I/O consumption assertions. Their exact records and
-unreached later assertions are in the license disposition. Five software checks
+unreached later assertions are in the support disposition. Five software checks
 required correction: an identifiable executing PAG fixture, inference-domain
 configuration assertions, a truly sampled posterior fixture, explicit report
 physical-plan updates, and separately exercising compile-time and runtime
@@ -136,7 +136,7 @@ compiled test paths. Python facade inventory passes 462 entries (342 bound,
 120 internal), and generated host/family/route/acceptance records are current.
 GCM conformance and acceptance manifests still pass 19 clauses/60 tests/3
 benchmarks and 430 bound cases respectively. These source checks do not claim
-execution of measured scientific licenses.
+execution of measured scientific supports.
 
 ## Strict library and dependency validation
 
@@ -168,12 +168,12 @@ design, identify, validate and graph) executed **7,510 tests across 213 binaries
 **7,495 passed, 15 failed, 656 skipped**, in **1,521.666s** after a 7m08s build.
 The skips comprise 655 existing ignored tests and the previously validated
 48,000-draw panel workflow, subsequently passed in the separate final-source rerun below.
-No measured-license assertion was filtered out.
+No measured-support assertion was filtered out.
 
 Fourteen failures require missing current measured evidence, including three
 additional unchanged design assertions; their source/hash/record dispositions
-are recorded in [license disposition](license_disposition.md). The historical
-reliability fixture itself verifies successfully before its strict promotion
+are recorded in [support disposition](support_disposition.md). The historical
+reliability fixture itself verifies successfully before its strict support
 premise fails. Subsequent assertions are explicitly not claimed executed.
 
 One new software regression exposed actual static response/joint delegation
@@ -332,7 +332,7 @@ tests/test_joint_panel_reference_decomposition.py
 tests/test_causal_artifacts.py
 tests/test_posterior_artifact.py
 tests/test_support_artifact.py
-tests/test_licensed_artifacts.py
+tests/test_supported_artifacts.py
 tests/test_missing_imputation.py
 tests/test_missing_imputation_routes.py
 ```

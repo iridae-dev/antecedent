@@ -32,7 +32,7 @@ def test_interval_is_released_only_under_a_covering_record() -> None:
         measured = prepared.measured_interval()
     except mnar_fixed_shift.MnarFixedShiftRefusal as refusal:
         # No attesting record covers this shift, missingness and row count.
-        assert refusal.code == "cell_not_licensed"
+        assert refusal.code == "not_supported"
     else:
         scalar = measured.scalar("treated_minus_control_at_declared_shift")
         assert scalar.interval[0] < scalar.point < scalar.interval[1]

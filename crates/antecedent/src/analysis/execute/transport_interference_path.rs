@@ -624,12 +624,12 @@ pub(super) fn frequentist_transport_estimate(
         TrialDependence::Series(lag) => format!(
             "binary trial-to-target{weighted} IPW on the consecutive times of one series; the SE \
              is the Newey-West long-run variance of the per-row influence at lag {lag}, \
-             unlicensed and unmeasured; inner ResponseCurve names treatment/outcome only"
+             unsupported and unmeasured; inner ResponseCurve names treatment/outcome only"
         ),
         TrialDependence::Clusters(_) => format!(
             "binary trial-to-target{weighted} IPW on {}; the SE is the cluster sandwich of the \
              per-row influence (whole clusters are the sampling units, G/(G-1) factor), \
-             unlicensed and unmeasured; inner ResponseCurve names treatment/outcome only",
+             unsupported and unmeasured; inner ResponseCurve names treatment/outcome only",
             dependence.describe()
         ),
     };
@@ -1156,8 +1156,8 @@ pub(super) fn refuse_unestimable_transport(
             formula: antecedent_identify::TransportFormula::RecursiveFactorization { .. },
             ..
         } => Err(crate::support_reason!(
-            "construction_not_licensed",
-            "RecursiveFactorization is identified but not estimable on the licensed \
+            "construction_not_supported",
+            "RecursiveFactorization is identified but not estimable on the supported \
              trial-to-target IPW path"
         )),
         TransportIdentification::Transportable { .. } => Ok(()),

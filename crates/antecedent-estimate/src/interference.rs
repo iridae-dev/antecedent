@@ -103,7 +103,7 @@ pub fn estimate_interference_bayesian(
     {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            "Bayesian interference is licensed only for Bernoulli assignment with NeighborCount exposure",
+            "Bayesian interference is supported only for Bernoulli assignment with NeighborCount exposure",
         ));
     }
     // The posterior conditions on the realised assignment, so the declared probabilities do not
@@ -659,7 +659,7 @@ mod tests {
         // additive total effect (the unit-level effect variance is zero), so the
         // conservative cluster Neyman variance is unbiased and the pointwise 95%
         // Welch interval covers at the nominal rate. Only the complete cluster
-        // allocation is re-randomized. Eight clusters per arm is the licensed
+        // allocation is re-randomized. Eight clusters per arm is the supported
         // support boundary.
         const REPLICATES: usize = 2_000;
         const K: usize = 16;

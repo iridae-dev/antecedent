@@ -185,7 +185,7 @@ pub enum CyclicGraphRequest {
 pub enum CyclicGraphReport {
     /// Checked calculus rewrite; remaining intervention factors are not called identified.
     Calculus {
-        /// `verified_rule`, `not_licensed_by_criterion` or `budget_exhausted`.
+        /// `verified_rule`, `not_supported_by_criterion` or `budget_exhausted`.
         status: String,
         /// Whether the executable rewrite has no remaining intervention factors.
         fully_observational: bool,
@@ -297,7 +297,7 @@ impl CyclicGraphRequest {
                 .map_err(invalid)?;
                 let status = match answer.status {
                     CyclicCalculusStatus::Verified => "verified_rule",
-                    CyclicCalculusStatus::NotLicensedByCriterion => "not_licensed_by_criterion",
+                    CyclicCalculusStatus::NotSupportedByCriterion => "not_supported_by_criterion",
                     CyclicCalculusStatus::BudgetExhausted => "budget_exhausted",
                 }
                 .into();
@@ -342,7 +342,7 @@ impl CyclicGraphRequest {
                 )
                 .map_err(invalid)?;
                 let status =
-                    if program.is_some() { "identified" } else { "not_licensed_by_adjustment" }
+                    if program.is_some() { "identified" } else { "not_supported_by_adjustment" }
                         .into();
                 let expression = program.as_ref().map(|p| p.arena().pretty(p.mapping().executable));
                 let program = program

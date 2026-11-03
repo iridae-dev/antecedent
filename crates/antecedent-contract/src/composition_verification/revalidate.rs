@@ -29,7 +29,7 @@
 //! The class is `withdrawn` when any withdrawal stands, `recompute` when only
 //! numerical reasons stand, and `still_valid` otherwise. Numerical
 //! invalidation and withdrawal are kept apart in the result: a claim can need
-//! recomputation without losing any license, and can be withdrawn with its
+//! recomputation without losing any support, and can be withdrawn with its
 //! numbers intact. The earlier fit and uncertainty are retained only by a
 //! `still_valid` claim: reusing a structural derivation after the data were
 //! replaced recomputes the numbers and keeps no authority for the old fit.
@@ -236,7 +236,7 @@ pub enum NumericalCause {
     /// earlier uncertainty statement carries no authority.
     CalibrationChanged,
     /// Coordinates that were outside the support are supported again: the
-    /// earlier numbers were never licensed there.
+    /// earlier numbers were never supported there.
     SupportRestored,
 }
 
@@ -271,7 +271,7 @@ pub struct NumericalReason {
     pub cause: NumericalCause,
 }
 
-/// What kind of license was lost.
+/// What kind of support was lost.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum WithdrawalKind {
@@ -301,7 +301,7 @@ impl WithdrawalKind {
     }
 }
 
-/// One withdrawn license.
+/// One withdrawn support.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Withdrawal {
     /// What was lost.
@@ -384,7 +384,7 @@ pub struct ClaimRevalidation {
     pub class: Revalidation,
     /// Why the numbers are stale (sorted, distinct).
     pub numerical: Vec<NumericalReason>,
-    /// Which licenses were lost (sorted, distinct).
+    /// Which supports were lost (sorted, distinct).
     pub withdrawals: Vec<Withdrawal>,
     /// Whether the earlier fit and uncertainty stand.
     pub authority: PriorAuthority,
@@ -407,30 +407,30 @@ impl ClaimRevalidation {
         if let Some(w) = self.withdrawals.iter().min_by_key(|w| (w.kind, &w.origin)) {
             let (code, detail, remedy) = match w.kind {
                 WithdrawalKind::Calibration => (
-                    antecedent_core::reason_code!("cell_not_licensed"),
+                    antecedent_core::reason_code!("not_supported"),
                     "composition_verification.calibration_not_held",
                     "establish a calibration record at this claim's coordinate, or report the \
                      point value without an interval or posterior",
                 ),
                 WithdrawalKind::Support => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
                     "composition_verification.support_withdrawn",
                     "restrict the claim to coordinates inside the support, or supply evidence \
                      that extends it",
                 ),
                 WithdrawalKind::ProviderTrust => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
                     "composition_verification.provider_trust_withdrawn",
                     "re-verify the provider at its current identity, or use a native route",
                 ),
                 WithdrawalKind::Retired => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
                     "composition_verification.input_retired",
                     "recompute the claim from the successor of the retired input, or declare \
                      a replacement",
                 ),
                 WithdrawalKind::Unexecutable => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
                     "composition_verification.stage_unexecutable",
                     "supply the data, fit or provider the stage needs, or recompute it",
                 ),

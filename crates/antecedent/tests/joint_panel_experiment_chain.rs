@@ -432,7 +432,7 @@ fn declared_bridge(
         source_dependence:Some(SourceMappingDependence::SlopeCovariance {covariance,evidence:"retained_joint_slots".into()}),
         estimand_bridge:Some(EstimandBridge {id:"exact_program_translation".into(),experiment_id:"geo_experiment".into(),experiment:setting.clone(),target:setting,recency_delta:0.0,recency_units:"panel_period".into(),spend_delta:0.0,spend_units:"declared_joint_program".into()}),
     };
-    bridge.check_licensing().unwrap();
+    bridge.check_support().unwrap();
     bridge
 }
 
@@ -457,7 +457,7 @@ fn verify_target_refusals(
             .with_experiment(wrong_quantity, ledger)
             .and_then(|prepared| prepared.estimate(ledger, ctx))
             .is_err(),
-        "a licensed bridge for another functional must not update this response"
+        "a supported bridge for another functional must not update this response"
     );
 }
 

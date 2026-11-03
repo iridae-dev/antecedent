@@ -82,7 +82,7 @@ pub fn verify_joint_conditioning(
             // Two measured outcomes: distinct experimental quantities, one experiment.
             let mut bridge = f.update.bridge.clone();
             bridge.source.quantity.variable_name = format!("outcome_{i}");
-            bridge.check_licensing().unwrap();
+            bridge.check_support().unwrap();
             PanelJointExperimentComponent {
                 bridge,
                 functional: f.update.functional.clone(),
@@ -174,7 +174,7 @@ pub fn verify_joint_conditioning(
     changed_mapping.components[1].mapping.intercepts[0] += 1e-3;
     assert!(
         original.condition_joint_experiment(changed_mapping, &ledger, ctx).is_err(),
-        "a mapping that departs from its declared moments is not the licensed bridge"
+        "a mapping that departs from its declared moments is not the supported bridge"
     );
     let mut changed_bridge = update_with(covariance(sd, 0.8));
     changed_bridge.components[1].bridge.assumptions[0].statement.push_str(" (revised)");

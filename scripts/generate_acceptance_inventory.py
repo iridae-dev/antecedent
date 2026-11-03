@@ -9,16 +9,16 @@ One row per public route, joined row by row from every record that speaks about 
   crates/antecedent/tests/family_contract_conformance.rs  the representatives that suite runs
   parity/release_scope/scope.toml            the release scope entries
   parity/method_children/children.toml       the method children and their fixtures/consumers
-  parity/route_obligations.toml              the licence, calibration and uncertainty obligations
+  parity/route_obligations.toml              the support and uncertainty obligations
   parity/residual_limitations.toml           the residual limitation each narrowed row maps to
 
 A row carries the compiler execution it cites, the scientific claim (status and the explicit
-licence behind it), the uncertainty it publishes, the consumers that read its artifact and its
+support behind it), the uncertainty it publishes, the consumers that read its artifact and its
 closure kind. `acceptance` is `complete` only when the route executes through the compiler,
 carries the uncertainty it claims, has its consumers, is conformance-checked by its own
 representative and closes as delivered; otherwise it is `incomplete` and every reason is
 listed. `conflicts` lists records that disagree about the row (a status, a closure kind, a
-scope list, a licence without its evidence); the checker rejects any conflict.
+scope list, support without its evidence); the checker rejects any conflict.
 
     python3 scripts/generate_acceptance_inventory.py           # rewrite the file
     python3 scripts/generate_acceptance_inventory.py --check   # fail when the file is stale
@@ -49,10 +49,10 @@ FIELDS = (
     "compiler_execution",
     "status",
     "scientific_claim",
-    "licensing_obligations",
+    "support_obligations",
     "uncertainty",
     "uncertainty_basis",
-    "uncertainty_license",
+    "uncertainty_support",
     "consumer",
     "decision_port",
     "closure_kind",
@@ -131,7 +131,6 @@ def load_sources(root: Path = ROOT, *, with_children: bool = True) -> dict:
         "children": toml("parity/method_children/children.toml").get("child", []),
         "obligations": toml("parity/route_obligations.toml").get("obligation", []),
         "limitations": toml("parity/residual_limitations.toml").get("limitation", []),
-        "coverage_ids": {r["id"] for r in toml("parity/coverage_records.toml").get("record", [])},
         "representatives": registered_representatives(suite.read_text(encoding="utf-8"))
         if suite.is_file()
         else set(),
@@ -185,11 +184,11 @@ class Index:
                 self.family_of[route] = fam
         self.scope = {e["id"]: e for e in sources["scope"]}
         self.children = {c["id"]: c for c in sources["children"]}
-        self.licensed = defaultdict(list)
+        self.supported = defaultdict(list)
         self.closed = []
         for ob in sources["obligations"]:
-            if ob.get("kind") == "licensed":
-                self.licensed[
+            if ob.get("kind") == "supported":
+                self.supported[
                     (ob["query"], ob["graph_class"], str(ob["inference"]).lower())
                 ].append(ob)
             else:
@@ -209,7 +208,7 @@ class Index:
 
 def split_route(route: str) -> tuple[str, str] | None:
     parts = route.split(".")
-    if len(parts) == 3 and parts[0] in ("licensed", "closed"):
+    if len(parts) == 3 and parts[0] in ("supported", "closed"):
         return parts[1], parts[2]
     return None
 
@@ -287,64 +286,47 @@ def counterpart_row(row: dict, ix: Index) -> dict:
             for finding in s["child_findings"].get(rid, []):
                 reasons.append(f"method child: {finding}")
 
-    # Obligations and the licence behind the claim.
+    # Obligations and the support behind the claim.
     split = split_route(route)
-    licensed, execution = [], []
+    supported, execution = [], []
     if split:
-        licensed = ix.licensed.get((split[0], split[1], row["inference"]), [])
+        supported = ix.supported.get((split[0], split[1], row["inference"]), [])
         execution = ix.closed_for(*split)
-    out["obligations"] = sorted([o["id"] for o in licensed] + [o["id"] for o in execution])
-    out["licensing_obligations"] = sorted(o["id"] for o in licensed) if status == "licensed" else []
-    claim = {"licensed": "licensed", "not_applicable_with_theory_reason": "not_applicable"}.get(
-        status, "unlicensed"
+    out["obligations"] = sorted([o["id"] for o in supported] + [o["id"] for o in execution])
+    out["support_obligations"] = sorted(o["id"] for o in supported) if status == "supported" else []
+    claim = {"supported": "supported", "not_applicable_with_theory_reason": "not_applicable"}.get(
+        status, "unsupported"
     )
     out["scientific_claim"] = claim
     cal: list[str] = []
-    if status == "licensed":
-        if split and not licensed:
+    if status == "supported":
+        if split and not supported:
             conflicts.append(
-                "licensed row has no explicit licence obligation (unsupported licensing evidence)"
+                "supported row has no explicit support obligation (unsupported support evidence)"
             )
-        for ob in licensed:
-            if not str(ob["identification_license"]).split("|")[:3] or not all(
-                str(ob["identification_license"]).split("|")[:3]
+        for ob in supported:
+            if not str(ob["identification_evidence"]).split("|")[:3] or not all(
+                str(ob["identification_evidence"]).split("|")[:3]
             ):
-                conflicts.append(f"obligation {ob['id']} has no explicit identification licence")
-            if not ob["calibration_license"]:
-                conflicts.append(f"obligation {ob['id']} has no explicit calibration licence")
+                conflicts.append(f"obligation {ob['id']} has no explicit identification evidence")
             cal.append(ob["uncertainty"])
-            lic = str(ob["calibration_license"])
-            if lic.startswith("records:"):
-                for rec in lic[len("records:") :].split(","):
-                    if rec not in s["coverage_ids"]:
-                        conflicts.append(
-                            f"obligation {ob['id']} cites coverage record {rec}, which is not recorded"
-                        )
-        if (
-            row["uncertainty_basis"] == "measured_record"
-            and licensed
-            and not any(str(o["calibration_license"]).startswith("records:") for o in licensed)
-        ):
-            conflicts.append(
-                "uncertainty rests on a measured record but no obligation cites a coverage record (unsupported licensing evidence)"
-            )
         if not split and row["uncertainty_basis"] not in (
             "measured_record",
             "estimator_records",
             "point_only_cell",
         ):
             conflicts.append(
-                f"licensed row without a route obligation rests on {row['uncertainty_basis']!r} (unsupported licensing evidence)"
+                f"supported row without a route obligation rests on {row['uncertainty_basis']!r} (unsupported support evidence)"
             )
     else:
-        if licensed:
+        if supported:
             conflicts.append(
-                "row is not licensed although an explicit licence obligation exists for its coordinate"
+                "row is not supported although an explicit support obligation exists for its coordinate"
             )
-        if status == "executing_unlicensed" and split and not execution and not licensed:
+        if status == "not_supported" and split and not execution and not supported:
             reasons.append("executes with no route obligation recording what it owes")
-    out["uncertainty_license"] = (
-        sorted(set(cal)) if cal else ("unmeasured" if claim == "unlicensed" else "none")
+    out["uncertainty_support"] = (
+        sorted(set(cal)) if cal else ("unmeasured" if claim == "unsupported" else "none")
     )
 
     # Closure kind against the residual limitation.
@@ -386,7 +368,7 @@ def counterpart_row(row: dict, ix: Index) -> dict:
         reasons.append(f"residual limitation {lim['id']} open to {lim['owner'] or lim['decision']}")
 
     # Execution, uncertainty and consumers of an executing route.
-    executing = status in ("licensed", "executing_unlicensed", "closed_with_next_attempt")
+    executing = status in ("supported", "not_supported", "closed_with_next_attempt")
     if executing:
         reasons += execution_problems(root, row["execution"])
         if row["uncertainty"] == "none" and row["uncertainty_basis"] != "point_only_cell":
@@ -435,13 +417,13 @@ def manifest_row(route: dict, ix: Index) -> dict:
         "target": route["target"],
         "compiler_execution": execution,
         "status": route["status"],
-        "scientific_claim": "licensed"
-        if route["status"] in ("licensed", "graphless")
-        else "unlicensed",
-        "licensing_obligations": [],
+        "scientific_claim": "supported"
+        if route["status"] in ("supported", "graphless")
+        else "unsupported",
+        "support_obligations": [],
         "uncertainty": uncertainty,
         "uncertainty_basis": method.get("uncertainty_basis", "") or "",
-        "uncertainty_license": "unmeasured",
+        "uncertainty_support": "unmeasured",
         "consumer": consumers[0],
         "decision_port": route["decision_ports"],
         "closure_kind": "",

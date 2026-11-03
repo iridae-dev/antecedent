@@ -65,7 +65,7 @@ cannot differ:
 
 | Status | A host may |
 | --- | --- |
-| `supported` | use the claim as stated. The route is licensed, identified under the declared structure, executed, and nothing contradicts it. |
+| `supported` | use the claim as stated. The route is supported, identified under the declared structure, executed, and nothing contradicts it. |
 | `partial` | use only what the record says: an identified set, an open obligation, an unreviewed graph, an unevaluated domain. Relay the limit with the answer. |
 | `unsupported` | not use it. The record is a refusal, or a domain is contradicted or outside the declared scope. |
 
@@ -76,8 +76,8 @@ The rules, in order, for a claim: a `refusal` kind, or any domain `contradicted`
 identified, causal claim, and its record states `causal: false`); an
 identified and evaluated claim is `supported` (an `unknown` support domain means no
 empirical check ran, stays visible in the domains and does not demote it); anything else
-is `partial`. For an operation: an impossible or unlicensed cell, or a failed empirical
-check, is `unsupported`; a licensed cell with met bindings (`executable`) is `supported`;
+is `partial`. For an operation: an impossible or unsupported cell, or a failed empirical
+check, is `unsupported`; a supported cell with met bindings (`executable`) is `supported`;
 the rest (review pending, an assumption or binding missing, a check not run, a resource
 limit, unknown support) is `partial`. A status is advice about use, not a verdict about the
 world: `supported` does not certify the assumptions.
@@ -123,7 +123,7 @@ antecedent::host::refusal_code(&error)     // Option<&str>, only ever a register
 
 A refusal is not a failure to be retried. It names what the caller can change to proceed
 (`remedy`, when it states one) and, through `next_actions` in the capability report, a
-licensed neighbor. Never substitute a different route silently.
+supported neighbor. Never substitute a different route silently.
 
 ### Refusals and failures in Python
 
@@ -172,27 +172,27 @@ refusal) report the coarse family Rust uses.
 ## Support cells and their neighbors
 
 A host can ask the support matrix about any coordinate (`query:graph:structure:inference:validation`)
-without preparing or fitting anything. `host.support_cells()` lists every licensed coordinate, and
+without preparing or fitting anything. `host.support_cells()` lists every supported coordinate, and
 `host.support_cell_report(coordinate)` classifies one:
 
 ```python
 from antecedent import host
 
-cells = host.support_cells()                 # every licensed coordinate; a pure read
+cells = host.support_cells()                 # every supported coordinate; a pure read
 report = host.support_cell_report("TransportQuery:Dag:explicit:Frequentist:none")
-print(report["status"])                      # licensed, refused or not_applicable
-print(report["message"][:60])                # the blocker text; None for a licensed cell
+print(report["status"])                      # supported, refused or not_applicable
+print(report["message"][:60])                # the blocker text; None for a supported cell
 nearest = report["neighbors"][0]
 print(nearest["coordinate"], nearest["changed"], nearest["required_action"])
 assert nearest["coordinate"] in cells
-assert host.support_cell_report(nearest["coordinate"])["status"] == "licensed"
+assert host.support_cell_report(nearest["coordinate"])["status"] == "supported"
 ```
 
-`neighbors` are the licensed cells of the same graph class that change explicit premises, nearest
+`neighbors` are the supported cells of the same graph class that change explicit premises, nearest
 first. Each names the `changed` axes (`axis`, `from`, `to`) and the `required_action` a caller
 would take. They are alternatives the caller chooses between, never an automatic fallback, and a
-licensed cell has none. A malformed coordinate or an axis value outside the matrix raises
-`CausalValueError`. Licensing a cell does not establish empirical support or interval calibration;
+supported cell has none. A malformed coordinate or an axis value outside the matrix raises
+`CausalValueError`. Support a cell does not establish empirical support or interval calibration;
 see the [support matrix](../../support-matrix.md).
 
 ## Resources, cancellation and callbacks
@@ -215,7 +215,7 @@ Parallelism is a budget on an execution context, not a global setting.
   uses `ExecutionContext::acquire_admission_bounded`, which waits up to a stated bound and
   ends early on cancellation.
 * Device bytes are a separate account (`DeviceReservationPool`) and no accelerator is
-  promoted; a CPU study never decrements it.
+  enabled; a CPU study never decrements it.
 * Process-global pools the library does not own cannot be resized per study. Dense linear
   algebra uses the process-wide BLAS/Rayon pool and a neural learner is serialized behind a
   lock; see the [thread inventory](../../architecture/thread-inventory.md) for each entry and its

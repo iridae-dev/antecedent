@@ -49,7 +49,7 @@ The reported value is the subject mean of `V[0]`. `G[t]` is the conditional prob
 | Each prediction's fold matches its subject's fold | Sequential exchangeability, sequential positivity and consistency |
 | Treatment and censoring probabilities meet the positivity floor | That the supplied predictions and probabilities are valid for the regime and the censoring model |
 
-Both results are point-only. They carry no standard error or interval, no support-matrix licence, and no nuisance-model training.
+Both results are point-only. They carry no standard error or interval, no support-matrix support, and no nuisance-model training.
 
 ## Next step
 

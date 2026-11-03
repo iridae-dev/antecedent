@@ -186,7 +186,7 @@ pub(crate) fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> Prov
 /// design, `EValue` on a non-binary treatment, an MCMC diagnostic on a Laplace posterior
 /// — not the support matrix's permanent typed impossibility
 /// (`SupportRefusal::NotApplicable` / wire `not_applicable`). The same validator can run
-/// cleanly on a different call against the same licensed cell; a matrix `not_applicable`
+/// cleanly on a different call against the same supported cell; a matrix `not_applicable`
 /// cell never reaches validation at all. See `docs/capabilities.md`'s "'Not applicable'
 /// means three different things".
 pub(crate) fn validator_not_applicable_diagnostic(
@@ -303,7 +303,7 @@ impl RefutationRun<'_> {
     }
 
     /// Cheap/full on a plugin intervention *level*. Contrast-shaped refuters are
-    /// not licensed. Cheap is overlap only; full is overlap plus sampling-stability.
+    /// not supported. Cheap is overlap only; full is overlap plus sampling-stability.
     pub(crate) fn plugin_level(
         self,
         workspace: &mut EstimationWorkspace,
@@ -563,7 +563,7 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
 
 /// Replace `Y` with `1{Y > c}` when the query asks for a single exceedance.
 ///
-/// Grids are not reduced to the first threshold. Licensed grid paths build a
+/// Grids are not reduced to the first threshold. Supported grid paths build a
 /// score table or evaluate each `c` explicitly.
 ///
 /// # Errors
@@ -723,7 +723,7 @@ pub(crate) struct AverageTarget<'a> {
     pub(crate) estimand: &'a IdentifiedEstimand,
 }
 
-/// Build scores on original `Y` and attach the exceedance grid when licensed.
+/// Build scores on original `Y` and attach the exceedance grid when supported.
 pub(crate) fn attach_average_functional_grid(
     estimate: EffectEstimate,
     target: AverageTarget<'_>,

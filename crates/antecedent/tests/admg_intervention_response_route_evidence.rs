@@ -1,7 +1,7 @@
 //! Lifecycle evidence for sealed explicit/accepted ADMG scalar response routes.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 #![allow(clippy::float_cmp, reason = "grid members are pinned to their exact literal levels")]
 
 use std::sync::Arc;
@@ -116,7 +116,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     prepared.structure_source(),
                     if accepted { StructureSource::Accepted } else { StructureSource::Explicit }
                 );
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed));
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported));
                 let contract = prepared.contract().unwrap();
                 assert_eq!(contract.query_kind.as_ref(), "InterventionResponse");
                 assert_eq!(contract.identifier.as_deref(), Some("general.id"));
@@ -477,7 +477,7 @@ fn assert_plugin_level_validation(
     );
     assert!(
         result.refutations.iter().all(|report| report.refuter.as_ref() != "sensitivity.evalue"),
-        "{coordinate}: E-value is not licensed for an intervention level"
+        "{coordinate}: E-value is not supported for an intervention level"
     );
     match suite {
         RefuteSuite::Cheap => {
@@ -501,7 +501,7 @@ fn assert_plugin_level_validation(
                                 key.as_ref() == "validator" && value.as_ref() == validator
                             })
                     }),
-                    "{coordinate}: {validator} is not licensed on a functional.effect level"
+                    "{coordinate}: {validator} is not supported on a functional.effect level"
                 );
             }
         }

@@ -47,7 +47,7 @@ A reweighted static score table (:class:`ReweightedStaticScores`) and a policy l
 data under evaluation (:class:`LearnedFromEvaluationData`) are refused by name
 (``route_not_supported``), a value for another population or period is refused naming the missing
 selection-diagram and invariance contract (``transport_missing_evidence``), and
-:func:`request_interval` always raises ``cell_not_licensed``. Rust owns every number and
+:func:`request_interval` always raises ``not_supported``. Rust owns every number and
 refusal; this module builds declarations and raises :class:`SequentialEvaluationRefusal`
 (a :class:`~antecedent.errors.CausalUnsupportedError`) with the registered ``reason_code`` and
 the ``detail`` slot.
@@ -129,7 +129,7 @@ class SequentialEvaluationRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     namespaced ``detail`` (the module's own slot for a policy or model refusal, the measurement
     layer's for an observation channel); ``remedy`` names the declaration, contract or evidence
-    that would license the request.
+    that would support the request.
     """
 
 
@@ -995,7 +995,7 @@ def check_request(
 
 
 def request_interval() -> None:
-    """Always raises ``cell_not_licensed``: no interval is licensed for a policy value."""
+    """Always raises ``not_supported``: no interval is supported for a policy value."""
     raise_refusal(_native.sequential_request_interval(), SequentialEvaluationRefusal)
 
 

@@ -161,7 +161,7 @@ impl MultiActionPolicyInputs {
 /// Exact graphless coordinate (design, method, inference claim) for a policy
 /// value result, given the structural flags of the executed query. The same
 /// mapping is used by execution, contract emission, and artifact validation so
-/// the licensed coordinate is computed identically everywhere.
+/// the supported coordinate is computed identically everywhere.
 ///
 /// `regret` takes precedence (finite-class simultaneous claim), then the
 /// multi-action and uplift shapes, then the binary IPW/AIPW distinction, with
@@ -170,7 +170,7 @@ impl MultiActionPolicyInputs {
 #[must_use]
 #[allow(
     clippy::fn_params_excessive_bools,
-    reason = "each flag is an independent structural property of the executed query, decided upstream; they select one exact license coordinate and are not a refactorable state object"
+    reason = "each flag is an independent structural property of the executed query, decided upstream; they select one exact support coordinate and are not a refactorable state object"
 )]
 pub fn policy_graphless_coordinate(
     multi: bool,
@@ -280,7 +280,7 @@ pub struct FixedCandidateRegretInputs {
 }
 
 /// Every field is written, including the caller-declared ownership flags (they
-/// select the licensed estimator). Row-aligned arrays keep their order; the
+/// select the supported estimator). Row-aligned arrays keep their order; the
 /// subject-id lists keep their declared order as well (conservatively, although
 /// they are only checked for disjointness).
 impl CanonicalEncode for PolicyValueQuery {

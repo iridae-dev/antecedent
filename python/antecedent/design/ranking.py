@@ -150,7 +150,7 @@ class ObjectiveCandidate:
 
 @dataclass(frozen=True, slots=True)
 class ConstraintViolation:
-    """A plan excluded from the ranking by a bound or because it cannot be licensed."""
+    """A plan excluded from the ranking by a bound or because it cannot be supported."""
 
     id: str
     index: int
@@ -285,7 +285,7 @@ class DesignRankingResult:
 
     @property
     def violations(self) -> tuple[ConstraintViolation, ...]:
-        """Plans excluded by ``max_cost``/``max_sample_budget`` or not licensed."""
+        """Plans excluded by ``max_cost``/``max_sample_budget`` or not supported."""
         return self._need_ident("violations").violations
 
     @property
@@ -776,7 +776,7 @@ def rank_designs(
     apply to either basis.
 
     **Bound to a prepared study** (``study=``): plan rankings (identification and the native
-    objectives) are ranked through that study's contract. An unlicensed support cell or a
+    objectives) are ranked through that study's contract. An unsupported support cell or a
     study without an identification product raises
     :class:`~antecedent.errors.CausalUnsupportedError`; a width ranking across a
     ``decision_target`` (a 64-hex target identity) other than the study's own is refused; a
@@ -1242,7 +1242,7 @@ def preview_ranking(
 ) -> RankingPreview:
     """Inspect the obligations of ranking ``candidates`` through ``study``'s contract.
 
-    The refusals are those of :func:`rank_designs` with ``study=``: an unlicensed support cell
+    The refusals are those of :func:`rank_designs` with ``study=``: an unsupported support cell
     or a study without an identification product, a width ranking across a ``decision_target``
     other than the study's own, and an identification ranking whose structure prior renormalizes
     the identified mass the study's contract reports

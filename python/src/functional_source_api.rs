@@ -125,7 +125,7 @@ fn resolve_law_functional_source(
         }
         let mut report = artifact.summary().map_err(functional_source_error)?;
         report["native_row_origin_verified"] = serde_json::json!(true);
-        report["source_resolution"] = serde_json::json!({"kind":"actual_original_native_law_comparison","native_authority_issued":false,"calibration_license_issued":false});
+        report["source_resolution"] = serde_json::json!({"kind":"actual_original_native_law_comparison","native_authority_issued":false,"calibration_support_issued":false});
         Ok(report.to_string())
     })
 }

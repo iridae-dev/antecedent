@@ -87,8 +87,8 @@ fn publishing_a_probability_or_a_combined_number_is_refused_with_registered_code
         PreparedDecisionReliability::assess(four_state_law(), None, request(), &ctx()).unwrap();
     for route in PublishedRoute::ALL {
         let refusal = prepared.publish(route).unwrap_err();
-        assert_eq!(refusal.code, "cell_not_licensed");
-        assert_eq!(refusal.detail, "decision_reliability.cell_not_licensed");
+        assert_eq!(refusal.code, "not_supported");
+        assert_eq!(refusal.detail, "decision_reliability.not_supported");
         assert!(refusal.message.contains("coverage record"));
     }
     let refusal = prepared.combined_uncertainty().unwrap_err();

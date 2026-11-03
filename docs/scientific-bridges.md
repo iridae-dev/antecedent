@@ -56,7 +56,7 @@ propagated law (below) and refuses a mean alone.
 ## Refusals
 
 Every refusal has a registered reason code, a `scientific_bridge.*` detail and
-the declaration or evidence that would license the request.
+the declaration or evidence that would support the request.
 
 | Request | Code | Detail |
 |---|---|---|
@@ -69,27 +69,27 @@ the declaration or evidence that would license the request.
 | a missing assumption | `bridge_assumption_missing` | `assumption_missing`, `assumption_evidence_missing` |
 | a transported bridge without its premise | `bridge_assumption_missing` | `transport_premise_missing` |
 | population, regime, horizon, conditioning, quantity or units mismatch | `bridge_binding_mismatch` | `population_mismatch`, `regime_mismatch`, ... |
-| validation minimums not met, an extrapolated surrogate effect, an unattainable recorded prevalence | `bridge_mapping_not_licensed` | `validation_trials_too_few`, `outside_validated_range`, `outside_attainable_range`, ... |
+| validation minimums not met, an extrapolated surrogate effect, an unattainable recorded prevalence | `bridge_mapping_not_supported` | `validation_trials_too_few`, `outside_validated_range`, `outside_attainable_range`, ... |
 | a mean, law, posterior, identified set or joint law where another is required | `bridge_substitution_refused` | `value_kind_substitution` |
-| an interval of a bridged claim with no level named, or a posterior or joint law | `cell_not_licensed` | `interval_not_licensed` |
-| an interval of a bridged value with no source standard error | `cell_not_licensed` | `interval_source_uncertainty_required` |
-| an interval at a design no coverage record measured | `cell_not_licensed` | `interval_scope_outside_measured` |
-| draws offered by an associational, refused, bounded or incomplete claim | `cell_not_licensed` | `source_not_draws` |
+| an interval of a bridged claim with no level named, or a posterior or joint law | `not_supported` | `interval_not_supported` |
+| an interval of a bridged value with no source standard error | `not_supported` | `interval_source_uncertainty_required` |
+| an interval at a design no coverage record measured | `not_supported` | `interval_scope_outside_measured` |
+| draws offered by an associational, refused, bounded or incomplete claim | `not_supported` | `source_not_draws` |
 | draws that are a sampling, bootstrap or empirical law | `distribution_meaning_mismatch` | `draws_meaning_mismatch` |
 | draws that are independent marginals | `joint_law_required` | `draws_not_aligned` |
 | draws that are non-finite, constant under a declared covariance, or a target that repeats a coordinate of the table | `scientific_bridge_invalid` | `draws_unusable` |
-| draws outside the validated surrogate range, or no admissible rates for a recorded prevalence | `bridge_mapping_not_licensed` | `draws_outside_domain` |
+| draws outside the validated surrogate range, or no admissible rates for a recorded prevalence | `bridge_mapping_not_supported` | `draws_outside_domain` |
 | an uncertain map, a trial-level line or a correction with no declared dependence on the source | `sampling_dependence_unknown` | `source_dependence_missing` |
 | a trial-level line or a correction that declares its mapping uncertainty a second time | `scientific_bridge_invalid` | `mapping_uncertainty_invalid` |
-| a declared covariance no joint law has | `bridge_mapping_not_licensed` | `dependence_not_a_covariance` |
+| a declared covariance no joint law has | `bridge_mapping_not_supported` | `dependence_not_a_covariance` |
 | a bridge mapping with no chain expression offered as a chain stage | `route_not_supported` | `chain_stage_not_affine` |
 | a point source with a standard error through an uncertain map with no declared dependence (or the reverse), or a propagation requested of a trial-level line or correction with none | `sampling_dependence_unknown` / `bridge_assumption_missing` | `source_dependence_missing`, `mapping_uncertainty_missing` |
 | a propagation requested of a source that declared no standard error, or a negative or non-finite one | `scientific_bridge_invalid` | `source_variance_invalid` |
-| a nonlinear map of a bridged mean alone, or an exponential of a law that is not declared normal | `bridge_mapping_not_licensed` | `nonlinear_mean_not_expectation`, `nonlinear_law_insufficient` |
+| a nonlinear map of a bridged mean alone, or an exponential of a law that is not declared normal | `bridge_mapping_not_supported` | `nonlinear_mean_not_expectation`, `nonlinear_law_insufficient` |
 | a point correction that declares a slope covariance | `scientific_bridge_invalid` | `source_dependence_invalid` |
 
 The two closed pairs refuse whatever is declared: no calibration bridge is
-licensed for a model score, and no assumption turns the importance of a feature
+supported for a model score, and no assumption turns the importance of a feature
 in a predictive model into a causal effect. Ask the causal question directly.
 
 ## Mean, law, posterior, set, joint law
@@ -167,7 +167,7 @@ the stage adds the new trial's residual variance to the mean line's spread once;
 Student-t scale with the coefficients, a parameter of the mapping. The correction is an expression
 stage: a ratio over aligned draws of the rates and the observed rate. The division is guarded and
 never silent. A chain refuses a denominator whose draws reach zero or cross it, or whose magnitude
-falls below the model's smallest licensed Youden index
+falls below the model's smallest supported Youden index
 (`propagation_chain.denominator_not_bounded`), and a corrected rate outside `[0, 1]` is refused
 (`propagation_chain.stage_left_domain`), not clipped. The rates were drawn conditionally on each
 row's source draw (the recorded value must be attainable), so the source and the rates declare that
@@ -212,7 +212,7 @@ interval request refuses `interval_scope_outside_measured`.
 The dependence is never assumed. An affine map that declares its uncertainty must declare how the source
 estimate depends on it (independent with named evidence, or a covariance), and the reverse; the propagation
 refuses `source_dependence_missing` or `mapping_uncertainty_missing` and names the declaration that would
-license it. A trial-level line and a correction take their uncertainty from their own evidence and declare none
+support it. A trial-level line and a correction take their uncertainty from their own evidence and declare none
 a second time; a correction declares only independence (it has no slope estimator). A trial-level line or
 correction whose contract declares no dependence keeps its measured interval route and carries no propagated
 variance; asking for it refuses `source_dependence_missing`. A covariance whose square exceeds the product of
@@ -261,7 +261,7 @@ random stream and the summary of the mapped table; the consumer maps the stored
 draws again and requires the contract identity, claim identity, mean, variance,
 draw count, alignment and the digest of the mapped table to equal the stored
 values bit for bit. A consumer rebuilds both, applies every
-licensing check again, derives the claim again and requires the stored values to
+support check again, derives the claim again and requires the stored values to
 match bit for bit, against an identity it retained independently of the bytes.
 Replay protects against corruption, unsealed edits and resealed edits that
 change the answer. It does not protect against a producer that seals a bridge
@@ -281,7 +281,7 @@ claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumpt
 exported = claim.export("surrogate-bridge")
 again = sb.consume_scientific_bridge_artifact(bytes(exported), exported.expectation.identity)
 claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
-claim.interval()                                      # refused: cell_not_licensed (unscoped)
+claim.interval()                                      # refused: not_supported (unscoped)
 
 claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate, standard_error=0.1))
 claim.interval(0.95)                                  # the interval of the bridged value, inside a
@@ -336,7 +336,7 @@ estimation uncertainty.
 | binary-misclassification correction | delta method: `Var(p) = (se_q^2 + p^2 Var(Se) + (1 - p)^2 Var(Sp)) / J^2`, `J = Se + Sp - 1`, clipped to `[0, 1]` | normal |
 
 An identity or affine map adds no uncertainty and nothing to measure, so its
-interval is licensed as an exact transform of the declared source interval.
+interval is supported as an exact transform of the declared source interval.
 The estimating mappings are published only where a current coverage record
 measured the construction (surrogate bridges over 15, 20 and 40 validation
 trials; corrections with rates estimated from 100, 200 and 400 validation
@@ -348,7 +348,7 @@ populations is a declared premise; none of this is individual-level surrogacy.
 The interval is not stored in the artifact: the source standard error is held
 beside the derived result and is supplied again to a consumer that wants it.
 
-## What is not licensed
+## What is not supported
 
 No propagated variance read as an interval or as a calibrated uncertainty, no assumed independence of the
 source and an uncertain mapping, no nonlinear map of a mean alone. No interval outside a measured design or without the source standard error (for a

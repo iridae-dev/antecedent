@@ -188,7 +188,7 @@ impl PyTrustEvidence {
             DesignTrust::None => "none",
             DesignTrust::NativeExecution(_) => "native_execution",
             DesignTrust::External(state) => match ProviderTrust::from_external_state(state) {
-                ProviderTrust::NativeLicensed => "native_label",
+                ProviderTrust::NativeSupported => "native_label",
                 other => other.as_wire(),
             },
         }
@@ -268,7 +268,7 @@ const fn provider_kind_name(kind: ProviderKind) -> &'static str {
 
 const fn trust_name(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::NativeSupported => ProviderTrust::NativeSupported.as_wire(),
         DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
         DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
         DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),

@@ -781,6 +781,7 @@ pub fn <antecedent_graph::Admg>::fn static_directed_edges_sorted(&self) -> core:
 pub fn <antecedent_graph::Admg>::fn static_variable(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::ids::VariableId>
 pub fn <antecedent_graph::Admg>::fn strict_ancestor_sets(&self) -> alloc::vec::Vec<antecedent_graph::BitSet>
 pub fn <antecedent_graph::Admg>::fn topological_order(&self) -> core::option::Option<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
+pub fn <antecedent_graph::Admg>::fn topological_order_polled<E>(&self, poll: impl core::ops::function::FnMut() -> core::result::Result<(), E>) -> core::result::Result<core::option::Option<alloc::vec::Vec<antecedent_graph::DenseNodeId>>, E>
 pub fn <antecedent_graph::Admg>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn weak_components(&self) -> alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
 pub fn <antecedent_graph::Admg>::fn with_variables(n: u32) -> Self
@@ -861,7 +862,7 @@ pub fn <antecedent_graph::CpdagReview>::fn orient_edge(self, from: antecedent_co
 pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CyclicDagRefusal>::const fn condensation(operation: antecedent_graph::DagOperation) -> Self
 pub fn <antecedent_graph::CyclicDagRefusal>::const fn new(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt) -> Self
-pub fn <antecedent_graph::CyclicDagRefusal>::const fn unlicensed(operation: antecedent_graph::DagOperation, consumer: &'static str, attempt: &'static str) -> Self
+pub fn <antecedent_graph::CyclicDagRefusal>::const fn unsupported(operation: antecedent_graph::DagOperation, consumer: &'static str, attempt: &'static str) -> Self
 pub fn <antecedent_graph::CyclicDigraph>::const fn empty() -> Self
 pub fn <antecedent_graph::CyclicDigraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CyclicDigraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
@@ -1354,7 +1355,7 @@ pub variant antecedent_graph::CopyLabels::Preserve
 pub variant antecedent_graph::CopyLabels::StaticIndex { extra: u32 }
 pub variant antecedent_graph::CyclicNextAttempt::Condensation
 pub variant antecedent_graph::CyclicNextAttempt::SigmaSeparation
-pub variant antecedent_graph::CyclicNextAttempt::Unlicensed { consumer: &'static str, attempt: &'static str }
+pub variant antecedent_graph::CyclicNextAttempt::Unsupported { consumer: &'static str, attempt: &'static str }
 pub variant antecedent_graph::DagOperation::Abduction
 pub variant antecedent_graph::DagOperation::Adjustment
 pub variant antecedent_graph::DagOperation::DagProjection

@@ -45,7 +45,7 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
   crates.io publish dry-run.
 - **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
   with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
-  The sections divide inventory, promotion evidence, graphless and support
+  The sections divide inventory, capability evidence, graphless and support
   matrix checks, checked execution, feature gates, and benchmark smokes.
   Running `scripts/gate_release.sh` without `--section` still executes all of
   them for a local release-candidate check.
@@ -83,8 +83,8 @@ bash scripts/gate_transport.sh     # transport stage contracts; every fixture fa
 bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_support_matrix.sh   # public license cells; default refused
-bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
+bash scripts/gate_support_matrix.sh   # public support cells; default refused
+bash scripts/gate_checked_execution.sh   # every supported estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
@@ -129,7 +129,7 @@ record-emitting group once per grid point with
 | grid | points | used for |
 | --- | --- | --- |
 | `STANDARD` | `n/2, n, 2n` | every design whose base `n` exceeds 100 (`grid_n`) |
-| `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is licensed for (`grid_n`) |
+| `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is supported for (`grid_n`) |
 | `HEAVY` | `n/2, n, 3n/2` | designs that run for hours at their base (Bayesian derivative and Jacobian bands, ADMG front door, the 2500-row counterfactual designs) |
 
 The base point (point 1, also what an unset variable means) is the design as it
@@ -365,7 +365,7 @@ complete passed entry in `parity/calibration_gates.toml`, irrespective of facet 
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
 For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
-licensed support metadata and generated assets for the final combined harvest.
+supported support metadata and generated assets for the final combined harvest.
 Raw-log validation and whole-group completeness still apply.
 `--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
 groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its
@@ -411,8 +411,8 @@ facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
-`calibration` / `calibration_reason` pair on every licensed cell and estimator
-row (a licensed cell whose every reported-level record is a boundary also states
+`calibration` / `calibration_reason` pair on every supported cell and estimator
+row (a supported cell whose every reported-level record is a boundary also states
 `calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io-core/data/coverage_records.json`
 (the snapshot `coverage_records_data` loads).
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
@@ -610,10 +610,10 @@ bash scripts/set_version.sh X.Y.Z
 
 `set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
 the Python fallback `__version__`, and the local package entry in
-`python/uv.lock`, and freezes the previous cut's licensed-cell block in
+`python/uv.lock`, and freezes the previous cut's supported-cell block in
 `docs/release-notes/` so a later matrix regen cannot overwrite it. Refresh
 `Cargo.lock` with `cargo update -p antecedent` (or a workspace check) before
-committing. The generator rewrites live licensed-cell markers only in
+committing. The generator rewrites live supported-cell markers only in
 `docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases

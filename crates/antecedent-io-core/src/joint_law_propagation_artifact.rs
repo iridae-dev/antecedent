@@ -3,7 +3,7 @@
 //! Format version 2, kind `joint_law_propagation_v1`. The artifact binds, in
 //! one sealed identity, the identities of the inputs (the evidence each rests
 //! on, its role in the composition and how its draws are aligned), the
-//! alignment identity the rows share, the propagation rule that licensed the
+//! alignment identity the rows share, the propagation rule that supported the
 //! computation (operation, dependence declaration and reading), the numbers
 //! the computation consumed as IEEE bit patterns, the stored result and the
 //! label the result carries (`point_only`, `uncalibrated_spread`,
@@ -43,7 +43,7 @@
 //!
 //! A `uncalibrated_spread` result (a variance, a Monte Carlo standard error, an
 //! exceedance probability with its Monte Carlo band and a verdict against a
-//! cutoff) is computed at the composed coordinate under the licensed
+//! cutoff) is computed at the composed coordinate under the supported
 //! dependence route. The verdict is about the Monte Carlo band of the stated
 //! probability only. The artifact carries no interval and no coverage
 //! statement: an interval at a composed coordinate needs a measured coverage
@@ -478,7 +478,7 @@ pub struct JointLawPropagationArtifactWire {
     pub version: u32,
     /// Required feature marker.
     pub required_features: Vec<String>,
-    /// The rule that licensed the computation.
+    /// The rule that supported the computation.
     pub rule: PropagationRuleWire,
     /// The inputs.
     pub inputs: Vec<PropagationInputWire>,
@@ -1598,7 +1598,7 @@ fn plan_for(
     if !variant_fits(plan.operation, plan.route, request, spread) {
         return Err(invalid_request(
             plan.route.as_str(),
-            "supply the numbers the licensed route consumes (a covariance for the linear route, aligned draws for the aligned route, weights for a mixture, two marginals for an envelope); a chained transformation is checked by the rule but its stages run in the caller",
+            "supply the numbers the supported route consumes (a covariance for the linear route, aligned draws for the aligned route, weights for a mixture, two marginals for an envelope); a chained transformation is checked by the rule but its stages run in the caller",
         ));
     }
     Ok(plan)
@@ -1610,7 +1610,7 @@ impl JointLawPropagationArtifactWire {
     ///
     /// # Errors
     /// A refused request (each refusal carries its registered code and
-    /// remedy), numbers that do not fit the licensed route, a failed
+    /// remedy), numbers that do not fit the supported route, a failed
     /// computation, cancellation or an encoding failure.
     pub fn seal(
         declared: &PropagationRequest,

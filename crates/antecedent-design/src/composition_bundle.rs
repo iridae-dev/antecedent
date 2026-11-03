@@ -320,7 +320,7 @@ pub enum NodeKind {
     RepairReport,
     /// Independently checked historical selective execution receipt; no live state.
     RecalculationReceipt,
-    /// Independently checked frozen same-row scores for their licensed retarget operation.
+    /// Independently checked frozen same-row scores for their supported retarget operation.
     FrozenScores,
     /// An observation query: a conditional or interventional law, a posterior, a
     /// required-observation count, or aligned draws of parameter redraw.

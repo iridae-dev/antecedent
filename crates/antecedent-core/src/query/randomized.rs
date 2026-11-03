@@ -72,11 +72,11 @@ pub enum RandomizedEstimand {
 
 /// The exact graphless support-key tuple `(family, design, method,
 /// assignment_unit, inference_claim)` for a retained randomized query, shared by
-/// the execute-side license handshake and the contract-side matrix coordinate so
+/// the execute-side support handshake and the contract-side matrix coordinate so
 /// the two cannot drift. The facets are independent structural properties the
 /// query already fixed upstream (and `RandomizedEffectQuery::validate` guarantees
 /// receipt/CUPED/ANCOVA only occur with Bernoulli assignment), so this is a pure
-/// lookup, not the license decision itself.
+/// lookup, not the support decision itself.
 #[must_use]
 pub fn randomized_graphless_coordinate(
     design: &RandomizationDesign,

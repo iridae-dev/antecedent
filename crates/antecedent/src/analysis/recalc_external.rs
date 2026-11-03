@@ -681,7 +681,7 @@ impl ExternalCallbackSession {
                 request: if supported {
                     RequestSupport::OnGrid
                 } else {
-                    RequestSupport::Unsupported { licensed_route: None }
+                    RequestSupport::Unsupported { supported_route: None }
                 },
                 boundary: if self.portable.is_some() {
                     Boundary::FreshProcess(ResumeContext {

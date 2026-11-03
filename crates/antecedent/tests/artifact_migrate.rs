@@ -150,8 +150,6 @@ fn analysis_trace_artifact() -> EncodedArtifact {
         method: "backdoor.adjustment".into(),
         adjustment_set: vec![2],
         support_status: None,
-        allowlist_reason: None,
-        allowlist_parent: None,
     };
     let bytes = to_cbor(&trace).unwrap();
     EncodedArtifact {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Declared bounds agree everywhere they are stated.
 
-For every regex-mapped record of parity/promotion.toml, each numeric entry of its `bounds` table must
+For every regex-mapped record of parity/capability_records.toml, each numeric entry of its `bounds` table must
 equal the value stated by each place mapped to it in `MAPPING` below:
 
   rust      a Rust constant (`const NAME: ty = <int | OTHER_CONST>;`) or an integer literal picked
@@ -12,7 +12,7 @@ equal the value stated by each place mapped to it in `MAPPING` below:
             bound for Python-only artifact replay);
   refusal   the numbers quoted by the record's `*.bounds_exceeded` refusal `when` text.
 
-The numeric source is `parity/promotion.toml` `[bounds]`. `docs/supported-bounds.md` carries a
+The numeric source is `parity/capability_records.toml` `[bounds]`. `docs/supported-bounds.md` carries a
 generated table of the exact-record bounds (marker `generated:supported-bounds`); the check
 compares that marker to a fresh render and does not scrape the page. `parity/limits.toml`
 names implementation, guard, refusal and fixture places. Its `documentation` place is the
@@ -37,8 +37,7 @@ anywhere in the text proves nothing).
 A non-integer bound that carries digits (`"16 or 32, doubling check at 32 or 64"`, `"[1e-12, 1e-2]"`,
 `"... (hard cap 100000)"`) must have a `NONINT` row: either the set of numbers it states equals the
 set read from its places (`doubled=True` also admits twice each), or it is excluded with a recorded
-reason. An unmapped one is an error (a gap on a `frozen` record). Works for any record status,
-`carried_forward` included.
+reason. An unmapped one is an error (a gap on a `not_supported` record). Works for any record status.
 
     python3 scripts/check_limits_agreement.py             # check the tree
     python3 scripts/check_limits_agreement.py --strict    # documentation gaps also fail
@@ -64,7 +63,7 @@ from pathlib import Path
 from _repo import REPO_ROOT as REPO
 
 ROOT = Path(os.environ.get("LIMITS_AGREEMENT_ROOT", REPO))
-RECORDS = "parity/promotion.toml"
+RECORDS = "parity/capability_records.toml"
 # Records whose bounds are compared here by regex-mapped places; every other record is
 # compared by scripts/check_limits.py.
 CELLS = frozenset(
@@ -137,7 +136,7 @@ def S(record: str, key: str) -> Place:
 
 @dataclass(frozen=True)
 class Bound:
-    record: str  # full record id in parity/promotion.toml
+    record: str  # full record id in parity/capability_records.toml
     key: str  # key of the record's `bounds` table
     rust: tuple[Place, ...] = ()
     python: tuple[Place, ...] = ()
@@ -351,7 +350,7 @@ MAPPING: tuple[Bound, ...] = (
         "counterfactual.path_specific_edge",
         "max_worlds",
         rust=(L(XW_ID, r"if worlds\.len\(\) != (\d+) \|\|"),),
-        note="the licensed contrast requires exactly two worlds; the query type has a separate capacity",
+        note="the supported contrast requires exactly two worlds; the query type has a separate capacity",
     ),
     Bound(
         "counterfactual.path_specific_edge",
@@ -1118,7 +1117,7 @@ def guide_placeholders(root: Path) -> set[tuple[str, str]]:
 
 
 def render_supported_bounds_table(root: Path) -> str:
-    """Table of exact-record bounds. Values come from promotion.toml; paths from limits.toml."""
+    """Table of exact-record bounds. Values come from capability_records.toml; paths from limits.toml."""
     records = tomllib.loads((root / RECORDS).read_text(encoding="utf-8"))["record"]
     registry = tomllib.loads((root / LIMITS_REGISTRY).read_text(encoding="utf-8"))
     values: dict[tuple[str, str], int] = {}
@@ -1327,12 +1326,12 @@ def check(
                     )
         numeric = {k: v for k, v in bounds.items() if _is_int(v)}
         label = rec["id"]
-        frozen = rec.get("status") == "frozen"
+        planned = rec.get("status") == "not_supported"
         for key in sorted(numeric):
-            if (short, key) not in by_key and frozen:
+            if (short, key) not in by_key and planned:
                 gaps.append(
-                    f"{label}: frozen record's bound `{key}` = {numeric[key]} has no mapping yet "
-                    "(required once the record is in_progress)"
+                    f"{label}: not_supported record's bound `{key}` = {numeric[key]} has no mapping yet "
+                    "(required once the record is supported)"
                 )
             elif (short, key) not in by_key:
                 errors.append(
@@ -1349,7 +1348,7 @@ def check(
                     f"{label}: non-integer bound `{key}` = {val!r} states numbers but has no "
                     "NONINT row (compare it or exclude it with a reason)"
                 )
-                (gaps if frozen else errors).append(msg)
+                (gaps if planned else errors).append(msg)
                 continue
             line = _check_nonint(rd, label, key, val, row, errors)
             if line:
@@ -1454,21 +1453,21 @@ def main(argv: list[str]) -> int:
 # unrelated record or docs edit cannot break it. Every rule has a clean case and a mutant.
 SYN_RECORDS = """
 [[record]]
-id = "synth.in_progress"
-status = "in_progress"
+id = "synth.supported"
+status = "supported"
 bounds = { max_a = 4, max_b = 12, max_ops = 4096, depth = 24, nodes = "2 or 4, doubling check at 4 or 8", tol = "[1e-3, 1e-1]", ops_text = "4096 (cap): 32 ops in the fixture", memory_limit = "min(ctx, 64 MiB default)", contract = "SearchBudget" }
 [[record.refusals]]
 detail = "synth.bounds_exceeded"
 when = "Sources outside 2-4, more than 12 b, or limits above 4096 operations / depth 24."
 
 [[record]]
-id = "synth.frozen"
-status = "frozen"
+id = "synth.planned"
+status = "not_supported"
 bounds = { max_unmapped = 9, loose = "at most 7 things" }
 
 [[record]]
 id = "synth.carried"
-status = "carried_forward"
+status = "not_supported"
 bounds = { max_c = 3 }
 [[record.refusals]]
 detail = "carried.bounds_exceeded"
@@ -1486,38 +1485,38 @@ pub const SYN_MIN_TOL: f64 = crate::tipping::MIN_TOL;
 pub const SYN_MAX_TOL: f64 = 1e-1;
 """
 SYN_DOC = (
-    "Bounds: at most {{bound:synth.in_progress.max_a}} sources, "
-    "{{bound:synth.in_progress.max_b}} b, {{bound:synth.in_progress.max_ops}} operations, "
-    "depth {{bound:synth.in_progress.depth}}. At most {{bound:synth.carried.max_c}} c.\n"
+    "Bounds: at most {{bound:synth.supported.max_a}} sources, "
+    "{{bound:synth.supported.max_b}} b, {{bound:synth.supported.max_ops}} operations, "
+    "depth {{bound:synth.supported.depth}}. At most {{bound:synth.carried.max_c}} c.\n"
 )
 SYN_PY = "def f(max_ops: int = 4_096): ...\n# at most 4 sources\n"
 SYN_RS_PATH = "crates/synth/src/lib.rs"
 SYN_DOC_PATH = "docs/guides/synth.md"
 SYN_PY_PATH = "python/synth.py"
-SYN_CELLS = frozenset({"synth.in_progress", "synth.frozen", "synth.carried"})
+SYN_CELLS = frozenset({"synth.supported", "synth.planned", "synth.carried"})
 SYN_MAPPING: tuple[Bound, ...] = (
     Bound(
-        "synth.in_progress",
+        "synth.supported",
         "max_a",
         rust=(C(SYN_RS_PATH, "SYN_MAX_A"),),
         python=(L(SYN_PY_PATH, r"at most (\d+) sources"),),
         refusal=r"Sources outside 2-(\d+)",
     ),
     Bound(
-        "synth.in_progress",
+        "synth.supported",
         "max_b",
         rust=(C(SYN_RS_PATH, "SYN_MAX_B"),),  # alias of SYN_BASE_B
         refusal=r"more than (\d+) b",
     ),
     Bound(
-        "synth.in_progress",
+        "synth.supported",
         "max_ops",
         rust=(L(SYN_RS_PATH, r"operations: ([\d_]+),"),),
         python=(L(SYN_PY_PATH, r"max_ops: int = ([\d_]+)"),),
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "synth.in_progress",
+        "synth.supported",
         "depth",
         rust=(L(SYN_RS_PATH, r"depth: ([\d_]+) "),),
         refusal=r"operations / depth (\d+)",
@@ -1531,7 +1530,7 @@ SYN_MAPPING: tuple[Bound, ...] = (
 )
 SYN_NONINT: tuple[NonInt, ...] = (
     NonInt(
-        "synth.in_progress",
+        "synth.supported",
         "nodes",
         places=(
             L(SYN_RS_PATH, r"SYN_NODES: \[usize; 2\] = \[(\d+), \d+\]"),
@@ -1540,15 +1539,15 @@ SYN_NONINT: tuple[NonInt, ...] = (
         doubled=True,
     ),
     NonInt(
-        "synth.in_progress",
+        "synth.supported",
         "tol",
         places=(C(SYN_RS_PATH, "SYN_MIN_TOL"), C(SYN_RS_PATH, "SYN_MAX_TOL")),
     ),
     NonInt(
-        "synth.in_progress", "memory_limit", exclude="memory default is an expression"
+        "synth.supported", "memory_limit", exclude="memory default is an expression"
     ),
     NonInt(
-        "synth.in_progress",
+        "synth.supported",
         "ops_text",
         head=r"^([^:]*):",
         places=(L(SYN_RS_PATH, r"operations: ([\d_]+),"),),
@@ -1592,7 +1591,7 @@ def self_test() -> int:
                 path.parent.mkdir(parents=True, exist_ok=True)
             record = '''[[record]]
 id = "sensitivity.joint_mechanism"
-status = "in_progress"
+status = "supported"
 bounds = { historical_evidence_max_parent_levels = 64, historical_evidence_max_outcome_categories = 32, historical_evidence_max_frontier_points = 33, runtime_max_parent_levels = 4096, runtime_max_outcome_categories = 1024, runtime_max_frontier_points = 257 }
 [[record.refusals]]
 detail = "joint_sensitivity.bounds_exceeded"
@@ -1782,17 +1781,17 @@ pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
         if len(ok) < 8:
             failures.append(f"clean fixture checked only {len(ok)} bounds (vacuous)")
         if not any("max_unmapped" in g for g in gaps):
-            failures.append("a frozen record's unmapped bound must be a gap")
+            failures.append("a not_supported record's unmapped bound must be a gap")
         if any("max_unmapped" in e for e in errors):
-            failures.append("a frozen record's unmapped bound must not be an error")
+            failures.append("a not_supported record's unmapped bound must not be an error")
         if not any("loose" in g for g in gaps):
             failures.append(
-                "a frozen record's unmapped non-integer bound must be a gap"
+                "a not_supported record's unmapped non-integer bound must be a gap"
             )
         if not any("max_c" in line for line in ok):
-            failures.append("a carried_forward record's bound must be checked")
+            failures.append("a second not_supported record's bound must be checked")
         if not run(base, strict=True)[0]:
-            failures.append("--strict must turn the frozen-record gaps into failures")
+            failures.append("--strict must turn the not_supported-record gaps into failures")
 
         def mutated(
             name: str,
@@ -1989,7 +1988,7 @@ pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
             d,
             mapping=SYN_MAPPING
             + (
-                Bound("synth.in_progress", "gone", rust=(C(SYN_RS_PATH, "SYN_MAX_A"),)),
+                Bound("synth.supported", "gone", rust=(C(SYN_RS_PATH, "SYN_MAX_A"),)),
             ),
         )
         if not any("stale mapping" in e for e in errs):
@@ -1997,7 +1996,7 @@ pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
                 f"stale_row: a row for an undeclared bound must be stale, got {errs[:3]}"
             )
         errs, _, _ = run(
-            d, nonint=SYN_NONINT + (NonInt("synth.in_progress", "gone", exclude="x"),)
+            d, nonint=SYN_NONINT + (NonInt("synth.supported", "gone", exclude="x"),)
         )
         if not any("stale mapping" in e for e in errs):
             failures.append("stale NONINT row must be reported")

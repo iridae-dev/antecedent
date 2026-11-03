@@ -33,7 +33,7 @@ Before an experiment can update anything, state what it measures in the retained
 
 In this example the bridge declares an identity mapping (`AffineMapping(0.0, 1.0)`), the premise that an independent Gaussian sample mean estimates this exact contrast, a fixed mapping with no extra mapping uncertainty, and the exposure setting the two share. You supply `intercepts` and `slopes`, one per retained draw, so a mapping that varies across draws would update the law differently from a fixed one.
 
-A bridge whose target is a different functional than the response being updated is refused. The Rust chain test checks, for instance, that a bridge licensed for a one-window experiment cannot update a response defined over two windows.
+A bridge whose target is a different functional than the response being updated is refused. The Rust chain test checks, for instance, that a bridge supported for a one-window experiment cannot update a response defined over two windows.
 
 The ledger registers three sources: the fitted model, the new experiment and the mapping. The update depends on all three, and current permission to use it follows their standing (see [replay and current decisions](replay-and-current-decisions.md)).
 
@@ -81,7 +81,7 @@ Each candidate is valued through the update it would cause, on the decision abov
 
 The example also checks the gross value against independent numerical integration. It computes the one-dimensional integral of the best action's advantage over the predicted observation, with a bound on the quadrature error, and requires the Monte Carlo value to agree within that bound plus six Monte Carlo standard errors. That check is what makes the ranking more than a list: a study's value is a number that two different computations produce.
 
-The same call accepts studies in another regime through `rank_next_studies` and `PanelFutureStudy`, each with its own licensed bridge. A study whose bridge is unlicensed, or whose mapping evidence was withdrawn, is refused.
+The same call accepts studies in another regime through `rank_next_studies` and `PanelFutureStudy`, each with its own supported bridge. A study whose bridge is unsupported, or whose mapping evidence was withdrawn, is refused.
 
 <!-- example: examples/python/experiment_to_next_study.py -->
 

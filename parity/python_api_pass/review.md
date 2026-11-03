@@ -38,7 +38,7 @@ All Cargo, native builds and runtime pytest runs are serialized by the integrati
 
 ## Confirmed gaps and stale classifications
 
-1. The original identify-only exclusion of `TieredBackground` is implemented: `identify._identify_tiered` calls a data-free native certificate boundary, preserving all scenarios and canonical query coordinates; staged estimate reuses the original typed declaration. The root third focused run passed all tiered tests except the Unknown-joint error classification. The source now maps only typed `UnsupportedQuery` for actual Unknown-tier joint geometry to `cell_not_licensed`; that last source change awaits the next native build. It must not be described as passing on the earlier binary.
+1. The original identify-only exclusion of `TieredBackground` is implemented: `identify._identify_tiered` calls a data-free native certificate boundary, preserving all scenarios and canonical query coordinates; staged estimate reuses the original typed declaration. The root third focused run passed all tiered tests except the Unknown-joint error classification. The source now maps only typed `UnsupportedQuery` for actual Unknown-tier joint geometry to `not_supported`; that last source change awaits the next native build. It must not be described as passing on the earlier binary.
 2. `test_python_products.py::RUST_ONLY_GRAPH_CLASSES` excludes TemporalAdmg and
    says no Python graph route exists. That statement is false in current source:
    `graph.py` exports the native named type, `_prepare_route.py` routes it beside

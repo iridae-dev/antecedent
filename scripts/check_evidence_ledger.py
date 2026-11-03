@@ -12,7 +12,7 @@ import tomllib
 from _repo import REPO_ROOT as ROOT
 
 LEDGER = ROOT / "parity/evidence_ledger.toml"
-RECORDS = ROOT / "parity/promotion.toml"
+RECORDS = ROOT / "parity/capability_records.toml"
 STAGES = ROOT / "parity/transport_stages.toml"
 
 ORACLE_KINDS = {
@@ -43,14 +43,14 @@ def problems(cells: list[dict], records: list[dict], stages: list[dict]) -> list
             continue
         seen.add(key)
         if key not in expected:
-            errors.append(f"{key}: no matching promotion route")
+            errors.append(f"{key}: no matching capability route")
             continue
         record, route = expected[key]
         prefix = f"{record['id']} {route['name']}"
         for field, wanted in (
-            ("parity_registry", "parity/promotion.toml"),
+            ("parity_registry", "parity/capability_records.toml"),
             ("support_registry", "parity/transport_stages.toml"),
-            ("executing_gate", "scripts/gate_promotion.sh"),
+            ("executing_gate", "scripts/gate_capability_records.sh"),
         ):
             if cell.get(field) != wanted:
                 errors.append(f"{prefix}: {field} must be {wanted}")
@@ -97,10 +97,10 @@ def problems(cells: list[dict], records: list[dict], stages: list[dict]) -> list
                 errors.append(f"{prefix}: {field} is required")
         coverage = record.get("coverage_records", [])
         if coverage and any(item not in cell.get("calibration", "") for item in coverage):
-            errors.append(f"{prefix}: calibration omits a promotion coverage coordinate")
+            errors.append(f"{prefix}: calibration omits a capability coverage coordinate")
         if not coverage and cell.get("calibration", "").startswith("cov."):
             errors.append(f"{prefix}: undeclared calibration coordinate")
-        if record["status"] in {"in_progress", "promoted"}:
+        if record["status"] == "supported":
             if any(path.startswith("pending:") for path in provenance):
                 errors.append(f"{prefix}: implemented cell has pending provenance")
             for field in ("oracle_kind", "oracle_inputs", "expected_values", "tolerance"):
@@ -111,7 +111,7 @@ def problems(cells: list[dict], records: list[dict], stages: list[dict]) -> list
     scoped = {cell.get("id") for cell in cells}
     for key in expected.keys() - seen:
         if not cells or key[0] in scoped:
-            errors.append(f"{key}: promotion route missing from evidence ledger")
+            errors.append(f"{key}: supported route missing from evidence ledger")
     return errors
 
 
@@ -119,13 +119,13 @@ def self_test() -> None:
     record = {
         "id": "distribution.test",
         "capability": "distribution.test",
-        "status": "frozen",
+        "status": "not_supported",
         "routes": [
             {
                 "name": "test.route",
                 "stage": "consume",
                 "status": "closed",
-                "reason_code": "cell_not_licensed",
+                "reason_code": "not_supported",
             }
         ],
         "fixtures": [
@@ -137,13 +137,13 @@ def self_test() -> None:
         "route": "test.route",
         "stage": "consume",
         "status": "closed",
-        "reason_code": "cell_not_licensed",
+        "reason_code": "not_supported",
     }
     cell = {
         "id": "distribution.test",
         "route": "test.route",
         "algorithm_provenance": ["pending:provenance/test.toml"],
-        "parity_registry": "parity/promotion.toml",
+        "parity_registry": "parity/capability_records.toml",
         "support_registry": "parity/transport_stages.toml",
         "positive_fixture": "test.positive",
         "oracle_kind": "pending_independent_oracle",
@@ -151,7 +151,7 @@ def self_test() -> None:
         "expected_values": "pending values",
         "tolerance": "pending tolerance",
         "calibration": "point_only_no_interval",
-        "executing_gate": "scripts/gate_promotion.sh",
+        "executing_gate": "scripts/gate_capability_records.sh",
         "artifact_consumer_fixture": "test.artifact",
         "provider_trust": "native_route_pending_evidence",
         "exact_request_verification": "not_applicable_no_external_provider",
@@ -162,7 +162,7 @@ def self_test() -> None:
     assert any("no matching stage" in item for item in problems([cell], [record], []))
     assert any(
         "pending provenance" in item
-        for item in problems([cell], [{**record, "status": "in_progress"}], [stage])
+        for item in problems([cell], [{**record, "status": "supported"}], [stage])
     )
     print("evidence ledger self-test: ok")
 

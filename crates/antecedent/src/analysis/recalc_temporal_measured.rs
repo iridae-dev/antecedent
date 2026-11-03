@@ -50,7 +50,7 @@ pub struct CheckedMeasuredTemporal {
 }
 fn refused(message: &str) -> TemporalRunError {
     IoError::Refused {
-        code: reason_code!("cell_not_licensed"),
+        code: reason_code!("not_supported"),
         message: format!("checked_temporal.protocol_not_measured: {message}"),
     }
     .into()
@@ -114,7 +114,7 @@ fn preflight(
         || request.units.iter().any(|u| !complete_binary_unit(u))
     {
         return Err(refused(
-            "only the measured complete binary-history 95% response (studentized) or paired effect (studentized, percentile, basic), 500 draws and target law (0.3, 0.7), is licensed",
+            "only the measured complete binary-history 95% response (studentized) or paired effect (studentized, percentile, basic), 500 draws and target law (0.3, 0.7), is supported",
         ));
     }
     if ctx.cancellation.is_cancelled() {

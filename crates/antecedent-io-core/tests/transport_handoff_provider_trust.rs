@@ -126,7 +126,7 @@ fn the_trust_level_is_recoverable_from_the_artifact_and_part_of_its_identity() {
 
 #[test]
 fn a_native_or_unverified_label_is_refused_and_an_edited_label_changes_identity() {
-    for trust in [ProviderTrust::NativeLicensed, ProviderTrust::Unverified] {
+    for trust in [ProviderTrust::NativeSupported, ProviderTrust::Unverified] {
         assert_eq!(
             seal(trust).expect_err("not an external level"),
             TransportHandoffArtifactError::UnsupportedSemantics("provider trust label")
@@ -150,7 +150,7 @@ fn a_native_or_unverified_label_is_refused_and_an_edited_label_changes_identity(
     );
     // Native is not a representable label.
     let mut native = meta;
-    native.provider_trust = Some("native_licensed".into());
+    native.provider_trust = Some("native_supported".into());
     TransportHandoffArtifact::reseal_identity(&mut native);
     assert_eq!(
         TransportHandoffArtifact::from_meta(&native, None).expect_err("native label"),

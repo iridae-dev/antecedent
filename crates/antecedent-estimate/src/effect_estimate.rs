@@ -292,7 +292,7 @@ pub struct EstimateScores {
 /// Scientific target and identification retained by an executed batch-family contrast.
 ///
 /// This binds the contrast to the actual source identification and observed world support.
-/// It does not grant calibration or an additional interval/decision license.
+/// It does not grant calibration or an additional interval/decision support.
 #[derive(Clone, Debug)]
 pub struct CompiledFamilyContrast {
     target: antecedent_core::ScientificTarget,
@@ -392,7 +392,7 @@ pub struct EstimateHeterogeneity {
     pub cate: Option<Arc<[f64]>>,
     /// Retained portable CATE model, separate from the marginal estimate.
     pub fitted_effect: Option<Arc<crate::FittedEffect>>,
-    /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
+    /// Per-row CATE standard errors, when a supported pointwise formula produced them.
     ///
     /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
     /// Nonlinear or penalized CATE regressions, and forests (see
@@ -610,7 +610,7 @@ impl EffectEstimate {
         self
     }
 
-    /// Attach licensed per-row CATE standard errors, or withhold them.
+    /// Attach supported per-row CATE standard errors, or withhold them.
     #[must_use]
     pub fn with_cate_se(mut self, cate_se: Option<Arc<[f64]>>) -> Self {
         self.heterogeneity.cate_se = cate_se;

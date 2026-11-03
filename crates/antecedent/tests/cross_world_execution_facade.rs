@@ -1,5 +1,5 @@
 //! Cross-world selective execution through the facade: the checked capability
-//! matrix, a sealed execution, a fresh-process replay and a licensed resume.
+//! matrix, a sealed execution, a fresh-process replay and a supported resume.
 //!
 //! Oracle (hand computed): mediation model with `X = U_X` (0.5), mediator
 //! response types `qm = [0.3, 0.4, 0.1, 0.2]` of `X`, and `Y = M` when
@@ -92,16 +92,16 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     assert!((sealed.result().value - 0.25).abs() < 1e-12, "{}", sealed.result().value);
     assert_eq!(sealed.result().label, "point_only");
     let interval = sealed.interval().err().expect("an unqualified interval is closed");
-    assert_eq!(interval.code, "cell_not_licensed");
+    assert_eq!(interval.code, "not_supported");
     assert_eq!(interval.detail, "cross_world_execution.interval_route_closed");
-    assert_eq!(sealed.posterior().unwrap_err().code, "cell_not_licensed");
+    assert_eq!(sealed.posterior().unwrap_err().code, "not_supported");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();
     let mut consumed =
         CrossWorldExecution::consume(&bytes, Some(sealed.identity()), &ctx()).unwrap();
     assert_eq!(consumed.result().value.to_bits(), sealed.result().value.to_bits());
 
-    // Licensed resume: a new action definition (indirect effect) reuses the
+    // Supported resume: a new action definition (indirect effect) reuses the
     // verified abduction and equals a full rerun bit for bit.
     let mut next = request();
     next.worlds = vec![

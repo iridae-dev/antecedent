@@ -1,4 +1,4 @@
-//! Licensed attribution / transport / interference staged cells.
+//! Supported attribution / transport / interference staged cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -60,10 +60,10 @@ fn anomaly_attribution_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let scores = result.anomaly().expect("anomaly scores");
     let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
@@ -94,10 +94,10 @@ fn change_attribution_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let change = result.change_attribution().expect("change attribution");
     let expected = pin["change"]["total_change"].as_f64().unwrap();
@@ -250,9 +250,9 @@ fn accepted_dag_attribution_known_truth() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(study.support_status(), Some(CellStatus::Supported));
         let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         let scores = result.anomaly().expect("anomaly scores");
         let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
         let (top_i, top) = y.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
@@ -268,9 +268,9 @@ fn accepted_dag_attribution_known_truth() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(study.support_status(), Some(CellStatus::Supported));
         let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         let total = result.change_attribution().expect("change attribution").total_change;
         // The frequentist mean-difference allocation of the planted shift is exact to 1.6e-10;
         // the Bayesian row-weight posterior shrinks it by 0.016 (prior), inside the fixture band.
@@ -319,10 +319,10 @@ fn transport_direct_trial_ipw_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
@@ -364,10 +364,10 @@ fn interference_bernoulli_neighbor_count_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "interference.design");
     let estimated = result.interference().expect("interference estimate");
@@ -431,10 +431,10 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert_eq!(
         result.identification.status,
         IdentificationStatus::IdentifiedUnderParametricRestrictions
@@ -570,15 +570,15 @@ fn design_cells_bind_calibration_under_the_harness_key() {
 /// A support refusal renders as `refused: reason=<code>: <message>`.
 fn refused_with(error: &antecedent::CausalError) -> Option<String> {
     let text = error.to_string();
-    let rest = text.strip_prefix("refused: ")?;
+    let rest = text.strip_prefix("not_supported: ")?;
     antecedent_core::reason_code::split_prefix(rest).map(|(code, _)| code.to_string())
 }
 
-/// The licensed interference cell is `NeighborCount` under Bernoulli assignment;
+/// The supported interference cell is `NeighborCount` under Bernoulli assignment;
 /// another design on the same coordinate is refused, not executed under the
-/// cell's license.
+/// cell's support.
 #[test]
-fn interference_outside_the_licensed_construction_is_refused() {
+fn interference_outside_the_supported_construction_is_refused() {
     let units = TabularData::from_f64_columns([("y", &[1.0, 4.0, 2.0, 3.0][..])]).unwrap();
     let network = NetworkData::try_new(units.clone(), []).unwrap();
     let contrast = InterferenceFunctional::ExposureContrast {
@@ -607,15 +607,15 @@ fn interference_outside_the_licensed_construction_is_refused() {
             })
             .refute(RefuteSuite::None)
             .build()
-            .expect_err("an unlicensed interference construction must refuse");
-        assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+            .expect_err("an unsupported interference construction must refuse");
+        assert_eq!(refused_with(&error).as_deref(), Some("construction_not_supported"), "{error}");
     }
 }
 
-/// The licensed transport cell transports a mean `ResponseCurve`; a derivative
+/// The supported transport cell transports a mean `ResponseCurve`; a derivative
 /// would be labelled with a binary IPW contrast it is not, so it is refused.
 #[test]
-fn transport_outside_the_licensed_construction_is_refused() {
+fn transport_outside_the_supported_construction_is_refused() {
     let data = TabularData::from_f64_columns([
         ("a", &[1.0, 0.0, 0.0, 0.0][..]),
         ("y", &[3.0, 1.0, 0.0, 0.0][..]),
@@ -649,14 +649,14 @@ fn transport_outside_the_licensed_construction_is_refused() {
         })
         .refute(RefuteSuite::None)
         .build()
-        .expect_err("a transported derivative is not the licensed construction");
-    assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+        .expect_err("a transported derivative is not the supported construction");
+    assert_eq!(refused_with(&error).as_deref(), Some("construction_not_supported"), "{error}");
 }
 
 /// The exposure contrast is identified by the known assignment mechanism and the exposure
 /// mapping, not by an edge of the structure: stated under an ADMG, a CPDAG, a PAG or an
 /// accepted structure it is the same contrast with the same sampling interval and posterior,
-/// and the cell executes unlicensed (no evidence row names it).
+/// and the cell executes unsupported (no evidence row names it).
 #[test]
 fn interference_is_stated_under_every_static_structure_class_with_the_design_identification() {
     use antecedent::AcceptedGraph;
@@ -696,7 +696,7 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
     let expected = &pin["expected"];
     for (class, graph) in graphs {
         // A supplied `Dag` is the explicit structure the evidence rows name; the other
-        // classes (and an accepted `Dag`) execute unlicensed.
+        // classes (and an accepted `Dag`) execute unsupported.
         let builder = Study::tabular(units.clone());
         let builder = if class == "Dag" {
             builder.graph(Dag::with_variables(1))
@@ -724,9 +724,9 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
         );
         assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        // Every structure class has a licensed cell: the structure binds only the unit schema.
-        assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{class}");
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{class}");
+        // Every structure class has a supported cell: the structure binds only the unit schema.
+        assert_eq!(study.support_status(), Some(CellStatus::Supported), "{class}");
+        assert_eq!(result.support_status(), Some(CellStatus::Supported), "{class}");
         // The prepared handle seals the checked operation against the structure.
         let prepared = study.prepare(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
         let again = prepared.estimate(&units, &ctx()).unwrap();

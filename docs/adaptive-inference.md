@@ -2,7 +2,7 @@
 
 Analyze data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm.
 
-The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and the unqualified interval request stays closed (`cell_not_licensed`). An interval for one named result is offered only by `measured_interval`, for the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered), bound to the coverage record that attests them.
+The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and the unqualified interval request stays closed (`not_supported`). An interval for one named result is offered only by `measured_interval`, for the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered), bound to the coverage record that attests them.
 
 ## The retained analysis contract
 
@@ -49,7 +49,7 @@ Assignment policy x outcome structure x monitoring strategy x stopping rule
 gives 600 cells, every one listed in `parity/adaptive_procedures.toml` and
 classified by `procedure_status`:
 
-* **licensed** (7): an estimator and uncertainty method exist, per paradigm:
+* **supported** (7): an estimator and uncertainty method exist, per paradigm:
   Thompson (Beta-Bernoulli) with fixed looks and an efficacy rule (posterior,
   confidence sequence); Thompson with a decision-theoretic rule (posterior,
   stopping decision); Thompson allocation of participants with repeated binary
@@ -63,7 +63,7 @@ classified by `procedure_status`:
 * **closed, incoherent** (144), for example a stopping rule with no interim
   analysis to act on;
 * **closed, pairing** (17): every component is delivered but the pairing is
-  not. A guarantee for two components never licenses their pairing;
+  not. A guarantee for two components never supports their pairing;
 * **carried forward** (192) with an owner: upper-confidence-bound, contextual
   and batched assignment, hierarchical clustered outcomes, continuous
   monitoring, futility and resource stopping.
@@ -313,7 +313,7 @@ contract; any element may be `None` and is then refused by name),
 `AdaptiveInferenceSession.prepare`, `analyze` (also `analyse`) with one request class per paradigm
 (`BayesianPosterior`, `PosteriorStopping`, `AdaptiveWeighting`, `ConfidenceSequence`,
 `GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
-(always `cell_not_licensed`), `interim_evidence`, `export_contract`, `export_result`,
+(always `not_supported`), `interim_evidence`, `export_contract`, `export_result`,
 `consume_adaptive_monitoring_contract_artifact`,
 `consume_adaptive_inference_result_artifact` and `procedure_matrix()`. The
 participant-level family is `ParticipantDeclaration` (with `ArmPrior`,

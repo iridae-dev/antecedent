@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 papers = []
-implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration license."]
+implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration support."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", "python/tests/test_composition_source_lineage.py"]
 
@@ -14,19 +14,19 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Source lineage of an independently consumed and re-executed joint sensitivity artifact: the full checked baseline, proof and laws are recomputed by the original engine before lineage is published."
 no_independent_algorithm = "sensitivity_source.rs routes the artifact through the original joint sensitivity consumer and records lineage; it has no floating-point arithmetic and the surface values are the original engine's."
-record_sha256 = "f12dc841bbd0453809b40431a9fda5e82bf9bf39c7d9fbd8b5ba4b5a5640800f"
+record_sha256 = "62e93b070a71ad344da3c66389ea4cb753a517c0c750e4cbd28438a02a8a9306"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/sensitivity_source.rs"
-sha256 = "853482e7a204487a4ec56a4ac28a42975bef346614d61d48a73f068473d167a1"
+sha256 = "886aa11c202aa7b179a2ac580e8931cf55199f2b297e5972a9f4d2be9b4bdbe5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
-sha256 = "441b0123282a416447901d8ede78a98a8ab577517e43db1b3b9616aa5ac956eb"
+sha256 = "c8f30f016a66af4188ef17dee7e80e3ec886151295e0e402485a0f5fc702785d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-sha256 = "b09b23eeb8edd81dda5bdcc27fda66013a50f2d950b0bcb1f51f22d2ef1a3db5"
+sha256 = "c3746d8b65eb42d04940c12e0729b90a0477bb777b5cb4e93f945e77f617bbff"

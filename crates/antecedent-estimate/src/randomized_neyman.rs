@@ -607,7 +607,7 @@ mod tests {
             covered += usize::from(lower <= truth && truth <= upper);
         }
         // Binomial Monte Carlo uncertainty at nominal 95% is about 0.5 pp.
-        // This gate allows finite-population conservatism without licensing
+        // This gate allows finite-population conservatism without support
         // severe undercoverage.
         let rate = covered as f64 / REPLICATES as f64;
         eprintln!("cluster Neyman interval: {covered}/{REPLICATES} = {rate:.4}");

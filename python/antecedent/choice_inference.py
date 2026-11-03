@@ -13,7 +13,7 @@ sample information of candidate studies (:meth:`~ChoiceInferenceSession.rank_stu
 the same contract. Results export as ``choice_inference_result_v1`` and are consumed by replay.
 
 Every result is point-only with calibration ``unmeasured``; the interval route refuses with
-``cell_not_licensed`` until coverage is measured. Stated preferences do not identify behavioural or
+``not_supported`` until coverage is measured. Stated preferences do not identify behavioural or
 causal outcomes. Every number, identity and refusal is computed by the Rust core.
 """
 
@@ -466,7 +466,7 @@ class ChoiceInferenceSession:
         """Run the route a request names.
 
         Raises:
-            ChoiceInferenceRefusal: ``cell_not_licensed`` for a paradigm the cell has no route
+            ChoiceInferenceRefusal: ``not_supported`` for a paradigm the cell has no route
                 for, a route of the wrong outcome structure, or a numerical refusal.
         """
         execution = resolve_execution(execution)
@@ -615,7 +615,7 @@ class ChoiceInferenceSession:
         """Ask for an interval or coverage statement without naming a result.
 
         Raises:
-            ChoiceInferenceRefusal: always ``cell_not_licensed``.
+            ChoiceInferenceRefusal: always ``not_supported``.
         """
         raise_refusal(self._handle.interval(), ChoiceInferenceRefusal)
 
@@ -623,7 +623,7 @@ class ChoiceInferenceSession:
         """The interval of one result of a measured choice cell, bound to attesting coverage.
 
         Raises:
-            ChoiceInferenceRefusal: ``cell_not_licensed`` for a study outside the measured cells,
+            ChoiceInferenceRefusal: ``not_supported`` for a study outside the measured cells,
                 or evidence that is absent or no longer attesting.
         """
         execution = resolve_execution(execution)

@@ -149,7 +149,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs",
-          "sha256": "ca93e1cfd6b2e3931840f5faa2cc110bdde85420c3bbbc7b3ea3d99ff71f3b3c"
+          "sha256": "9e0dc8b39ca53c22b4fc0256230cf198931c5fd7d7803d3033b2b1ee682245a7"
         }
       ],
       "fixture_payload_sha256": "1301ab96fa774dbfb888e8c4296db28064ffab3c9fd96cb2984eb4e969a5884a"

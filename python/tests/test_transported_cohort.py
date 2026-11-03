@@ -174,7 +174,7 @@ def test_changed_inputs_at_an_unchanged_shape_move_the_value_and_identity(
     assert other.identity != base.identity
     assert other.mean_contrast - base.mean_contrast == pytest.approx(1.0, abs=0.25)
     # Another declared selection node is a different declaration, so a different identity; the
-    # number is unchanged because the premise licenses the same function.
+    # number is unchanged because the premise supports the same function.
     renamed = cd.transport_cohort_effect(
         model,
         cohort=cohort(),
@@ -273,12 +273,12 @@ def test_schema_units_and_type_gates(model) -> None:
         )
 
 
-def test_interval_and_law_are_refused_with_the_licensing_evidence(model) -> None:
+def test_interval_and_law_are_refused_with_the_support_evidence(model) -> None:
     effect = transport(model)
     with pytest.raises(cd.CohortDecisionRefusal) as interval:
         effect.interval()
-    assert interval.value.reason_code == "cell_not_licensed"
-    assert interval.value.detail == "transported_effect.interval_not_licensed"
+    assert interval.value.reason_code == "not_supported"
+    assert interval.value.detail == "transported_effect.interval_not_supported"
     with pytest.raises(cd.CohortDecisionRefusal) as law:
         effect.refuse("law")
     assert law.value.reason_code == "decision_contract_unsatisfied"
@@ -340,7 +340,7 @@ def test_the_transported_value_is_a_composition_node_that_follows_its_identity(m
     assert retargeted.classify("transported").calibration.state == "lost"
     with pytest.raises(cv.CompositionVerificationRefusal) as lost:
         retargeted.require_valid("transported")
-    assert lost.value.reason_code == "cell_not_licensed"
+    assert lost.value.reason_code == "not_supported"
 
     with pytest.raises(CausalTypeError):
         base.composition_node("")

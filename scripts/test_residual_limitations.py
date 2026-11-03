@@ -54,7 +54,7 @@ class Scanning(unittest.TestCase):
             {
                 "id": "P9.a.temporal.frequentist",
                 "closure": "narrowed_promise",
-                "status": "executing_unlicensed",
+                "status": "not_supported",
                 "reason": "no interval",
                 "next_attempt": "derive it",
             },
@@ -68,7 +68,7 @@ class Scanning(unittest.TestCase):
             {
                 "id": "ok",
                 "closure": "delivered",
-                "status": "licensed",
+                "status": "supported",
                 "reason": "",
                 "next_attempt": "",
             },

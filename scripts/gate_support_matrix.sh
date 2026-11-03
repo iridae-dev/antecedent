@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Support-matrix honesty: axes match the live public surface; n/a and licensed
+# Support-matrix honesty: axes match the live public surface; n/a and supported
 # rows are well-formed; unspecified cells do not exist (default is refused).
 #
-# Every licensed row's evidence_test / evidence_assertion must be an executing
+# Every supported row's evidence_test / evidence_assertion must be an executing
 # test (resolved through `cargo test -- --list`, not ignored; or a collected
 # pytest), and, read with the helpers it calls (scripts/test_evidence.py), must
 # consume the row's known_truth_fixture when the row claims known truth and build
 # every axis value of the row.
 #
-# Every licensed row's checked_execution names, per licensed estimator, the
+# Every supported row's checked_execution names, per supported estimator, the
 # executing test that drops its builder, executes the retained checked plan and
 # inspects it (scripts/test_evidence.py checked_execution_problems); the cited
 # tests run in scripts/gate_checked_execution.sh.

@@ -1,8 +1,0 @@
-# Legacy source for the retained `allowed_unlicensed` compatibility wire value.
-# The 0.9 support contract has exactly three active runtime outcomes: licensed,
-# n/a, or refused. `scripts/gate_support_matrix.sh` therefore rejects every
-# `[[allowed]]` entry in this file.
-#
-# Empty as of 0.9.0. Former entries were disposed explicitly: supported families
-# were licensed, typed impossibilities became n/a, and unsupported families now
-# refuse with reasons in the legacy-named `support_closed.toml` reason table.

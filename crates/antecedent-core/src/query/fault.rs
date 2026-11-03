@@ -9,7 +9,7 @@
 use crate::ids::VariableId;
 use crate::intervention::InterventionError;
 
-use super::response::{TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseSpec};
+use super::response::{TEMPORAL_OBSERVATION_UNSUPPORTED, TemporalResponseSpec};
 
 /// Why an attribution declaration on a fitted structural model is refused,
 /// carried by [`QueryError::InvalidAttribute`](super::QueryError::InvalidAttribute).
@@ -503,15 +503,15 @@ pub enum ResponseFault {
         "a smoothed dose-response transport query needs distinct dose and outcome coordinates, a non-empty grid of distinct finite doses, a positive finite bandwidth, a finite dose support lo < hi, distinct population keys and a density provenance"
     )]
     SmoothedDoseDeclaration,
-    /// Refused: a policy tag other than the licensed pulse and sustained spellings.
+    /// Refused: a policy tag other than the supported pulse and sustained spellings.
     #[error("temporal response policy must be {} or {}; got {}", TemporalResponseSpec::POLICY_PULSE, TemporalResponseSpec::POLICY_SUSTAINED, .got)]
     UnsupportedPolicy {
         /// Name of the refused tag.
         got: String,
     },
-    /// Refused: the observation mechanism and assumption pair is not licensed on a temporal curve.
-    #[error("{}", TEMPORAL_OBSERVATION_UNLICENSED)]
-    TemporalObservationUnlicensed,
+    /// Refused: the observation mechanism and assumption pair is not supported on a temporal curve.
+    #[error("{}", TEMPORAL_OBSERVATION_UNSUPPORTED)]
+    TemporalObservationUnsupported,
 }
 
 /// Why an observational sequential regime-contrast declaration is refused,
@@ -615,9 +615,9 @@ pub enum TransportFault {
     /// Refused: a selected-sample law must name its selection variables
     #[error("a selected-sample law must name its selection variables")]
     SelectedSampleVariables,
-    /// Refused: removing a hard intervention and treating its law as observational is not licensed
-    #[error("removing a hard intervention and treating its law as observational is not licensed")]
-    DeinterventionNotLicensed,
+    /// Refused: removing a hard intervention and treating its law as observational is not supported
+    #[error("removing a hard intervention and treating its law as observational is not supported")]
+    DeinterventionNotSupported,
     /// Refused: cannot marginalize an unmeasured variable
     #[error("cannot marginalize an unmeasured variable")]
     MarginalizeUnmeasured,
@@ -929,8 +929,8 @@ mod tests {
         ));
         assert_eq!(rejected.to_string(), "invalid intervention: intervention level must be finite");
         assert_eq!(
-            QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed).to_string(),
-            format!("invalid response query: {TEMPORAL_OBSERVATION_UNLICENSED}")
+            QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported).to_string(),
+            format!("invalid response query: {TEMPORAL_OBSERVATION_UNSUPPORTED}")
         );
     }
 }

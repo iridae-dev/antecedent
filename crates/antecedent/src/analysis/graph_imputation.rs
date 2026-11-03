@@ -46,13 +46,11 @@ fn invalid(message: impl std::fmt::Display) -> CausalError {
     CausalError::Compile { message: format!("graph_imputation.candidate_refused: {message}") }
 }
 
-/// A refusal of the native replay, in the engine's own terms. A licensing refusal is the typed
+/// A refusal of the native replay, in the engine's own terms. A support refusal is the typed
 /// interval refusal, so a caller can tell an uncovered execution from a failed one.
 fn replay_error(error: IoError) -> GraphImputationError {
     match error {
-        IoError::Refused { code: "cell_not_licensed", .. } => {
-            GraphImputationError::IntervalUnavailable
-        }
+        IoError::Refused { code: "not_supported", .. } => GraphImputationError::IntervalUnavailable,
         IoError::Refused { code: "cancelled_no_claim", .. } => {
             CausalError::Cancelled { stage: "graph imputation replay" }.into()
         }
@@ -101,11 +99,11 @@ pub enum GraphImputationError {
     /// An existing engine refusal or execution error.
     #[error(transparent)]
     Engine(#[from] CausalError),
-    /// No scientific point has been licensed for this candidate.
-    #[error("graph_imputation.point_unlicensed: the compiled candidate is not licensed")]
+    /// No scientific point has been supported for this candidate.
+    #[error("graph_imputation.point_unsupported: the compiled candidate is not supported")]
     PointUnavailable,
     /// No current attesting coverage record covers this execution's construction and rows.
-    #[error("graph_imputation.interval_unlicensed: no calibrated interval is available")]
+    #[error("graph_imputation.interval_unsupported: no calibrated interval is available")]
     IntervalUnavailable,
     /// A graph inside declared support did not have an identified effect proof.
     #[error("graph_imputation.supported_graph_unidentified: graph mask {mask}")]
@@ -455,7 +453,7 @@ impl CompiledGraphImputation {
 /// Measure the whole-method candidate from an original native source under the fixed-effect
 /// coordinate.
 ///
-/// This feature-gated harness entry is not an interval license or a public claim.
+/// This feature-gated harness entry is not an interval support or a public claim.
 /// Its bounds and basis are derived from the same compiled source the measured route replays.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
@@ -477,7 +475,7 @@ pub fn graph_imputation_calibration_candidate(
 /// The harness draws the data-generating process from the family the basis names. The basis
 /// carries the real row count, the variable and graph counts and the declaration, so a record
 /// measured over a grid of those covers executions inside it. It is not public inference
-/// authority and cannot license a claim without independent scientific review.
+/// authority and cannot support a claim without independent scientific review.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn graph_imputation_prior_predictive_calibration_candidate(

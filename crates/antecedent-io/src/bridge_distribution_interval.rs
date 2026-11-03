@@ -39,7 +39,7 @@ use crate::bridge_interval::{BridgedClaimInterval, bridged_claim_interval};
 const DETAIL_OUTSIDE_MEASURED: &str = "scientific_bridge.interval_scope_outside_measured";
 
 fn outside_measured(message: &str) -> ExternalRefusal {
-    ExternalRefusal::new(reason_code!("cell_not_licensed"), "bind", DETAIL_OUTSIDE_MEASURED)
+    ExternalRefusal::new(reason_code!("not_supported"), "bind", DETAIL_OUTSIDE_MEASURED)
         .with_remedy(
             "ask for the interval inside a measured design: a bridge kind and mapping with a current attesting coverage record, source and mapping evidence declared independent, and level 0.95; read the draws as an uncalibrated spread meanwhile",
         )
@@ -53,7 +53,7 @@ fn outside_measured(message: &str) -> ExternalRefusal {
 /// coverage record measures, and it is published only where such a record exists.
 ///
 /// # Errors
-/// `cell_not_licensed` with `scientific_bridge.interval_scope_outside_measured`
+/// `not_supported` with `scientific_bridge.interval_scope_outside_measured`
 /// for a mapping with uncertain coefficients, a declared source-mapping
 /// covariance, a level outside the measured range, or a design no current
 /// attesting coverage record measured.

@@ -20,7 +20,7 @@
 //! borrowing, causal transport and evidence reuse are separate declared
 //! operations; independent pooling or paired draws are refused when the inputs
 //! share data, a prior or a fitted model, or when their dependence is unknown,
-//! unless a covariance or joint-law route is declared and licensed.
+//! unless a covariance or joint-law route is declared and supported.
 //! [`check_atom_combination`] never turns conflicting structural atoms into a
 //! silent average.
 //!
@@ -50,7 +50,7 @@ use crate::decision_structural::StructuralAtom;
 /// Who produced an input, as established by evidence and not by a label.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProviderKind {
-    /// Executed and licensed natively, with a matching execution record.
+    /// Executed and supported natively, with a matching execution record.
     Native,
     /// Supplied by an external party, attested or unverified.
     ExternalAttested,
@@ -70,7 +70,7 @@ impl ProviderKind {
 
 fn trust_label(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::NativeSupported => ProviderTrust::NativeSupported.as_wire(),
         DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
         DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
         DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),
@@ -286,7 +286,7 @@ fn resolve_trust(evidence: &TrustEvidence, provider_id: &str, snapshot_id: &str)
         {
             Resolved {
                 kind: ProviderKind::Native,
-                trust: DistributionTrust::NativeLicensed,
+                trust: DistributionTrust::NativeSupported,
                 receipt: Some(ReceiptRef::NativeExecution {
                     execution_id: record.execution_id.clone(),
                 }),
@@ -484,7 +484,7 @@ impl DecisionInput {
         let meta = artifact.metadata();
         let resolved =
             resolve_trust(evidence, &meta.identity.provider_id, &meta.identity.snapshot_id);
-        gate(requirement, &resolved, id, meta.trust == DistributionTrust::NativeLicensed)?;
+        gate(requirement, &resolved, id, meta.trust == DistributionTrust::NativeSupported)?;
         let calibration = calibration_status(meta.calibration, resolved.kind);
         let mut coordinates = Vec::with_capacity(artifact.quantities().len());
         for wire in artifact.quantities() {
@@ -678,7 +678,7 @@ pub enum BoundaryError {
         right: String,
     },
     /// A declared covariance or joint-law route is not backed by an aligned law.
-    DependenceRouteNotLicensed {
+    DependenceRouteNotSupported {
         /// First input.
         left: String,
         /// Second input.
@@ -703,7 +703,7 @@ impl BoundaryError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
         let unverifiable = antecedent_core::reason_code!("attested_not_reverifiable");
-        let shared = antecedent_core::reason_code!("scenario_aggregate_not_licensed");
+        let shared = antecedent_core::reason_code!("scenario_aggregate_not_supported");
         let dependence = antecedent_core::reason_code!("sampling_dependence_unknown");
         let pair = |left: &String, right: &String| format!("{left}~{right}");
         match self {
@@ -770,8 +770,8 @@ impl BoundaryError {
                     .remedy("declare how the two inputs depend on each other")
                     .build()
             }
-            Self::DependenceRouteNotLicensed { left, right } => {
-                refusal(dependence, "composition_boundary.dependence_route_not_licensed")
+            Self::DependenceRouteNotSupported { left, right } => {
+                refusal(dependence, "composition_boundary.dependence_route_not_supported")
                     .offending(pair(left, right))
                     .remedy("name an aligned joint-law input that is one of the pair")
                     .build()
@@ -1370,7 +1370,7 @@ impl EvidenceRelation {
     }
 }
 
-/// Kind of licensed dependence route.
+/// Kind of supported dependence route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RouteKind {
     /// A covariance supplied by an aligned joint law.
@@ -1456,13 +1456,13 @@ fn validate_route(
     right: &DecisionInput,
     row_pairing: bool,
 ) -> Result<(), BoundaryError> {
-    let unlicensed = || BoundaryError::DependenceRouteNotLicensed {
+    let unsupported = || BoundaryError::DependenceRouteNotSupported {
         left: left.id.clone(),
         right: right.id.clone(),
     };
     let source = [left, right].into_iter().find(|input| input.id == route.source_input);
     let Some(input) = source else {
-        return Err(unlicensed());
+        return Err(unsupported());
     };
     let aligned = rows_pairable(input);
     let capable = match route.kind {
@@ -1473,7 +1473,7 @@ fn validate_route(
         }
         RouteKind::JointLaw => input.provenance.capabilities.contains(&ExternalCapability::Sample),
     };
-    if aligned && capable && !route.id.trim().is_empty() { Ok(()) } else { Err(unlicensed()) }
+    if aligned && capable && !route.id.trim().is_empty() { Ok(()) } else { Err(unsupported()) }
 }
 
 fn find_relation<'a>(
@@ -1520,7 +1520,7 @@ fn validate_relations(
 ///
 /// # Errors
 /// No declared operation, fewer than two inputs, malformed relations, shared
-/// evidence or unknown dependence without a licensed route.
+/// evidence or unknown dependence without a supported route.
 pub fn check_composition(
     inputs: &[DecisionInput],
     relations: &[PairRelation],
@@ -1532,7 +1532,7 @@ pub fn check_composition(
 /// Shared body of [`check_composition`] and [`check_paired_draws`].
 ///
 /// `row_pairing` is set when the caller pairs draws row by row; a covariance
-/// then licenses no dependence, as the joint-law rule refuses a covariance for
+/// then supports no dependence, as the joint-law rule refuses a covariance for
 /// a nonlinear row-paired operation.
 fn compose_checked(
     inputs: &[DecisionInput],
@@ -1717,7 +1717,7 @@ pub enum AtomPlan {
 
 /// Check that structural `atoms` may be combined as requested.
 ///
-/// Two or more atoms are alternative structures; averaging them is licensed only
+/// Two or more atoms are alternative structures; averaging them is supported only
 /// when every atom carries a declared probability. A completion count is not a
 /// probability, and missing mass is retained, not renormalized.
 ///

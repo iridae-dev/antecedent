@@ -71,7 +71,7 @@ fn wire() -> ScoreTableWire {
 
 fn parts_with(declared: StageIdentities, table: ScoreTableWire) -> FrozenScoreParts {
     let fit =
-        declared.effective(RetargetSupport::Licensed).get(&Stage::ScoreArtifact).copied().unwrap();
+        declared.effective(RetargetSupport::Supported).get(&Stage::ScoreArtifact).copied().unwrap();
     FrozenScoreParts {
         estimator: "test.scores.v1".to_owned(),
         fit_identity: fit,
@@ -95,7 +95,7 @@ fn scores_round_trip_is_bit_exact_and_carries_every_identity() {
     assert_eq!(again.estimator(), "test.scores.v1");
     assert_eq!(again.input_rows(), 30);
     assert_eq!(again.snapshot_digest().unwrap(), declared("seed-1").own(Stage::DataSnapshot));
-    let effective = declared("seed-1").effective(RetargetSupport::Licensed);
+    let effective = declared("seed-1").effective(RetargetSupport::Supported);
     assert_eq!(again.fit_identity().unwrap(), effective[&Stage::ScoreArtifact]);
     assert_eq!(again.declared().unwrap(), declared("seed-1"));
 

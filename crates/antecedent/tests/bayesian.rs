@@ -489,7 +489,7 @@ fn temporal_pulse() {
     }
 }
 
-/// Bayesian `PulseEffect × TemporalDag` on every licensed coordinate: explicit
+/// Bayesian `PulseEffect × TemporalDag` on every supported coordinate: explicit
 /// and accepted structure × `none` / `cheap` / `full`, through the staged
 /// `prepare` → `estimate_series` handle. The posterior mean must recover the
 /// `temporal_pulse` fixture's effect. `none` runs no report; cheap runs the
@@ -529,7 +529,7 @@ fn temporal_pulse_staged_all_structures_and_suites() {
             );
             let ctx = ExecutionContext::for_tests(42);
             let result = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
             assert!(
                 result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
                 "{label}: the prepared click must reuse identification"
@@ -726,7 +726,7 @@ fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
     assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 
-/// Exercise one of the six licensed `SustainedEffect × TemporalDag × Bayesian`
+/// Exercise one of the six supported `SustainedEffect × TemporalDag × Bayesian`
 /// coordinates on the **staged** `Study::prepare()` → `PreparedStudy::estimate_series()`
 /// path (not the one-shot `.build().unwrap().run(&ctx)` sugar), for a given
 /// structure source (`explicit` graph vs. `accepted` graph) and validation suite.
@@ -778,7 +778,7 @@ fn assert_sustained_mean(result: &antecedent::StudyResult) {
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
     }
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]

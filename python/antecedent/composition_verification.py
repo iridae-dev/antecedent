@@ -22,7 +22,7 @@ dependency graph::
 
 What each class means:
 
-* ``still_valid``: nothing it rests on changed and no license it states was lost; the earlier
+* ``still_valid``: nothing it rests on changed and no support it states was lost; the earlier
   numbers and uncertainty stand.
 * ``recompute``: data, evidence, a model or representation version or a structural derivation it
   uses changed. The earlier fit and uncertainty carry no authority; reusing a structural derivation
@@ -34,7 +34,7 @@ What each class means:
 
 A calibration record held at one coordinate is never carried to another: a claim that inherits a
 record from an upstream object that no longer holds it, or a transported claim retargeted to
-another population, is refused with ``cell_not_licensed``. The module measures no coverage and
+another population, is refused with ``not_supported``. The module measures no coverage and
 reports no interval or posterior; a calibration declaration names a record identity and a
 coordinate that the producer supplies.
 
@@ -153,9 +153,9 @@ class CompositionVerificationRefusal(StructuredRefusal):
     """A typed refusal of composition verification.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``claim_revalidation_required``, ``claim_license_withdrawn``, ``cell_not_licensed``,
+    (``claim_revalidation_required``, ``claim_support_withdrawn``, ``not_supported``,
     ``invalid_argument``, ``route_not_supported``) and a ``composition_verification.*``
-    ``detail``; ``remedy`` names what would license the request.
+    ``detail``; ``remedy`` names what would support the request.
     """
 
 
@@ -529,7 +529,7 @@ class NumericalReason:
 
 @dataclass(frozen=True, slots=True)
 class Withdrawal:
-    """A license a claim lost: ``retired``, ``support``, ``provider_trust``, ``calibration`` or
+    """Support a claim lost: ``retired``, ``support``, ``provider_trust``, ``calibration`` or
     ``unexecutable``."""
 
     kind: str
@@ -711,8 +711,8 @@ class CompositionVerification(ScientificResult):
 
         Raises:
             CompositionVerificationRefusal: ``claim_revalidation_required`` for a claim to be
-                recomputed; ``claim_license_withdrawn`` for a withdrawn support, trust, retired
-                input or unexecutable stage; ``cell_not_licensed`` for calibration inherited from
+                recomputed; ``claim_support_withdrawn`` for a withdrawn support, trust, retired
+                input or unexecutable stage; ``not_supported`` for calibration inherited from
                 an object that no longer holds it or established at another coordinate.
         """
         raise_refusal(self._handle.require_valid(_name(key, "key")), CompositionVerificationRefusal)

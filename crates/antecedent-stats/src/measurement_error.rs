@@ -2,7 +2,7 @@
 //!
 //! Every function here is closed-form or a single linear solve over declared
 //! measurement parameters. Nothing here decides whether a correction is
-//! *licensed*: the semantic contract (`antecedent-contract`) and the estimator
+//! *supported*: the semantic contract (`antecedent-contract`) and the estimator
 //! layer (`antecedent-estimate`) own population, regime and arm binding, the
 //! differential versus non-differential declaration, and the refusal codes.
 //!

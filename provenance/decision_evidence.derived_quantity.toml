@@ -14,7 +14,7 @@ implementation_deviations = [
  "The assumption range of a multilinear expression is its extreme over the vertices of the declared box (exact); for an expression that reads an input more than once the range is an interval-arithmetic outer enclosure, labeled inexact. Neither is a probability law, and no sampling interval is composed into it.",
  "Nonlinear spillover sensitivity requires separate declared bounds on the bias of each arm mean. A bound on a component contrast alone is insufficient for a nonlinear function of arm means.",
  "Centered fixed-coefficient pretreatment adjustment preserves each arm mean on the original scale; the covariate and coefficient must be fixed before assignment/outcomes as appropriate.",
- "A derived quantity inherits no support license: the precision or license of a component's marginal effect does not transfer to a nonlinear function of components.",
+ "A derived quantity inherits no support: the precision or support of a component's marginal effect does not transfer to a nonlinear function of components.",
 ]
 
 upstream_implementations_observed = []
@@ -22,5 +22,5 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-design/src/decision_evidence/derive.rs (derived_margin_is_a_delta_method_function_of_means, joint_covariance_enters_the_standard_error, marginals_only_refuses_a_cross_component_function_but_not_a_single_component, assumed_cost_gives_a_separate_range_and_never_a_sampling_interval)",
  "crates/antecedent-design/src/decision_evidence/expr.rs (value_gradient_and_structure_of_a_margin, enclosure_is_exact_for_read_once_and_outer_otherwise)",
- "crates/antecedent/tests/decision_evidence_workflow.rs (nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no_license, centered_adjustment_and_arm_spillover_compose_for_a_nonlinear_decision)",
+ "crates/antecedent/tests/decision_evidence_workflow.rs (nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no_support, centered_adjustment_and_arm_spillover_compose_for_a_nonlinear_decision)",
 ]

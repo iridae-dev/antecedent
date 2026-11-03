@@ -193,7 +193,7 @@ def test_static_curve_labels_each_coordinate_and_scopes_its_diagnostics():
     assert by_id["response.conditional_density_floor_rows"].scope == "global"
 
 
-def test_heavy_tailed_outcome_warns_without_demoting_license():
+def test_heavy_tailed_outcome_warns_without_demoting_support():
     rng = np.random.default_rng(17)
     n = 400
     confounder = rng.normal(size=n)
@@ -207,7 +207,7 @@ def test_heavy_tailed_outcome_warns_without_demoting_license():
             graph=[("x", "a"), ("x", "y"), ("a", "y")],
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert result.support.status == "supported"
     tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
     assert tail.values[0] > tail.values[1]
@@ -358,7 +358,7 @@ def test_accepted_discovery_dag_is_an_artifact_first_response_input():
         )
 
 
-def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
+def test_pag_mean_curve_is_supported_mass_weighted_envelope():
     rng = np.random.default_rng(171)
     a = rng.normal(size=360)
     y = 2.0 * a + rng.normal(scale=0.3, size=360)
@@ -382,7 +382,7 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
     np.testing.assert_allclose(
         np.asarray(result.response.values).ravel(), [-1.0, 0.0, 1.0], atol=0.08
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert any("identify.pag.envelope" in diagnostic for diagnostic in result.diagnostics)
 
 
@@ -582,14 +582,14 @@ def test_response_admg_intervention_cheap_runs_plugin_level():
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert any(
         "refute.evalue.not_a_contrast" in diagnostic and "overlap" in diagnostic
         for diagnostic in result.diagnostics
     )
 
 
-def test_response_cpdag_mean_curve_is_licensed():
+def test_response_cpdag_mean_curve_is_supported():
     rng = np.random.default_rng(174)
     a = rng.normal(size=240)
     y = 1.5 * a + rng.normal(scale=0.2, size=240)
@@ -608,7 +608,7 @@ def test_response_cpdag_mean_curve_is_licensed():
     np.testing.assert_allclose(
         np.asarray(result.response.values).ravel(), [-0.75, 0.0, 0.75], atol=0.06
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def test_elasticity_and_semi_elasticity_analyze_execute():

@@ -84,7 +84,7 @@ re-selects and refits every mechanism and simulates fresh batches. The permutati
 variance is added because the permutations stay fixed across refits. This is the
 uncertainty of the procedure under the declared design (independent rows), not a sum of
 the components. It is a Student-t interval with `fit_bootstrap - 1` degrees of freedom. It
-is uncalibrated and unlicensed: no coverage record stands behind it. It is `unquantified`,
+is uncalibrated and unsupported: no coverage record stands behind it. It is `unquantified`,
 with the mechanism-fit reason, when no bootstrap ran.
 
 ### Posterior over the mechanisms
@@ -95,7 +95,7 @@ at the ones selected on the data, and repeats the whole attribution on the refit
 carries a `posterior` with the mean, standard deviation and 95% credible interval of each
 source's share given the empirical row law, and `method["fit_resampling"]` reads
 `dirichlet_row_weights`. The `whole_procedure` entry then reads as the posterior standard
-deviation. Like the bootstrap it is uncalibrated and unlicensed, conditional on the family
+deviation. Like the bootstrap it is uncalibrated and unsupported, conditional on the family
 selection, and it does not address misspecification or identification. In Rust the same
 attribution runs through the compiled route under `InferenceMode::Bayesian`; at most 100
 refits run unless the draw count is set, because every refit is a full nested attribution.

@@ -38,7 +38,7 @@ record_sha256 = "0cc2811acca451183b4be3e6a24de16480985f4c0f5f5c86525541034a14bf2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/frontdoor.rs"
-sha256 = "0b892b3b610facaba2c2ed403b5cf1608607ba27a4d385471f39123828e33c8d"
+sha256 = "b4d7f7160eb79e4c24f4be17a383ad246bde78bef1dde5f5e32d3d8836ebe67b"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -539,7 +539,7 @@ fn window_disclosure(
 
 impl super::Study {
     /// Refusals every window route over lagged temporal-ADMG atoms shares.
-    fn ensure_admg_posterior_window_licensed(&self) -> Result<(), CausalError> {
+    fn ensure_admg_posterior_window_supported(&self) -> Result<(), CausalError> {
         if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
@@ -881,7 +881,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        self.ensure_admg_posterior_window_licensed()?;
+        self.ensure_admg_posterior_window_supported()?;
         super::series_weights::refuse_unread_series_weights(
             series,
             "the temporal-ADMG graph-posterior effect",
@@ -1035,7 +1035,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        self.ensure_admg_posterior_window_licensed()?;
+        self.ensure_admg_posterior_window_supported()?;
         super::series_weights::refuse_unread_series_weights(
             series,
             "the temporal-ADMG graph-posterior mediation",

@@ -114,7 +114,7 @@ def test_gaussian_callback_mean_cdf_quantile_match_closed_forms():
     decl = declaration()
     mean = require_success(session.execute(provider, decl, pc.Request(pc.Query.mean(), seed=3)))
     assert mean.output.values == (MU,)
-    assert mean.standing == "licensed_external"
+    assert mean.standing == "supported_external"
     thresholds = [MU - 1.96 * SD, MU, MU + SD]
     cdf = require_success(
         session.execute(provider, decl, pc.Request(pc.Query.cdf(thresholds), seed=3))
@@ -545,20 +545,20 @@ def values_digest_of(execution):
 
 def test_closed_routes_refuse_with_registered_codes_and_remedies():
     for route, code, detail in (
-        (pc.refuse_interval, "cell_not_licensed", "callback_protocol.interval_not_licensed"),
+        (pc.refuse_interval, "not_supported", "callback_protocol.interval_not_supported"),
         (
             pc.refuse_posterior_guarantee,
-            "cell_not_licensed",
-            "callback_protocol.posterior_guarantee_not_licensed",
+            "not_supported",
+            "callback_protocol.posterior_guarantee_not_supported",
         ),
         (
             pc.refuse_native_trust,
-            "cell_not_licensed",
+            "not_supported",
             "callback_protocol.native_trust_not_conferred",
         ),
         (
-            pc.refuse_identification_licence,
-            "cell_not_licensed",
+            pc.refuse_identification_evidence,
+            "not_supported",
             "callback_protocol.identification_not_conferred",
         ),
         (pc.refuse_joint_law, "joint_law_required", "callback_protocol.joint_law_not_conferred"),
@@ -568,7 +568,7 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
         assert error.remedy
     # There is no native trust level to declare.
     with pytest.raises(CausalValueError, match="trust level"):
-        declaration(trust=pc.Trust("native_licensed")).validate()
+        declaration(trust=pc.Trust("native_supported")).validate()
 
 
 # -- artifacts ----------------------------------------------------------------------------------
@@ -591,7 +591,7 @@ def test_exported_result_round_trips_and_mutations_are_refused():
     assert consumed.stage == "computed"
     assert consumed.values == pytest.approx(done.output.values, abs=0)
     meta = pc.inspect_callback_result(result.data)
-    assert meta["stage"]["status"] == "computed" and meta["standing"] == "licensed_external"
+    assert meta["stage"]["status"] == "computed" and meta["standing"] == "supported_external"
     assert meta["contract"]["produces"][0]["calibration"]["status"] == "unmeasured"
     assert meta["contract"]["produces"][0]["calibration"]["record_id"] is None
     error = refusal_of(pc.consume_callback_result, result.data, "0" * 64)

@@ -88,7 +88,7 @@
 //!
 //! One interval method: the pointwise joint outer refit percentile bootstrap of the whole
 //! cross-fitted composed estimator (`smoothed_dose_interval_internal`, compiled only under
-//! the `calibration-internal` feature). The public route is closed (`cell_not_licensed`)
+//! the `calibration-internal` feature). The public route is closed (`not_supported`)
 //! until its coverage records are measured.
 //!
 //! # Bounded computation
@@ -412,7 +412,7 @@ impl SmoothedDoseInput {
 pub struct SmoothedDoseUncertainty {
     /// [`DOSE_POINT_ONLY`] or [`DOSE_WITHHELD`].
     pub status: String,
-    /// `no_interval_requested`, `estimator_inference_mismatch` or `cell_not_licensed`.
+    /// `no_interval_requested`, `estimator_inference_mismatch` or `not_supported`.
     pub reason: String,
     /// The namespaced detail when the request was below the replicate floor.
     pub detail: Option<String>,
@@ -433,7 +433,7 @@ impl SmoothedDoseUncertainty {
                 Some("dose_response.bootstrap_below_floor"),
             )
         } else {
-            (DOSE_WITHHELD, antecedent_core::reason_code!("cell_not_licensed"), None)
+            (DOSE_WITHHELD, antecedent_core::reason_code!("not_supported"), None)
         };
         Self {
             status: status.into(),
@@ -526,7 +526,7 @@ pub struct SmoothedDoseGridPoint {
     pub smoothing_bias: SmoothingBiasDiagnostic,
     /// Local dose support.
     pub support: LocalDoseSupport,
-    /// Analytic influence-function standard error: a diagnostic, not a licensed claim.
+    /// Analytic influence-function standard error: a diagnostic, not a supported claim.
     pub influence_se_diagnostic: f64,
     /// Per-row score contributions whose sample mean is [`Self::estimate`].
     #[serde(default)]
@@ -616,7 +616,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
 #[doc(hidden)]
 pub fn refuse_smoothed_dose_interval() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         "dose_response.interval_withheld",
         "the joint outer bootstrap interval route is closed until its coverage records are \
          measured; the point estimate is retained",
@@ -637,7 +637,7 @@ pub fn parse_smoothed_dose_sampling(name: &str) -> Result<TrialSampling, Estimat
             "dose_response.non_iid_design",
             &format!(
                 "sampling '{other}' is not a declared IID design; only nested_cohort and \
-                 independent_samples are licensed"
+                 independent_samples are supported"
             ),
         )),
     }
@@ -658,7 +658,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
                 "dose_response.cate_or_simultaneous",
                 &format!(
                     "target '{name}' is conditional or simultaneous; only the pointwise \
-                     population smoothed response is licensed"
+                     population smoothed response is supported"
                 ),
             ))
         }
@@ -667,7 +667,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
             &format!(
                 "target '{other}' is not the fixed-bandwidth smoothed response psi_h; point \
                  curves, stochastic, coarsened, incremental and derivative targets are not \
-                 licensed"
+                 supported"
             ),
         )),
     }
@@ -685,7 +685,7 @@ pub(crate) fn parse_dose_density_provenance(name: &str) -> Result<(), Estimation
         "dose_response.estimated_dose_density",
         &format!(
             "dose density provenance '{name}' is not known by design; an estimated \
-             (generalized-propensity) density is not licensed"
+             (generalized-propensity) density is not supported"
         ),
     ))
 }
@@ -2081,7 +2081,7 @@ pub fn smoothed_dose_estimator_menu(
             uncertainty_status: format!(
                 "{}: {}{detail}; {} bootstrap replicates requested; the pointwise joint outer \
                  bootstrap interval for psi_h is uncalibrated and its route is closed \
-                 (cell_not_licensed)",
+                 (not_supported)",
                 uncertainty.status, uncertainty.reason, options.bootstrap
             ),
             static_fields: vec![],
@@ -2092,7 +2092,7 @@ pub fn smoothed_dose_estimator_menu(
             "the unsmoothed point curve E_target[mu(a, X)] (h -> 0)",
             "cross-fitted pseudo-outcome local-linear regression with an estimated dose density",
             "local positivity at every evaluation dose",
-            "not pathwise differentiable: bandwidth error enters the interval; not licensed",
+            "not pathwise differentiable: bandwidth error enters the interval; not supported",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 Some("dose_response.target_not_smoothed"),
@@ -2104,7 +2104,7 @@ pub fn smoothed_dose_estimator_menu(
             "an estimated conditional dose density (generalized propensity score)",
             "conditional density regression of the dose on the covariates",
             "estimated density bounded away from zero on every window",
-            "not licensed: a second nuisance with its own calibration surface",
+            "not supported: a second nuisance with its own calibration surface",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 Some("dose_response.estimated_dose_density"),
@@ -2116,11 +2116,11 @@ pub fn smoothed_dose_estimator_menu(
             "the smoothed response jointly over the grid, or conditionally on covariates",
             "joint multiplier bootstrap over the grid",
             "uniform overlap over the grid",
-            "not licensed: no simultaneous or conditional claim",
+            "not supported: no simultaneous or conditional claim",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 Some("dose_response.cate_or_simultaneous"),
-                "simultaneous bands and conditional targets are not licensed in this cell",
+                "simultaneous bands and conditional targets are not supported in this cell",
             ),
         ),
         refused_entry(
@@ -2321,10 +2321,7 @@ mod tests {
         let low = SmoothedDoseUncertainty::for_request(50);
         assert_eq!(low.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
         let closed = SmoothedDoseUncertainty::for_request(199);
-        assert_eq!(
-            (closed.status.as_str(), closed.reason.as_str()),
-            ("withheld", "cell_not_licensed")
-        );
+        assert_eq!((closed.status.as_str(), closed.reason.as_str()), ("withheld", "not_supported"));
         assert!(!closed.available());
     }
 
@@ -2399,7 +2396,7 @@ mod tests {
     /// doubling difference `|I_Q - I_2Q|` falls below the finer rule's own true error at a
     /// visible fraction of positions: an estimate, not a bound, which is why a
     /// piecewise-polynomial fit is split rather than gated. The counts asserted here are
-    /// the ones `docs/architecture/smoothed-dose-response-transport.md` and the promotion record cite:
+    /// the ones `docs/architecture/smoothed-dose-response-transport.md` and the capability record cite:
     /// 1440 (Q = 16) and 1368 (Q = 32) of 20,000 positions, and 56 and 76 positions where
     /// the estimate passes a `1e-6` tolerance that the true error exceeds.
     #[test]

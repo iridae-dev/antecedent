@@ -202,7 +202,7 @@ pub(crate) fn compile_bayesian_admg_conditional(
 ///
 /// Tabular rows carry no time index, so the static conditional query on a temporal ADMG is the
 /// conditional contrast of the projection (each variable once, at lag 0, with the template's
-/// directed and bidirected edges), the same twin the licensed `AverageEffect` has. It is not
+/// directed and bidirected edges), the same twin the supported `AverageEffect` has. It is not
 /// the temporal conditional contrast: that one is `TemporalConditionalPulse` or
 /// `TemporalConditionalSustained` on one series, identified by IDC on the unrolled window.
 ///

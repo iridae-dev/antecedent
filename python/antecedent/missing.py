@@ -348,7 +348,7 @@ class GraphSelectionImputationResult:
 
     ``effect`` and ``posterior_sd`` summarise the equal-weight stack of the completed tables'
     effect posteriors, each a mixture over that table's own graph posterior. An interval is
-    withheld until the combined procedure has a licensed uncertainty route.
+    withheld until the combined procedure has a supported uncertainty route.
     ``points`` are the tables' posterior means. Three things stay apart: ``within`` is the mean
     posterior variance inside a table, ``between`` is the spread of the table means (the
     uncertainty the missing cells and the changing selected structure add), and ``assumption``
@@ -373,7 +373,7 @@ class GraphSelectionImputationResult:
     binary_boundaries: Mapping[str, Mapping[str, str | int]] = field(default_factory=dict)
 
     def interval(self) -> None:
-        """Refuse an interval until the combined procedure is licensed."""
+        """Refuse an interval until the combined procedure is supported."""
         from ._native import graph_selection_imputation_interval
         from ._refusal import raise_refusal
 
@@ -485,7 +485,7 @@ class CompiledGraphImputationResult:
     """Model-conditional diagnostics; the mean and SD alone carry no interval or coverage claim.
 
     :meth:`interval` and :meth:`measured` replay the original source through the measured
-    route, which is licensed only where a current attesting coverage record covers the
+    route, which is supported only where a current attesting coverage record covers the
     construction and row count.
     """
 
@@ -498,7 +498,7 @@ class CompiledGraphImputationResult:
     def measured(self) -> MeasuredInference:
         """The calibrated report of this execution's original source.
 
-        Raises :class:`GraphSelectionImputationRefusal` with ``cell_not_licensed`` unless a
+        Raises :class:`GraphSelectionImputationRefusal` with ``not_supported`` unless a
         current attesting coverage record covers this construction and row count.
         """
         from ._measured_inference import MeasuredInference
@@ -511,7 +511,7 @@ class CompiledGraphImputationResult:
         return MeasuredInference._from_native(native)
 
     def interval(self) -> MeasuredInference:
-        """The calibrated interval; the same licensed route as :meth:`measured`."""
+        """The calibrated interval; the same supported route as :meth:`measured`."""
         from ._measured_inference import MeasuredInference
 
         try:

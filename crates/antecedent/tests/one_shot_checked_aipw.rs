@@ -1,4 +1,4 @@
-//! One-shot AIPW uses its complete prepared operation on the licensed slice.
+//! One-shot AIPW uses its complete prepared operation on the supported slice.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;

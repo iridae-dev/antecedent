@@ -455,14 +455,14 @@ fn closed_interval_and_calibration_routes_refuse() {
     let prepared = confounded();
     let claim = prepared.condition_on("Y", &[direct("S", "1")], &ctx()).unwrap();
     let interval = claim.interval().unwrap_err();
-    assert_eq!(interval.code(), "cell_not_licensed");
+    assert_eq!(interval.code(), "not_supported");
     assert_eq!(
         refusal_details(&interval),
         ["observation_query.declared_model_has_no_sampling_interval"]
     );
     assert!(interval.refusals[0].remedy.is_some());
     let calibrated = claim.calibrated_probability().unwrap_err();
-    assert_eq!(calibrated.code(), "cell_not_licensed");
+    assert_eq!(calibrated.code(), "not_supported");
     assert_eq!(refusal_details(&calibrated), ["observation_query.calibrated_probability_closed"]);
 
     // The same posterior read from a fitted model is a labelled point value and
@@ -481,8 +481,8 @@ fn closed_interval_and_calibration_routes_refuse() {
     )
     .unwrap();
     assert_eq!(fitted.inference_basis(), "point_only_sample_fitted");
-    assert_eq!(fitted.interval().unwrap_err().code(), "cell_not_licensed");
-    assert_eq!(fitted.calibrated_probability().unwrap_err().code(), "cell_not_licensed");
+    assert_eq!(fitted.interval().unwrap_err().code(), "not_supported");
+    assert_eq!(fitted.calibrated_probability().unwrap_err().code(), "not_supported");
 }
 
 #[test]
@@ -849,7 +849,7 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let refusal = claim
         .parameter_interval("probability:1", "aligned_draw_equal_tail_exchangeable_rank", 200)
         .unwrap_err();
-    assert_eq!(refusal.code(), "cell_not_licensed");
+    assert_eq!(refusal.code(), "not_supported");
     assert!(!refusal.refusals.is_empty());
 
     // Same seed, same draws; the claim replays from its artifact.

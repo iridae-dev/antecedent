@@ -1,5 +1,5 @@
 //! Independent point-result artifacts for exact binary observation recovery:
-//! graph-licensed recovery, not MAR/IPCW.
+//! graph-supported recovery, not MAR/IPCW.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. Under its own
 //! maxima (a stored limit above them refuses before any work) it re-decides the

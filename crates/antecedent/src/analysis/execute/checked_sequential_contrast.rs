@@ -7,7 +7,7 @@
 //! Bayesian inference reports the modular Bayesian-bootstrap posterior of the same scores, with
 //! the fitted propensities and conditional means held at their cross-fit values. Sequential
 //! conditional exchangeability given the measured history, positivity, consistency and no
-//! interference are declared, not derived. The route is unlicensed and its calibration is
+//! interference are declared, not derived. The route is unsupported and its calibration is
 //! unmeasured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -195,10 +195,10 @@ impl CheckedSequentialContrastOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.sequential_contrast.unlicensed",
+                "estimate.sequential_contrast.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unlicensed and uncalibrated route: sequential exchangeability given the \
+                "unsupported and uncalibrated route: sequential exchangeability given the \
                  measured history is declared and not checked, the nuisance fits are held fixed \
                  in each score, and no repeated-sampling calibration of the reported uncertainty \
                  has been measured",

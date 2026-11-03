@@ -46,4 +46,4 @@ A route without a matching record reports `unavailable` with its reason, even wh
 
 ## Point-only and enclosures
 
-Some routes return a value with no interval, because no interval claim is licensed. A finite-law decision value can be exact under the supplied law and still lack a sampling interval. Others return a structural envelope or an assumption range. Each label says what the range ranges over; none is a confidence statement unless its calibration status says so.
+Some routes return a value with no interval, because no interval claim is supported. A finite-law decision value can be exact under the supplied law and still lack a sampling interval. Others return a structural envelope or an assumption range. Each label says what the range ranges over; none is a confidence statement unless its calibration status says so.

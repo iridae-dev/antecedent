@@ -251,7 +251,7 @@ fn only_the_declared_sampling_design_is_accepted() {
 #[test]
 fn the_interval_route_is_closed() {
     let (code, message) = refused(refuse_matched_interval());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("matched_case_control.interval_withheld"), "{message}");
 }
 

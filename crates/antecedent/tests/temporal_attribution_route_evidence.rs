@@ -66,7 +66,7 @@ fn staged_attribution() -> serde_json::Value {
 }
 
 fn refuse(cell: SupportCell, reason: &str) {
-    assert!(matches!(classify(cell), CellStatus::Refused));
+    assert!(matches!(classify(cell), CellStatus::NotSupported));
     assert!(refused_message(cell).contains(reason), "refusal was {}", refused_message(cell));
 }
 
@@ -214,7 +214,7 @@ fn frequentist_body() {
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::Cheap)
         .build();
-    // Cheap and full validation are the functional refuter state: an executing, unlicensed cell.
+    // Cheap and full validation are the functional refuter state: an executing, unsupported cell.
     assert!(cheap.is_ok(), "{:?}", cheap.err());
     let full = Study::series(anomaly.clone())
         .graph(temporal_chain())
@@ -231,16 +231,16 @@ fn frequentist_body() {
         .build();
     // An accepted TemporalDag is attributed as a supplied one.
     assert!(accepted.is_ok(), "{:?}", accepted.err());
-    // The class and posterior cells are licensed by their own known-truth evidence
+    // The class and posterior cells are supported by their own known-truth evidence
     // (class_attribution_known_truth); only a change attribution's validation is refused.
-    let licensed = |query, graph, structure, inference, validation| {
+    let supported = |query, graph, structure, inference, validation| {
         let cell = SupportCell::from_labels(query, graph, structure, inference, validation)
             .expect("support axis");
-        assert!(matches!(classify(cell), CellStatus::Licensed), "{cell:?}");
+        assert!(matches!(classify(cell), CellStatus::Supported), "{cell:?}");
     };
-    licensed("AnomalyAttribution", "TemporalCpdag", "explicit", "Frequentist", "none");
-    licensed("ChangeAttribution", "TemporalPag", "explicit", "Bayesian", "none");
-    licensed("AnomalyAttribution", "TemporalCpdag", "graph_posterior", "Frequentist", "none");
+    supported("AnomalyAttribution", "TemporalCpdag", "explicit", "Frequentist", "none");
+    supported("ChangeAttribution", "TemporalPag", "explicit", "Bayesian", "none");
+    supported("AnomalyAttribution", "TemporalCpdag", "graph_posterior", "Frequentist", "none");
     refuse(
         SupportCell::from_labels(
             "ChangeAttribution",

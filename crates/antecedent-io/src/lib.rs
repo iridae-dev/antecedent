@@ -327,8 +327,6 @@ mod tests {
             method: "backdoor.adjustment".into(),
             adjustment_set: vec![2],
             support_status: None,
-            allowlist_reason: None,
-            allowlist_parent: None,
         };
         let bytes = to_cbor(&trace).unwrap();
         let desc = section_descriptor("analysis.trace", "application/cbor", &bytes);
@@ -362,7 +360,7 @@ pub mod transport_grid_wire;
 
 /// Array-fit replay artifact (`array_fit_replay_v1`) and its refitting consumer.
 pub mod array_fit_artifact;
-/// Unlicensed Bayesian posterior rows of randomized designs (`bayesian_posterior_row_v1`) and
+/// Unsupported Bayesian posterior rows of randomized designs (`bayesian_posterior_row_v1`) and
 /// their recomputing consumer.
 pub mod bayesian_posterior_row_artifact;
 /// Categorical-treatment artifact (`categorical_treatment_v1`) and its recomputing consumer.
@@ -391,7 +389,7 @@ pub mod recovery_chain_artifact;
 pub mod sensitivity_artifact;
 /// Smoothed dose-response transport grid artifact verification.
 pub mod smoothed_dose_artifact;
-/// Unlicensed Bayesian smoothed dose-response transport posterior (`bayesian_smoothed_dose_v1`)
+/// Unsupported Bayesian smoothed dose-response transport posterior (`bayesian_smoothed_dose_v1`)
 /// and its recomputing consumer.
 pub mod smoothed_dose_posterior_artifact;
 /// Checksummed stream artifact: bounds, cheap metadata, and shared payloads.
@@ -543,7 +541,7 @@ pub mod joint_panel_experiment_artifact;
 
 /// Exact source and scope of randomized-arm IPW pseudo-posteriors.
 pub use antecedent_io_core::randomized_ipow_wire;
-/// Whole-procedure numerical replay of licensed randomized-arm IPW results.
+/// Whole-procedure numerical replay of supported randomized-arm IPW results.
 pub mod randomized_ipow_artifact;
 pub use randomized_ipow_artifact::{
     accept_claim, consume_analysis_result, consume_analysis_result_within,

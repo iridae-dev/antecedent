@@ -17,7 +17,7 @@
 //! Reports are mixed into one verdict by completion weight only when every completion
 //! publishes the same derivative; otherwise each completion's reports are kept on their
 //! own and a disagreement diagnostic states how far the completions spread. The state
-//! executes and is unlicensed: no coverage or evidence record names it.
+//! executes and is unsupported: no coverage or evidence record names it.
 
 use super::atom_mix::{ScalarRefuterMix, finish_atom_refutations};
 use super::derivative_refutation::{
@@ -205,7 +205,7 @@ fn class_derivative_diagnostics(
         "class-aware derivative refuter state: the static derivative state (support, \
          finite difference of the identified levels, and under full resampling stability) \
          on each completion's own adjustment estimand, the front-door state on a \
-         front-door completion. It executes unlicensed: no coverage or evidence record \
+         front-door completion. It executes unsupported: no coverage or evidence record \
          names it, and the verdicts are checks, not a calibration claim.",
     ));
     same_value

@@ -43,7 +43,7 @@ impl super::Study {
         )?;
         let started = Instant::now();
         dbn_posterior_response_supported(query)?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();

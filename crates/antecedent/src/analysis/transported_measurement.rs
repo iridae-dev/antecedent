@@ -94,7 +94,7 @@ fn remedy_of(detail: &str) -> Option<&'static str> {
         }
         "measurement_model.invariance_not_declared" => {
             "name every error parameter the correction uses as invariant; a premise about one \
-             parameter does not license a correction that uses another"
+             parameter does not support a correction that uses another"
         }
         "measurement_model.invariance_target_mismatch" => {
             "declare the invariance between the source population and the analysis population"
@@ -337,7 +337,7 @@ impl TransportedMeasurementEstimate {
     /// An interval for the corrected functional.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no coverage record measures the whole
+    /// Always `not_supported`: no coverage record measures the whole
     /// measurement-plus-transport-plus-estimation method.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
         self.estimate.interval()

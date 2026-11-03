@@ -159,7 +159,7 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     assert "nested_counterfactual" in str(query_artifact.payload).lower()
     result_artifact = artifacts.loads(bytes(outcome.export(quantity="record")))
     assert result_artifact.payload["estimate"] == pytest.approx(result.effect)
-    assert prepared.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
     checked_receipt = artifacts.accept(bytes(result.export()))
     assert checked_receipt["accepts_as_verified_program"] == "true"
     assert checked_receipt["unresolved"] == ""
@@ -238,11 +238,11 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
         ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
     )
     np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
-    # cheap/full run the derivative refuter state; its cells are licensed.
+    # cheap/full run the derivative refuter state; its cells are supported.
     refuted = require_success(
         ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="cheap")
     )
-    assert refuted.evidence_status == "licensed"
+    assert refuted.evidence_status == "supported"
     assert refuted.validation is not None
     checks = [check.id for check in refuted.validation.checks]
     assert "derivative.support" in checks, checks
@@ -593,9 +593,9 @@ def test_v13_named_refusals():
         require_success(ac.analyze(data, graph=dag, query=cf, refute="none")).effect
     )
     # Cheap validation of a counterfactual on a supplied Dag runs the functional refuter state
-    # and is licensed (the licensed table has an evidence row for the cell).
+    # and is supported (the supported table has an evidence row for the cell).
     validated_cf = require_success(ac.analyze(data, graph=dag, query=cf, refute="cheap"))
-    assert validated_cf.evidence_status == "licensed"
+    assert validated_cf.evidence_status == "supported"
     med_bayes = require_success(
         ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none")
     )
@@ -638,21 +638,21 @@ def test_v13_named_refusals():
         )
     )
     assert np.isfinite(mixed.effect)
-    assert mixed.evidence_status == "licensed"
+    assert mixed.evidence_status == "supported"
     # Full validation and a prepared cheap suite run the same functional refuter state, and the
-    # licensed table has an evidence row for each.
+    # supported table has an evidence row for each.
     assert (
         require_success(ac.analyze(data, graph=dag, query=cf, refute="full")).evidence_status
-        == "licensed"
+        == "supported"
     )
     prepared_cf = _prepare(data, graph=dag, query=cf, refute="cheap")
-    assert require_success(prepared_cf.estimate()).evidence_status == "licensed"
+    assert require_success(prepared_cf.estimate()).evidence_status == "supported"
     # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
-    # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
+    # unsupported; the Bayesian cell keeps its posterior and refuses bootstrap=.
     bootstrapped = require_success(
         ac.analyze(data, graph=dag, query=cf, refute="none", inference=ac.Frequentist(bootstrap=10))
     )
-    assert bootstrapped.evidence_status != "licensed"
+    assert bootstrapped.evidence_status != "supported"
     assert any("gcm.frequentist_bootstrap" in d for d in bootstrapped.diagnostics)
     # The Bayesian cell keeps its posterior: its declaration has no replicate budget at all.
     with pytest.raises(TypeError, match="bootstrap"):

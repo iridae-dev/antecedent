@@ -85,8 +85,8 @@ fn orthogonal_two_period_ols(y: &[f64], t1: &[f64], t2: &[f64]) -> ([f64; 3], [f
 }
 
 /// The graphless row floors the per-period action probability. A forged
-/// `minimum_action_probability` below the licensed row's floor, still above the
-/// query's own declared floor, must void a verified license.
+/// `minimum_action_probability` below the supported row's floor, still above the
+/// query's own declared floor, must void a verified support.
 fn assert_low_action_probability_refuses(
     body: &antecedent_io::AnalysisResultWire,
     variable_names: &[String],
@@ -98,7 +98,7 @@ fn assert_low_action_probability_refuses(
     assert!(
         antecedent_io::encode_analysis_result_artifact(&forged, variable_names.to_vec(), name)
             .is_err(),
-        "{name}: license survived a minimum action probability below its row floor"
+        "{name}: support survived a minimum action probability below its row floor"
     );
 }
 
@@ -614,7 +614,7 @@ fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject
 }
 
 #[test]
-fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() {
+fn two_period_sequential_dr_graphless_support_round_trips_and_refuses_forgery() {
     let n = 500;
     let treatment = (0..n).flat_map(|i| [i % 5 < 2, (i / 5) % 5 < 2]).collect::<Vec<_>>();
     let outcomes = (0..n)
@@ -651,13 +651,13 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
     );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "two-period-dr-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "two-period-dr-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-two-dr");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
@@ -672,7 +672,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
 }
 
 #[test]
-fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
+fn fixed_known_q_g_formula_graphless_support_round_trips_and_refuses_forgery() {
     let subjects = 400;
     let predictions = (0..subjects)
         .flat_map(|subject| {
@@ -714,15 +714,15 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
     assert_eq!(&*fit.method, "g_formula");
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "g-formula-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "g-formula-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
-    // Stripping the earned license from a still-published interval is rejected.
+    // Stripping the earned support from a still-published interval is rejected.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
     assert!(
@@ -746,7 +746,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
 }
 
 #[test]
-fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
+fn additive_msm_graphless_support_round_trips_and_refuses_forgery() {
     let n = 300;
     let treatment = (0..n)
         .flat_map(|i| match i % 4 {
@@ -783,7 +783,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(
-        "additive_msm_graphless_license_round_tri",
+        "additive_msm_graphless_support_round_tri",
         &prepared,
         &result,
         &ctx,
@@ -792,15 +792,15 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_clustered_cr1_95");
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "msm-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "msm-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
-    // The license cannot survive without every published coefficient interval.
+    // The support cannot survive without every published coefficient interval.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
     assert!(
@@ -817,7 +817,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-msm-license"
+            "forged-msm-support"
         )
         .is_err()
     );
@@ -864,7 +864,7 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
     );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_excluded_fold_q_95");
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }

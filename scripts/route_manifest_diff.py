@@ -3,13 +3,12 @@
 
 Every coordinate of the cartesian product of the support axes (query x graph class x structure x
 inference x validation) is classified at the predecessor tag and in the working tree as
-`licensed`, `n_a`, `executes_unlicensed` or `refused`, using the same precedence as the support
-matrix: a licensed cell wins, then an n/a rule, then a closed rule (an `executes_unlicensed` rule
-still builds and runs, its result reporting the support status `refused`).
+`supported`, `n_a` or `not_supported`, using the same precedence as the support matrix: a
+supported cell wins, then an n/a rule, then a closed rule. A route that is not supported refuses in
+release builds.
 
-* A lost capability is a coordinate that was licensed or executed at the predecessor and is
-  neither licensed nor executing now. The release condition is zero of them.
-* A graphless licence (family, design, method) at the predecessor that is absent now is a lost
+* A lost capability is a coordinate that was supported at the predecessor and is not supported now. The release condition is zero of them.
+* A graphless support entry (family, design, method) at the predecessor that is absent now is a lost
   capability too.
 * A changed refusal is a coordinate refused or n/a at the predecessor whose refusal class changed
   (refused to n/a or the reverse) while it still does not run; the reasons are listed so a
@@ -31,8 +30,8 @@ from collections import Counter
 from _repo import REPO_ROOT
 
 TAG = "v2.4.1"
-LICENSED, N_A, EXECUTES, REFUSED = "licensed", "n_a", "executes_unlicensed", "refused"
-RUNS = (LICENSED, EXECUTES)
+SUPPORTED, N_A, REFUSED = "supported", "n_a", "not_supported"
+RUNS = (SUPPORTED,)
 AXES = ("query", "graph_class", "structure", "inference", "validation")
 RULE_AXES = {
     "queries": "query",
@@ -43,10 +42,16 @@ RULE_AXES = {
 }
 FILES = {
     "axes": "parity/support_axes.toml",
-    "licensed": "parity/support_licensed.toml",
-    "closed": "parity/support_closed.toml",
+    "supported": "parity/support_cells.toml",
+    "closed": "parity/support_refusal_reasons.toml",
     "n_a": "parity/support_n_a.toml",
     "graphless": "parity/support_graphless.toml",
+}
+#: The registry file names at a published tag that predates the support vocabulary. A historical
+#: ref is read by the name the file had at that ref; the working tree by its current name.
+HISTORICAL_FILES = {
+    "supported": "parity/support_licensed.toml",
+    "closed": "parity/support_closed.toml",
 }
 
 
@@ -57,11 +62,25 @@ def _tag_text(path: str, tag: str) -> str:
     ).stdout
 
 
+def _historical_path(name: str, path: str, tag: str) -> str:
+    """The file's name at `tag`: the current name when the tag has it, else the older one."""
+    old = HISTORICAL_FILES.get(name)
+    if old is None:
+        return path
+    probe = subprocess.run(
+        ["git", "cat-file", "-e", f"{tag}:{path}"], cwd=REPO_ROOT, capture_output=True, check=False
+    )
+    return path if probe.returncode == 0 else old
+
+
 def load_registries(tag: str | None = None) -> dict:
     """The four support registries from the working tree, or from a tag."""
     out = {}
     for name, path in FILES.items():
-        text = _tag_text(path, tag) if tag else (REPO_ROOT / path).read_text(encoding="utf-8")
+        if tag:
+            text = _tag_text(_historical_path(name, path, tag), tag)
+        else:
+            text = (REPO_ROOT / path).read_text(encoding="utf-8")
         out[name] = tomllib.loads(text)
     return out
 
@@ -83,22 +102,21 @@ def _matches(rule: dict, coord: tuple) -> bool:
 
 
 def classify(registries: dict, coord: tuple) -> tuple[str, str]:
-    """(class, reason) of one coordinate; the reason is empty for a licensed coordinate."""
-    if coord in registries["_licensed_keys"]:
-        return LICENSED, ""
+    """(class, reason) of one coordinate; the reason is empty for a supported coordinate."""
+    if coord in registries["_supported_keys"]:
+        return SUPPORTED, ""
     for rule in registries["n_a"].get("n_a", []):
         if _matches(rule, coord):
             return N_A, rule.get("reason", "")
     for rule in registries["closed"].get("closed", []):
         if _matches(rule, coord):
-            kind = EXECUTES if rule.get("executes_unlicensed") else REFUSED
-            return kind, rule.get("reason", "")
-    return REFUSED, "refused by default"
+            return REFUSED, rule.get("reason", "")
+    return REFUSED, "not supported by default"
 
 
 def _prepare(registries: dict) -> dict:
-    registries["_licensed_keys"] = {
-        tuple(cell[a] for a in AXES) for cell in registries["licensed"].get("cell", [])
+    registries["_supported_keys"] = {
+        tuple(cell[a] for a in AXES) for cell in registries["supported"].get("cell", [])
     }
     return registries
 
@@ -106,7 +124,7 @@ def _prepare(registries: dict) -> dict:
 def _graphless_keys(registries: dict) -> set[tuple]:
     return {
         (row.get("family"), row.get("design"), row.get("method"))
-        for row in registries.get("graphless", {}).get("license", [])
+        for row in registries.get("graphless", {}).get("support", [])
     }
 
 
@@ -114,7 +132,7 @@ def diff(old: dict, new: dict) -> dict:
     old, new = _prepare(old), _prepare(new)
     lost, changed, gained, counts = [], [], [], Counter()
     for key in sorted(_graphless_keys(old) - _graphless_keys(new), key=str):
-        lost.append({"coordinate": key, "before": "graphless_license", "after": "absent", "reason": ""})
+        lost.append({"coordinate": key, "before": "graphless_support", "after": "absent", "reason": ""})
     for coord in coordinates(new["axes"]):
         before, reason_before = classify(old, coord)
         after, reason_after = classify(new, coord)

@@ -3,7 +3,7 @@
 //!
 //! The panel reads its rows as independent geographic groups of contiguous periods with
 //! continuous nonnegative channel assignments. It has no observation weights, no missing-data
-//! policy, no categorical treatment coding and no extrapolation licence, so each such
+//! policy, no categorical treatment coding and no extrapolation support, so each such
 //! declaration reaches a typed refusal (or a typed unsupported world) instead of changing the
 //! population or the estimand silently.
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]

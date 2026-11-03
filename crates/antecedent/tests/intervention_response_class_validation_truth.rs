@@ -337,7 +337,7 @@ fn assert_cell(
     truth: &Truth,
     label: &str,
 ) {
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     // Each completion's level is the adjusted level or the association of the unadjusted one.
     let unadjusted =
         if class.temporal() { truth.temporal_unadjusted } else { truth.static_unadjusted };

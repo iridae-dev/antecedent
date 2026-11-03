@@ -14,7 +14,7 @@ Selection differences stay on ``Transport.selections`` or per-``Source``.
 Conservative estimation uses :class:`EmpiricalTable`; :class:`LearnedCategorical`
 and :class:`TrialAipw` are opt-in assumption changes.
 
-The licensed trial-IPW cell is :class:`antecedent.transport.advanced.TransportQuery`.
+The supported trial-IPW cell is :class:`antecedent.transport.advanced.TransportQuery`.
 Theorem-stage request types live in :mod:`antecedent.transport.advanced`.
 """
 

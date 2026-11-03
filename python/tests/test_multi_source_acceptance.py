@@ -134,7 +134,7 @@ def test_both_studies_and_the_native_claim_bind_to_the_same_program() -> None:
     assert list(e2.values) == list(fx.E2_MEANS)
 
     native = fx.native_claim()
-    assert native.trust is ProviderTrust.NATIVE_LICENSED
+    assert native.trust is ProviderTrust.NATIVE_SUPPORTED
     assert native.program_identity == program.identity
     assert native.coordinates == expected
     assert native.means == pytest.approx(fx.NATIVE_MEANS, abs=1e-9)
@@ -165,7 +165,7 @@ def test_a_fitted_native_response_binds_to_its_program() -> None:
         result, outcome_units=fx.UNITS, dose_units="mg"
     )
     claim = program_claims.native_claim(result, program)
-    assert claim.trust is ProviderTrust.NATIVE_LICENSED
+    assert claim.trust is ProviderTrust.NATIVE_SUPPORTED
     assert claim.program_identity == program.identity
     assert [q.regime_id for q in claim.coordinates] == ["do(a=-0.5)", "do(a=0)", "do(a=0.5)"]
     assert claim.support == ("supported",) * 3
@@ -197,7 +197,7 @@ def test_the_native_claim_enters_composition_with_issued_authority_and_supported
     native = fx.native_input()
     assert native.source == "mean"
     assert native.native is True
-    assert native.provenance.trust == "native_licensed"
+    assert native.provenance.trust == "native_supported"
     assert native.provenance.calibration in {"point_only", "unmeasured"}
     assert [c.coordinate for c in native.support] == [fx.coordinate(0.0), fx.coordinate(1.0)]
     assert {c.status for c in native.support} == {"supported"}
@@ -437,13 +437,13 @@ def _relations() -> list[comp.PairRelation]:
     ]
 
 
-def test_shared_data_refuses_independent_pooling_and_licensed_routes_lift_it() -> None:
+def test_shared_data_refuses_independent_pooling_and_supported_routes_lift_it() -> None:
     inputs = [fx.native_input(), fx.e1_input(), fx.e2_law_input()]
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_composition(inputs, _relations(), "statistical_pooling"))
     assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
     assert refused.value.offending == "native~e2law"
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
     assert_registered_refusal(refused.value)
 
     # The two studies that really are independent pool, and the receipt says it assumed that.
@@ -461,21 +461,21 @@ def test_shared_data_refuses_independent_pooling_and_licensed_routes_lift_it() -
     transport = require_success(comp.check_composition(inputs, _relations(), "causal_transport"))
     assert transport.shared_evidence == ("registry-7",)
 
-    # An explicitly licensed joint-law route (one of the pair, an aligned law) lifts the refusal.
+    # An explicitly supported joint-law route (one of the pair, an aligned law) lifts the refusal.
     route = comp.DependenceRoute("joint_law", "jl-1", "e2law")
-    licensed = [
+    supported = [
         comp.PairRelation("native", "e2law", comp.EvidenceRelation.shared_data("registry-7"), route)
     ]
     receipt = require_success(
         comp.check_composition(
-            [fx.native_input(), fx.e2_law_input()], licensed, "statistical_pooling"
+            [fx.native_input(), fx.e2_law_input()], supported, "statistical_pooling"
         )
     )
     assert receipt.routes == ("jl-1",) and not receipt.independence_assumed
     assert receipt.shared_evidence == ("registry-7",)
 
 
-def test_paired_draws_refuse_a_mean_and_shared_data_without_a_licensed_route() -> None:
+def test_paired_draws_refuse_a_mean_and_shared_data_without_a_supported_route() -> None:
     reanalysis = fx.e2_law_input(fx.law(provider_id="lab-2b", snapshot="snap-e2b"), "reanalysis")
     pair = [fx.e2_law_input(), reanalysis]
     shared = comp.PairRelation(
@@ -486,10 +486,10 @@ def test_paired_draws_refuse_a_mean_and_shared_data_without_a_licensed_route() -
     assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
 
     route = comp.DependenceRoute("joint_law", "jl-1", "e2law")
-    licensed = comp.PairRelation(
+    supported = comp.PairRelation(
         "e2law", "reanalysis", comp.EvidenceRelation.shared_data("registry-7"), route
     )
-    receipt = require_success(comp.check_paired_draws(pair, [licensed]))
+    receipt = require_success(comp.check_paired_draws(pair, [supported]))
     assert receipt.routes == ("jl-1",) and receipt.shared_evidence == ("registry-7",)
     assert not receipt.independence_assumed
 
@@ -526,7 +526,7 @@ def test_the_ranking_matches_the_hand_derived_evsi_and_net_values() -> None:
     assert fx.near(native.net_value, 1.0 / 16.0 - 0.02)
     assert fx.near(attested.net_value, 1.0 / 16.0 - 0.05)
     assert fx.near(native.net_value, 0.0425) and fx.near(attested.net_value, 0.0125)
-    assert native.provider_trust == "native_licensed" and native.natively_replayed
+    assert native.provider_trust == "native_supported" and native.natively_replayed
     assert attested.provider_trust == "externally_attested" and not attested.natively_replayed
     assert ranking.calibration == "unmeasured"
     assert ranking.source_digests == (decision_source_digest(),)

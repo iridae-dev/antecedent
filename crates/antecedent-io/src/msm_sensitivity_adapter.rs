@@ -14,7 +14,7 @@
 //! identification, available as the first grid point), and the sampling interval is
 //! withheld exactly as the result declares it (`sampling interval: not reported`).
 //! No sampling composition is expressible: a composed interval is refused by the
-//! artifact (`composition_not_licensed`).
+//! artifact (`composition_not_supported`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

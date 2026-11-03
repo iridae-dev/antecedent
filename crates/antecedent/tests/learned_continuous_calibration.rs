@@ -6,7 +6,7 @@
 //! score, the overlap gate, and the design-specific analytic influence variance
 //! (`LearnedContinuousOptions::analytic_interval_internal`). The previously
 //! proposed percentile bootstrap failed its sample-size grid and is not scored
-//! as a licensed candidate. No component AIPW formula is scored on its own.
+//! as a supported candidate. No component AIPW formula is scored on its own.
 //!
 //! * `learned_trial_aipw_nested_cohort_continuous_mean_contrast` and
 //!   `learned_trial_aipw_independent_samples_continuous_mean_contrast` are the two

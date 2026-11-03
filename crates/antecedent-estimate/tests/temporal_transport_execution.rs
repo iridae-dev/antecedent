@@ -1013,7 +1013,7 @@ fn a_three_level_action_alphabet_executes_through_the_whole_route() {
 
 #[test]
 fn a_decision_the_rules_could_not_certify_refuses_as_search_incomplete_never_as_an_obstruction() {
-    // The licensed rules are sound and incomplete: a diagram no rule certifies and
+    // The supported rules are sound and incomplete: a diagram no rule certifies and
     // no s-hedge refutes is reported as such. No diagram of this fixture reaches
     // that outcome (the rules certify or find a hedge for every unrolling tried),
     // so the refusal surface is exercised on a decision whose outcome is set to it.

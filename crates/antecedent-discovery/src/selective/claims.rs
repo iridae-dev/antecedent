@@ -1,24 +1,24 @@
 //! Claims discovery reuse does not make, as typed refusals.
 //!
 //! Each function here is a request a user might reasonably make of a discovered graph. Each
-//! is refused with `cell_not_licensed` (or `route_not_supported` for a route that does not
-//! exist), and the refusal states the declaration or evidence that would license it and the
+//! is refused with `not_supported` (or `route_not_supported` for a route that does not
+//! exist), and the refusal states the declaration or evidence that would support it and the
 //! calibration design that would have to be measured first. None is measured here.
 //!
-//! # What can and cannot be licensed
+//! # What can and cannot be supported
 //!
 //! * **Per-dataset recovery and error control are closed as claims.** Whether a discovered
 //!   graph is the true graph rests on faithfulness and causal sufficiency, and neither can be
 //!   tested from the data the discovery ran on. No statement about one dataset's graph can be
-//!   licensed, however the procedure is calibrated. How often the method recovers the graph
+//!   supported, however the procedure is calibrated. How often the method recovers the graph
 //!   over a declared family of generating processes is a measured property of the method,
-//!   published as a table in the documentation and never as a license.
-//! * **A downstream interval is licensed only for rows discovery never saw.** The interval
+//!   published as a table in the documentation and never as support.
+//! * **A downstream interval is supported only for rows discovery never saw.** The interval
 //!   that can carry a coverage statement is the whole method's: a seeded split, discovery on
 //!   one part, a resolved structure accepted, and the effect estimated on the other part,
 //!   scored against the true effect over a declared family (see
 //!   `antecedent::analysis::sample_split_effect`). The same rows used to discover and to
-//!   estimate are a different construction with no licence.
+//!   estimate are a different construction with no support.
 //! * **Support range.** Variable counts and sample sizes inside the measured grid only; a
 //!   request outside it is refused as outside the measured range.
 //!
@@ -34,19 +34,19 @@ use super::refusal::SelectiveDiscoveryError;
 ///
 /// # Errors
 ///
-/// Always `cell_not_licensed`: matching a full run is an algorithmic fact, not a statement
+/// Always `not_supported`: matching a full run is an algorithmic fact, not a statement
 /// about the truth.
 pub fn request_recovery_claim(
     _outcome: &DiscoveryOutcome,
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "selective_discovery.recovery_claim_not_licensed",
-        "no recovery, false-discovery or error-control statement can be licensed for the graph \
+        antecedent_core::reason_code!("not_supported"),
+        "selective_discovery.recovery_claim_not_supported",
+        "no recovery, false-discovery or error-control statement can be supported for the graph \
          discovered on one dataset: faithfulness and causal sufficiency are not testable from \
          the data discovery ran on. Report the structure as an estimate with its unresolved \
          edges and bounded-search receipts. How often the method recovers the graph over a \
-         declared family of processes is a measured table in the documentation, not a license",
+         declared family of processes is a measured table in the documentation, not support",
     ))
 }
 
@@ -55,14 +55,14 @@ pub fn request_recovery_claim(
 ///
 /// # Errors
 ///
-/// Always `cell_not_licensed`.
+/// Always `not_supported`.
 pub fn request_downstream_interval(
     _outcome: &DiscoveryOutcome,
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "selective_discovery.downstream_interval_not_licensed",
-        "an interval for an estimate that rests on a discovered graph cannot be licensed on \
+        antecedent_core::reason_code!("not_supported"),
+        "selective_discovery.downstream_interval_not_supported",
+        "an interval for an estimate that rests on a discovered graph cannot be supported on \
          the rows discovery used: selecting the graph and estimating on the same rows is not \
          a construction with a measured coverage. Use disjoint discovery and analysis rows \
          (the evidence ledger records the split); the whole-method interval of the effect on \

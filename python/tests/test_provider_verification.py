@@ -69,7 +69,7 @@ def _fixture(value=2.0):
     )
 
 
-def test_verified_provider_promotion_records_evidence_and_shared_result():
+def test_verified_provider_capability_records_evidence_and_shared_result():
     registry = ProviderRegistry()
     registry.register("external", Provider())
     report = registry.verify(
@@ -102,13 +102,13 @@ def test_verified_provider_promotion_records_evidence_and_shared_result():
         ({"expected_estimate": [9.0]}, "estimate differs"),
         ({"expected_uncertainty": [0.1]}, "uncertainty differs"),
         ({"expected_assumptions": ("false",)}, "assumptions differ"),
-        ({"expected_support_status": "native_licensed"}, "support differs"),
+        ({"expected_support_status": "native_supported"}, "support differs"),
         ({"expected_provenance": {"version": "false"}}, "provenance"),
         ({"artifact_digest": "0" * 64}, "artifact digest differs"),
         ({"expected_decoded_artifact": {"effect": 9.0}}, "round trip differs"),
     ],
 )
-def test_mismatched_fixture_refuses_promotion(change, match):
+def test_mismatched_fixture_refuses_capability(change, match):
     from dataclasses import replace
 
     registry = ProviderRegistry()
@@ -166,8 +166,8 @@ def test_deterministic_replay_and_spec_tampering_are_refused():
 
 def test_native_registration_and_unverified_artifact_refused():
     registry = ProviderRegistry()
-    with pytest.raises(ValueError, match="native licensed"):
-        registry.register("native", Provider(), trust=ProviderTrust.NATIVE_LICENSED)
+    with pytest.raises(ValueError, match="native supported"):
+        registry.register("native", Provider(), trust=ProviderTrust.NATIVE_SUPPORTED)
     with pytest.raises(ValueError, match="separate evidence gate"):
         registry.register("verified", Provider(), trust=ProviderTrust.VERIFIED_EXTENSION)
     registry.register("external", Provider())

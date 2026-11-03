@@ -286,7 +286,7 @@ pub use bayesian::{
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
-    CellSaturatedAipw, CellScoreSpec, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
+    CellSaturatedAipw, CellScoreSpec, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNSUPPORTED,
     SharedCellInputs, cell_minus_control_contrast, contrast_named, family_cell_contrast,
     interaction_contrast,
 };
@@ -315,7 +315,7 @@ pub use empirical_table::{
     BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_PLUGIN,
     EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, STATE_SPACE_DIRICHLET,
     StatisticalTransportInput, assemble_point_laws, catalog_axes, dependence_refusal,
-    fit_empirical_joint, licensed_iid_dependence, licensed_iid_regimes,
+    fit_empirical_joint, supported_iid_dependence, supported_iid_regimes,
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,

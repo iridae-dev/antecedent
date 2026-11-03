@@ -33,7 +33,7 @@
 //! `predictive_assessment.report_replay_mismatch` for a stored value that does not recompute.
 //!
 //! What this does **not** say: no interval or significance level for a score or
-//! a score difference (closed: `cell_not_licensed`), no calibration guarantee
+//! a score difference (closed: `not_supported`), no calibration guarantee
 //! (diagnostics are labelled and `unmeasured`), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!

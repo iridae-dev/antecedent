@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check promotion prerequisites and feature-package links."""
+"""Check capability prerequisites and feature-package links."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import tomllib
 
 from _repo import REPO_ROOT as ROOT
 
-RECORDS = ROOT / "parity/promotion.toml"
+RECORDS = ROOT / "parity/capability_records.toml"
 FEATURES = ROOT / "parity/feature_packages.toml"
 
 
@@ -70,7 +70,7 @@ def feature_problems(features: list[dict], records: list[dict]) -> list[str]:
         if feature.get("record") != fid:
             errors.append(f"{fid}: record must be the feature id")
         elif fid not in current:
-            errors.append(f"{fid}: promotion record is missing")
+            errors.append(f"{fid}: capability record is missing")
         if feature.get("record_state") != "frozen":
             errors.append(f"{fid}: record_state must be frozen")
         if not feature.get("purpose"):

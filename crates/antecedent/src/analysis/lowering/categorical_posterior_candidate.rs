@@ -1,7 +1,7 @@
 //! Six-layer lowering of the bounded categorical posterior candidate.
 //!
 //! The program states the claim it would publish, a posterior, but carries no scientific
-//! license: whether an execution is calibrated is decided at run time by coverage records.
+//! support: whether an execution is calibrated is decided at run time by coverage records.
 use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
@@ -56,7 +56,7 @@ pub(crate) fn lower(
         query_variables: Arc::from([]),
         source_digest: Some(source),
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     };
     // An observed-law coefficient is not a causal identification result.

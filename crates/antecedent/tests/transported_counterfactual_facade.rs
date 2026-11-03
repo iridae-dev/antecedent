@@ -166,7 +166,7 @@ fn x8t_facade_undeclared_premises_refuse_and_default_to_undeclared() {
     request.premises = PremisesWire::default();
     let refusal =
         TransportedCounterfactual::evaluate(&request).unwrap_err().refusal().expect("refusal");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "transported_counterfactual.nonadditive_mechanism");
     assert_eq!(refusal.offending.as_deref(), Some("additive_noise"));
 }
@@ -182,5 +182,5 @@ fn x8t_facade_the_general_transported_route_stays_closed() {
     )
     .unwrap_err();
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
-    assert_eq!(refusal.refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.refusal.code, "not_supported");
 }

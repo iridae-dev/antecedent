@@ -321,7 +321,7 @@ fn the_variance_is_parameter_only_scoped_and_the_interval_is_closed() {
     assert_eq!(value.functional.method, "first_order_delta_method");
 
     let closed = transported.interval().unwrap_err();
-    assert_eq!(closed.code(), "cell_not_licensed");
+    assert_eq!(closed.code(), "not_supported");
     assert_eq!(details(&closed), vec!["mechanism_transport.interval_route_closed"]);
 
     // An unknown dependence refuses the variance, never the point.

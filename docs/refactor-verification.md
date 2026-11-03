@@ -54,10 +54,10 @@ Cached content identities and fits rely on this premise. Ordinary NumPy mapping
 ingestion copies; borrowed Arrow input requires new buffers and `refresh` to
 replace observations. See [the borrowing contract](hot_paths.md).
 
-## Claim integrity and licensing
+## Claim integrity and support
 
-Support cells remain closed unless their owning registry licenses them and their
-cited evidence executes. Point-only evidence does not license interval coverage
+Support cells remain closed unless their owning registry supports them and their
+cited evidence executes. Point-only evidence does not support interval coverage
 or posterior guarantees. This pass corrected disclosures, source references,
 independent temporal truth pins and deliberately broken gate controls. It did
 not promote support cells, lower coverage floors, narrow numerical tolerances,
@@ -110,7 +110,7 @@ has 403 passes, five ignores and one failure: the measured temporal artifact
 acceptance test refuses for the same stale-attestation reason.
 
 Benchmark smoke (`--test`, without a measurement campaign), fuzz-target
-compilation, dependency/license checks, provenance, metadata and named-test
+compilation, dependency/support checks, provenance, metadata and named-test
 collection pass. No fuzz campaign was run. The optional learner suite passed 58
 tests and the Gaussian-process model suite passed 79. Strict workspace and
 Gaussian-process Clippy pass; the later default facade check also passes.
@@ -118,18 +118,18 @@ Gaussian-process Clippy pass; the later default facade check also passes.
 Checked execution passed all 776 estimator citations. Composition passed its
 40 rows, including 29 Rust filters and two Python nodes; graphless support
 passed all 63 citations. Evidence reachability passes for all 206 fixtures.
-The full support matrix passed: 4,320 cells, 717 licensed, 1,809 not applicable,
+The full support matrix passed: 4,320 cells, 717 supported, 1,809 not applicable,
 and 1,794 explicitly refused; none lack reasons or remain allowed without a
-license. These large cited-gate passes preceded the attestation-cache repair.
+support. These large cited-gate passes preceded the attestation-cache repair.
 The current transport gate resolves 469 routes and passes all 26 fixture rows;
 its eight failed route rows are measured-only acceptance refusals from stale
-attestation. Promotion execution completed with 23 distinct failed citation IDs,
+attestation. Capability execution completed with 23 distinct failed citation IDs,
 all independently traced to the same stale-record refusal. Its old summary
 counted three rows sharing a failed Rust test as one entry; a reproduced
 two-row control now verifies the corrected diagnostic accounting. No execution
 criterion changed. Every official broken-input self-test subcommand passes.
-The umbrella driver originally stopped at the promotion rule-usage lint;
-after its AST repair, the complete promotion self-test passed and the remaining
+The umbrella driver originally stopped at the capability rule-usage lint;
+after its AST repair, the complete capability self-test passed and the remaining
 official commands passed individually. One release-candidate control initially
 failed on an unwritable default UV cache; the corrected-cache rerun passed.
 The grouped-count regression was also rerun after its final repair. These
@@ -155,7 +155,7 @@ with no code drift at completion. Existing query exclusions remain unchanged.
 This is evidence from the configured queries, not a proof of security.
 
 The inventory and composition/decision exit checks originally reported 15
-promotion records backed by stale calibration measurements. Their story and
+capability records backed by stale calibration measurements. Their story and
 refusal tests passed before the attestation-cache repair. The repaired snapshot
 also closes measured-only runtime factories until their records are current;
 their positive acceptance checks are calibration-dependent. Calibration is
@@ -169,7 +169,7 @@ them.
 
 Current source/ownership checks, calibration-surface boundaries, generated
 inventories, metadata and document links pass. The strict documentation build
-passes. Nonblocking source-reachability warnings remain in the promotion
+passes. Nonblocking source-reachability warnings remain in the capability
 checker; its static contract passes, and actual citation failures are the
 calibration-dependent cases listed above.
 
@@ -196,7 +196,7 @@ outside this pass.
 
 The repairs tighten scientific premises and numerical failure boundaries:
 
-- Nonnegative sample covariance no longer licenses a Gaussian expected-maximum
+- Nonnegative sample covariance no longer supports a Gaussian expected-maximum
   comparison theorem. Declared independent streams retain the independent
   Gaussian calculation; other dependence uses the union bound.
 - Correlation declarations require finite ordered endpoints in `[-1, 1]`.
@@ -225,11 +225,11 @@ The repairs tighten scientific premises and numerical failure boundaries:
   repository's lint, formatting, and typing requirements.
 
 The API snapshot update is additive: all 22 comparisons pass, with no removed
-snapshot lines. Promotion evidence now cites the physical-snapshot regression;
-its claim and licensing status are unchanged. No calibration record or positive
+snapshot lines. Capability evidence now cites the physical-snapshot regression;
+its claim and support status are unchanged. No calibration record or positive
 acceptance assertion was weakened to make this audit pass.
 
-The first rebuilt native Python coverage run exposed a stale promotion-test
+The first rebuilt native Python coverage run exposed a stale capability-test
 citation and a Python overlap fixture that treated equal counts as shared
 observations. Both were repaired. After the final numerical repairs and native
 rebuild, the complete coverage command produced 5,281 passes, 31 failures, and

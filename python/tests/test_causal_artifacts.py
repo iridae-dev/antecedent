@@ -207,7 +207,7 @@ def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: obje
         {"sustained": {"from": -2, "until": -1}},
     ],
 )
-def test_every_licensed_temporal_response_policy_crosses_rust_and_python(
+def test_every_supported_temporal_response_policy_crosses_rust_and_python(
     policy: object,
 ) -> None:
     payload = _response_query(

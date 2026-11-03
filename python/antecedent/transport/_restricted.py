@@ -1,4 +1,4 @@
-"""Route a declared controllable set through licensed single-source z-transport.
+"""Route a declared controllable set through supported single-source z-transport.
 
 Classical and meta transport assume each source can experiment on every
 variable. When every experimental source's declared interventions omit the
@@ -435,7 +435,7 @@ class _RestrictedNative(ScientificResult):
         if intent not in _ALLOWED_INTENTS:
             report["refusal_code"] = "option_not_applicable"
             report["refusal"] = (
-                f"reason=option_not_applicable: {intent} is not licensed on the "
+                f"reason=option_not_applicable: {intent} is not supported on the "
                 "z-transport handle; prepare again"
             )
         return report
@@ -604,7 +604,7 @@ def prepare_restricted(
     controls: _TransportLimits | None = None,
     seed: int = 1,
 ) -> Any:
-    """Prepare the licensed z-transport stage for a restricted experiment."""
+    """Prepare the supported z-transport stage for a restricted experiment."""
 
     from ..estimation import _PreparedEngine
     from ._day1 import _evaluation_limits, lower_question, transport_stage

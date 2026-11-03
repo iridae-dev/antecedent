@@ -62,7 +62,7 @@ macro_rules! causal_queries {
         /// The variant of a [`CausalQuery`] without its payload.
         ///
         /// Unlike [`CausalQuery`] this enum is deliberately exhaustive. It exists so a
-        /// per-query table (which graph classes a query is licensed on, which queries
+        /// per-query table (which graph classes a query is supported on, which queries
         /// are design-based) can be one `match` with no wildcard arm: adding a
         /// [`CausalQuery`] variant extends [`CausalQuery::kind`], which extends this
         /// enum, which fails to compile every such table until its new row is written.

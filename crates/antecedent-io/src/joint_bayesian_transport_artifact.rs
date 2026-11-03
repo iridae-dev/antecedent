@@ -829,7 +829,7 @@ impl JointBayesianArtifactWire {
             || target.covariates[0].len() != 4
             || !identity_ok(&target.identity)
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
         }
         Ok(())
     }
@@ -860,7 +860,7 @@ impl JointBayesianArtifactWire {
             != antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER
             || fit.diagnostics.draw_count != fit.draws.n_draws
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
         }
         let basis = fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?;
         let column = fit
@@ -884,7 +884,7 @@ impl JointBayesianArtifactWire {
         )
     }
     /// Independently replay the original source/priors/model and derive every
-    /// scalar's current record binding; serialized calibrated flags cannot license it.
+    /// scalar's current record binding; serialized calibrated flags cannot support it.
     /// # Errors
     /// Identity/source mismatch, original engine refusal, out-of-protocol or stale evidence.
     pub fn consume_measured(

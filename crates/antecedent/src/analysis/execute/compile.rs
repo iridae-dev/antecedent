@@ -522,7 +522,7 @@ impl super::Study {
         data: &TabularData,
         q: &InterventionalDistributionQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::static_path::ensure_admg_distribution_licensed(q, self.settings.refute)?;
+        super::static_path::ensure_admg_distribution_supported(q, self.settings.refute)?;
         let (identifier, estimator) = wire_pair(self.resolve_distribution_ids());
         let treatment =
             q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(|| {
@@ -561,7 +561,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
+            super::static_path::ensure_admg_path_specific_supported(self.settings.refute)?;
         }
         let admg = mixed_admg(self)?;
         let (identifier, estimator) = self.resolve_path_ids();
@@ -589,7 +589,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
+            super::static_path::ensure_admg_path_specific_supported(self.settings.refute)?;
         }
         let GraphRef::Cpdag(cpdag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
@@ -621,7 +621,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
+            super::static_path::ensure_admg_path_specific_supported(self.settings.refute)?;
         }
         let GraphRef::Pag(pag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
@@ -898,7 +898,7 @@ impl super::Study {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !super::response_functional_is_derivative(&q.functional) {
             return Err(CausalError::Unsupported {
-                message: "a temporal response on a TemporalAdmg is licensed for derivatives, \
+                message: "a temporal response on a TemporalAdmg is supported for derivatives, \
                           elasticities, directional derivatives and Jacobians; a curve or an \
                           intervention level of a latent-confounded window has no \
                           continuous-treatment functional estimator",
@@ -2342,7 +2342,7 @@ impl super::Study {
         panel: &PanelData,
         query: &TemporalEffectQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::super::builder::refuse_unlicensed_panel_route(
+        super::super::builder::refuse_unsupported_panel_route(
             &self.query,
             self.graph.class(),
             &self.settings.inference,
@@ -2363,7 +2363,7 @@ impl super::Study {
         panel: &PanelData,
         query: &ResponseQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::super::builder::refuse_unlicensed_panel_route(
+        super::super::builder::refuse_unsupported_panel_route(
             &self.query,
             self.graph.class(),
             &self.settings.inference,

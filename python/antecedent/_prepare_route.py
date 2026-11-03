@@ -437,9 +437,9 @@ class _PrepareRoute:
         if self.frame is not None and not temporal:
             raise CausalUnsupportedError(
                 f"{type(query).__name__} is a static query; panel, multi-environment and "
-                "event data are licensed for temporal queries (Pulse / Sustained / "
+                "event data are supported for temporal queries (Pulse / Sustained / "
                 "TemporalMediation / temporal response)",
-                reason_code="data_modality_not_licensed",
+                reason_code="data_modality_not_supported",
             )
         if temporal:
             return self._temporal()
@@ -608,9 +608,9 @@ class _PrepareRoute:
         self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
         if self.frame is not None and self.frame["kind"] != "events":
             raise CausalUnsupportedError(
-                "graph-posterior cells are licensed on one table, one series, or one event "
+                "graph-posterior cells are supported on one table, one series, or one event "
                 "stream; a panel or multi-environment mixture has no single atom weighting",
-                reason_code="data_modality_not_licensed",
+                reason_code="data_modality_not_supported",
             )
         static = isinstance(discovery, (ExactDagPosterior, GraphPosterior))
         temporal = isinstance(discovery, (DbnPosterior, GraphPosterior))
@@ -688,7 +688,7 @@ class _PrepareRoute:
             )
             if any(kind not in ("set", "shift") for kind in kinds):
                 raise CausalUnsupportedError(
-                    "graph-posterior InterventionResponse is licensed for one Set or Shift "
+                    "graph-posterior InterventionResponse is supported for one Set or Shift "
                     "intervention coordinate",
                     reason_code="option_not_applicable",
                 )
@@ -989,7 +989,7 @@ class _PrepareRoute:
                 f"temporal response requires estimator={expected!r}; got {self.estimator!r}"
             )
         # A temporal intervention level's cheap/full suite is the per-horizon
-        # Pulse-witness refuter state (unlicensed); the native study runs it.
+        # Pulse-witness refuter state (unsupported); the native study runs it.
         if self._explicit_refute() and not isinstance(self.query, InterventionResponse):
             raise CausalUnsupportedError(
                 "not_applicable: PreparedAnalysis temporal ResponseCurve cheap/full does not "
@@ -1015,7 +1015,7 @@ class _PrepareRoute:
                 raise CausalUnsupportedError(
                     "an observation mechanism adds a latent schema column to one series; "
                     "panel, multi-environment and event frames carry fixed partitions",
-                    reason_code="data_modality_not_licensed",
+                    reason_code="data_modality_not_supported",
                 )
             names, columns = _ensure_latent_schema_column(names, columns, query.observation)
         observation_kwargs = _temporal_observation_kwargs(query)
@@ -1069,8 +1069,7 @@ class _PrepareRoute:
         """An AverageEffect on one series under a temporal graph: the lag-0 contrast.
 
         It is compiled as the pulse at offset 0 read at horizon 1 and keeps the
-        AverageEffect support cell, which executes and is unlicensed (``support_status``
-        ``"refused"``); the result carries ``estimate.temporal_class.lag_zero_average_effect``.
+        AverageEffect support cell; the result carries ``estimate.temporal_class.lag_zero_average_effect``.
         """
         query, graph = self.query, self.graph
         if functional is not None:
@@ -2260,7 +2259,7 @@ class _PrepareRoute:
         if isinstance(query, NestedCounterfactual) and self.bootstrap:
             raise CausalUnsupportedError(
                 "NestedCounterfactualEffect is point-only until its interval route is calibrated",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         native = _NativePreparedAnalysis.prepare_static_kind(
             self.names,
@@ -2452,7 +2451,7 @@ class _PrepareRoute:
         self._refuse_ids(route)
         self._refuse_estimator_config(route)
         # A Frequentist replicate count runs the whole-procedure mechanism-refit row
-        # bootstrap (unlicensed, calibration unmeasured); the Bayesian cell publishes
+        # bootstrap (unsupported, calibration unmeasured); the Bayesian cell publishes
         # its Bayesian-bootstrap posterior instead.
         if self.bootstrap and isinstance(self.inference, Bayesian):
             raise CausalUnsupportedError(
@@ -2461,7 +2460,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         # Cheap and full validation run the functional refuter state on the whole
-        # attribution vector (native, unlicensed); the ATE-shaped suites do not apply.
+        # attribution vector (native, unsupported); the ATE-shaped suites do not apply.
         if isinstance(self.graph, Dag):
             edges = [(str(a), str(b)) for a, b in self.graph.edges()]
         elif isinstance(self.graph, Sequence) and not isinstance(self.graph, (str, bytes)):
@@ -2518,9 +2517,9 @@ class _PrepareRoute:
     def _response(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
         # A scalar Dag InterventionResponse has an ATE-shaped state, so the
-        # refuter suite denotes on it (Bayesian: the unlicensed Bayesian refuter
+        # refuter suite denotes on it (Bayesian: the unsupported Bayesian refuter
         # state); a curve is function valued and cheap/full name nothing there; a
-        # derivative runs its own unlicensed refuter state. Admg
+        # derivative runs its own unsupported refuter state. Admg
         # InterventionResponse cheap/full is the plugin-level suite on the
         # identified mean.
         if isinstance(graph, Admg) and isinstance(query, (ResponseCurve, InterventionResponse)):
@@ -2552,7 +2551,7 @@ class _PrepareRoute:
             ),
         )
         # A static derivative's cheap/full suite is the derivative refuter state
-        # (unlicensed); the native study runs it, so the suite stays in the options.
+        # (unsupported); the native study runs it, so the suite stays in the options.
         if self._explicit_refute() and not scalar_dag_response and not derivative:
             raise CausalUnsupportedError(
                 "not_applicable: a function-valued response has no ATE-shaped state for the "
@@ -2705,7 +2704,7 @@ class _PrepareRoute:
                 "CoDetermined joint cells require identifier generalized.adjustment"
             )
         # The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
-        # response.bayesian over the same closure set and is unlicensed.
+        # response.bayesian over the same closure set and is unsupported.
         expected_estimator = "response.bayesian" if bayesian else "cell.aipw"
         if self.estimator not in (None, expected_estimator):
             raise CausalUnsupportedError(
@@ -2807,7 +2806,7 @@ class _PrepareRoute:
         # A Bayesian intervention level's cheap/full suite is the Bayesian refuter
         # state (plugin-level suite on the posterior-mean level, prior and posterior
         # predictive checks, and under full level-native prior sensitivity). It runs
-        # as the deferred second click and stays unlicensed.
+        # as the deferred second click and stays unsupported.
         treatments, kinds, parameters = _encode_interventions(
             query.intervention,
             route="response.intervention_gcomp",

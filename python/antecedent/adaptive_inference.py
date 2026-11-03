@@ -31,9 +31,9 @@ What it decides, and what it does not:
   (:class:`AdaptiveWeighting`), an anytime-valid confidence sequence (:class:`ConfidenceSequence`)
   and group-sequential boundaries (:class:`GroupSequential`). The procedure matrix
   (:func:`procedure_matrix`) says which paradigms each assignment x outcome x monitoring x
-  stopping cell is licensed for; a guarantee for two components never licenses their pairing.
+  stopping cell is supported for; a guarantee for two components never supports their pairing.
 * **Intervals only where measured.** :meth:`AdaptiveInferenceSession.interval` (an unqualified
-  request) raises ``cell_not_licensed``. :meth:`AdaptiveInferenceSession.measured_interval`
+  request) raises ``not_supported``. :meth:`AdaptiveInferenceSession.measured_interval`
   returns the interval of one result for the procedure cells whose whole-procedure coverage was
   measured, bound to its coverage record, and refuses every other procedure.
 * **A participant-level family.** :class:`ParticipantProcedure` declares three or four arms,
@@ -161,7 +161,7 @@ class AdaptiveInferenceRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``adaptive_contract_incomplete``, ``adaptive_design_ignored``,
-    ``adaptive_assumption_violated``, ``cell_not_licensed``) and an ``adaptive_inference.*``
+    ``adaptive_assumption_violated``, ``not_supported``) and an ``adaptive_inference.*``
     ``detail``. When a contract is refused for several defects, :attr:`refusals` lists every
     ``(code, detail)`` pair and this refusal is the first.
     """
@@ -716,7 +716,7 @@ class ProcedureCell:
 def procedure_matrix() -> tuple[ProcedureCell, ...]:
     """Every combination of assignment, outcome structure, monitoring and stopping rule.
 
-    Each cell is ``licensed`` (with its paradigms), ``closed_incoherent``, ``closed_pairing`` or
+    Each cell is ``supported`` (with its paradigms), ``closed_incoherent``, ``closed_pairing`` or
     ``carried_forward`` (with its owner); none is unlisted.
     """
     cells = []
@@ -866,7 +866,7 @@ class AdaptiveInferenceSession:
         """Run the paradigm a request names.
 
         Raises:
-            AdaptiveInferenceRefusal: ``cell_not_licensed`` for a paradigm the cell has no route
+            AdaptiveInferenceRefusal: ``not_supported`` for a paradigm the cell has no route
                 for, ``adaptive_assumption_violated`` for noncompliance, outcome-dependent delay
                 or a probability below the floor, ``cancelled_no_claim`` on cancellation.
         """
@@ -898,7 +898,7 @@ class AdaptiveInferenceSession:
         """Ask for an interval or coverage statement for the whole procedure.
 
         Raises:
-            AdaptiveInferenceRefusal: always ``cell_not_licensed``.
+            AdaptiveInferenceRefusal: always ``not_supported``.
         """
         _raise_if(self._handle.interval())
 
@@ -918,7 +918,7 @@ class AdaptiveInferenceSession:
             governing record.
 
         Raises:
-            AdaptiveInferenceRefusal: ``cell_not_licensed`` for any other procedure, prior,
+            AdaptiveInferenceRefusal: ``not_supported`` for any other procedure, prior,
                 threshold, exploration mass or look schedule, or for evidence that is absent or no
                 longer attesting.
         """
@@ -1020,7 +1020,7 @@ class AdaptiveInferenceSession:
         participants and the declared priors and compares it with the retained probabilities.
 
         Raises:
-            AdaptiveInferenceRefusal: the cell is not licensed for the paradigm, or the retained
+            AdaptiveInferenceRefusal: the cell is not supported for the paradigm, or the retained
                 history is not the declared procedure's (``assignment_not_replayed``,
                 ``stopping_not_replayed``).
         """
@@ -1097,7 +1097,7 @@ def consume_adaptive_monitoring_contract_artifact(
         AdaptiveInferenceRefusal: ``adaptive_inference.wrong_contract`` for another identity,
             ``adaptive_inference.report_replay_mismatch`` for a stored value that does not replay,
             the contract's own refusal for a missing or inconsistent element, and
-            ``adaptive_design_ignored`` or ``cell_not_licensed`` for a paradigm the design may not
+            ``adaptive_design_ignored`` or ``not_supported`` for a paradigm the design may not
             use.
     """
     artifact = container_bytes(artifact)
@@ -1172,7 +1172,7 @@ def consume_adaptive_inference_result_artifact(
 # procedure (policy, looks, delay and loss, exposure failures, stopping, selection), not of the
 # final sample. The classes below declare that procedure and ask for its derived statements. Every
 # result is labelled ``derived_unmeasured``: exact (or simulated, with a Monte Carlo error) under
-# the stated model, with no interval or coverage licence.
+# the stated model, with no interval or coverage support.
 
 DERIVED_UNMEASURED = "derived_unmeasured"
 
@@ -1690,7 +1690,7 @@ class AdaptiveProcedure:
 
     Declare it directly (:meth:`declare`) or from a prepared contract
     (:meth:`AdaptiveInferenceSession.procedure`). A paradigm whose validity premise the procedure
-    does not meet raises :class:`AdaptiveInferenceRefusal` with ``cell_not_licensed`` and the
+    does not meet raises :class:`AdaptiveInferenceRefusal` with ``not_supported`` and the
     premise's ``adaptive_inference.*`` detail.
     """
 
@@ -1777,7 +1777,7 @@ class AdaptiveProcedure:
         """One paradigm's derived statement.
 
         Raises:
-            AdaptiveInferenceRefusal: ``cell_not_licensed`` when the procedure does not meet the
+            AdaptiveInferenceRefusal: ``not_supported`` when the procedure does not meet the
                 paradigm's premise (its detail names which), or the derivation's own refusal.
         """
         execution = resolve_execution(execution)
@@ -2048,7 +2048,7 @@ class RepeatedMeasuresPosterior(ScientificResult):
     the contrast ``plus - minus`` (mean, standard deviation, equal-tailed credible interval and
     positive probability), the selection evidence (the realized assignment probabilities, kept and
     unused) and the units it was computed from. It is an explicit uncalibrated estimator:
-    ``licensed`` is ``False`` and ``calibration`` is ``"unmeasured"``.
+    ``supported`` is ``False`` and ``calibration`` is ``"unmeasured"``.
     """
 
     report: dict[str, Any]
@@ -2089,7 +2089,7 @@ class RepeatedMeasuresPosterior(ScientificResult):
                         },
                     ),
                     "support": SlotModel(
-                        available=self.licensed, reason="unlicensed_estimator", summary="unlicensed"
+                        available=self.supported, reason="unsupported_estimator", summary="unsupported"
                     ),
                     "assumptions": SlotModel(
                         available=True,
@@ -2119,8 +2119,8 @@ class RepeatedMeasuresPosterior(ScientificResult):
         return tuple(dict(a) for a in self.report["arms"])
 
     @property
-    def licensed(self) -> bool:
-        return bool(self.report["licensed"])
+    def supported(self) -> bool:
+        return bool(self.report["supported"])
 
     @property
     def calibration(self) -> str:
@@ -2198,7 +2198,7 @@ class RepeatedMeasuresProcedure:
         """The whole-procedure simulation under the paradigm of the declared analysis.
 
         Raises:
-            AdaptiveInferenceRefusal: ``cell_not_licensed`` with the premise's detail when the
+            AdaptiveInferenceRefusal: ``not_supported`` with the premise's detail when the
                 declared analysis does not meet its paradigm's premise.
         """
         execution = resolve_execution(execution)
@@ -2257,10 +2257,10 @@ class RepeatedMeasuresProcedure:
         on the observed units: it is the same under any assignment that depends only on observed
         earlier data and independent randomization, and the recorded assignment probabilities are
         retained as selection evidence and not used. The within-unit variance and correlation are
-        the declared ones. The result is unlicensed and its calibration is unmeasured.
+        the declared ones. The result is unsupported and its calibration is unmeasured.
 
         Raises:
-            AdaptiveInferenceRefusal: ``cell_not_licensed`` for an assignment that depends on an
+            AdaptiveInferenceRefusal: ``not_supported`` for an assignment that depends on an
                 unobserved quantity (``adaptive_inference.selection_not_ignorable``) or a contrast
                 arm with no completed unit (``adaptive_inference.arm_not_observed``);
                 ``invalid_argument`` for malformed units, priors or level.
@@ -2299,7 +2299,7 @@ class RepeatedMeasuresProcedure:
         """Load a retained posterior artifact, recomputing every number from its retained units.
 
         Raises:
-            AdaptiveInferenceRefusal: for an edited artifact, a claimed license, another declared
+            AdaptiveInferenceRefusal: for an edited artifact, a claimed support, another declared
                 procedure, or numbers the retained units do not reproduce.
         """
         source = (

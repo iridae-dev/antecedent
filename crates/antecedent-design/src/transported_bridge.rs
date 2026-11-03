@@ -239,7 +239,7 @@ impl TransportedSurrogateBridge {
     ///
     /// # Errors
     /// The refusals of [`Self::contract`], then the contract's own: an
-    /// unlicensed bridge, a source about another quantity or unit, a source
+    /// unsupported bridge, a source about another quantity or unit, a source
     /// that is not a finite point, and a surrogate effect outside the
     /// validated range.
     #[allow(

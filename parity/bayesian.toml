@@ -77,7 +77,7 @@ smoke_fixture = "conformance/bayesian/ppc"
 evidence_test = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
 evidence_assertion = "posterior_predictive_logit_null_rate_is_at_most_nominal"
 limitations = "The original smoke fixture requires finite p-values only. Executed Gaussian and logit posterior-predictive null-rate tests and a proper-prior prior-predictive null-rate test compare bounded rejection rates over simulated correctly specified datasets; those checks are model-specific and do not establish causal identification."
-notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive; numerical tests live in the validation calibration_gate module. The Bayesian Dag InterventionResponse refuter state runs both checks on the outcome regression the level is computed from; that state executes unlicensed (crates/antecedent/tests/bayesian_intervention_level_refutation.rs)."
+notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive; numerical tests live in the validation calibration_gate module. The Bayesian Dag InterventionResponse refuter state runs both checks on the outcome regression the level is computed from; that state executes unsupported (crates/antecedent/tests/bayesian_intervention_level_refutation.rs)."
 
 [[capabilities]]
 id = "bayes.validate.prior_sensitivity"
@@ -87,7 +87,7 @@ smoke_fixture = "conformance/bayesian/prior_sensitivity"
 evidence_test = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
 evidence_assertion = "resolved_prior_sensitivity_matches_orthogonal_gaussian_posterior_means"
 limitations = "The original smoke fixture checks finite means only. An executed orthogonal Gaussian design compares sensitivity-grid posterior means with closed-form values for the prior actually in force; this does not validate every external-prior composition or nonlinear likelihood."
-notes = "Isotropic and resolved-prior scale grids; direct conjugate numerical reference. The Bayesian Dag InterventionResponse refuter state (full) uses the same grids level-natively: it refits the whole response at each grid point and reads back the posterior-mean level, not the dose coefficient; it executes unlicensed."
+notes = "Isotropic and resolved-prior scale grids; direct conjugate numerical reference. The Bayesian Dag InterventionResponse refuter state (full) uses the same grids level-natively: it refits the whole response at each grid point and reads back the posterior-mean level, not the dose coefficient; it executes unsupported."
 
 [[capabilities]]
 id = "bayes.data.bayesian_bootstrap"
@@ -192,7 +192,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_prior_transfer"
 evidence_test = "crates/antecedent/tests/temporal_prior_transfer.rs"
 evidence_assertion = "same_design_pulse_consumes_named_source_target_and_filter"
-notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog). Composition: composition_prior_transfer_keeps_identification_and_refuses_mismatch (implementation_exists; does not inherit this known-truth fixture)."
+notes = "Same-design and mapped prior transfer ride supported Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog). Composition: composition_prior_transfer_keeps_identification_and_refuses_mismatch (implementation_exists; does not inherit this known-truth fixture)."
 
 [[capabilities]]
 id = "bayes.prior_bank.catalog"
@@ -273,7 +273,7 @@ known_truth_fixture = "conformance/bayesian/conditional_effect"
 python_facade = "full"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are supported. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -284,7 +284,7 @@ known_truth_fixture = "conformance/bayesian/posterior_moments"
 python_facade = "full"
 evidence_test = "python/tests/test_posterior_moments.py"
 evidence_assertion = "test_mediation_validation_targets_and_prior_grid"
-limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are supported. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -295,7 +295,7 @@ known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 python_facade = "full"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_envelope"
-limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are supported. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -323,7 +323,7 @@ evidence_kind = "internal_known_truth"
 known_truth_reference = { kind = "closed_form", source = "crates/antecedent-learn/tests/bayesian_basis.rs::basis_gcomp_matches_independent_quadratic_ate_and_cate_reference", proposition = "The posterior ATE mean and the CATE surface of the basis g-computation match the closed-form ATE and CATE of the declared quadratic data-generating function.", tolerance = "ATE absolute 0.06; CATE RMSE 0.07", limitations = "One seeded quadratic fixture written in the test; the truth derivation is repository-authored and not independently reviewed. Tolerances are screening bands, not coverage or calibration." }
 evidence_test = "crates/antecedent-learn/tests/bayesian_basis.rs"
 evidence_assertion = "basis_gcomp_matches_independent_quadratic_ate_and_cate_reference"
-limitations = "AllObserved empirical-covariate ATE and row CATE for binary treatment under Gaussian quadratic basis regression, interactions, and isotropic shrinkage. The 100-replicate nominal 90% ATE check covered 95/100; no coverage record or non-Gaussian learned-model license is claimed."
+limitations = "AllObserved empirical-covariate ATE and row CATE for binary treatment under Gaussian quadratic basis regression, interactions, and isotropic shrinkage. The 100-replicate nominal 90% ATE check covered 95/100; no coverage record or non-Gaussian learned-model support is claimed."
 notes = "Joint coefficient draws retain row and fold identity; the prepared Study and artifact round-trip are checked in staged_bayesian_basis_gcomp.rs."
 
 [[capabilities]]
@@ -343,7 +343,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/bayesian_iv"
 evidence_test = "crates/antecedent/tests/bayesian_iv_rd_staged.rs"
 evidence_assertion = "bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth"
-limitations = "Joint Gaussian structural IV with one instrument, no covariates, fixed unit outcome loading of the treatment disturbance, known unit stage variances, and an isotropic Normal prior. A 300-replicate exact-law check places the nominal 95% interval inside three Monte Carlo standard errors. The former free-loading control-function candidate is not the licensed public route."
+limitations = "Joint Gaussian structural IV with one instrument, no covariates, fixed unit outcome loading of the treatment disturbance, known unit stage variances, and an isotropic Normal prior. A 300-replicate exact-law check places the nominal 95% interval inside three Monte Carlo standard errors. The former free-loading control-function candidate is not the supported public route."
 notes = "The public staged known-truth execution, repeated-sampling interval, weak-instrument refusal and posterior lifecycle are tested in bayesian_iv_rd_staged.rs; the low-level independent RNG check is in bayesian_iv.rs."
 
 [[capabilities]]
@@ -421,7 +421,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "crates/antecedent-estimate/src/bayesian_panel_did/tests.rs"
 evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
 evidence_assertion = "panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared"
-limitations = "Normal-Inverse-Gamma posterior of the same difference in outcome changes the frequentist panel DiD row estimates, with independent units (a cluster holding more than one unit is refused). Parallel untreated trends and no anticipation stay declared; the prior supplies and the posterior tests neither. Unlicensed and uncalibrated: no coverage record covers the credible interval, and a posterior is not a calibrated result."
+limitations = "Normal-Inverse-Gamma posterior of the same difference in outcome changes the frequentist panel DiD row estimates, with independent units (a cluster holding more than one unit is refused). Parallel untreated trends and no anticipation stay declared; the prior supplies and the posterior tests neither. Unsupported and uncalibrated: no coverage record covers the credible interval, and a posterior is not a calibrated result."
 notes = "Plan id bayesian.panel_did; covers the cross-section, panel, augmented and never-treated event-study designs. Posterior values are checked against closed forms computed inside the tests."
 
 [[capabilities]]
@@ -431,7 +431,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "crates/antecedent-estimate/src/bayesian_synthetic_control/tests.rs"
 evidence_assertion = "synthetic_control_posterior_recovers_the_effect_and_records_convergence"
 evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
-limitations = "Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled by Metropolis-within-Gibbs over four chains gated by split R-hat and effective sample size. The convex-donor premise, unaffected donors and a persisting pre-period relation stay declared; a good pre-fit does not establish them for the post period. The difference-in-differences synthetic variant has no posterior. Unlicensed and uncalibrated: no coverage record covers the credible interval."
+limitations = "Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled by Metropolis-within-Gibbs over four chains gated by split R-hat and effective sample size. The convex-donor premise, unaffected donors and a persisting pre-period relation stay declared; a good pre-fit does not establish them for the post period. The difference-in-differences synthetic variant has no posterior. Unsupported and uncalibrated: no coverage record covers the credible interval."
 notes = "Plan id bayesian.synthetic_control. The weight posterior is checked against simplex quadrature computed inside the tests."
 
 [[capabilities]]
@@ -441,5 +441,5 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "crates/antecedent-estimate/src/bayesian_local_ratio/tests.rs"
 evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
 evidence_assertion = "local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak"
-limitations = "Fixed-bandwidth local-linear Gaussian posterior of the fuzzy-jump or regression-kink ratio under independent Normal coefficient priors and a plug-in residual covariance. Continuity, exclusion and, for the jump, monotone compliance stay declared. The posterior mean of a ratio of Normals does not exist, so the median is reported and the credible interval is withheld when the denominator has posterior mass near zero. Unlicensed and uncalibrated: no coverage record covers the credible interval."
+limitations = "Fixed-bandwidth local-linear Gaussian posterior of the fuzzy-jump or regression-kink ratio under independent Normal coefficient priors and a plug-in residual covariance. Continuity, exclusion and, for the jump, monotone compliance stay declared. The posterior mean of a ratio of Normals does not exist, so the median is reported and the credible interval is withheld when the denominator has posterior mass near zero. Unsupported and uncalibrated: no coverage record covers the credible interval."
 notes = "Plan ids bayesian.fuzzy_rd and bayesian.regression_kink. Draws are checked against an independent bivariate Normal ratio computed inside the tests."

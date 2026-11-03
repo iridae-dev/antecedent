@@ -337,7 +337,7 @@ impl EstimandBridge {
     }
 }
 
-/// A prior taken from an experiment, with the translation that would license it.
+/// A prior taken from an experiment, with the translation that would support it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExperimentalPrior {
     /// Stable identity of the prior.
@@ -360,7 +360,7 @@ pub struct ImportedExperimentalPrior {
     pub prior_id: String,
     /// Experiment identity.
     pub experiment_id: String,
-    /// The translation that licensed the import.
+    /// The translation that supported the import.
     pub estimand_bridge: EstimandBridge,
     /// Mapping uncertainty from the prior, unchanged.
     pub mapping_uncertainty: Option<MappingUncertainty>,
@@ -629,14 +629,14 @@ pub(super) fn sorted_assumptions(assumptions: &[BridgeAssumption]) -> Vec<Bridge
 /// Bind `map`'s image of `source` to the contract's assumptions, in identity order.
 ///
 /// # Errors
-/// The contract is not licensed ([`BridgeContract::check_licensing`]), or the
+/// The contract is not supported ([`BridgeContract::check_support`]), or the
 /// source interval or the map is not one [`support_image`] accepts.
 pub fn preserved_support(
     contract: &BridgeContract,
     map: SupportMap,
     source: ValueInterval,
 ) -> Result<PreservedSupport, BridgeRefusal> {
-    contract.check_licensing()?;
+    contract.check_support()?;
     let image = support_image(map, source)?;
     Ok(PreservedSupport {
         assumptions: sorted_assumptions(&contract.assumptions),
@@ -689,7 +689,7 @@ pub(super) fn validate_affine_joint_covariance(
 /// treated as zero.
 ///
 /// # Errors
-/// The contract is not licensed; the mapping is not affine or identity;
+/// The contract is not supported; the mapping is not affine or identity;
 /// mapping uncertainty or source dependence is missing or not well formed; the
 /// source moments are not finite and non-negative; the covariance is not
 /// feasible; the propagated mean or variance is not finite.
@@ -698,7 +698,7 @@ pub(super) fn propagate_affine(
     source_mean: f64,
     source_variance: f64,
 ) -> Result<PropagatedUncertainty, BridgeRefusal> {
-    contract.check_licensing()?;
+    contract.check_support()?;
     let (intercept, slope) = affine_coefficients(&contract.mapping)?;
     let Some(uncertainty) = contract.mapping_uncertainty.clone() else {
         return Err(mapping_uncertainty_missing());
@@ -1316,7 +1316,7 @@ pub struct ContractNonlinearPropagation {
 /// example a utility `exp(intercept + slope * source)`.
 ///
 /// # Errors
-/// The contract is not licensed; the mapping is not affine; mapping
+/// The contract is not supported; the mapping is not affine; mapping
 /// uncertainty or source dependence is missing or not feasible jointly;
 /// [`propagate_joint`] refuses.
 pub fn propagate_nonlinear(
@@ -1326,7 +1326,7 @@ pub fn propagate_nonlinear(
     g: &dyn Fn(f64, f64, f64) -> f64,
     method: PropagationMethod,
 ) -> Result<ContractNonlinearPropagation, BridgeRefusal> {
-    contract.check_licensing()?;
+    contract.check_support()?;
     let (intercept, slope) = affine_coefficients(&contract.mapping)?;
     let Some(uncertainty) = contract.mapping_uncertainty.clone() else {
         return Err(mapping_uncertainty_missing());
@@ -1499,7 +1499,7 @@ pub(super) fn validate_finite_affine_mapping(
     slopes: &[f64],
     source: &[f64],
 ) -> Result<(), BridgeRefusal> {
-    contract.check_licensing()?;
+    contract.check_support()?;
     if source.is_empty()
         || intercepts.len() != source.len()
         || slopes.len() != source.len()
@@ -1800,7 +1800,7 @@ mod tests {
                 .unwrap_err();
         refused(
             &error,
-            "bridge_mapping_not_licensed",
+            "bridge_mapping_not_supported",
             "scientific_bridge.nonlinear_mean_not_expectation",
         );
         let error = nonlinear_expectation(
@@ -1810,7 +1810,7 @@ mod tests {
         .unwrap_err();
         refused(
             &error,
-            "bridge_mapping_not_licensed",
+            "bridge_mapping_not_supported",
             "scientific_bridge.nonlinear_law_insufficient",
         );
     }
@@ -1865,7 +1865,7 @@ mod tests {
         contract.mapping_uncertainty = Some(uncertainty(0.25));
         contract.source_dependence =
             Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() });
-        let expected = contract.check_licensing().unwrap_err();
+        let expected = contract.check_support().unwrap_err();
         assert_eq!(contract.propagate_affine_uncertainty(4.0, 0.25).unwrap_err(), expected);
         assert_eq!(
             contract
@@ -1959,7 +1959,7 @@ mod tests {
         let covariance = contract.propagate_affine_uncertainty(1.0, 0.25).unwrap_err();
         refused(
             &covariance,
-            "bridge_mapping_not_licensed",
+            "bridge_mapping_not_supported",
             "scientific_bridge.dependence_not_a_covariance",
         );
         contract.mapping = BridgeMapping::TrialLevelLinear(TrialLevelValidation {

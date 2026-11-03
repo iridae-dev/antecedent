@@ -15,7 +15,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: point-only. A verifier establishes that an artifact decodes, recomputes its own identity and agrees with its neighbours on the declared binding facts; it grants no causal, interval or coverage license and re-derives no estimate beyond what the artifact's own consumer replays.",
+  "Claim policy: point-only. A verifier establishes that an artifact decodes, recomputes its own identity and agrees with its neighbours on the declared binding facts; it grants no causal, interval or coverage support and re-derives no estimate beyond what the artifact's own consumer replays.",
   "External mean decisions are point-only attested: an external claim publishes law 'mean_only' and trust 'externally_attested', upgraded to 'verified_extension' only when the artifact retains its exact-request verification receipt. A mean decision is evaluated only from the claim's finite response grid and refuses what a mean cannot answer.",
   "Joint-draw decisions retain the aligned-law requirement: only a joint distribution with aligned draws publishes the joint law, a decision whose functional needs it publishes requires_law, and the dependent node fails at unsupported_law over a mean-only or marginal-draw upstream.",
   "A verifier decodes through the artifact's own consumer but cannot retain an identity independently of the bundle: inside a bundle the retained identity is the node's declared identity, which the Merkle chain covers and the consumer's retained bundle identity anchors. A verifier refuses a node whose recomputed identity differs, and a decision result is checked against the contract and the sources upstream of it, so replacing either with a resealed, self-consistent artifact fails the dependent node.",
@@ -36,14 +36,14 @@ kind = "wrapper"
 rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks."
 no_independent_algorithm = "Dispatch and fact extraction over other records' consumers (including inspect_inverse, which re-reads an inverse-query artifact); the module has no square root, logarithm, exponential, power or solve."
 covered_by = ["composition.bundle", "decision.functional_inverse"]
-record_sha256 = "26d7f4e0b28e2224bc8dcc2774c1773a1c0d0f949bfe14c85a17eaedf8561733"
+record_sha256 = "36f5a13d2fab0f30d14c18845293716d10b3296e00f65063d58312af5ec22be4"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_verifiers.rs"
-sha256 = "0a3186359fabd4e7977b37b29c21f4aa51d5a97e536d51e5229f1ed275b48f8c"
+sha256 = "4948aca6c9e42309c22d1ed5aa0005e720eb6c7430cd12ea1f8a54276dc81fba"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/composition_verifiers.rs"
-sha256 = "8897875e0620350933cdb065c6068e15570f346a5aa815cdf0ef5e13005041c0"
+sha256 = "ab1478c7297ce342953640a84ea76306d9d996623c92eba27f84d94c35e6427a"

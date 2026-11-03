@@ -358,8 +358,8 @@ impl PyCausalState {
     /// match `PulseEffect` (`treatment_lag=1` → `pulse(-1)`).
     #[pyo3(signature = (
         treatment, outcome, *, grid, horizons=None,
-        policy=crate::temporal_license::DEFAULT_POLICY,
-        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None
+        policy=crate::temporal_support::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_support::DEFAULT_TREATMENT_LAG, max_history_lag=None
     ))]
     fn register_response_curve(
         &mut self,
@@ -383,7 +383,7 @@ impl PyCausalState {
         };
         let mut query = ResponseQuery::new(functional);
         if let Some(horizons) = horizons {
-            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let temporal_policy = crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| crate::value_err(e.to_string()))?;
             query = query.with_temporal(temporal);

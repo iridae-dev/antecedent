@@ -9,7 +9,7 @@ from antecedent.errors import CausalValueError
 from antecedent.query import temporal_response_spec as spec
 
 
-def test_python_license_is_the_native_license():
+def test_python_support_is_the_native_support():
     raw = native_spec()
     assert spec.max_horizons == raw["max_horizons"]
     assert spec.max_cells == raw["max_cells"]
@@ -19,7 +19,7 @@ def test_python_license_is_the_native_license():
     assert spec.default_policy in spec.allowed_policies
 
 
-def test_query_defaults_come_from_the_license():
+def test_query_defaults_come_from_the_support():
     assert antecedent.PulseEffect("t", "y").treatment_lag == spec.default_treatment_lag
     assert antecedent.SustainedEffect("t", "y").treatment_lag == spec.default_treatment_lag
     curve = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1])
@@ -31,7 +31,7 @@ def test_query_defaults_come_from_the_license():
 
 
 def test_policy_list_is_native_and_horizon_count_has_no_fixed_cap():
-    # The native license states no fixed horizon count: execution memory bounds materialization.
+    # The native support states no fixed horizon count: execution memory bounds materialization.
     assert spec.max_horizons == native_spec()["max_horizons"]
     with pytest.raises(CausalValueError, match=spec.allowed_policies[0]):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")

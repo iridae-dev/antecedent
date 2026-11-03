@@ -15,8 +15,8 @@ use antecedent_design::decision_reliability::{
     SelectionRule, SelectionStatus, SelectionUncertainty, SourceParadigm, SourceUncertainty,
     StandardErrorMethod, StreamId, StreamPurpose, ThresholdSide, UncertaintyReporting,
     ValidationKind, ValidationPlan, WithinStreamDependence, assess, consume, estimate,
-    estimate_difference, license_route, rank, select_in_sample, simulate_replicate,
-    simulate_selection_draws, split_draws, winners_curse_bound,
+    estimate_difference, rank, select_in_sample, simulate_replicate, simulate_selection_draws,
+    split_draws, support_route, winners_curse_bound,
 };
 use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf, standard_normal};
 
@@ -257,7 +257,7 @@ fn importance_weights_use_kish_ess_and_the_self_normalized_delta_method() {
     assert!((got.standard_error - 562.5_f64.sqrt() / 2_000.0).abs() < 1e-12);
     assert!((got.effective_sample_size - 800.0).abs() < 1e-9);
     assert_eq!(got.method, StandardErrorMethod::SelfNormalizedWeights);
-    // No weighted order-statistic or influence-function error is licensed.
+    // No weighted order-statistic or influence-function error is supported.
     for functional in
         [Functional::Quantile { p: 0.5 }, Functional::Cvar { alpha: 0.25, tail: RiskTail::Lower }]
     {
@@ -603,7 +603,7 @@ fn adaptively_generated_candidates_need_a_search_record() {
     assert_eq!(err.reason_code(), "candidate_search_record_required");
     let refusal = err.to_refusal();
     assert!(refusal.detail.starts_with("decision_reliability."));
-    assert!(refusal.remedy.is_some(), "the refusal states what would license the request");
+    assert!(refusal.remedy.is_some(), "the refusal states what would support the request");
     // Ranking alone refuses the same way.
     let err = rank(&adaptive_carrier(None), &RankingRequest::default(), &ctx()).unwrap_err();
     assert_eq!(err.reason_code(), "candidate_search_record_required");
@@ -795,13 +795,13 @@ fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
     assert_eq!(coordinate.selection_rule, "maximize_expected_utility");
     assert_eq!(report.closed_routes.len(), PublishedRoute::ALL.len());
     for route in PublishedRoute::ALL {
-        let err = license_route(route, coordinate).unwrap_err();
-        assert_eq!(err.reason_code(), "cell_not_licensed");
+        let err = support_route(route, coordinate).unwrap_err();
+        assert_eq!(err.reason_code(), "not_supported");
         let refusal = err.to_refusal();
         assert!(refusal.detail.starts_with("decision_reliability."));
         assert!(refusal.offending.unwrap().contains("candidate_set_size=2"));
     }
-    assert!(report.closed_routes.iter().all(|r| r.code == "cell_not_licensed"));
+    assert!(report.closed_routes.iter().all(|r| r.code == "not_supported"));
 }
 
 #[test]
@@ -813,7 +813,7 @@ fn measured_routes_respect_current_attestation_and_report_their_closures() {
     };
     use antecedent_io_core::coverage_records_data::RECORDS;
 
-    // These coordinates have measured records. A measured record licenses a route
+    // These coordinates have measured records. A measured record supports a route
     // only while its governing statistical surface is currently attested.
     let draws = gaussian_pair(0.5, 1000, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
@@ -838,27 +838,27 @@ fn measured_routes_respect_current_attestation_and_report_their_closures() {
             }
         }
         let should_open = slots.iter().any(|slot| slot.status == CalibrationStatus::Calibrated);
-        let result = license_route(route, &report.coordinate);
+        let result = support_route(route, &report.coordinate);
         assert_eq!(result.is_ok(), should_open, "{} attestation decision", route.as_str());
         assert_eq!(report.closed_routes.iter().any(|closed| closed.route == route), !should_open);
         if let Err(error) = result {
-            assert_eq!(error.reason_code(), "cell_not_licensed");
+            assert_eq!(error.reason_code(), "not_supported");
         }
     }
     // A different nominal level and serial dependence remain outside the records.
-    let at_ninety = antecedent_design::decision_reliability::license_route_at(
+    let at_ninety = antecedent_design::decision_reliability::support_route_at(
         PublishedRoute::RankingProbability,
         &report.coordinate,
         0.9,
     )
     .unwrap_err();
-    assert_eq!(at_ninety.reason_code(), "cell_not_licensed");
+    assert_eq!(at_ninety.reason_code(), "not_supported");
     let mut dependent = report.coordinate.clone();
     dependent.within_stream =
         antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
     assert_eq!(
-        license_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
-        "cell_not_licensed"
+        support_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
+        "not_supported"
     );
 }
 
@@ -1115,7 +1115,7 @@ fn rank_statements_on_independently_drawn_candidates_are_refused_by_the_propagat
     assert_eq!(error.reason_code(), "joint_law_required");
 
     // The mean difference of the same candidates is a linear contrast: independence of
-    // distinct streams licenses it (variances add), so the carrier still assesses.
+    // distinct streams supports it (variances add), so the carrier still assesses.
     assert!(assess(&separate, None, &ReliabilityRequest::expected_utility(), &ctx()).is_ok());
 
     // One shared simulation is an aligned joint law and ranks.

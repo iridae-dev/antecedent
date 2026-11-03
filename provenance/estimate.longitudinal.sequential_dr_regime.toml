@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "Both the sequential probabilities and the Q predictions are caller-supplied. Subject-excluded fold ownership is a caller declaration; training of Q is not verified.",
- "The pointwise normal interval is conditional on that declared Q law. It is licensed only for the two- and three-period support rows, not for longer histories.",
+ "The pointwise normal interval is conditional on that declared Q law. It is supported only for the two- and three-period support rows, not for longer histories.",
  "The g-formula route and the marginal structural model do not share this variance.",
 ]
 
@@ -32,7 +32,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Five synthetic cohorts of 50 to 80 subjects and one to four decision periods: a static regime at two periods, a regime followed by about half the subjects with action and censoring probabilities at 0.02 and 0.05 (cumulative weights near 2.5e4), a history-dependent regime, an alternating regime and an outcome offset of 1e8. Values are asserted to 1e-10 to 1e-12 relative, the IPW standard error to 1e-9, and each sequential-DR subject score to 1e-9. The pointwise interval functions apply support floors and a sample-size gate to these quantities; their coverage is measured by the module's repeated-sample tests, not here. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://mpmath.org/"]
 findings_resolved = ["No defect found: the value, the maximum weight, the observed fraction and each of the subject scores equal the telescoped form Q_0 + sum G_{t-1}(Q_t - Q_{t-1}) + G_{T-1}(Y - Q_{T-1}) evaluated in exact rationals, which is not the recursion the product runs."]
-record_sha256 = "9e7bc2ddbc622fae5d4f28224e2f6de8a15edfb53e6cbba0f4f5594e03b9d72e"
+record_sha256 = "af539b5aeed06f6816a716de51cd2eecfd0b3a68d3b89e29d6cd03382085fd70"
 
 [[method_review.artifacts]]
 role = "implementation"

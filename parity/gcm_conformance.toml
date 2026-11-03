@@ -12,7 +12,7 @@ policy_floor_downstream = "price := max(10, 0.85 * price) floors every realized 
 policy_route_agreement = "one policy means the same on sampling, counterfactual and temporal routes"
 callback_validation = "callback inputs, outputs and failures are validated and reported"
 dependency_failures = "circular, unavailable, conflicting and unsupported-history dependencies are refused before any draw"
-portability_restrictions = "a policy is licensed route by route and only a recoverable callback has a durable form"
+portability_restrictions = "a policy is supported route by route and only a recoverable callback has a durable form"
 mechanism_selection_known_truth = "nonlinear mechanism selection recovers the family that suits known truths"
 unsupported_mechanism_operation = "an operation a mechanism family lacks is refused naming both, with the others kept"
 falsification_correct = "a correct graph is not rejected"
@@ -107,16 +107,16 @@ evidence_test = "crates/antecedent-counterfactual/tests/policy_routes.rs"
 evidence_assertion = "history_the_route_cannot_supply_is_refused"
 
 [[conformance]]
-id = "portability_routes_licensed_separately"
+id = "portability_routes_supported_separately"
 clause = "portability_restrictions"
 evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
-evidence_assertion = "each_route_is_licensed_separately"
+evidence_assertion = "each_route_is_supported_separately"
 
 [[conformance]]
-id = "portability_callback_licences"
+id = "portability_callback_supports"
 clause = "portability_restrictions"
 evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
-evidence_assertion = "a_callback_is_licensed_for_simulation_and_conditionally_for_counterfactuals"
+evidence_assertion = "a_callback_is_supported_for_simulation_and_conditionally_for_counterfactuals"
 
 [[conformance]]
 id = "portability_durable_form"

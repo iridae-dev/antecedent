@@ -54,7 +54,7 @@ pub struct PolicyValueSection {
     pub propensity_max: f64,
     /// Native estimator uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless support license, when its policy row matches.
+    /// Exact graphless support, when its policy row matches.
     pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
     pub uplift_bins: Vec<UpliftBin>,
@@ -100,7 +100,7 @@ pub struct ContinuousDoseResponseSection {
     pub uncertainty: String,
     /// Kernel-smoothed policy and reference value when group-dose rules were supplied.
     pub fixed_policy: Option<DosePolicyValueSection>,
-    /// Exact graphless support license, absent for off-axis dose results.
+    /// Exact graphless support, absent for off-axis dose results.
     pub graphless_support_status: Option<String>,
 }
 

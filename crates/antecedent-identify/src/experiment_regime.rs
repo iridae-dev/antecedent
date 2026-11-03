@@ -362,7 +362,7 @@ impl fmt::Display for RegimeRefusal {
 
 /// Legal regimes and mask.
 ///
-/// This is an input license for a later recipe. It is not a coefficient
+/// This is an input support for a later recipe. It is not a coefficient
 /// recovery, and it carries no mechanism matrix.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedRegimeContract {
@@ -387,7 +387,7 @@ impl AcceptedRegimeContract {
     /// Units declared latent or passive and omitted from the accepted regimes.
     ///
     /// Empty when the contract was accepted without [`PassiveUnitDeclaration`].
-    #[must_use = "the declaration is the license to omit these units"]
+    #[must_use = "the declaration is the support to omit these units"]
     pub fn passive_units(&self) -> &[VariableId] {
         &self.passive_units
     }
@@ -432,7 +432,7 @@ pub fn validate_regime_contract(contract: &RegimeContract) -> RegimeContractDeci
     })
 }
 
-/// Judge `contract` when `passive` may license a dropped unit that is not clamped
+/// Judge `contract` when `passive` may support a dropped unit that is not clamped
 /// everywhere.
 ///
 /// A dropped unit that is not a target of every regime is refused unless

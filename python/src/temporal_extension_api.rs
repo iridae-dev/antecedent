@@ -1,6 +1,6 @@
 //! Python bindings for the temporal extensions of the finite two-step sequence:
 //! the uncertain initial state and the new-period refresh (both point
-//! only and licensed), and measured dependent intervals.
+//! only and supported), and measured dependent intervals.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
@@ -402,7 +402,7 @@ fn temporal_dependent_interval_closed(
     });
     match outcome {
         Ok(()) => Ok(refusal_json(
-            reason_code!("cell_not_licensed"),
+            reason_code!("not_supported"),
             "temporal_interval.route_frozen: the historical candidate diagnostic does not authorize inference",
         )),
         Err(IoError::Refused { code, message }) => Ok(refusal_json(code, &message)),
@@ -410,7 +410,7 @@ fn temporal_dependent_interval_closed(
     }
 }
 
-/// Internal acceptance carrier; never labels an unmeasured candidate licensed.
+/// Internal acceptance carrier; never labels an unmeasured candidate supported.
 #[cfg(feature = "calibration-internal")]
 #[pyclass]
 #[doc(hidden)]

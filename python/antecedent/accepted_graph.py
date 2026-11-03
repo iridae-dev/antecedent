@@ -518,13 +518,13 @@ def accept_discovery(
         raise CausalUnsupportedError(
             "RPCMCI labels regimes over one series' observations; a panel or "
             "multi-environment frame has no single observation sequence to label",
-            reason_code="data_modality_not_licensed",
+            reason_code="data_modality_not_supported",
         )
     if isinstance(config, JPCMCIPlus) and isinstance(data, EventFrame):
         raise CausalUnsupportedError(
             "J-PCMCI+ discovers across environments; pass a MultiEnvFrame, a PanelFrame, or "
             "a sequence of environment tables",
-            reason_code="data_modality_not_licensed",
+            reason_code="data_modality_not_supported",
         )
     if regimes is not None and not isinstance(config, RPCMCI):
         raise CausalUnsupportedError(

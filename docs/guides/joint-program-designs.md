@@ -16,7 +16,7 @@ A design result exports its observations, physical schedules, population, assump
 
 ## Update the response with an experiment
 
-An experiment measures a quantity that may not be the response's own estimand. Updating requires a declared estimand bridge (a licensed `BridgeContract` from the experiment's population, window, dose or duration to the retained contrast, with its transport premise), the mapping's uncertainty and dependence on the fitted source, and the evidence origins in an `EvidenceLedger`. The update reweights complete source and mapping draw slots of a frozen Bayesian joint law; it does not refit.
+An experiment measures a quantity that may not be the response's own estimand. Updating requires a declared estimand bridge (a supported `BridgeContract` from the experiment's population, window, dose or duration to the retained contrast, with its transport premise), the mapping's uncertainty and dependence on the fitted source, and the evidence origins in an `EvidenceLedger`. The update reweights complete source and mapping draw slots of a frozen Bayesian joint law; it does not refit.
 
 ```python
 experiment = result.condition_experiment(
@@ -47,7 +47,7 @@ An encouragement-specific local IV ratio keeps its complier target, and its unco
 
 ### Decide, then rank further studies
 
-`PanelExperiment.decide(contract, ledger)` evaluates a decision contract on the updated law. `rank_next_samples` values additional samples of the observed estimand; `rank_next_studies` values candidate studies, each optionally in its own regime (another population, window, dose, duration, exposure regime, recency or spend), described by a `PanelFutureStudy` with a `PanelFutureRegime` carrying its own licensed bridge, paired mapping and cost. The current posterior is reweighted by each study's likelihood, your terminal utility is evaluated on every whole response row, and the net value is the gain over deciding now minus the declared cost. An unlicensed, unaligned or stale regime refuses the ranking; it is never replaced by the observed estimand.
+`PanelExperiment.decide(contract, ledger)` evaluates a decision contract on the updated law. `rank_next_samples` values additional samples of the observed estimand; `rank_next_studies` values candidate studies, each optionally in its own regime (another population, window, dose, duration, exposure regime, recency or spend), described by a `PanelFutureStudy` with a `PanelFutureRegime` carrying its own supported bridge, paired mapping and cost. The current posterior is reweighted by each study's likelihood, your terminal utility is evaluated on every whole response row, and the net value is the gain over deciding now minus the declared cost. An unsupported, unaligned or stale regime refuses the ranking; it is never replaced by the observed estimand.
 
 For deterministic operational restrictions, derive the terminal action domain from the constrained decision's admissible actions before ranking, so excluded actions stay excluded in the future-data calculation. Receipts carry `admissible_action_identity`, computed from the serialized action domain (names, intercepts and coefficients), so changing an action cannot inherit another domain's identity. When one action remains, the information value is exactly zero.
 

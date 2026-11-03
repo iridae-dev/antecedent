@@ -1,7 +1,7 @@
 //! Counterfactual identification on a bounded finite-discrete ADMG: the effect
 //! of treatment on the treated from the observational joint.
 //!
-//! # What is licensed
+//! # What is supported
 //!
 //! One query shape, `P(Y_x = y | X = x')` with `x != x'` (and, through every
 //! level of `Y`, `E[Y_x | X = x'] - E[Y | X = x']`), on an explicit ADMG with
@@ -186,7 +186,7 @@ impl CounterfactualIdRefusal {
     /// A structure outside the graph contract.
     #[must_use]
     pub fn graph(message: impl Into<String>) -> Self {
-        Self::plain("cell_not_licensed", "counterfactual_id.graph_outside_contract", message.into())
+        Self::plain("not_supported", "counterfactual_id.graph_outside_contract", message.into())
     }
 
     /// An interval or Bayesian request.
@@ -343,11 +343,11 @@ impl CounterfactualIdProblem {
         bidirected.dedup();
         if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
             antecedent_graph::error::DagOperation::Identification,
-            antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+            antecedent_graph::error::CyclicNextAttempt::Unsupported {
                 consumer: "counterfactual_id",
                 attempt: "hold the directed edges as a CyclicMixedGraph; condensation names the \
                           feedback and sigma_separates answers a conditional-independence \
-                          question. This cell has no cyclic identification license",
+                          question. This cell has no cyclic identification evidence",
             },
             canonical_levels.len(),
             &directed,
@@ -776,7 +776,7 @@ pub struct CounterfactualIdSearchRecord {
     pub depth_reached: usize,
 }
 
-/// What the licensed query is.
+/// What the supported query is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CounterfactualIdShape {
     /// `P(Y_x = y | X = x')`.

@@ -42,7 +42,7 @@ def wide_table(rows: int, columns: int, seed: int) -> RecalcRequest:
 
 def direct_native_ate(request: RecalcRequest, seed: int) -> float:
     """The average effect from the native session called without the Python request layer."""
-    handle = _native.RecalcSessionHandle("licensed")
+    handle = _native.RecalcSessionHandle("supported")
     names = list(request.data)
     columns = [np.ascontiguousarray(request.data[name], dtype=np.float64) for name in names]
     result, _, refusal = require_success(

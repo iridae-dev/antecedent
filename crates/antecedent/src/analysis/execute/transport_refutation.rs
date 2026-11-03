@@ -19,7 +19,7 @@
 //!   contrast (rows, or circular blocks on one dependent series); the published value must lie
 //!   in the replicates' 95% percentile range. Failed replicates are kept as failed mass.
 //!
-//! The state executes under both inference modes and is unlicensed: its verdicts are checks, not
+//! The state executes under both inference modes and is unsupported: its verdicts are checks, not
 //! a calibration claim, and no coverage record names it.
 
 use antecedent_core::{ExecutionContext, StreamDomain};

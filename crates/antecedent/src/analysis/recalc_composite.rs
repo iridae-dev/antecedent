@@ -561,7 +561,7 @@ fn decision_bounded(contract: &DecisionContract) -> bool {
 }
 
 fn terminal_fields(request: &CompositeRequest) -> Fields {
-    // The terminal decision is identified by everything its inputs were licensed under:
+    // The terminal decision is identified by everything its inputs were supported under:
     // the contract, the support policy and input order, the native program binding, and
     // for every callback branch its provider, snapshot, program, seed, the trust
     // requirement and attestation it enters under, and its (point-only) calibration. A

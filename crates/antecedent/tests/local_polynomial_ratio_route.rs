@@ -123,7 +123,7 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_upper.unwrap() > fit.effect);
     assert_eq!(
         body.local_polynomial_ratio.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_lower = Some(2.0);
@@ -145,13 +145,13 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     .unwrap_err())
     .to_string();
     assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
-    let mut forged_license = body.clone();
-    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
-        Some("allowed_unlicensed".into());
+    let mut forged_support = body.clone();
+    forged_support.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
+        Some("not_supported".into());
     let refused = (antecedent_io::encode_analysis_result_artifact(
-        &forged_license,
+        &forged_support,
         header.variable_names,
-        "forged-license",
+        "forged-support",
     )
     .unwrap_err())
     .to_string();
@@ -180,14 +180,14 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let wire = body.local_polynomial_ratio.as_ref().unwrap();
     assert_eq!(wire.effect, fit.effect);
     assert!(wire.ci_lower.unwrap() < fit.effect && wire.ci_upper.unwrap() > fit.effect);
-    assert_eq!(wire.graphless_support_status.as_deref(), Some("licensed"));
-    let mut forged_license = body.clone();
-    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
-        Some("licensed_but_wrong".into());
+    assert_eq!(wire.graphless_support_status.as_deref(), Some("supported"));
+    let mut forged_support = body.clone();
+    forged_support.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
+        Some("supported_but_wrong".into());
     let refused = (antecedent_io::encode_analysis_result_artifact(
-        &forged_license,
+        &forged_support,
         header.variable_names.clone(),
-        "forged-kink-license",
+        "forged-kink-support",
     )
     .unwrap_err())
     .to_string();

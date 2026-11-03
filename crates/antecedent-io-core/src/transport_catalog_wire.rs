@@ -6,8 +6,8 @@ use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta,
     EvidenceKind, EvidenceProjection, EvidenceRegime, InterventionAssignment, LawOrigin,
-    LicensedWeights, QueryError, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
-    SamplingSelection, TargetSampling, VariableCoordinate, VariableDomain, VariableId,
+    QueryError, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, SamplingSelection,
+    SupportedWeights, TargetSampling, VariableCoordinate, VariableDomain, VariableId,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -165,7 +165,7 @@ pub struct RegimeBindingWire {
     pub schema_names: Vec<String>,
     /// Sampling design tag.
     pub sampling: String,
-    /// Snapshot identity licensed for weights.
+    /// Snapshot identity supported for weights.
     pub weights_snapshot: Option<String>,
     /// Dependence relationship.
     pub dependence: String,
@@ -379,14 +379,14 @@ impl EvidenceCatalogWire {
                 weights: b
                     .weights_snapshot
                     .as_deref()
-                    .map(|s| LicensedWeights { snapshot_identity: Arc::from(s) }),
+                    .map(|s| SupportedWeights { snapshot_identity: Arc::from(s) }),
             });
         }
         let target_sampling = match self.target_sampling.as_deref() {
             None => None,
             Some("supplied_population_law") => Some(TargetSampling::SuppliedPopulationLaw),
             Some("representative_sample") => Some(TargetSampling::RepresentativeSample),
-            Some("licensed_weighted_design") => Some(TargetSampling::LicensedWeightedDesign),
+            Some("supported_weighted_design") => Some(TargetSampling::SupportedWeightedDesign),
             Some("convenience_sample") => Some(TargetSampling::ConvenienceSample),
             _ => return Err(invalid()),
         };

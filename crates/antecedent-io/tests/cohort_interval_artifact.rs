@@ -105,7 +105,7 @@ fn a_native_fit_is_bound_to_its_record_or_refused_for_want_of_one() {
         }
         Err(error) => {
             let text = format!("{error:?}");
-            assert!(text.contains("cell_not_licensed"), "{text}");
+            assert!(text.contains("not_supported"), "{text}");
             assert!(text.contains("record_not_attesting"), "{text}");
         }
     }

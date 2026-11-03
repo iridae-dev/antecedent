@@ -56,7 +56,7 @@ fn scale_of(
             Err(refuse(reason_code!("route_not_supported"), mapped))
         }
         PosteriorRequest::ExternalPower => Err(refuse(reason_code!("route_not_supported"), power)),
-        PosteriorRequest::UnmeasuredBand => Err(refuse(reason_code!("cell_not_licensed"), band)),
+        PosteriorRequest::UnmeasuredBand => Err(refuse(reason_code!("not_supported"), band)),
     }
 }
 
@@ -133,7 +133,7 @@ pub fn local_quadratic_posterior(
     let (non_positive, mapped, power, band, weight) = namespace.details();
     let scale = scale_of(request, non_positive, mapped, power, band)?;
     local_quadratic_mean(dose, outcome, at, bandwidth, scale)
-        .ok_or_else(|| refuse(reason_code!("cell_not_licensed"), weight))
+        .ok_or_else(|| refuse(reason_code!("not_supported"), weight))
 }
 
 /// Which local-quadratic route is refusing.

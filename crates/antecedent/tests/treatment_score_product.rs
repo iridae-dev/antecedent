@@ -91,7 +91,7 @@ fn the_product_matches_newton_modes_and_laplace_score_moments() {
     // A nuisance product: no effect draws, and its own labels say so.
     assert!(product.draws().is_empty());
     assert!(product.result().uncertainty.contains("not_an_effect_posterior"));
-    assert_eq!(product.result().licensing, "unlicensed");
+    assert_eq!(product.result().support, "unsupported");
     assert_eq!(product.result().calibration, "unmeasured");
     // The retained request is the design of the prepared study: intercept then z.
     let ArrayFitRequestWire::PropensityPosterior(request) = product.request() else {

@@ -4,7 +4,7 @@
 single-step temporal linear effect and swaps the tempered (generalized) posterior for the
 untempered full-likelihood posterior of the same effect. The premise is declared, never inferred;
 a Ljung-Box test of the residuals can refute it. References are numpy least squares and a
-numpy Ljung-Box statistic. The route is an unlicensed estimator with calibration unmeasured.
+numpy Ljung-Box statistic. The route is an unsupported estimator with calibration unmeasured.
 """
 
 from __future__ import annotations
@@ -81,8 +81,8 @@ def test_a_declared_premise_gives_the_untempered_least_squares_posterior() -> No
     assert result.posterior is not None
     assert result.posterior.effect_mean == pytest.approx(beta, abs=3 * se / math.sqrt(DRAWS) + 2e-3)
     assert result.posterior.effect_sd / se == pytest.approx(1.0, abs=0.06)
-    # An unlicensed construction: the cell's license does not carry to it.
-    assert result.evidence_status != "licensed"
+    # An unsupported construction: the cell's support does not carry to it.
+    assert result.evidence_status != "supported"
 
 
 def test_without_the_declaration_the_tempered_posterior_keeps_its_id() -> None:

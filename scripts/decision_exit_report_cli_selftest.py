@@ -23,22 +23,22 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     retained = run("--list-tests")
-    selected = run("--promotion", "parity/promotion.toml", "--list-tests")
+    selected = run("--capability", "parity/capability_records.toml", "--list-tests")
     assert retained.returncode == selected.returncode == 0, retained.stderr + selected.stderr
     assert retained.stdout == selected.stdout
-    unknown = run("--promotion", "parity/promotion.toml", "--unrecognized")
+    unknown = run("--capability", "parity/capability_records.toml", "--unrecognized")
     assert unknown.returncode == 2 and "unrecognized arguments" in unknown.stderr
-    missing = run("--promotion")
+    missing = run("--capability")
     assert missing.returncode == 2 and "expected one argument" in missing.stderr
     with tempfile.TemporaryDirectory() as temporary:
         alternate = Path(temporary) / "different.toml"
         alternate.write_text(
-            (ROOT / "parity/promotion.toml").read_text(encoding="utf-8"),
+            (ROOT / "parity/capability_records.toml").read_text(encoding="utf-8"),
             encoding="utf-8",
             newline="\n",
         )
-        refused = run("--promotion", str(alternate))
-        assert refused.returncode == 2 and "parity/promotion.toml" in refused.stderr
+        refused = run("--capability", str(alternate))
+        assert refused.returncode == 2 and "parity/capability_records.toml" in refused.stderr
     checked = run("--self-test")
     assert checked.returncode == 0, checked.stderr
     assert "decision_exit_report self-test: ok" in checked.stdout

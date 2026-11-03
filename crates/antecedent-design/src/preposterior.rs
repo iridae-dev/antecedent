@@ -86,7 +86,7 @@ pub trait DecisionSignal<O>: Send + Sync {
 
     /// Number of observations `candidate` collects about the decision state, or
     /// `None` when the signal has no data model for this kind of candidate (the
-    /// ranker then records the candidate as unlicensed instead of scoring it).
+    /// ranker then records the candidate as unsupported instead of scoring it).
     ///
     /// The default reads the declared row counts of sampling and environment plans;
     /// override it when environment rows are not draws of this signal.

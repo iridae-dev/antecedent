@@ -8,7 +8,7 @@
 //!
 //! The premise is parallel untreated trends and no anticipation relative to the never-treated
 //! group. Pre-adoption leads are reported beside the post-adoption effects as descriptive
-//! posteriors: a lead concentrated near zero does not license parallel trends after adoption.
+//! posteriors: a lead concentrated near zero does not support parallel trends after adoption.
 //! Contrasts share their never-treated subjects, so they are dependent; each posterior here is a
 //! pointwise marginal and nothing is claimed simultaneously across the curve.
 //!

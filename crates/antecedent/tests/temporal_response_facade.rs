@@ -728,7 +728,7 @@ fn temporal_intervention_path_matches_fixture() {
         let fresh = study.run(&ctx).unwrap();
         let click = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_surface(
                 result,
                 &expected,
@@ -972,7 +972,7 @@ fn nested_sequence_refuses_end_to_end() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not licensed"),
+        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not supported"),
         "unexpected error content: {msg}"
     );
 }

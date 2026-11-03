@@ -2,7 +2,7 @@
 //! Bayesian transport, the binary nested-Markov pilot and sampled observation
 //! recovery. Each function validates its request against the pilot's scope through
 //! the Rust core and always raises: the engine's scope refusal for a request outside the
-//! pilot, otherwise `cell_not_licensed` with the route-frozen detail. Calibration is
+//! pilot, otherwise `not_supported` with the route-frozen detail. Calibration is
 //! measured only at the release cut, so no interval is published. Each backs one routed
 //! wrapper in `antecedent.transport._closed_pilots` and is reached only through it.
 use antecedent::analysis::closed_pilots::{

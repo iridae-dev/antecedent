@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Emit checked-execution citations, and fail when one does not run its retained program.
 
-A licensed cell with no citation is not a silent pass and is not a license.
+A supported cell with no citation is not a silent pass and is not support.
 A citation whose test keeps or rebuilds a builder, or never runs the retained
 program, fails this gate before any test binary starts. Gaussian compiler
 integration is covered by cited public behavioral tests, which must be executed
@@ -9,15 +9,15 @@ by the acceptance runner; emitting a citation alone does not execute its test.
 
 Checked-recipe obligations for those citations are the route and the test.
 They must match the support matrix. Identification and calibration stay on the
-license record. A closed cell stays closed. This does not weaken the retained
+support record. A closed cell stays closed. This does not weaken the retained
 program check below.
 
-Every licensed route dispatches a lowered program. The gate also fails, before
+Every supported route dispatches a lowered program. The gate also fails, before
 any test binary starts, when:
 
-* a `[[route]]` in parity/licensed_routes.toml records no `lowering`, names a
+* a `[[route]]` in parity/supported_routes.toml records no `lowering`, names a
   value that is not a registered route cell, or the record does not hold every
-  licensed route;
+  supported route;
 * a partial lowering survives under analysis/lowering or planner/lowered
   (`LoweringDepth::Generic`, `WidthSource::SchemaBound`, a `generic` lowering);
 * library code under analysis/{execute,prepared,lowering} or planner re-enters
@@ -31,7 +31,7 @@ any test binary starts, when:
   staged wrapper (`compiler_bypass_problems`).
 
 * the route set derived from the route manifest, the `route_lowerings!` registry and the
-  licensed routes (`gate_retained_routes.retained_route_problems`) has a route with no
+  supported routes (`gate_retained_routes.retained_route_problems`) has a route with no
   lowered program entry, a registered cell no sealed operation serves (its prepared
   execution is only the catch-all), a `retained_operation` that is not a sealed operation
   serving the route's cell, a reintroduced `OrdinaryDispatch`, a dispatch entry that does not require the lowered program, a compile
@@ -55,9 +55,9 @@ from gate_retained_routes import retained_route_problems
 from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
-LICENSED = ROOT / "parity" / "support_licensed.toml"
-LICENSED_ROUTES = ROOT / "parity" / "licensed_routes.toml"
-LICENSED_ROUTE_COUNT = 2696
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
+SUPPORTED_ROUTES = ROOT / "parity" / "supported_routes.toml"
+SUPPORTED_ROUTE_COUNT = 2696
 FACADE = ROOT / "crates" / "antecedent" / "src"
 REGISTRY = FACADE / "analysis" / "lowering" / "registry.rs"
 LOWERING_SOURCES = (
@@ -100,7 +100,7 @@ def execution_reentry_problems(body: str, assertion: str) -> list[str]:
 
     Only the block that discards the builder is inspected, and only a `Study`
     constructor counts. A later refusal or a second coordinate in that same
-    block is still a re-entry: the licensed execution was supposed to be over.
+    block is still a re-entry: the supported execution was supposed to be over.
     """
     # Closures concatenate helpers as separate top-level blocks. Scan each.
     depth = 0
@@ -161,21 +161,21 @@ def route_cell_names() -> set[str]:
 
 
 def lowering_record_problems() -> list[str]:
-    """Every licensed route names the registered cell its lowered program was compiled for."""
+    """Every supported route names the registered cell its lowered program was compiled for."""
     names = route_cell_names()
     if not names:
         return [f"{REGISTRY.relative_to(ROOT)}: no route cells found"]
-    routes = tomllib.loads(LICENSED_ROUTES.read_text(encoding="utf-8")).get("route", [])
+    routes = tomllib.loads(SUPPORTED_ROUTES.read_text(encoding="utf-8")).get("route", [])
     problems = []
-    if len(routes) != LICENSED_ROUTE_COUNT:
+    if len(routes) != SUPPORTED_ROUTE_COUNT:
         problems.append(
-            f"licensed_routes.toml holds {len(routes)} routes, expected {LICENSED_ROUTE_COUNT}"
+            f"supported_routes.toml holds {len(routes)} routes, expected {SUPPORTED_ROUTE_COUNT}"
         )
     for route in routes:
         coordinate = route.get("coordinate", "<no coordinate>")
         lowering = route.get("lowering")
         if not isinstance(lowering, str) or not lowering.strip():
-            problems.append(f"{coordinate}: licensed route records no lowering")
+            problems.append(f"{coordinate}: supported route records no lowering")
         elif lowering not in names:
             problems.append(f"{coordinate}: lowering {lowering!r} is not a registered route cell")
     return problems
@@ -474,12 +474,12 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
     entries = cell.get("checked_execution")
     if not isinstance(estimators, list) or not estimators:
         return [
-            f"{label}: licensed cell has no estimators, so it is not a checked-execution license"
+            f"{label}: supported cell has no estimators, so it has no checked-execution support"
         ]
     if not isinstance(entries, list) or not entries:
         return [
             f"{label}: no retained-execution citation; an unlanded route is not a silent pass "
-            "and is not a license"
+            "and is not support"
         ]
     problems: list[str] = []
     named: list[str] = []
@@ -507,7 +507,7 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
     if set(named) != set(estimators):
         problems.append(
             f"{label}: checked_execution estimators {sorted(set(named))} != "
-            f"licensed estimators {sorted(set(estimators))}"
+            f"supported estimators {sorted(set(estimators))}"
         )
     return problems
 
@@ -515,7 +515,7 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
 def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit(f"usage: {sys.argv[0]} EVIDENCE_OUT SHARD")
-    cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
+    cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
     cache: dict = {}
     failures: list[str] = []
     rows = []
@@ -543,7 +543,7 @@ def main() -> None:
     if failures or alignment or compiler:
         if failures:
             print(
-                f"FAIL: checked execution: {len(failures)} licensed route(s) bypass the retained plan",
+                f"FAIL: checked execution: {len(failures)} supported route(s) bypass the retained plan",
                 flush=True,
             )
             for failure in failures:
@@ -565,7 +565,7 @@ def main() -> None:
                 print(f"FAIL: {failure}", flush=True)
         raise SystemExit(1)
     if not rows:
-        raise SystemExit("FAIL: support_licensed.toml has no checked-execution citations")
+        raise SystemExit("FAIL: support_cells.toml has no checked-execution citations")
     # Public behavioral assertions replace function-name checks of a parallel demonstration.
     gaussian_tests = "crates/antecedent/src/analysis/execute/prepared_gaussian_tests.rs"
     rows.extend(
@@ -665,14 +665,14 @@ def main() -> None:
             "every_association_counterpart_retains_its_own_operation_and_executes_its_program",
         )
     )
-    # Every licensed route dispatches the lowered program compile attached.
+    # Every supported route dispatches the lowered program compile attached.
     lowered_dispatch = "crates/antecedent/tests/lowered_dispatch.rs"
     rows.extend(
         [
             (
-                "compiler_path_licensed_routes",
-                "crates/antecedent/tests/licensed_compiler.rs",
-                "every_licensed_cell_completes_the_compiler_path",
+                "compiler_path_supported_routes",
+                "crates/antecedent/tests/supported_compiler.rs",
+                "every_supported_cell_completes_the_compiler_path",
             ),
             (
                 "lowered_dispatch_refuses_unlowered_plan",
@@ -697,7 +697,7 @@ def main() -> None:
             (
                 "lowering_registry_coverage",
                 "crates/antecedent/src/analysis/lowering/tests.rs",
-                "every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells",
+                "every_registered_cell_lowers_completely_and_the_supported_routes_name_registered_cells",
             ),
         ]
     )
@@ -729,7 +729,7 @@ def main() -> None:
             out.write(f"evidence_test = {json.dumps(path)}\n")
             out.write(f"evidence_assertion = {json.dumps(assertion)}\n\n")
     print(
-        f"checked execution: {len(cells)} licensed cells, {len(rows)} estimator citations",
+        f"checked execution: {len(cells)} supported cells, {len(rows)} estimator citations",
         flush=True,
     )
 

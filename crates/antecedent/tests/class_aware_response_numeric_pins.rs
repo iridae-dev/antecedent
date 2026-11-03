@@ -1,4 +1,4 @@
-//! Numeric pins for licensed Cpdag/Pag response cells.
+//! Numeric pins for supported Cpdag/Pag response cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -348,7 +348,7 @@ fn class_aware_intervention_pins_against_ate_envelope() {
                 .unwrap();
             assert_eq!(
                 env.identified_weight.0, 0.0,
-                "invisible causal edges cannot license response adjustment"
+                "invisible causal edges cannot support response adjustment"
             );
             assert_eq!(env.unidentified_weight.0, env.cases.len() as f64);
             continue;
@@ -425,7 +425,7 @@ fn class_aware_curve_regression_pins_on_continuous_t() {
                 .unwrap();
             assert_eq!(
                 env.identified_weight.0, 0.0,
-                "invisible causal edges cannot license response adjustment"
+                "invisible causal edges cannot support response adjustment"
             );
             assert_eq!(env.unidentified_weight.0, env.cases.len() as f64);
             continue;
@@ -629,7 +629,7 @@ fn class_aware_bayesian_curve_pins_against_ate_envelope() {
         assert_eq!(cached_count(&click), 1);
         assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("response.bayesian"));
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_eq!(format!("{:?}", result.identification.status), "PartiallyIdentified");
             assert_envelope_diagnostic(result, section, "cpdag");
             assert!(

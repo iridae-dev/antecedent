@@ -1,9 +1,9 @@
-//! Semantic contract for measurement models: what a model licenses, for
+//! Semantic contract for measurement models: what a model supports, for
 //! which population, regime, arm and representation, and what stays refused.
 //!
 //! The numerical correction is elsewhere; this module decides whether a
 //! request *may* use a [`MeasurementModel`] at all, and says which request it
-//! refused and what declaration or evidence would license it. Refusals are
+//! refused and what declaration or evidence would support it. Refusals are
 //! [`ExternalRefusal`]s under the `measurement_model` detail namespace, each
 //! with a registered reason code.
 //!
@@ -91,7 +91,7 @@ pub struct MeasurementRouteCard {
     pub assumptions: &'static [&'static str],
     /// Downstream operations the route may enter.
     pub allowed: &'static [MeasurementOperation],
-    /// Operations that stay refused, with what would license each.
+    /// Operations that stay refused, with what would support each.
     pub refused: &'static [(MeasurementOperation, &'static str)],
 }
 
@@ -366,7 +366,7 @@ pub struct MeasurementRequest<'a> {
 /// proxy offered as the construct; a different population, regime or arm; a
 /// representation change without an explicit mapping; a non-differential
 /// analysis of a differential model (or the reverse); an operation the route
-/// does not license.
+/// does not support.
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
@@ -567,9 +567,9 @@ fn check_operation(
         .find(|(refused, _)| *refused == operation)
         .map_or("not an operation this route enters", |(_, why)| *why);
     Err(ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         STAGE_BIND,
-        "measurement_model.operation_not_licensed",
+        "measurement_model.operation_not_supported",
     )
     .with_offending(operation.as_str())
     .with_supplied(route.as_str())
@@ -611,12 +611,12 @@ pub struct MeasurementInterfaceBasis {
 /// indicator and construct identities, and the model's population and regime
 /// for both ends. Those refuse under the `measurement_model.*` details that
 /// [`check_measurement_request`] uses. An interval offered by a route that
-/// does not license one refuses as `measurement_model.operation_not_licensed`.
+/// does not support one refuses as `measurement_model.operation_not_supported`.
 ///
 /// # Errors
 /// A malformed model, a quantity that is not the model's indicator or
 /// construct, a population or regime other than the model's binding, or an
-/// operation the route does not license.
+/// operation the route does not support.
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
@@ -741,7 +741,7 @@ impl LatentPosteriorTrust {
 /// Check that an external posterior object may supply a model's latent
 /// variable, and report how far it is trusted.
 ///
-/// Native licensing is never held by a provider: a state that claims it, and
+/// Native support is never held by a provider: a state that claims it, and
 /// a posterior whose identity, kind, coordinates or draw operation differ
 /// from what the model names, refuse.
 ///
@@ -820,9 +820,9 @@ pub fn check_latent_posterior(
             ));
     }
     match trust {
-        ExternalTrustState::NativeLicensed => {
+        ExternalTrustState::NativeSupported => {
             Err(posterior_refusal("measurement_model.posterior_native_trust")
-                .with_remedy("a provider object is never natively licensed; attest or verify it"))
+                .with_remedy("a provider object is never natively supported; attest or verify it"))
         }
         ExternalTrustState::ExternallyAttested { .. } => {
             Ok(LatentPosteriorTrust::ExternallyAttested)
@@ -1094,7 +1094,7 @@ mod tests {
     }
 
     #[test]
-    fn operations_outside_the_route_are_refused_with_what_would_license_them() {
+    fn operations_outside_the_route_are_refused_with_what_would_support_them() {
         let r = rep(1);
         for operation in [
             MeasurementOperation::Interval,
@@ -1105,8 +1105,8 @@ mod tests {
             let mut req = request(&r);
             req.operation = operation;
             let refusal = check_measurement_request(&model(), &req, None).unwrap_err();
-            assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
-            assert_eq!(refusal.code, "cell_not_licensed");
+            assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
+            assert_eq!(refusal.code, "not_supported");
             assert!(refusal.remedy.is_some());
         }
         for route in MeasurementRoute::ALL {

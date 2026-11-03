@@ -119,7 +119,7 @@ fn the_parts_are_disjoint_cover_the_table_and_discovery_sees_only_its_part() {
 }
 
 #[test]
-fn only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_licenses() {
+fn only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_supports() {
     let data = table(2);
     let split = discover_on_split(&contract(), &data, rule(6), &ctx()).unwrap();
     let binding = split.check_analysis_table(split.analysis_rows()).unwrap();
@@ -323,8 +323,8 @@ fn reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap() {
     let data = table(7);
     let split = discover_on_split(&contract(), &data, rule(9), &ctx()).unwrap();
     let error = split.request_unsplit_interval().unwrap_err();
-    assert_eq!(error.code(), Some("cell_not_licensed"));
-    assert_eq!(error.detail(), Some("selective_discovery.downstream_interval_not_licensed"));
+    assert_eq!(error.code(), Some("not_supported"));
+    assert_eq!(error.detail(), Some("selective_discovery.downstream_interval_not_supported"));
 
     let snapshot = b"split-snapshot-1";
     let (discovery, analysis) = split_evidence_sources(split.receipt(), snapshot).unwrap();

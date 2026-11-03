@@ -3,7 +3,7 @@
 **Suite path:** `conformance/bayesian/static_response_prior_transfer`
 
 Response-specific coefficient mappings (dose / intervention coordinate to
-outcome-regression coefficients) ride licensed Bayesian `ResponseCurve` and
+outcome-regression coefficients) ride supported Bayesian `ResponseCurve` and
 `InterventionResponse` on explicit Dag and Cpdag/Pag class envelopes.
 
 A catalog without a declared mapping is refused. Incompatible catalogs must

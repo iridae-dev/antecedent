@@ -151,7 +151,7 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
     section = _association(outcome)
     assert section.refused_after == "effect_not_identified"
     assert section.ranks_actions is False and section.is_intervention_effect is False
-    assert section.licensed is False and section.calibration == "unmeasured"
+    assert section.supported is False and section.calibration == "unmeasured"
     # The report lists the intercept and the treatment; the held-fixed parent is a nuisance
     # column adjusted arithmetically and not reported. The treatment coefficient (about 2.0,
     # against about 2.8 unadjusted) shows the parent was held fixed.

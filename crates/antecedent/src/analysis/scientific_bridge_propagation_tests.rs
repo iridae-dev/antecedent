@@ -247,7 +247,7 @@ fn derive(
 ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
     let envelope = claim(value);
     let source = BridgeSource { claim: &envelope, quantity: &contract.source.quantity };
-    PreparedScientificBridge::prepare(contract.clone()).expect("licensed").derive_propagating(
+    PreparedScientificBridge::prepare(contract.clone()).expect("supported").derive_propagating(
         &source,
         standard_error,
         nonlinear,
@@ -277,10 +277,10 @@ fn an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value() {
         components.iter().any(|(_, target, omitted)| !omitted && target == "source_standard_error")
     );
     let unscoped = result.interval().unwrap_err();
-    assert_eq!(unscoped.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(unscoped.detail, "scientific_bridge.interval_not_supported");
     // An affine map with declared uncertainty is no exact transform of the source interval.
     let scoped = result.bridged_interval(0.95).unwrap_err();
-    assert_eq!(scoped.code, "cell_not_licensed");
+    assert_eq!(scoped.code, "not_supported");
     assert_eq!(scoped.detail, "scientific_bridge.interval_scope_outside_measured");
 }
 
@@ -291,7 +291,7 @@ fn a_declared_dependence_on_the_mapping_is_refused_an_interval_on_every_route() 
     let contract = affine_contract(Some(dependence));
     let result = derive(&contract, 0.5, Some(0.05), None).unwrap();
     let refused = result.bridged_interval(0.95).unwrap_err();
-    assert_eq!(refused.code, "cell_not_licensed");
+    assert_eq!(refused.code, "not_supported");
     assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
     let direct = antecedent_io::bridge_interval::construct_bridged_claim_interval(
         result.bridged(),

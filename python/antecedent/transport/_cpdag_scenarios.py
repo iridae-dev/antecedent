@@ -114,9 +114,9 @@ def _unpack(pair: tuple[Any, str | None], refusal: type[TransportScenarioRefusal
 def _aggregate_refusal(refusal: type[TransportScenarioRefusal]) -> TransportScenarioRefusal:
     return refusal(
         {
-            "code": "scenario_aggregate_not_licensed",
+            "code": "scenario_aggregate_not_supported",
             "detail": "scenarios.shared_data_aggregate",
-            "message": "only per-scenario results are licensed; no aggregate interval exists",
+            "message": "only per-scenario results are supported; no aggregate interval exists",
         }
     )
 
@@ -321,7 +321,7 @@ class CpdagScenarioResult(ScientificResult):
         raise CausalValueError(f"no completion {completion_id!r} in this result")
 
     def aggregate_interval(self) -> None:
-        """Inference across completions that share data is not licensed; always refuses."""
+        """Inference across completions that share data is not supported; always refuses."""
         raise _aggregate_refusal(CpdagScenarioRefusal)
 
     @artifact_export

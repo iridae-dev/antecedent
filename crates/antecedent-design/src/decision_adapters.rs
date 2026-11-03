@@ -133,7 +133,7 @@ pub enum AdapterError {
     /// An identified set carries no probability law to weight by.
     BayesOverIdentifiedSet,
     /// The criterion needs a distribution an identified set does not supply.
-    CriterionNotLicensedForSet,
+    CriterionNotSupportedForSet,
     /// The contract or its rules are invalid.
     Admissibility(AdmissibilityError),
     /// The robustness assessment refused.
@@ -190,8 +190,8 @@ impl AdapterError {
                     )
                     .build()
             }
-            Self::CriterionNotLicensedForSet => {
-                build(unsatisfied, "decision_adapters.criterion_not_licensed_for_set")
+            Self::CriterionNotSupportedForSet => {
+                build(unsatisfied, "decision_adapters.criterion_not_supported_for_set")
                     .remedy(
                         "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
                     )
@@ -709,7 +709,7 @@ pub fn evaluate_identified_sets(
             | DecisionCriterion::Quantile { .. }
             | DecisionCriterion::ExpectedRegret
     ) {
-        return Err(AdapterError::CriterionNotLicensedForSet);
+        return Err(AdapterError::CriterionNotSupportedForSet);
     }
     let aggregator = StructureAggregator::new(base.criterion, base.structural_policy);
     if aggregator.kind() == AggregateKind::Bayes {

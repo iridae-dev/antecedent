@@ -68,9 +68,9 @@ These installed-Python public routes cross explicit/accepted graph classes,
 inference and validation modes; test derivative, observation and likelihood
 boundaries; distinguish structural disagreement from unidentified mass; and
 verify artifact disclosures and integrity. Every positive cell must report the
-exact expected execution coordinate. The report lists untested licensed cells;
+exact expected execution coordinate. The report lists untested supported cells;
 it is not a claim of exhaustive matrix execution or interval calibration.
-The second suite has its own frozen inventory, public-license snapshot,
+The second suite has its own frozen inventory, public-support snapshot,
 leftover ledger, per-case subprocess isolation, and acceptance accounting tests.
 Keep candidate-specific measurements in the sibling repository's reports, bound
 to the commit and wheel they actually tested.

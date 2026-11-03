@@ -142,7 +142,7 @@ result.estimate.estimator_id, result.posterior.effect_mean, result.posterior.eff
 
 The default estimator, `bayesian.randomized_finite_population`, answers the same target as the design-based row: the trial's own units. Select `estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION` to ask about the arm means of the sampled population instead; the two have different posterior spreads for the same data, so the diagnostics name which one ran (`estimand=finite_population` or `estimand=superpopulation`). With more than two arms the result reports each action against the reference arm.
 
-A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its dependence (`"independent"`, `"compound_symmetric"` or `"autoregressive"`, the last two with `rho`). Unrestricted carryover and unspecified dependence are refused with `cell_not_licensed`, and the refusal names the next attempt. A Bayesian result executes without upgrading the claim: `result.evidence_status` is not `"licensed"` and its calibration is read on `result.inspect().calibration`.
+A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its dependence (`"independent"`, `"compound_symmetric"` or `"autoregressive"`, the last two with `rho`). Unrestricted carryover and unspecified dependence are refused with `not_supported`, and the refusal names the next attempt. A Bayesian result executes without upgrading the claim: `result.evidence_status` is not `"supported"` and its calibration is read on `result.inspect().calibration`.
 
 ## Variants
 

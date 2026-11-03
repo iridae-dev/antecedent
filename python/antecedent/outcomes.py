@@ -229,7 +229,7 @@ def is_scientific_refusal(error: BaseException) -> bool:
         and getattr(error, "reason_code", None)
         in {
             "effect_not_identified",
-            "cell_not_licensed",
+            "not_supported",
             "route_not_supported",
             "row_weights_bound_to_snapshot",
             "treatment_level_undeclared",
@@ -240,7 +240,7 @@ def is_scientific_refusal(error: BaseException) -> bool:
             "policy_directive_conflict",
             "policy_output_type_invalid",
             "policy_history_unavailable",
-            "policy_route_not_licensed",
+            "policy_route_not_supported",
             "adaptive_policy_unobserved_feature",
             "adaptive_policy_identification_unsupported",
             "adaptive_policy_heldout_unsupported",
@@ -437,7 +437,7 @@ class Outcome(Generic[T]):
         return law() if callable(law) else law
 
     def as_mean_source(self, **coordinates: Any) -> Outcome[Any]:
-        """Adapt the actual producer, preserving its native quantity and license checks."""
+        """Adapt the actual producer, preserving its native quantity and support checks."""
         from .results.sources import adapt_mean_source
 
         return capture_outcome(adapt_mean_source, self, **coordinates)

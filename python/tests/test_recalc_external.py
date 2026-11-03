@@ -102,9 +102,9 @@ def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attem
         "provider_request.0",
     )
     assert len(calls) == 1 and session.is_live
-    unknown, unlicensed, unknown_calls = fixture("unknown")
+    unknown, unsupported, unknown_calls = fixture("unknown")
     with pytest.raises(ExternalCallbackRefusal) as error:
-        require_success(ExternalCallbackSession().execute(unknown, provider=unlicensed))
+        require_success(ExternalCallbackSession().execute(unknown, provider=unsupported))
     assert error.value.detail == "external_recalc.policy_unsupported"
     assert error.value.reason_code == "route_not_supported" and unknown_calls == []
     bad = CallbackProvider(

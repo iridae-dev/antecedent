@@ -18,10 +18,10 @@ citation = [
   "Dehejia, R. H. and Wahba, S. (1999). Causal Effects in Nonexperimental Studies: Reevaluating the Evaluation of Training Programs. Journal of the American Statistical Association 94(448), 1053-1062.",
   "Dehejia, R. H. and Wahba, S. (2002). Propensity Score-Matching Methods for Nonexperimental Causal Studies. Review of Economics and Statistics 84(1), 151-161.",
 ]
-# The origin page states no licence. It records that Robert Lalonde allowed the
+# The origin page states no support. It records that Robert Lalonde allowed the
 # authors to use the data. Redistribution terms are therefore unstated, and no
 # copy is shipped in this repository.
-licence = "not stated by the publisher"
+support = "not stated by the publisher"
 licence_note = "The origin page credits LaLonde's permission to use the data and states no licence. Antecedent fetches the files from the publisher on request and does not redistribute them."
 version = "files as served by the publisher; the SHA-256 values below identify the exact bytes this example was written against"
 retrieved = "2026-10-27"

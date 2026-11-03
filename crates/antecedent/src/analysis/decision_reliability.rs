@@ -20,7 +20,7 @@
 //! the supplied law over the candidate set as supplied; they refuse adaptively
 //! generated candidates without a [`CandidateSearchRecord`]. Publishing any ranking
 //! probability or interval ([`PreparedDecisionReliability::publish`]) refuses with
-//! `cell_not_licensed` until a coverage record measures it at its coordinate
+//! `not_supported` until a coverage record measures it at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule).
 //!
 //! # Lifecycle
@@ -53,20 +53,20 @@ pub use super::design_exports::design_crate::decision_reliability::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
-    ReliabilityError, assess, consume, coverage_design, derive_uncertainty, license_route,
-    reach_carrier,
+    ReliabilityError, assess, consume, coverage_design, derive_uncertainty, reach_carrier,
+    support_route,
 };
 use antecedent_io::IoError;
 
 /// One refusal as plain data: registered reason code, namespaced
-/// `decision_reliability.*` detail and the explanation of what would license the request.
+/// `decision_reliability.*` detail and the explanation of what would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionReliabilityRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `decision_reliability.<rule>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
     /// What the caller can change to proceed, when the refusal names it.
     pub remedy: Option<&'static str>,
@@ -206,10 +206,10 @@ impl PreparedDecisionReliability {
     /// claim at this assessment's coordinate.
     ///
     /// # Errors
-    /// `cell_not_licensed` until a coverage record measures the route at the
+    /// `not_supported` until a coverage record measures the route at the
     /// coordinate; the diagnostics in [`Self::report`] remain available.
     pub fn publish(&self, route: PublishedRoute) -> Result<(), DecisionReliabilityRefusal> {
-        license_route(route, &self.artifact.report.coordinate)
+        support_route(route, &self.artifact.report.coordinate)
             .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
     }
 
@@ -385,7 +385,7 @@ pub fn reach_decision_carrier(
 /// Ask to publish a route from a derivation.
 ///
 /// # Errors
-/// `cell_not_licensed` until a coverage record measures the route at the derivation's
+/// `not_supported` until a coverage record measures the route at the derivation's
 /// coordinate.
 pub fn publish_derived_route(
     derived: &DerivedUncertainty,

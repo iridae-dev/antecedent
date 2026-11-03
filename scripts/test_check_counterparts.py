@@ -19,7 +19,7 @@ def rows_for(**overrides: dict) -> list[dict]:
         "route": "r",
         "uncertainty": "analytic",
         "closure": "delivered",
-        "status": "licensed",
+        "status": "supported",
         "reason": "",
         "next_attempt": "",
         "sampling_design": "x",
@@ -121,16 +121,16 @@ class GeneratorChecks(unittest.TestCase):
         )
         child = {"gap": "none", "missing": "none", "module": "m"}
         self.assertEqual(
-            gen.child_status(child, [{"status": "licensed"}], True), ("licensed", "delivered")
+            gen.child_status(child, [{"status": "supported"}], True), ("supported", "delivered")
         )
         self.assertEqual(
             gen.child_status(child, [{"status": "execution_only"}], True),
-            ("executing_unlicensed", "delivered"),
+            ("not_supported", "delivered"),
         )
 
     def test_a_child_executes_only_on_a_method_record_or_a_verified_module(self) -> None:
         child = {"gap": "none", "missing": "none", "module": "crates/c/src/m.rs"}
-        self.assertEqual(gen.child_status(child, [], True), ("executing_unlicensed", "delivered"))
+        self.assertEqual(gen.child_status(child, [], True), ("not_supported", "delivered"))
         self.assertEqual(
             gen.child_status(child, [], False), ("closed_with_next_attempt", "narrowed_promise")
         )
@@ -140,8 +140,8 @@ class GeneratorChecks(unittest.TestCase):
             "module": "crates/c/src/m.rs",
         }
         self.assertEqual(
-            gen.child_status(narrowed, [{"status": "licensed"}], True),
-            ("licensed", "narrowed_promise"),
+            gen.child_status(narrowed, [{"status": "supported"}], True),
+            ("supported", "narrowed_promise"),
         )
 
     def test_uncertainty_comes_from_the_best_method_record(self) -> None:
@@ -155,7 +155,7 @@ class GeneratorChecks(unittest.TestCase):
                     "inference": "frequentist",
                     "uncertainty": "none",
                     "uncertainty_basis": "point_only_cell|x",
-                    "status": "licensed",
+                    "status": "supported",
                 },
                 {
                     "id": "b",
@@ -165,7 +165,7 @@ class GeneratorChecks(unittest.TestCase):
                     "inference": "frequentist",
                     "uncertainty": "analytic",
                     "uncertainty_basis": "measured_record|y",
-                    "status": "licensed",
+                    "status": "supported",
                 },
                 {
                     "id": "c",
@@ -175,7 +175,7 @@ class GeneratorChecks(unittest.TestCase):
                     "inference": "bayesian",
                     "uncertainty": "posterior",
                     "uncertainty_basis": "asserted_in_test|z",
-                    "status": "licensed",
+                    "status": "supported",
                 },
             ]
         }

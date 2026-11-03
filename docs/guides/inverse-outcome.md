@@ -3,7 +3,7 @@
 `antecedent.inverse.inverse_outcome` asks the forward question backwards over a list
 you enumerate: *which of these interventions reach a target mean?* The answer is a point classification of each action you list; nothing outside the list is excluded. The goal is
 `E[Y^do(a)] >= threshold` (or `<=`) for the outcome, population and horizon of an
-existing, licensed forward response route. The claim is `point_only`.
+existing, supported forward response route. The claim is `point_only`.
 
 ```python
 import antecedent as ant
@@ -29,8 +29,8 @@ report.action("dose_1.0").status, report.action("dose_1.0").margin
 
 The forward response is never re-estimated here. Run the existing route on a grid that
 contains every action's point; the inverse query classifies each action against what that
-route published. An `allowed_unlicensed` compatibility result cannot license this inverse
-claim and is refused.
+route published. A forward result whose support status is `not_supported` cannot support
+this inverse claim and is refused.
 
 ## Three kinds of answer
 
@@ -39,7 +39,7 @@ claim and is refused.
    forward estimate, margin to the threshold, support label and the forward response's
    assumptions.
 2. **Observational scenarios compatible with an outcome**. Closed:
-   `ObservationalScenarios()` refuses with `cell_not_licensed`
+   `ObservationalScenarios()` refuses with `not_supported`
    (`inverse.observational_scenarios`). `P(X | Y)` or a nearest-feature change is not an
    action, and nothing here recommends one.
 3. **Missing evidence and study options**. Not computed here. Pass the study planner's plan
@@ -110,12 +110,12 @@ retain one time coordinate.
 
 | Reason code | Detail | When |
 | --- | --- | --- |
-| `cell_not_licensed` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
-| `cell_not_licensed` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate functional inverse query (`antecedent.inverse_query`, see [decision routes](../decisions.md#routes-at-a-glance)) requires a source supplying the requested functional |
-| `cell_not_licensed` | `inverse.observational_scenarios` | `ObservationalScenarios` |
+| `not_supported` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
+| `not_supported` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate functional inverse query (`antecedent.inverse_query`, see [decision routes](../decisions.md#routes-at-a-glance)) requires a source supplying the requested functional |
+| `not_supported` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
 | `route_not_supported` | `inverse.forward_not_point_identified` | the forward response is an identified set, a class mixture or unidentified |
-| `cell_not_licensed` | `inverse.forward_not_licensed` | the forward result is marked `allowed_unlicensed` for compatibility |
+| `not_supported` | `inverse.forward_not_supported` | the forward result is not supported |
 | `invalid_argument` | `inverse.invalid_target`, `inverse.invalid_action`, `inverse.invalid_forward` | a non-finite threshold, negative tolerance or budget; an empty grid, duplicate label, wrong-dimension point, bad cost or constraint name; a repeated forward point or malformed interval |
 | `transport_budget_cancel` | `inverse.cancelled` | cancelled mid-enumeration; never a verdict |
 
@@ -154,7 +154,7 @@ supply a law the engine can integrate.
 ### Transported acceptance
 
 A transported response is labelled at best extrapolative. A consumer that does
-not accept a transported input refuses it with one code, `cell_not_licensed`,
+not accept a transported input refuses it with one code, `not_supported`,
 whichever source carried it: an inverse query reading a cohort, composed or
 response source under the native-target-only policy
 (`inverse_forward_source.transported_not_accepted`), and a decision under the
@@ -208,8 +208,8 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | --- | --- | --- |
 | Quantile, probability or nonlinear utility on a point source | `PointOnlyLawRequested` / `decision_contract_unsatisfied` | Supply a law (draws or a finite table) |
 | Quantile or probability on a Gaussian composition | `ComposedLawNotMaterialized` | Draw the intervened law |
-| Interval region from any source | `IntervalNotLicensed` / `cell_not_licensed` | Use the point as labelled |
-| Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `cell_not_licensed` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
+| Interval region from any source | `IntervalNotSupported` / `not_supported` | Use the point as labelled |
+| Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `not_supported` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
 | Support rule stronger than the transported label | `transport_support_failure` (`transported_decision.support_rule_unmet`) | Weaken the rule for this input or measure in the target |
 | Typed route through the declared constructor, or a hand-typed identity | `transported_decision.route_needs_typed_source`, `transport_identity_not_digest` | Use the typed constructor of the route |
 | Native or calibrated label on a transported value | `transport_not_certified` | Keep the transport label |

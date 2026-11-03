@@ -111,7 +111,7 @@ fn native_and_transported_claims_pool_with_the_transport_variance_counted_once()
     // Each observation once: 100 native rows plus 100 rows behind the claim.
     assert_eq!(out.mass.distinct_observations, 200);
     assert_eq!(out.mass.repeated_slots, 0);
-    // A point and a model variance; the ledger licenses nothing further.
+    // A point and a model variance; the ledger supports nothing further.
     assert_eq!(out.claim_class, ClaimClass::PointOnly);
     let record = ledger.result(out.result).unwrap();
     assert_eq!(record.transport_identities, vec![transport(1).digest()]);

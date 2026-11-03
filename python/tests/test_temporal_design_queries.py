@@ -3,7 +3,7 @@
 The query dataclasses name columns of one unit-period table. The result is
 ``result.temporal_design``: it must equal the standalone
 :func:`antecedent.temporal_designs.estimate_temporal_design` result on the same data, carry a
-structured unlicensed answer, and read back equal from ``load(result.export())``. Regime
+structured unsupported answer, and read back equal from ``load(result.export())``. Regime
 survival reports its whole-procedure bootstrap standard error (frequentist) or posterior
 standard deviation (Bayesian). Coverage is not measured here.
 """
@@ -93,7 +93,7 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
     assert _same(design.standard_error, standalone.standard_error)
     assert _same(design.lower, standalone.lower)
     assert _same(design.upper, standalone.upper)
-    assert not design.licensed and design.calibration == "unmeasured"
+    assert not design.supported and design.calibration == "unmeasured"
     assert (design.draws is not None) is bayesian
     # Equal to the standalone module is not enough: the data are y = level + 1.2 a_{t-1} + noise,
     # so the lag-1 excursion effect is 1.2 and the arm means differ by it.
@@ -105,11 +105,11 @@ def test_the_answer_is_structured_and_reads_back_equal() -> None:
     result = require_success(antecedent.analyze(_two_arm_table(), query=_two_arm_query()))
     answer = result.answer
     assert answer.kind == "structured"
-    assert answer.detail is not None and answer.detail.startswith("unlicensed_temporal_design_")
+    assert answer.detail is not None and answer.detail.startswith("unsupported_temporal_design_")
     structured = answer.structured
     assert structured is not None
     assert structured["design"] == "two_arm"
-    assert structured["licensed"] is False and structured["calibration"] == "unmeasured"
+    assert structured["supported"] is False and structured["calibration"] == "unmeasured"
     assert structured["estimate"][0] == result.temporal_design.estimate[0]
     assert "two_arm temporal design" in result.claim()
     artifact = bytes(result.export())
@@ -258,7 +258,7 @@ def test_every_design_query_compiles_to_its_design() -> None:
     for name, query in queries.items():
         design = require_success(antecedent.analyze(table, query=query)).temporal_design
         assert design is not None and design.design == name, name
-        assert not design.licensed
+        assert not design.supported
 
 
 def test_query_options_validate_and_misclassification_needs_a_binary_outcome() -> None:

@@ -271,7 +271,7 @@ fn a_retained_run_seals_with_its_procedure_and_a_fresh_consumer_replays_it() {
         )
         .unwrap();
     assert_eq!(again, run.bytes);
-    // Every paradigm the cell is licensed for may carry the section; one it is not licensed for may not.
+    // Every paradigm the cell is supported for may carry the section; one it is not supported for may not.
     for paradigm in
         [InferenceParadigm::DecisionTheoreticStopping, InferenceParadigm::AnytimeValidFrequentist]
     {

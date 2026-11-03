@@ -297,7 +297,7 @@ fn retarget_grid_matches_standalone(
         "grid retarget must not publish a first-threshold ATE"
     );
 
-    // CustomDistribution first-click is licensed for a scalar exceedance (Y → 1{Y>c}),
+    // CustomDistribution first-click is supported for a scalar exceedance (Y → 1{Y>c}),
     // not a multi-threshold grid. Pin the grid contrast at c to that standalone path.
     let exc_retarget = tiered_aipw(data.clone(), background.clone(), exc_q.clone())
         .prepare(ctx)
@@ -751,7 +751,7 @@ fn unknown_tier_envelope_straddles_zero() {
         .unwrap()
         .run(&ExecutionContext::for_tests(22))
         .unwrap();
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert!(
         result.estimate().as_effect().unwrap().ate.is_nan(),
         "unknown scenarios must not become a single ATE"
@@ -919,7 +919,7 @@ fn retarget_distinct_lever_loop(n: usize, n_levers: u32, seed: u64, max_secs: f6
 
 #[test]
 fn retarget_hot_path_smoke_is_bounded() {
-    // Default smoke. The licensed 10k×500 ADR 0011 measurement is the ignored
+    // Default smoke. The supported 10k×500 ADR 0011 measurement is the ignored
     // timed harness below plus `retarget_alloc_count` (500 distinct levers).
     retarget_distinct_lever_loop(2_000, 50, 26, 2.0);
 }
@@ -1986,7 +1986,7 @@ fn plugin_full_omits_contrast_shaped_refuters() {
     assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
-        "plugin full must disclose that contrast-shaped refuters are not licensed"
+        "plugin full must disclose that contrast-shaped refuters are not supported"
     );
     let names: Vec<_> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     for banned in [
@@ -2035,7 +2035,7 @@ fn cell_aipw_refuses_named_interaction_on_exceedance_grid() {
         result.estimate().as_effect().unwrap().scores.table.as_ref().expect("cell grid scores");
     let err = antecedent_estimate::cell_aipw::contrast_named(table, "interaction").unwrap_err();
     assert!(
-        err.to_string().contains("not licensed"),
+        err.to_string().contains("not supported"),
         "grid interaction must refuse rather than silently use the first threshold: {err}"
     );
 }
@@ -2168,7 +2168,7 @@ fn retarget_depends_on_without_dag_refuses_on_prepared_table() {
 fn retarget_succeeds_on_codetermined_tiered_admg() {
     // {z, u} | {t} | {y}: z↔u in the closure ADMG. depends_on=[z]; u is z's
     // bidirected neighbor and is not a directed descendant of t. Identified
-    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed call.
+    // AIPW via tier-closure {z, u}. ExceedanceGrid is the supported call.
     let (data, background, query, weights, z, u) = codetermined_background_siblings(800, 214);
     let schema = data.schema().clone();
     let t = schema.id_of("t").unwrap();
@@ -2183,7 +2183,7 @@ fn retarget_succeeds_on_codetermined_tiered_admg() {
     );
     let ctx = ExecutionContext::for_tests(214);
     let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[z], &ctx);
-    assert_eq!(out.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(out.support_status().unwrap().as_str(), "supported");
     assert!(out.estimate().as_effect().unwrap().joint.exceedance_cdf.is_some());
 
     // {z} | {t, u} | {y}: t↔u. Walking ↔ as descendants from t would mark u
@@ -3210,8 +3210,11 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
-    assert!(result.estimate().as_effect().unwrap().ate.is_finite(), "licensed cell must be finite");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
+    assert!(
+        result.estimate().as_effect().unwrap().ate.is_finite(),
+        "supported cell must be finite"
+    );
     assert!(
         result.estimate().as_effect().unwrap().se_analytic().is_finite(),
         "cell-AIPW SE requires IFs"
@@ -3230,10 +3233,10 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     // Known truth from the generating equations, independent of both estimator calls below: the
     // latent confounds only the two treatments, so E[Y | do(t1 = 1, t2 = 1)] = 1.2 + 0.8 + 1.5
     // + 0.55 E[z] = 3.5. The band is a sampling band (n = 2400, outcome noise sd 0.3).
-    let licensed_cell = result.estimate().as_effect().unwrap().ate;
+    let supported_cell = result.estimate().as_effect().unwrap().ate;
     assert!(
-        (licensed_cell - 3.5).abs() < 0.2,
-        "tiered cell.aipw {licensed_cell} vs generating-equation truth 3.5"
+        (supported_cell - 3.5).abs() < 0.2,
+        "tiered cell.aipw {supported_cell} vs generating-equation truth 3.5"
     );
 
     let direct = antecedent_estimate::CellSaturatedAipw::new()
@@ -3273,7 +3276,7 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         .unwrap();
     assert!(
         (empty.means[arm11] - summary.means[arm11]).abs() > 1e-4,
-        "skipping identification (Z={{}}) would not recover the licensed cell"
+        "skipping identification (Z={{}}) would not recover the supported cell"
     );
 
     let prepared = BatchStudy::tiered(data.clone(), background)
@@ -3616,7 +3619,7 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         click.estimate().as_effect().unwrap().ate.is_finite(),
         "20-cofacet cell.aipw must be finite"
     );
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]

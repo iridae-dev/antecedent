@@ -1,7 +1,7 @@
 //! Joint-law propagation arithmetic: what a quantity computed from several
 //! uncertain inputs is, given what is known about their dependence.
 //!
-//! Three kinds of information license three different computations, and this
+//! Three kinds of information support three different computations, and this
 //! module never lets one stand in for another.
 //!
 //! * **A joint moment.** For a linear combination `sum a_i X_i` the mean needs
@@ -65,7 +65,7 @@ use crate::special::normal_ppf;
 use crate::synthesis::{SynthesisError, check_covariance};
 use antecedent_core::named_variants;
 
-/// Label of a spread computed under a licensed dependence route.
+/// Label of a spread computed under a supported dependence route.
 pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
 /// Calibration status of every interval candidate and decision verdict of this
 /// module: the construction is wired, and no coverage record of the composed
@@ -1064,7 +1064,7 @@ pub const DRAW_INTERPOLATED_CONSTRUCTION: &str = "aligned_draw_equal_tail_interp
 pub const MIXTURE_EQUAL_TAIL_CONSTRUCTION: &str = "mixture_marginal_equal_tail";
 
 /// `mean +- z sqrt(variance)` at the composed coordinate, from the variance a
-/// licensed route determined (a delta-method variance of a linear map under a
+/// supported route determined (a delta-method variance of a linear map under a
 /// covariance, a mixture variance, or the variance of aligned composed draws).
 ///
 /// # Errors

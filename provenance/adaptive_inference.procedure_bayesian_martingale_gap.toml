@@ -39,7 +39,7 @@ record_sha256 = "932876a2e3aaaa83e1cd586474c6f9fc63f9a7a0785998c1c7269deafc356c7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
 
 [[method_review.artifacts]]
 role = "assertion"

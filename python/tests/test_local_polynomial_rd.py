@@ -44,7 +44,7 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
     assert result.standard_error > 0
     assert result.ci_lower < result.estimate < result.ci_upper
     assert result.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
-    assert result.support_status == "licensed"
+    assert result.support_status == "supported"
     assert "exclusion_restriction" in result.assumptions
     assert "cubic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
     assert "calibrated_strong_first_stage_fixture" in result.diagnostics
@@ -99,7 +99,7 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
     assert fit is not None
     assert fit.estimate == pytest.approx(3.0, abs=1e-7)
     assert fit.ci_lower < 3.0 < fit.ci_upper
-    assert fit.support_status == "licensed"
+    assert fit.support_status == "supported"
     assert result.estimate.se_analytic == pytest.approx(fit.standard_error)
     direct = _analyzed(rows, query).local_polynomial_ratio
     assert fit.standard_error == pytest.approx(direct.standard_error)

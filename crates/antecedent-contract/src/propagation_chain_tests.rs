@@ -90,8 +90,8 @@ fn release_chain(reading: ChainReading) -> ChainDecl {
 }
 
 #[test]
-fn a_chain_of_four_stages_is_licensed_with_exact_dependents() {
-    let plan = check_propagation_chain(&release_chain(ChainReading::Spread)).expect("licensed");
+fn a_chain_of_four_stages_is_supported_with_exact_dependents() {
+    let plan = check_propagation_chain(&release_chain(ChainReading::Spread)).expect("supported");
     assert_eq!(plan.label, PROPAGATION_SPREAD_LABEL);
     assert_eq!(plan.alignment.as_deref(), Some("table-1"));
     assert_eq!(plan.stage("mapped").unwrap().sources, vec!["effect", "slope"]);
@@ -121,8 +121,8 @@ fn an_independent_pool_of_overlapping_evidence_is_refused_and_names_the_covarian
     assert_eq!(refusal.detail(), "propagation_chain.pool_shares_evidence");
     assert_eq!(refusal.next_attempt(), POOL_WITH_JOINT_COVARIANCE);
     assert!(refusal.to_string().contains("next attempt"));
-    // The dependent pool is the licensed route and records what it shares.
-    let plan = check_propagation_chain(&pooled(OperatorClass::DependentPool)).expect("licensed");
+    // The dependent pool is the supported route and records what it shares.
+    let plan = check_propagation_chain(&pooled(OperatorClass::DependentPool)).expect("supported");
     let dependence = plan.stage("pool").unwrap().dependence.clone().expect("dependence");
     assert_eq!(dependence.status, DependenceStatus::Dependent);
     assert_eq!(dependence.shared, vec!["row:rows-1"]);
@@ -143,7 +143,7 @@ fn two_inputs_built_from_one_source_share_it_without_a_declared_factor() {
 }
 
 #[test]
-fn an_independent_pool_of_distinct_evidence_is_licensed() {
+fn an_independent_pool_of_distinct_evidence_is_supported() {
     let sources = vec![
         draws("a", LawMeaning::Sampling, vec![factor(SharedFactorKind::Row, "rows-1")]),
         draws("b", LawMeaning::Sampling, vec![factor(SharedFactorKind::Row, "rows-2")]),
@@ -151,7 +151,7 @@ fn an_independent_pool_of_distinct_evidence_is_licensed() {
     let stages =
         vec![stage("pool", StageKind::Pooling, OperatorClass::IndependentPool, &["a", "b"])];
     let plan =
-        check_propagation_chain(&chain(sources, stages, ChainReading::Spread)).expect("licensed");
+        check_propagation_chain(&chain(sources, stages, ChainReading::Spread)).expect("supported");
     assert_eq!(
         plan.stage("pool").unwrap().dependence.as_ref().unwrap().status,
         DependenceStatus::Independent
@@ -249,9 +249,9 @@ fn an_independent_product_table_cannot_carry_a_shared_factor() {
     let refusal = check_propagation_chain(&decl).expect_err("refused");
     assert_eq!(refusal.code(), "evidence_double_counted");
     assert_eq!(refusal.next_attempt(), SUPPLY_JOINT_DRAWS);
-    // Distinct evidence is licensed as an independent product.
+    // Distinct evidence is supported as an independent product.
     decl.sources[1].factors = vec![factor(SharedFactorKind::Row, "other")];
-    check_propagation_chain(&decl).expect("licensed");
+    check_propagation_chain(&decl).expect("supported");
 }
 
 #[test]
@@ -363,7 +363,7 @@ fn a_preposterior_update_needs_posterior_draws_and_is_terminal() {
         ),
     ];
     let plan = check_propagation_chain(&chain(sources, base.clone(), ChainReading::Spread))
-        .expect("licensed");
+        .expect("supported");
     assert_eq!(plan.stage("update").unwrap().meaning, Some(LawMeaning::Posterior));
     // A sampling law is not updated by a likelihood.
     let sampling = vec![draws("theta", LawMeaning::Sampling, Vec::new())];
@@ -420,7 +420,7 @@ fn a_point_source_inside_a_draw_chain_is_listed_as_fixed() {
         vec![stage("net", StageKind::DerivedQuantity, OperatorClass::Nonlinear, &["a", "rate"])],
         ChainReading::Spread,
     );
-    let plan = check_propagation_chain(&decl).expect("licensed");
+    let plan = check_propagation_chain(&decl).expect("supported");
     assert_eq!(plan.fixed_sources, vec!["rate"]);
 }
 

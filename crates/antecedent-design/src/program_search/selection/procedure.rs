@@ -592,6 +592,6 @@ mod tests {
         assert!(covered >= 370, "{covered}/400 selected intervals covered");
         assert!(optimism / 400.0 > 0.04, "training winner should exhibit optimism");
         assert!((holdout_error / 400.0).abs() < 0.025);
-        // This implementation scenario does not issue a release calibration license.
+        // This implementation scenario does not issue a release calibration support.
     }
 }

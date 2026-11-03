@@ -10,7 +10,7 @@
 //! the thread count.
 //!
 //! The table is a bootstrap distribution of the search. It is not a posterior and it is not
-//! one structure, so it carries no review gate. It executes unlicensed and its coverage is
+//! one structure, so it carries no review gate. It executes unsupported and its coverage is
 //! unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -292,7 +292,7 @@ fn run_regime_stability(
 ) -> Result<DiscoveredStructure, CausalError> {
     let DiscoverData::Series(series) = data else {
         return Err(crate::unsupported_reason!(
-            "data_modality_not_licensed",
+            "data_modality_not_supported",
             "regime PCMCI labels the regimes of one series; next attempt: search one series"
         ));
     };

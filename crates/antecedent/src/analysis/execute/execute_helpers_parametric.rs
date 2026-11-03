@@ -12,7 +12,7 @@
 /// `Expectation`/`Distribution` leaf (not `CausalExprArena::backdoor_ate`'s `Product`/`SumOut`
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
-/// marginalization here to (mis)compute. Licensed transport and interference
+/// marginalization here to (mis)compute. Supported transport and interference
 /// routes do not call this; they stamp `transport.sid` / `interference.design`.
 pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
@@ -309,7 +309,7 @@ pub(super) fn class_structural_mixture<G>(
 /// from `unidentified_weight`, so a mass this crate publishes cannot
 /// contradict the envelope diagnostic beside it.
 ///
-/// Wider than [`identification_status_ok_for_case`], which licenses
+/// Wider than [`identification_status_ok_for_case`], which supports
 /// *estimating* a case: a completion identified only under prior restrictions
 /// carries identified mass and its assumptions, but no frequentist arm
 /// estimates it.
@@ -1007,22 +1007,6 @@ fn finish_identified_execute_with_context(
             &mut result.view.diagnostics,
         );
     }
-    if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) = context.support_status
-    {
-        result.diagnostics.push(Diagnostic {
-            code: Arc::from("support.allowed_unlicensed"),
-            kind: DiagnosticKind::Support,
-            severity: DiagnosticSeverity::Warning,
-            message: Arc::from(
-                "this estimate executed an allowlisted cell; it is not a licensed claim",
-            ),
-            artifact_id: None,
-            fields: Arc::from([
-                (Arc::from("reason"), Arc::from(reason)),
-                (Arc::from("parent"), Arc::from(parent)),
-            ]),
-        });
-    }
     if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
         result.diagnostics.push(
             crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured),
@@ -1063,7 +1047,7 @@ pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize)
         && completed >= attempted.saturating_sub(completed)
 }
 
-/// Fewest successful replicates that may license a facade-published nominal 0.95
+/// Fewest successful replicates that may support a facade-published nominal 0.95
 /// pointwise / simultaneous band. Alias of [`crate::result::PERCENTILE_95_MIN_REPLICATES`].
 pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
     crate::result::PERCENTILE_95_MIN_REPLICATES as usize;
@@ -1073,7 +1057,7 @@ mod bootstrap_success_floor_tests {
     use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
 
     #[test]
-    fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
+    fn cancelled_two_success_bootstrap_cannot_support_nominal_band() {
         assert!(!bootstrap_has_enough_successes(2, 2));
         assert!(!bootstrap_has_enough_successes(2, 3));
         assert!(!bootstrap_has_enough_successes(2, 199));
@@ -1081,7 +1065,7 @@ mod bootstrap_success_floor_tests {
     }
 
     #[test]
-    fn completed_budget_at_earned_minimum_licenses_band() {
+    fn completed_budget_at_earned_minimum_supports_band() {
         let min = PERCENTILE_95_BAND_MIN_SUCCESSES;
         assert!(bootstrap_has_enough_successes(min, min));
         assert!(!bootstrap_has_enough_successes(min - 1, min - 1));

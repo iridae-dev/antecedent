@@ -1,7 +1,7 @@
 //! Whole-procedure calibration designs for inference from adaptive
 //! experiments. Nothing here is measured at implementation time: every test is
 //! `#[ignore]`d and runs only at the final measurement step, and no interval,
-//! posterior or error-control claim is licensed until its record exists.
+//! posterior or error-control claim is supported until its record exists.
 //!
 //! A guarantee here is a statement about the *procedure*: the assignment
 //! policy, the outcome structure, the interim monitoring and the stopping
@@ -174,7 +174,7 @@ fn thompson_design(
                 "posterior_quantile",
                 "Bayesian",
                 // A fixed-truth design is not the public interval's key: the
-                // credible interval is licensed by its prior-predictive records,
+                // credible interval is supported by its prior-predictive records,
                 // and the equal-arms boundary stays off that key.
                 adaptive_measured_interval::THOMPSON_FIXED_TRUTH_FUNCTIONAL,
                 adaptive_measured_interval::STOPPED_DEPENDENCE,

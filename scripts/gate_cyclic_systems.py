@@ -121,7 +121,7 @@ def inventory() -> None:
     record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
     expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families", "nonlinear_sde"}
     if {row["id"] for row in record["capability"]} != expected:
-        raise ValueError("cyclic acceptance children differ from promoted scope")
+        raise ValueError("cyclic acceptance children differ from the release scope")
     for row in record["capability"]:
         for path in [*row["rust"], *row.get("fixtures", []), *row.get("tests", [])]:
             if not (ROOT / path).exists():

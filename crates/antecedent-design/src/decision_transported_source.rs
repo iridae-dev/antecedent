@@ -1,4 +1,4 @@
-//! A transported response as a licensed decision source.
+//! A transported response as a supported decision source.
 //!
 //! A response carried to a target population (a cohort contrast under a declared
 //! covariate shift, a policy value under a selection diagram, a synthesis that
@@ -22,7 +22,7 @@
 //!   label is the receipt's, never the artifact's own mask alone.
 //! - **Interval.** Neither representation carries an interval: the transport
 //!   step and the support check have no measured coverage. An interval request
-//!   is refused with [`TransportedRefusal::IntervalNotLicensed`].
+//!   is refused with [`TransportedRefusal::IntervalNotSupported`].
 //!
 //! # Acceptance
 //!
@@ -121,7 +121,7 @@ pub const DETAIL_INVALID_VALUE: &str = "transported_decision.invalid_value";
 /// Detail: the request needs a law and the transported value is a point.
 pub const DETAIL_LAW_NOT_SUPPLIED: &str = "transported_decision.law_not_supplied";
 /// Detail: the request needs an interval.
-pub const DETAIL_INTERVAL_NOT_LICENSED: &str = "transported_decision.interval_not_licensed";
+pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str = "transported_decision.interval_not_supported";
 /// Detail: responses merged into one grid were not carried by one transport.
 pub const DETAIL_MIXED_TRANSPORTS: &str = "transported_decision.mixed_transports";
 /// Detail: a transport identity of a typed route is not a 32-byte digest.
@@ -472,7 +472,7 @@ impl TransportedResponse {
     ) -> Result<Self, TransportedRefusal> {
         require_declarable_route(declaration.route)?;
         let meta = law.metadata();
-        if meta.trust == DistributionTrust::NativeLicensed {
+        if meta.trust == DistributionTrust::NativeSupported {
             return Err(TransportedRefusal::NativeLabelOnTransported);
         }
         if matches!(
@@ -989,7 +989,7 @@ pub enum TransportedRefusal {
         needed: &'static str,
     },
     /// The request needs an interval.
-    IntervalNotLicensed,
+    IntervalNotSupported,
     /// Responses merged into one grid were not carried by one transport.
     MixedTransports,
     /// The policy's weakest admitted support is stronger than the response's.
@@ -1027,10 +1027,10 @@ impl TransportedRefusal {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::MixedTransports => antecedent_core::reason_code!("transport_not_certified"),
-            Self::IntervalNotLicensed => antecedent_core::reason_code!("cell_not_licensed"),
+            Self::IntervalNotSupported => antecedent_core::reason_code!("not_supported"),
             // The same code every consumer uses to say it does not accept a
             // transported input (inverse queries, cohort forward claims).
-            Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("cell_not_licensed"),
+            Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("not_supported"),
             Self::Boundary(error) => error.reason_code(),
         }
     }
@@ -1049,7 +1049,7 @@ impl TransportedRefusal {
             Self::NativeLabelOnTransported => DETAIL_NATIVE_LABEL.to_owned(),
             Self::InvalidValue(_) => DETAIL_INVALID_VALUE.to_owned(),
             Self::LawNotSupplied { .. } => DETAIL_LAW_NOT_SUPPLIED.to_owned(),
-            Self::IntervalNotLicensed => DETAIL_INTERVAL_NOT_LICENSED.to_owned(),
+            Self::IntervalNotSupported => DETAIL_INTERVAL_NOT_SUPPORTED.to_owned(),
             Self::MixedTransports => DETAIL_MIXED_TRANSPORTS.to_owned(),
             Self::SupportBelowPolicy { .. } => DETAIL_SUPPORT_BELOW_POLICY.to_owned(),
             Self::Boundary(error) => error.to_refusal().detail,
@@ -1112,7 +1112,7 @@ impl TransportedRefusal {
             Self::MixedTransports => build(DETAIL_MIXED_TRANSPORTS)
                 .remedy("merge only values carried by one transport: the same populations, selection diagram, assumptions and support label")
                 .build(),
-            Self::IntervalNotLicensed => build(DETAIL_INTERVAL_NOT_LICENSED)
+            Self::IntervalNotSupported => build(DETAIL_INTERVAL_NOT_SUPPORTED)
                 .remedy(
                     "none available: the transport step and the support check have no \
                      measured coverage; the value is point-only under the declared premises",
@@ -1204,7 +1204,7 @@ pub struct TransportedDecision {
 /// differs is that the result carries the transport identity and labels.
 ///
 /// # Errors
-/// [`TransportedRefusal::IntervalNotLicensed`],
+/// [`TransportedRefusal::IntervalNotSupported`],
 /// [`TransportedRefusal::LawNotSupplied`],
 /// [`TransportedRefusal::SupportBelowPolicy`], and any refusal of the boundary
 /// (an invalid contract, a missing coordinate under `RequireAllActions`, a
@@ -1216,7 +1216,7 @@ pub fn evaluate_transported_decision(
     policy: &SupportPolicy,
 ) -> Result<TransportedDecision, TransportedRefusal> {
     if demand == TransportedDemand::Interval {
-        return Err(TransportedRefusal::IntervalNotLicensed);
+        return Err(TransportedRefusal::IntervalNotSupported);
     }
     let needed = match (demand, contract_needs_law(contract)) {
         (TransportedDemand::Law, _) => Some("law_request"),

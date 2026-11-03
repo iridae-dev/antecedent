@@ -207,22 +207,22 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_posterior_ate.rs",
-          "sha256": "649885931f0d0a632fe8682116dc88d8dd6e9f3e78b53d309e79d49253d34ff9"
+          "sha256": "ea515bbe632715a07e551aaa1c9c11b06a66744137f8ab6335d3077e415191ae"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "76cf6b917cca13cdeca1673b0440a81a3378ff55bea93809ba18ae4a27e03f64"
+          "sha256": "167890bda22fce3b8e2007c3d7231c658d62aa82a255abf3e56e710a0b055fb7"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/manufacturing_temporal.rs",
-          "sha256": "02cb317a2b97c96425b8fe541d3012d2b139732cd67a9e1a9b756bac39ab5f85"
+          "sha256": "dfbe0aafdb6fab743c1422a42498190a1e1b25524125959042326357b5f536a3"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "6513e6004f747315a4b38c212f13670bff0670526d220fb7a1dcbe4c0b162aa6"
+          "sha256": "e41ca1d3c5a081315017a94f62c913e659a7fa19c9692280b6124f12a8b8877b"
         }
       ],
       "fixture_payload_sha256": "61eac03a090bfcea9f49d379f66b0dbb436ad87155faa2591b9f0001647d7832"

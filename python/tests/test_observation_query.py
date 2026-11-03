@@ -397,11 +397,11 @@ def test_interval_and_calibrated_probability_are_closed():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
-    assert interval.value.reason_code == "cell_not_licensed"
+    assert interval.value.reason_code == "not_supported"
     assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
-    assert calibrated.value.reason_code == "cell_not_licensed"
+    assert calibrated.value.reason_code == "not_supported"
     assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
     fitted = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=1, basis="sample_fitted")
     with pytest.raises(ObservationQueryRefusal):
@@ -544,7 +544,7 @@ def test_count_fitted_draw_count_is_supported_from_the_minimum():
     for draws in (1999, 100_001):
         with pytest.raises(ObservationQueryRefusal) as refused:
             _count_fitted(draws=draws)
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
 
 
 def test_count_fitted_interval_is_measured_or_a_typed_refusal():
@@ -552,7 +552,7 @@ def test_count_fitted_interval_is_measured_or_a_typed_refusal():
     try:
         measured = claim.interval(level=0.95)
     except ObservationQueryRefusal as refusal:
-        assert refusal.reason_code == "cell_not_licensed"
+        assert refusal.reason_code == "not_supported"
         assert refusal.detail in (
             "measured_inference.record_not_attesting",
             "measured_interval.protocol_not_measured",
@@ -562,7 +562,7 @@ def test_count_fitted_interval_is_measured_or_a_typed_refusal():
         assert scalar.lower <= scalar.point <= scalar.upper
     with pytest.raises(ObservationQueryRefusal) as unmeasured:
         claim.interval(level=0.5)
-    assert unmeasured.value.reason_code == "cell_not_licensed"
+    assert unmeasured.value.reason_code == "not_supported"
 
 
 def test_a_declared_model_interval_has_no_sampling_distribution():
@@ -750,7 +750,7 @@ def test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record():
         claim.parameter_interval(
             "probability:1", "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
         )
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     with pytest.raises(ObservationQueryRefusal):
         claim.interval()
 

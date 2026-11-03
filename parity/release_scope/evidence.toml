@@ -49,7 +49,7 @@ fixtures = ["crates/antecedent/tests/flagship_decision_fixture.rs", "crates/ante
 consumer_paths = ["crates/antecedent-io/tests/flagship_decision_artifact.rs"]
 
 [[row]]
-id = "X01.licensed_contrast"
+id = "X01.supported_contrast"
 owner = ["crates/antecedent/src/analysis/joint_contrast_binding.rs"]
 fixtures = [
   "crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal",
@@ -61,7 +61,7 @@ consumer_symbol = "CellFamilyContrast"
 [[row]]
 id = "X02.gaussian_panel"
 owner = ["crates/antecedent-estimate/src/joint_panel.rs"]
-fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_support_from_a_finite_mechanism"]
 consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
 
 [[row]]

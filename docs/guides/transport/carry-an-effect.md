@@ -17,7 +17,7 @@ Declaring which mechanisms differ is a scientific assumption. The data cannot te
 
 ## Run a transport question
 
-The licensed static route takes a `TransportQuery` over an explicit `Admg` and runs on the ordinary lifecycle: prepare, inspect, estimate, rebind to new rows, export. This snippet is conceptual in its data (`data` holds the trial and target rows, `admg` is an `Admg` over its columns); the calls match `python/tests/`.
+The supported static route takes a `TransportQuery` over an explicit `Admg` and runs on the ordinary lifecycle: prepare, inspect, estimate, rebind to new rows, export. This snippet is conceptual in its data (`data` holds the trial and target rows, `admg` is an `Admg` over its columns); the calls match `python/tests/`.
 
 ```python
 import antecedent as ant
@@ -72,9 +72,9 @@ A transported value is a claim about the target conditional on the diagram you d
 
 Structural transport is separate from prior transfer. `antecedent.transport` asks whether source experiments and target observations identify a response in the target. `antecedent.priors` moves statistical evidence after the causal quantity is already defined.
 
-## Unlicensed utilities
+## Unsupported utilities
 
-`transport.advanced.estimate_trial_effect` computes augmented IPW from supplied outcome regressions (`mu0`, `mu1`) and returns a bare number: no study, export or calibration slot, and no licence. It agrees with the `analyze` path on the point value for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked certificate:
+`transport.advanced.estimate_trial_effect` computes augmented IPW from supplied outcome regressions (`mu0`, `mu1`) and returns a bare number: no study, export or calibration slot, and no support. It agrees with the `analyze` path on the point value for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked certificate:
 
 ```python
 from antecedent.transport import advanced as transport
@@ -96,7 +96,7 @@ reading.selection_overlap
 ## Boundaries
 
 - A design-defined estimand has no score table to reweight, so `study.retarget(...)` refuses (`population_not_estimable`).
-- A construction outside the licensed cell, such as a transported derivative or a recursive factorization certificate, refuses with `construction_not_licensed`; the trial IPW algebra evaluates direct transport and standardization, not a product of population-labelled factors.
+- A construction outside the supported cell, such as a transported derivative or a recursive factorization certificate, refuses with `construction_not_supported`; the trial IPW algebra evaluates direct transport and standardization, not a product of population-labelled factors.
 - Multi-source and limited-experiment questions use the advanced identifiers and the routes in [Transport limits by route](../transport-scope.md).
 - Interference between units is a separate question from transport; see [saturation and interference designs](../designs/interference-and-network-exposure.md).
 

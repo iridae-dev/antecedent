@@ -956,7 +956,7 @@ mod tests {
         let (code, message) = super::super::with_test_records(vec![], || {
             refusal(measure_source(&bytes, &ctx).unwrap_err())
         });
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert!(message.contains("measured_inference.record_not_attesting"));
         // Another graph size, another support or a row range that excludes this run does not cover it.
         let other_size = route_functional(&parts(GraphSupport::TreatmentDirectEffect, 4, 60));
@@ -971,12 +971,12 @@ mod tests {
             let (code, _) = super::super::with_test_records(vec![wrong], || {
                 refusal(measure_source(&bytes, &ctx).unwrap_err())
             });
-            assert_eq!(code, "cell_not_licensed");
+            assert_eq!(code, "not_supported");
         }
     }
 
     #[test]
-    fn a_covering_attesting_record_licenses_the_route_and_it_replays() {
+    fn a_covering_attesting_record_supports_the_route_and_it_replays() {
         let ctx = ExecutionContext::for_tests(7);
         for (support, variables) in [
             (GraphSupport::TreatmentRootDirectEffect, 3),

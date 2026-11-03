@@ -149,11 +149,11 @@ fn refuse_transport_cycle(
     let edges = directed_edge_ids(directed);
     if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
         antecedent_graph::error::DagOperation::Identification,
-        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+        antecedent_graph::error::CyclicNextAttempt::Unsupported {
             consumer: "counterfactual_transport",
             attempt: "hold the directed edges as a CyclicMixedGraph; condensation names the \
                       feedback and sigma_separates answers a conditional-independence \
-                      question. This cell has no cyclic identification license",
+                      question. This cell has no cyclic identification evidence",
         },
         node_count,
         &edges,
@@ -1195,7 +1195,7 @@ pub struct CounterfactualMissingRegime {
 /// A declared-but-absent evidence outcome.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CounterfactualTransportMissing {
-    /// Regimes whose laws, if supplied, license a derivation.
+    /// Regimes whose laws, if supplied, support a derivation.
     pub missing: Vec<CounterfactualMissingRegime>,
     /// Stable description.
     pub detail: String,

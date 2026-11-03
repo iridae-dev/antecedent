@@ -20,7 +20,7 @@ use antecedent::analysis::provider_callbacks::{
     DependencyDeclaration, DependencyKind, FnCallback, InputSupplier, ProviderCallback,
     ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput, check_claim_to_callback,
     export_callback_result, forecast_law_from_sample, output_values_digest, predictive_law_source,
-    refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
+    refuse_identification_evidence, refuse_interval, refuse_joint_law, refuse_native_trust,
     refuse_posterior_guarantee, verification_holds,
 };
 use antecedent::analysis::transport_handoff::{
@@ -346,7 +346,7 @@ fn declaration_of(text: &str) -> PyResult<CallbackDeclaration> {
         "verified_extension" => CallbackTrust::ExactRequestVerified {
             receipt_digest: json.trust.receipt_digest.clone().unwrap_or_default(),
         },
-        // Metadata never confers native licence; there is no such level to build.
+        // Metadata never confers native support; there is no such level to build.
         other => return Err(bad("trust level", other)),
     };
     Ok(CallbackDeclaration {
@@ -1256,7 +1256,7 @@ fn callback_result_inspect(artifact: &[u8]) -> Checked {
 }
 
 /// The refusal of a route that stays closed: `interval`, `posterior_guarantee`,
-/// `native_trust`, `identification_licence` or `joint_law`.
+/// `native_trust`, `identification_evidence` or `joint_law`.
 #[pyfunction]
 fn callback_closed_refusal(route: &str) -> PyResult<String> {
     crate::catch_ffi(|| {
@@ -1264,7 +1264,7 @@ fn callback_closed_refusal(route: &str) -> PyResult<String> {
             "interval" => refuse_interval(),
             "posterior_guarantee" => refuse_posterior_guarantee(),
             "native_trust" => refuse_native_trust(),
-            "identification_licence" => refuse_identification_licence(),
+            "identification_evidence" => refuse_identification_evidence(),
             "joint_law" => refuse_joint_law(),
             other => return Err(bad("closed route", other)),
         };

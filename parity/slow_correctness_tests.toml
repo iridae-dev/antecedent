@@ -64,9 +64,9 @@ reason = "Nonparametric sensitivity beyond the 20,000-row ceiling at 100,000 row
 expected_seconds = 5
 
 [[slow]]
-path = "crates/antecedent/tests/licensed_compiler.rs"
+path = "crates/antecedent/tests/supported_compiler.rs"
 name = "diagnostic_registry_closure_after_builder_and_study_drop"
-reason = "Executes every licensed support cell (723) and checks retained checked execution after builder and study drop."
+reason = "Executes every supported support cell (723) and checks retained checked execution after builder and study drop."
 expected_seconds = 200
 
 [[other]]

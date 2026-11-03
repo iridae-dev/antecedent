@@ -114,7 +114,7 @@ pub struct StudyConfig {
     /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
     /// `RefuteSuite::None` because the requested cell was
     /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
-    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
+    /// same query was `Supported`. Holds the suite that was
     /// requested before the downgrade (always some suite other than
     /// `None`); `None` here means no downgrade happened. Surfaced to the
     /// caller as diagnostic `exec.refute.default_suite_unsupported`.
@@ -172,7 +172,7 @@ pub struct Study {
     pub(crate) graph_posterior: Option<GraphPosterior>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
-    /// Licensed vs allowlisted evidence status recorded at build. `None` when
+    /// Supported vs not-supported evidence status recorded at build. `None` when
     /// the query is not on the public matrix axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,

@@ -18,7 +18,7 @@ implementation_deviations = [
   "The decision is relative to the declarations: a declared dependency set, state identity, stream identity or trust level is a statement the provider owns, and the protocol does not verify it.",
   "Output validation checks that an answer is a well-formed object of the declared quantity (shape, finiteness, support, monotone distribution and quantile functions); it does not check the provider's numerical truth.",
   "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
-  "No interval, posterior guarantee, joint law, identification licence or native trust is produced; the interface projection is point-only or unmeasured.",
+  "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or unmeasured.",
 ]
 
 upstream_implementations_observed = []
@@ -34,7 +34,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Callback adapter protocol: declaration, negotiation, request identity, reuse planning and acceptance of a returned output as a law of the declared quantity. This record's slice: closed claims."
 no_independent_algorithm = "A declaration runs nothing; planning takes no provider; output validation checks shape against the query. No estimator of its own."
-record_sha256 = "caf970a905b57f8a5ab00a2ff884cd99fe9b68f69d7ef06f3044fb601a3f2c4f"
+record_sha256 = "7e329f020b470cee33656b11e9961ef3690b80ad5647fe3a47f4ddeede23c86f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -44,7 +44,7 @@ sha256 = "61f19c500551a644e7015d73874942e641b96b9f52b6d4e2856a6b0b17300e01"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/callback_protocol/plan.rs"
-sha256 = "b9d8576509a10f657db8812083bc22d286feaecad1ba53b96e45f1ee0ab75989"
+sha256 = "3f4dab9c27c91c92ef5099dfd64fb18d5ed8978c01dbfa83c8ff0fae7e80803a"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -54,4 +54,4 @@ sha256 = "f5a5ebe1d86cb244d0e3478e9e14220c5cecac6529d13e274df45aba55f3dae4"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/callback_protocol.rs"
-sha256 = "45bde3187a560eb04720069043f6a22f7718e87813b434bd4f7f0c2ca6f6318e"
+sha256 = "44ef9b54120ffb63b8a521687980faecb61eca4100042ec667bd103b802ff76c"

@@ -192,7 +192,7 @@ impl PreparedStudy {
     ///
     /// Each unit contributes its earliest row with a full lag window, so rows are independent
     /// subjects; the treatment of that row is regressed on the identified adjustment lags. The
-    /// product is a nuisance score, never an effect, and it is unlicensed with calibration
+    /// product is a nuisance score, never an effect, and it is unsupported with calibration
     /// unmeasured.
     ///
     /// # Errors

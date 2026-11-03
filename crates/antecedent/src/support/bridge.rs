@@ -22,10 +22,10 @@ use super::cell::{
 };
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
-/// studies, which have no geometric cell to license and run only against a supplied static DAG;
+/// studies, which have no geometric cell to support and run only against a supplied static DAG;
 /// structure discovery, attribution and simulation on a fitted model, which execute through the
-/// compiler and stay unlicensed until a coverage record licenses them; and the graphless designs,
-/// which are licensed by their own design key rather than a graph class.
+/// compiler and stay unsupported until a coverage record supports them; and the graphless designs,
+/// which are supported by their own design key rather than a graph class.
 ///
 /// This is the closed allow-list for "no cell": every other query kind must classify onto the
 /// axis (for some graph class), so a variant added later without a matrix row is refused at build
@@ -39,19 +39,19 @@ pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
             | CausalQueryKind::Discover
             | CausalQueryKind::Attribute
             | CausalQueryKind::Simulate
-    ) || crate::analysis::query_license::is_graphless_design(query)
+    ) || crate::analysis::query_support::is_graphless_design(query)
 }
 
 /// Refuse a query the matrix does not know and that is not a declared off-axis kind.
 ///
 /// "Default = refused" holds on the axis because [`classify`] falls through to
-/// [`CellStatus::Refused`]; this closes the same default for a query kind with no axis name at
+/// [`CellStatus::NotSupported`]; this closes the same default for a query kind with no axis name at
 /// all. A `Response` whose temporal/static attachment disagrees with the graph class has an axis
 /// name for some class and is left to the compiler's typed refusal.
 ///
 /// # Errors
 ///
-/// [`CausalError::Support`] ([`SupportRefusal::Refused`]) for an unlisted off-axis kind.
+/// [`CausalError::Support`] ([`SupportRefusal::NotSupported`]) for an unlisted off-axis kind.
 pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError> {
     if is_declared_off_axis(query)
         || query_axis(query, GraphClass::Dag).is_some()
@@ -59,11 +59,11 @@ pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError
     {
         return Ok(());
     }
-    Err(CausalError::Support { id: SupportRefusal::Refused, message: UNDECLARED_OFF_AXIS })
+    Err(CausalError::Support { id: SupportRefusal::NotSupported, message: UNDECLARED_OFF_AXIS })
 }
 
 const UNDECLARED_OFF_AXIS: &str = "this query kind has no support-matrix cell and is not a \
-     declared off-axis kind; it is refused until a cell licenses it.";
+     declared off-axis kind; it is refused until a cell supports it.";
 
 fn inference_axis(mode: &InferenceMode) -> SupportInference {
     match mode {

@@ -495,7 +495,7 @@ pub(crate) fn scores_retargetable(problem: &PreparedPropensityProblem) -> bool {
 }
 
 /// Per-arm scores `μ_a + 1{T=a}(Y - μ_a)/e_a` from one cross-fitted nuisance bundle. The same
-/// formulas as the licensed AIPW table (`build_binary_scores`), so `φ¹ - φ⁰` is the AIPW
+/// formulas as the supported AIPW table (`build_binary_scores`), so `φ¹ - φ⁰` is the AIPW
 /// score of the DML, `DR-Learner` and `CausalForest` marginal ATE row by row. `learners` is
 /// `[outcome, treatment]`; `route` names the estimator in the provenance tag.
 pub(crate) fn aipw_score_table(
@@ -852,7 +852,7 @@ mod tests {
     }
 
     #[test]
-    fn aipw_matches_licensed_glm_ols_on_fixture() {
+    fn aipw_matches_supported_glm_ols_on_fixture() {
         let (t, y, z) = confounded_columns(240, 4);
         let (data, estimand) = build_dataset(t, y, z);
         let query =
@@ -865,14 +865,14 @@ mod tests {
         let dml_fit = dml.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         let aipw = AipwAte::new().with_bootstrap_replicates(0);
         let aipw_prep = aipw.prepare(&data, &estimand, &query).unwrap();
-        let licensed = aipw
+        let supported = aipw
             .fit(&aipw_prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new())
             .unwrap();
         assert!(
-            (dml_fit.ate - licensed.ate).abs() < 0.05,
-            "dml={} licensed={}",
+            (dml_fit.ate - supported.ate).abs() < 0.05,
+            "dml={} supported={}",
             dml_fit.ate,
-            licensed.ate
+            supported.ate
         );
     }
 

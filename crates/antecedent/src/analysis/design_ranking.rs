@@ -807,7 +807,7 @@ fn evaluate_prepared(
     })
 }
 
-/// The structural ordering when no probabilistic model is licensed: verified structural
+/// The structural ordering when no probabilistic model is supported: verified structural
 /// sufficiency, then fewer cost units, then smaller sample budget, then semantic id.
 ///
 /// # Errors

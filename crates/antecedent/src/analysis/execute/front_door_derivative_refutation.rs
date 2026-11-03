@@ -20,7 +20,7 @@
 //!   value must lie in the replicates' 95% percentile range. Failed replicates are kept
 //!   as failed mass.
 //!
-//! The state executes and is unlicensed: its verdicts are checks, not a calibration
+//! The state executes and is unsupported: its verdicts are checks, not a calibration
 //! claim, and no coverage record names it.
 
 use super::{
@@ -102,7 +102,7 @@ pub(super) fn refute_front_door_derivative(
         "front-door derivative refuter state: support at the evaluation point, sensitivity of \
          the slope to the additive smoothers of both stages, and under full a whole-procedure \
          resampling stability check. The intervention-level finite difference does not apply \
-         to a front-door plug-in. It executes unlicensed: no coverage or evidence record \
+         to a front-door plug-in. It executes unsupported: no coverage or evidence record \
          names it, and the verdicts are checks, not a calibration claim.",
     ));
     Ok((reports, diagnostics))

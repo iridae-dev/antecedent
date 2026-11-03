@@ -12,7 +12,7 @@
 //!
 //! Uncertainty is a whole-procedure resample of the inference clusters (whole subjects under a
 //! declared independent-subject design; a dependent single series is refused), and every
-//! interval is unlicensed with calibration `unmeasured`.
+//! interval is unsupported with calibration `unmeasured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -69,7 +69,7 @@ fn estimation(error: EstimationError) -> CausalError {
     CausalError::Estimate(error)
 }
 
-/// Posterior sample SD; invalid or insufficient draws cannot license uncertainty.
+/// Posterior sample SD; invalid or insufficient draws cannot support uncertainty.
 fn rollout_draw_sd(draws: &[f64]) -> f64 {
     if draws.iter().any(|draw| !draw.is_finite()) {
         return f64::NAN;

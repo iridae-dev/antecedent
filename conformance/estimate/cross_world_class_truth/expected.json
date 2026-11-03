@@ -916,12 +916,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_class_truth.rs",
-          "sha256": "ec40660b8cdfcc3d9eb9dd8a676b82c35b71876ff401f916860d714331719ff2"
+          "sha256": "2e00389247ae870c49a6d51c9886064f72ff38ef596a812f08d2943c4501468c"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_posterior_truth.rs",
-          "sha256": "0a11bfe6e68d34c5d82b5e9e2465701cabc0fe2804a2714f8fcf892e990e41b9"
+          "sha256": "9452e20af8534cfc53da5479ca4519eed426e85a8eb93cf3210800cf1690c074"
         }
       ],
       "fixture_payload_sha256": "26d5ee8dbbb3d74eae56438b5dfba36779307f0032990070c3515fc07d40af9f"

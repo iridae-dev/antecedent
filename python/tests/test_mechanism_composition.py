@@ -574,7 +574,7 @@ def test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim():
     assert error.remedy
     # The interval route is closed regardless, typed.
     closed = refusal_of(composition.interval)
-    assert closed.reason_code == "cell_not_licensed"
+    assert closed.reason_code == "not_supported"
     assert closed.details == ("mechanism_composition.interval_route_closed",)
 
     # Independence declared over shared evidence is contradicted, not accepted.

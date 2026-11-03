@@ -759,7 +759,7 @@ impl CheckedAdmgResponseCurveOperation {
                 "refute.evalue.not_a_contrast",
                 antecedent_core::DiagnosticKind::Scientific,
                 antecedent_core::DiagnosticSeverity::Info,
-                "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                "contrast-shaped refuters are not supported for a plugin intervention level; \
                  cheap runs overlap only and full runs overlap plus sampling-stability of the \
                  identified intervention mean",
             ));
@@ -1928,7 +1928,7 @@ impl CheckedDistributionOperation {
             && !self.query.conditioning.is_empty()
         {
             return Err(CausalError::Unsupported {
-                message: "ADMG InterventionalDistribution is licensed for unconditional finite-discrete tables; IDC conditionals are a follow-up",
+                message: "ADMG InterventionalDistribution is supported for unconditional finite-discrete tables; IDC conditionals are a follow-up",
             });
         }
         let (distribution, posterior) = self.fit_distribution(&self.prepared, ctx)?;

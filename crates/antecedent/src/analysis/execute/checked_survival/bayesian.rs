@@ -7,7 +7,7 @@
 //! are randomized. The interval partition and the gamma prior are declared on the study's
 //! Bayesian configuration and never selected from the data; the prior supplies no identifying
 //! premise. Competing causes, known censoring weights and a bootstrap request are refused
-//! with the next attempt named. The result is an unlicensed, uncalibrated posterior.
+//! with the next attempt named. The result is an unsupported, uncalibrated posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{

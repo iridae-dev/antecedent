@@ -253,7 +253,7 @@ def test_default_joint_transport_still_refuses_real_valid_scope():
         pytest.skip("default-wheel refusal is checked separately from candidate feature proof")
     with pytest.raises(CausalUnsupportedError) as error:
         tr.joint_bayesian_transport(sources=[{"id": "source"}], target={"x": [0.1]}, features=["x"])
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
 
 
 def test_candidate_result_constructor_and_prior_dimension_bound_do_not_accept_fabrication():

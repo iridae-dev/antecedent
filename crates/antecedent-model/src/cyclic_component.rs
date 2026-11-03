@@ -54,7 +54,7 @@ pub const SCC_COMPILE_ATTEMPT: &str = concat!(
 ///
 /// This names the DAG schedule. It does not factor a cyclic block, admit a
 /// model, or identify it. Specified models remain model-conditional;
-/// compilation grants no scientific license.
+/// compilation grants no scientific support.
 pub const DAG_EQUILIBRIUM_ATTEMPT: &str =
     "evaluate the acyclic linear equilibrium in topological order";
 

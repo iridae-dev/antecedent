@@ -366,7 +366,7 @@ pub fn failure_next_actions(
 }
 
 /// What a failed identification adds to a capability report: the evidence-gathering next
-/// actions, one licensed neighbor per route family that could repair it, and one unresolved
+/// actions, one supported neighbor per route family that could repair it, and one unresolved
 /// obligation per evidence obligation (an assumption obligation is `uncheckable`: no study
 /// establishes it).
 #[derive(Clone, Debug)]
@@ -374,7 +374,7 @@ pub struct FailureCapabilityParts {
     /// `measure_variable`, `run_experiment`, `find_instrument`, `collect_panel` actions.
     pub next_actions: Vec<NextAction>,
     /// One neighbor per route family: the evidence regime that would replace the observed law.
-    pub neighbors: Vec<antecedent_contract::LicensedNeighbor>,
+    pub neighbors: Vec<antecedent_contract::SupportedNeighbor>,
     /// One unresolved obligation per evidence obligation, carrying its proof step as the
     /// required check.
     pub unmet_obligations: Vec<antecedent_contract::ObligationRecord>,
@@ -387,7 +387,7 @@ pub fn failure_capability_parts(
     observed: &[VariableId],
     names: &[String],
 ) -> FailureCapabilityParts {
-    use antecedent_contract::{LicensedNeighbor, ObligationKind, ObligationRecord, PremiseChange};
+    use antecedent_contract::{ObligationKind, ObligationRecord, PremiseChange, SupportedNeighbor};
     use antecedent_core::{AssumptionSource, AssumptionStatus};
 
     let next_actions = failure_next_actions(obligations, observed, names);
@@ -406,7 +406,7 @@ pub fn failure_capability_parts(
             let action = failure_next_actions(&own, observed, names)
                 .first()
                 .map_or_else(|| "establish_assumption".to_owned(), |a| a.id.to_string());
-            LicensedNeighbor::new(
+            SupportedNeighbor::new(
                 format!("identified_by:{family}"),
                 vec![PremiseChange::new("evidence", "observational_base_law", family)],
                 action,

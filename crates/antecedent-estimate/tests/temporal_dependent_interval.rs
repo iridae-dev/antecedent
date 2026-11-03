@@ -338,7 +338,7 @@ fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
 #[test]
 fn unknown_unit_dependence_public_route_stays_closed() {
     let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("temporal_interval.route_frozen"), "{message}");
 }
 

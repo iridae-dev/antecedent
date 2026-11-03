@@ -270,7 +270,7 @@ fn attestation_is_a_lookup_against_current_records_and_replays_when_it_holds() {
         Err(error) => {
             // Until a current attesting record exists the interval is computed, not attested.
             let text = error.to_string();
-            assert!(text.contains("cell_not_licensed"), "{text}");
+            assert!(text.contains("not_supported"), "{text}");
             assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
         }
     }
@@ -280,13 +280,13 @@ fn attestation_is_a_lookup_against_current_records_and_replays_when_it_holds() {
 fn an_interval_outside_the_measured_row_range_is_never_attested() {
     // 3000 analysis rows lie above the largest measured analysis count (1200), so no record can
     // cover the execution whatever has been measured: the interval is computed and
-    // `measure` refuses it with cell_not_licensed rather than relabelling it.
+    // `measure` refuses it with not_supported rather than relabelling it.
     let data = collider_table(7);
     let estimate = estimate_effect_on_split(&data, v(2), v(3), SPLIT_SEED, &ctx()).unwrap();
     assert!(estimate.interval().0 < estimate.interval().1);
     let error = estimate.measure(&ctx()).unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
+    assert!(text.contains("not_supported"), "{text}");
     assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
 }
 
@@ -295,7 +295,7 @@ fn an_unresolved_structure_reports_no_interval() {
     let data = chain_table(5);
     let error = estimate_effect_on_split(&data, v(1), v(3), SPLIT_SEED, &ctx()).unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
+    assert!(text.contains("not_supported"), "{text}");
     assert!(text.contains("split_effect.structure_unresolved"), "{text}");
 }
 

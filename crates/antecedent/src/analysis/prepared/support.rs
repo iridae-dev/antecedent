@@ -4,7 +4,7 @@
 
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
-use crate::analysis::query_license::{prepared_rule, unlicensed_combination};
+use crate::analysis::query_support::{prepared_rule, unsupported_combination};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::result::StudyResult;
@@ -186,7 +186,7 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                     && query.horizons.len() != 1 =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                    message: "Frequentist DBN-posterior mediation is supported for one horizon; \
                               multi-horizon grids need their own joint uncertainty contract",
                 });
             }
@@ -224,8 +224,8 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 | CausalQuery::ChangeAttribution(_),
             ) => Ok(()),
             _ => Err(crate::support_reason!(
-                "data_modality_not_licensed",
-                "graph_posterior on the prepared handle is licensed only for tabular \
+                "data_modality_not_supported",
+                "graph_posterior on the prepared handle is supported only for tabular \
                  AverageEffect/Response/ConditionalEffect/Transport/Interference/Mediation/\
                  PathSpecific/NestedCounterfactual/Counterfactual/Anomaly and Change \
                  attribution and series \
@@ -235,13 +235,13 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
     }
     let modality = crate::analysis::execute::data_modality(&analysis.data);
     let Some(rule) = prepared_rule(&analysis.query, modality) else {
-        return Err(unlicensed_combination());
+        return Err(unsupported_combination());
     };
     if !rule.admits(analysis.graph.class(), analysis.structure_source) {
         return Err(rule.refusal());
     }
     if let DataInput::Panel(panel) = &analysis.data {
-        crate::analysis::builder::refuse_unlicensed_panel_route(
+        crate::analysis::builder::refuse_unsupported_panel_route(
             &analysis.query,
             analysis.graph.class(),
             &analysis.settings.inference,

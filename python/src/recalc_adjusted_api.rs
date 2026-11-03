@@ -317,7 +317,7 @@ pub struct PyAdjustedSession {
 impl PyAdjustedSession {
     fn capabilities(&self) -> RecalcCapabilities {
         RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: antecedent_core::recalc::RequestSupport::OnGrid,
             boundary: self.inner.boundary(),
         }

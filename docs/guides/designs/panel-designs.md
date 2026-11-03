@@ -2,7 +2,7 @@
 
 Estimate what a rollout, launch or policy did when you observed treated and untreated units before and after the change and nothing randomized who was treated. This guide covers difference-in-differences on a two-period panel, event studies for staggered adoption, and the synthetic control family for one or a few treated units. For a threshold rule on a running variable, see [Regression discontinuity and kink](discontinuity-and-kink.md).
 
-These designs identify an effect only through assumptions you declare and Antecedent cannot test: that the treated units would have followed the comparison units' trend without the change, that nothing responded before adoption, and that units do not affect each other. Every result below executes and keeps its status as an unlicensed point utility or an unlicensed interval with calibration `unmeasured`; read `result.inspect().calibration` and the assumptions on the result. A good pre-period fit or a flat pre-trend is a reason to look harder, not a verification of the assumption.
+These designs identify an effect only through assumptions you declare and Antecedent cannot test: that the treated units would have followed the comparison units' trend without the change, that nothing responded before adoption, and that units do not affect each other. Every result below executes and keeps its status as an unsupported point utility or an unsupported interval with calibration `unmeasured`; read `result.inspect().calibration` and the assumptions on the result. A good pre-period fit or a flat pre-trend is a reason to look harder, not a verification of the assumption.
 
 ## Two-period difference-in-differences
 
@@ -105,7 +105,7 @@ Donor weights are nonnegative and sum to one, chosen by projected gradient desce
 
 When the panel is read over the observed window the result carries `observed_window` (`ObservedWindowSupport`): the pre- and post-periods read, `donors_used`, the excluded units with the window periods each misses, and `unread_rows`; the same typed report is sealed into the result artifact and checked against the frozen unit and period labels on load.
 
-The result reports donor weights, pre-fit RMSE, the effective donor count and leave-one-donor-out placebo effects. The placebo tail fraction compares post/pre RMSE ratios, assumes exchangeable units and is neither a confidence interval nor a licensed test. Identification needs no anticipation, stable treatment after adoption, no concurrent treated-unit shock, no interference, and a convex combination of donors being a valid untreated counterfactual. Pre-fit RMSE has no acceptance threshold.
+The result reports donor weights, pre-fit RMSE, the effective donor count and leave-one-donor-out placebo effects. The placebo tail fraction compares post/pre RMSE ratios, assumes exchangeable units and is neither a confidence interval nor a supported test. Identification needs no anticipation, stable treatment after adoption, no concurrent treated-unit shock, no interference, and a convex combination of donors being a valid untreated counterfactual. Pre-fit RMSE has no acceptance threshold.
 
 The prepared study freezes unit and period row order; refreshing with changed design labels is refused.
 

@@ -48,7 +48,7 @@ sha256 = "48e69d931870038e503c5f786439bb69f7df494aa476aa8c6a4a4187cfb43af8"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/notears/mod.rs"
-sha256 = "6284b27ffc467e673bbf38f844679924e4a84fa8955044d470c01881b00ef1a0"
+sha256 = "18246220911942cfa49fd73162d49402dca6e8ced1d12563869597360a88d0ba"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -15,7 +15,7 @@ papers = [
 implementation_deviations = [
  "Fits a selected GCM mechanism family per node (linear-Gaussian, interactions, splines; discrete analogues), then abducts and predicts. Mechanism selection is 5-fold row-mod cross-validated error, not a procedure in the cited chapter.",
  "Sampling uncertainty is unavailable on the frequentist path. The Bayesian path is a Dirichlet mechanism-refit bootstrap on the observed units, not a population posterior.",
- "Licensed staged query is one-treatment, one-outcome ITE (or the named attribution queries). Nested, temporal, and graph-posterior requests refuse.",
+ "Supported staged query is one-treatment, one-outcome ITE (or the named attribution queries). Nested, temporal, and graph-posterior requests refuse.",
 ]
 
 upstream_implementations_observed = [
@@ -37,7 +37,7 @@ redistribution = "Primary work is cited, not redistributed. The closed-form refe
 limitations = "One 24-row chain with a binary treatment and sine and cosine disturbances; the point contrast is asserted equal to the product of the two closed-form slopes to 1e-9 relative. This establishes that fitting, abduction and prediction compose to the least-squares slopes where the selected families are linear; it does not examine what is selected when the truth is nonlinear, how ties between families are broken, interactions, splines or discrete mechanisms, or the Frequentist route's lack of sampling uncertainty (the record's stated limit). The reference is a closed form evaluated in binary64 inside the test file (not an independent script with a frozen output), and the weight vectors are regenerated from the same documented stream of the execution context; a change of stream or draw order is therefore a failing test rather than silently matched, but the test cannot detect a defect in the shared Dirichlet(1,...,1) weight generator itself (data.bayesian_bootstrap)."
 sources = ["https://doi.org/10.1017/CBO9780511803161"]
 findings_resolved = ["No defect: the fitted counterfactual contrast of the chain equals the product of the least-squares slope of m on t and of y on m."]
-record_sha256 = "85470325b0bb7f2f1d49ba98f625733685781e32beda4e8ceaa7b8bba14cb868"
+record_sha256 = "edb55ab63ae77b97587c93818334b55236b786f1943b3b4395839383358dc42d"
 
 [[method_review.artifacts]]
 role = "implementation"

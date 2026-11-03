@@ -287,7 +287,7 @@ fn unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse() {
     assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.recovery, Some(RecoveryDetail::NonrecoverableWitness));
     assert!(error.patterns.is_empty());
-    // Adjacent class: a colluder R0 -> R1 is outside the licensed m-graph.
+    // Adjacent class: a colluder R0 -> R1 is outside the supported m-graph.
     let mut colluder = MModel::new(2, 0, &[(0, 1)], &[vec![], vec![0]], 13).unwrap();
     colluder.graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
     let error = derive_sampled_recovery(
@@ -391,12 +391,12 @@ fn sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
     let error = refuse_component_variance_only(&[0.01, 0.02, 0.03]);
     assert_eq!(error.detail, SampledRecoveryDetail::ComponentVarianceOnly);
     assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.reason_code(), "not_supported");
     assert!(error.message.contains('3'), "{error}");
     let frozen = sampled_recovery_route_frozen();
     assert_eq!(frozen.detail, SampledRecoveryDetail::RouteFrozen);
     assert_eq!(frozen.detail.detail(), "sampled_recovery.route_frozen");
-    assert_eq!(frozen.reason_code(), "cell_not_licensed");
+    assert_eq!(frozen.reason_code(), "not_supported");
 }
 
 // Independent inverse-response/standardization formula for this fixture only.
@@ -634,7 +634,7 @@ fn scientific_basis_ignores_source_aliases_but_retains_checked_construction() {
     assert_ne!(first.calibration_basis(), changed_result.calibration_basis());
 
     let changed_roles = MModel::new(2, 1, &EDGES, &[vec![0], vec![2]], 5).unwrap();
-    // Self censoring is refused, never normalized into the original license.
+    // Self censoring is refused, never normalized into the original support.
     assert!(
         derive_sampled_recovery(
             &changed_roles.graph,

@@ -360,7 +360,7 @@ pub(crate) fn invalidated_stages(
     RecalcPlan::plan(
         &previous,
         &requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
     .recomputed()
 }

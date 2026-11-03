@@ -1028,7 +1028,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if matches!(graph, DistributionGraph::Admg(_)) {
-            ensure_admg_distribution_licensed(query, self.settings.refute)?;
+            ensure_admg_distribution_supported(query, self.settings.refute)?;
         }
         let started = Instant::now();
         let (identifier_id, estimator_id) =
@@ -1330,7 +1330,7 @@ impl super::Study {
             &antecedent_estimate::PreparedFunctionalEffect,
         )>,
     ) -> Result<StudyResult, CausalError> {
-        ensure_admg_path_specific_licensed(self.settings.refute)?;
+        ensure_admg_path_specific_supported(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
@@ -2601,22 +2601,22 @@ pub(super) fn path_specific_source_parts(
 /// never carries a scalar suite.
 #[allow(
     clippy::unnecessary_wraps,
-    reason = "the gate keeps the shape of the other licence gates its callers share"
+    reason = "the gate keeps the shape of the other support gates its callers share"
 )]
-pub(super) fn ensure_admg_path_specific_licensed(refute: RefuteSuite) -> Result<(), CausalError> {
+pub(super) fn ensure_admg_path_specific_supported(refute: RefuteSuite) -> Result<(), CausalError> {
     let _ = refute;
     Ok(())
 }
 
-/// Licence gate for an ADMG interventional distribution, shared by compile and
+/// Support gate for an ADMG interventional distribution, shared by compile and
 /// execute: unconditional finite-discrete tables at validation none.
-pub(super) fn ensure_admg_distribution_licensed(
+pub(super) fn ensure_admg_distribution_supported(
     query: &antecedent_core::InterventionalDistributionQuery,
     refute: RefuteSuite,
 ) -> Result<(), CausalError> {
     if !query.conditioning.is_empty() {
         return Err(CausalError::Unsupported {
-            message: "ADMG InterventionalDistribution is licensed for unconditional \
+            message: "ADMG InterventionalDistribution is supported for unconditional \
                       finite-discrete tables; IDC conditionals are a follow-up",
         });
     }

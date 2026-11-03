@@ -127,9 +127,9 @@ declare the callback from self-contained source.
 
 ## Related behaviour
 
-- `PreparedPolicy` still compiles and licenses a program once against a fitted model
+- `PreparedPolicy` still compiles and supports a program once against a fitted model
   (`support`, `rebind`, the compilation counters). Its `value`, `sample` and
-  `counterfactual` run the compiled simulation routes. `policy_support` is a licensing
+  `counterfactual` run the compiled simulation routes. `policy_support` is a support
   check and computes no answer.
 - Ranking root causes (`rank_root_causes`) orders an attribution's components. It
   accepts only an attribution a compiled route or compiled study returned, so the

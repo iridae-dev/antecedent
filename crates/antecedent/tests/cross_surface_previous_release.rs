@@ -138,7 +138,7 @@ fn a_previous_release_artifact_adopts_current_digests_and_refuses_fresh_reuse() 
     let in_process = RecalcReceiptArtifact::seal(
         &workflow("u1", "seed1"),
         &workflow("u2", "seed1"),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts(&[(Stage::Decision, decided())]),
     )
     .unwrap();
@@ -157,7 +157,7 @@ fn a_previous_release_artifact_adopts_current_digests_and_refuses_fresh_reuse() 
 
     let previous = workflow("u1", "seed1");
     let supplied = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { supplied_data: true, ..ResumeContext::default() },
     );
     let fresh = RecalcReceiptArtifact::seal(
@@ -203,7 +203,7 @@ fn a_previous_release_artifact_adopts_current_digests_and_refuses_fresh_reuse() 
     );
 
     let portable = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { portable_scores: true, supplied_data: true, ..ResumeContext::default() },
     );
     let error =

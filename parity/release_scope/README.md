@@ -23,13 +23,13 @@ Each `[[entry]]` has an `id`, a `status`, and a `list`.
 
 ## What is included
 
-Mandatory rows are the licensed routes in `parity/capabilities/route_manifest.toml` (`status = "licensed"`), the B03 counterparts whose gap is not a closed research boundary, the feedback minimum (Y01 cyclic graph, Y02 SCC schedule, Y03 linear solution contract, Y10 experimental recovery recipe, Y09 sigma-separation), Q04, X01's two-intervention contrast on `licensed.AverageEffect.Dag`, the four X02 fit rows, and the two X06 flagship rows.
+Mandatory rows are the supported routes in `parity/capabilities/route_manifest.toml` (`status = "supported"`), the B03 counterparts whose gap is not a closed research boundary, the feedback minimum (Y01 cyclic graph, Y02 SCC schedule, Y03 linear solution contract, Y10 experimental recovery recipe, Y09 sigma-separation), Q04, X01's two-intervention contrast on `supported.AverageEffect.Dag`, the four X02 fit rows, and the two X06 flagship rows.
 
 A closed research boundary is not a row. That is a B03 child whose B04 failure policy starts with `Refuse this axis`, or whose route is already `closed.*` and whose failure policy starts with `Identification is blocked`. X03, X04, and X05 are the pending attempt rows rather than a second copy of those children.
 
-The research list is the four `X02.broader` children and G08. The 20 October 2026 scope amendment promotes Y18, Y19 and their ten acceptance children to mandatory 3.0 implementation work. Calibration and release attestation remain separate from those implementation tickets. The executing acceptance contract is `parity/cyclic/acceptance.toml`.
+The research list is the four `X02.broader` children and G08. The 20 October 2026 scope amendment makes Y18, Y19 and their ten acceptance children mandatory 3.0 implementation work. Calibration and release attestation remain separate from those implementation tickets. The executing acceptance contract is `parity/cyclic/acceptance.toml`.
 
-Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not licensed routes in this file.
+Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not supported routes in this file.
 
 ## Counts by status
 
@@ -40,7 +40,7 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not lic
 | research | 5 |
 | closed_failed | 1 |
 
-204 mandatory rows: the original 192 rows (91 licensed routes, 94 counterparts, 5 feedback rows, Q04, and `X01.licensed_contrast`), plus Y18/Y19 and their ten acceptance children.
+204 mandatory rows: the original 192 rows (91 supported routes, 94 counterparts, 5 feedback rows, Q04, and `X01.supported_contrast`), plus Y18/Y19 and their ten acceptance children.
 
 For Y18/Y19 and their acceptance children, `implementation = "complete"` records the passed non-calibration implementation gate; `implementation_evidence` links the executing contract. Their `mandatory` status retains release scope. Calibration and attestation remain separate and unclaimed.
 

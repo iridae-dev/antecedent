@@ -10,7 +10,7 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::cohort_linear_effect::{
-    DETAIL_NOT_LICENSED, DETAIL_REQUIRES_NATIVE_FIT, FIT_PROCEDURE_ID, NativeCohortFit,
+    DETAIL_NOT_SUPPORTED, DETAIL_REQUIRES_NATIVE_FIT, FIT_PROCEDURE_ID, NativeCohortFit,
     NativeFitRows, declared_export_refusal, fit_cohort_linear_effect, native_cohort_interval,
     native_cohort_interval_for,
 };
@@ -151,7 +151,7 @@ fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standar
     assert!(narrow.upper - narrow.lower < interval.upper - interval.lower);
     assert_eq!(
         native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(),
-        "cell_not_licensed: cohort_decision.interval_level_invalid (level)"
+        "not_supported: cohort_decision.interval_level_invalid (level)"
     );
 }
 
@@ -173,7 +173,7 @@ fn a_declared_export_cannot_claim_a_native_fit() {
     })
     .unwrap();
     assert_eq!(declared_export_refusal().detail, DETAIL_REQUIRES_NATIVE_FIT);
-    assert_eq!(declared_export_refusal().code, "cell_not_licensed");
+    assert_eq!(declared_export_refusal().code, "not_supported");
     // The same numbers carry a different identity, and replaying the real rows against
     // the declared export is refused.
     assert_ne!(native.export().identity(), declared.identity());
@@ -233,7 +233,7 @@ fn a_shifted_cohort_stays_point_only() {
     )
     .unwrap();
     let error = native_cohort_interval(&native, &source, 0.95).unwrap_err();
-    assert_eq!(error.detail, DETAIL_NOT_LICENSED);
+    assert_eq!(error.detail, DETAIL_NOT_SUPPORTED);
 }
 
 // -- exact multiprecision reference --------------------------------------------------------------

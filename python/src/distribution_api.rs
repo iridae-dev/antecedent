@@ -16,7 +16,7 @@ fn artifact_error(error: impl std::fmt::Display) -> PyErr {
 }
 
 /// Accept canonical and read-compat trust spellings, then store the distribution codec spelling.
-/// `native_licensed` and `verified_extension` are not caller claims.
+/// `native_supported` and `verified_extension` are not caller claims.
 fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
     let mut value: serde_json::Value =
         serde_json::from_str(metadata_json).map_err(artifact_error)?;
@@ -26,7 +26,7 @@ fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
     let parsed = ProviderTrust::from_wire(&trust)
         .ok_or_else(|| crate::value_err(format!("unknown distribution trust {trust:?}")))?;
     match parsed {
-        ProviderTrust::NativeLicensed => {
+        ProviderTrust::NativeSupported => {
             return Err(crate::recalc_api::invalid(
                 "native_distribution.authority_required",
                 "native trust requires retained producer-issued execution state",

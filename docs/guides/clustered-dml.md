@@ -5,7 +5,7 @@
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval's
-95% coverage record is measured, and the interval is licensed at its measured coordinate
+95% coverage record is measured, and the interval is supported at its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
@@ -135,13 +135,13 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   `cluster_ids` (aligned with the table rows), and a table or plan without them keeps the
   iid retarget withheld. The iid max-t score inference stays withheld.
 - A requested bootstrap (which would resample rows and split clusters) or a non-default
-  `se_kind` is refused with `cluster_interval_not_licensed` (`cluster_dml.interval_withheld`):
+  `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.interval_withheld`):
   the route reports its own sandwich standard error rather than ignoring the request.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
   registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
   sample grid of cluster counts and was measured. The one-way 95% cluster interval
-  is licensed for 300–800 rows at that coordinate. This construction does
+  is supported for 300–800 rows at that coordinate. This construction does
   not measure the dyadic `multiway` coordinate;
   a dyadic interval must not inherit its one-way coverage record.
 
@@ -157,7 +157,7 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
 
 ## Scope and refusals
 
-- Licensed: the untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other functionals,
+- Supported: the untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other functionals,
   populations and trimmed fits refuse `route_not_supported` (`cluster_dml.scope`).
 - A penalized propensity keeps points only and is not combined with this route
   (`route_not_supported`, `cluster_dml.penalized_propensity`).
@@ -169,7 +169,7 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   two-way) with `cancelled_no_claim` (`cluster_dml.cancelled`) and no estimate or score table;
   it is never a verdict on the data.
 - **Dyadic structures the two-way cell does not cover stay closed** with
-  `dyadic_dependence_not_licensed`: an entity that is a first endpoint of some rows and a
+  `dyadic_dependence_not_supported`: an entity that is a first endpoint of some rows and a
   second endpoint of others (`cluster_dml.dyadic_shared_namespace`), and one connected
   component of the endpoint graph holding more than one fold's share of the rows
   (`cluster_dml.dyadic_giant_component`). Too few endpoint labels or too few components per
@@ -203,7 +203,7 @@ and years, senders and receivers, buyers and sellers drawn from different popula
 two label sets must be disjoint: a label that is a first endpoint of some rows and a second
 endpoint of others means one entity sits in both dimensions, and rows `(i, j)` and `(k, i)`
 are then dependent through `i` in a way the two-way construction below does not model, so it
-is refused (`dyadic_dependence_not_licensed`, `cluster_dml.dyadic_shared_namespace`). A
+is refused (`dyadic_dependence_not_supported`, `cluster_dml.dyadic_shared_namespace`). A
 declaration is `ClusterDml::dyadic(min_clusters, min_components_per_fold)`.
 
 **Fold ownership.** Build the graph whose nodes are the endpoint labels and whose edges are
@@ -220,7 +220,7 @@ route equals the one-way route (same folds, same point bit for bit, same receipt
 whole-component folds:
 
 - one component holds more rows than one fold's share (its row count times the five folds
-  exceeds the number of rows): `dyadic_dependence_not_licensed`,
+  exceeds the number of rows): `dyadic_dependence_not_supported`,
   `cluster_dml.dyadic_giant_component`. A giant component is the common case of real
   networks, and the whole graph then has no honest cross-fit;
 - fewer than `min_components_per_fold` components in the smallest fold (components divided
@@ -286,7 +286,7 @@ for a two-way variance is `G_min - 1` with `G_min = min(G_a, G_b)`; the receipt 
 two-way standard error with `se_kind` `multiway`, and the same value is
 `ClusterDml::receipt(table, first, Some(second))` with `n_clusters`, `n_clusters_second`,
 `n_components`, `reference_df` and a fingerprint of the sorted component names. A requested
-bootstrap or SE kind is refused as for the one-way unit (`cluster_interval_not_licensed`).
+bootstrap or SE kind is refused as for the one-way unit (`cluster_interval_not_supported`).
 The receipt refuses a table in which a component spans two folds, and a materially negative
 two-way variance is an error, never truncated. Python: `ClusterDml(cluster_ids=...,
 second_cluster_ids=..., unit="dyad", min_components_per_fold=4)`; a dyadic dataclass without

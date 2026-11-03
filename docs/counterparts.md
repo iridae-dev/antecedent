@@ -16,142 +16,142 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Method | static / frequentist | static / bayesian | temporal / frequentist | temporal / bayesian |
 | --- | --- | --- | --- | --- |
-| `P01.iv` | licensed | licensed | executing | executing |
-| `P01.linear` | licensed | licensed | licensed | licensed |
-| `P02.glm` | licensed | licensed | executing | executing |
-| `P02.penalized_propensity` | executing | executing | executing | executing |
-| `P03.aipw` | licensed | licensed | executing | executing |
-| `P03.policy` | executing | executing | executing | executing |
-| `P04` | licensed | executing | executing | executing |
-| `P05` | executing | executing | executing | executing |
-| `P06` | licensed | licensed | licensed | licensed |
-| `P07.continuous_dose` | executing | executing | executing | executing |
-| `P07.curve` | licensed | licensed | licensed | licensed |
-| `P07.derivative` | licensed | licensed | licensed | licensed |
-| `P07.dose_grid` | executing | executing | executing | executing |
-| `P07.quantile` | executing | executing | executing | executing |
-| `P07.smoothed_dose` | executing | executing | executing | executing |
-| `P08` | licensed | licensed | licensed | licensed |
-| `P09.adaptive` | executing | executing | executing | executing |
-| `P09.categorical` | executing | executing | executing | executing |
-| `P09.factorial` | executing | executing | executing | executing |
-| `P09.interference` | executing | licensed | executing | executing |
-| `P09.multiarm` | executing | executing | executing | executing |
-| `P09.switchback` | n/a (theory) | n/a (theory) | executing | executing |
-| `P09.two_arm` | executing | executing | executing | executing |
-| `P10` | executing | executing | executing | executing |
-| `P11.augmented_panel_did` | n/a (theory) | n/a (theory) | executing | executing |
-| `P11.did` | executing | executing | executing | executing |
-| `P11.local_ratio` | executing | executing | executing | executing |
-| `P11.rd` | licensed | licensed | executing | executing |
-| `P11.staggered` | n/a (theory) | n/a (theory) | executing | executing |
-| `P11.synthetic_control` | n/a (theory) | n/a (theory) | executing | executing |
-| `P12.counterfactual` | licensed | licensed | licensed | licensed |
-| `P12.intervention` | licensed | licensed | licensed | licensed |
-| `P13.attribution` | licensed | licensed | licensed | licensed |
-| `P13.refuter` | executing | executing | executing | executing |
-| `P14` | licensed | licensed | licensed | licensed |
-| `P15.conditional` | licensed | licensed | executing | executing |
-| `P15.projection` | licensed | licensed | licensed | licensed |
-| `P15.pulse` | n/a (theory) | n/a (theory) | executing | executing |
-| `P15.sustained` | n/a (theory) | n/a (theory) | executing | executing |
-| `P16` | executing | executing | executing | executing |
-| `P17` | executing | executing | executing | executing |
-| `P18` | executing | executing | executing | executing |
-| `P19` | executing | executing | executing | executing |
-| `P20` | executing | executing | executing | executing |
-| `X01` | licensed | licensed | licensed | licensed |
-| `X02` | executing | executing | executing | executing |
-| `X02.broader` | executing | executing | executing | executing |
-| `X03` | n/a (theory) | n/a (theory) | executing | executing |
-| `X04.1` | executing | executing | executing | executing |
-| `X04.2` | executing | executing | executing | executing |
-| `X05` | n/a (theory) | n/a (theory) | n/a (theory) | executing |
-| `X06` | n/a (theory) | n/a (theory) | executing | executing |
+| `P01.iv` | supported | supported | not supported | not supported |
+| `P01.linear` | supported | supported | supported | supported |
+| `P02.glm` | supported | supported | not supported | not supported |
+| `P02.penalized_propensity` | not supported | not supported | not supported | not supported |
+| `P03.aipw` | supported | supported | not supported | not supported |
+| `P03.policy` | not supported | not supported | not supported | not supported |
+| `P04` | supported | not supported | not supported | not supported |
+| `P05` | not supported | not supported | not supported | not supported |
+| `P06` | supported | supported | supported | supported |
+| `P07.continuous_dose` | not supported | not supported | not supported | not supported |
+| `P07.curve` | supported | supported | supported | supported |
+| `P07.derivative` | supported | supported | supported | supported |
+| `P07.dose_grid` | not supported | not supported | not supported | not supported |
+| `P07.quantile` | not supported | not supported | not supported | not supported |
+| `P07.smoothed_dose` | not supported | not supported | not supported | not supported |
+| `P08` | supported | supported | supported | supported |
+| `P09.adaptive` | not supported | not supported | not supported | not supported |
+| `P09.categorical` | not supported | not supported | not supported | not supported |
+| `P09.factorial` | not supported | not supported | not supported | not supported |
+| `P09.interference` | not supported | supported | not supported | not supported |
+| `P09.multiarm` | not supported | not supported | not supported | not supported |
+| `P09.switchback` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P09.two_arm` | not supported | not supported | not supported | not supported |
+| `P10` | not supported | not supported | not supported | not supported |
+| `P11.augmented_panel_did` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P11.did` | not supported | not supported | not supported | not supported |
+| `P11.local_ratio` | not supported | not supported | not supported | not supported |
+| `P11.rd` | supported | supported | not supported | not supported |
+| `P11.staggered` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P11.synthetic_control` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P12.counterfactual` | supported | supported | supported | supported |
+| `P12.intervention` | supported | supported | supported | supported |
+| `P13.attribution` | supported | supported | supported | supported |
+| `P13.refuter` | not supported | not supported | not supported | not supported |
+| `P14` | supported | supported | supported | supported |
+| `P15.conditional` | supported | supported | not supported | not supported |
+| `P15.projection` | supported | supported | supported | supported |
+| `P15.pulse` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P15.sustained` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P16` | not supported | not supported | not supported | not supported |
+| `P17` | not supported | not supported | not supported | not supported |
+| `P18` | not supported | not supported | not supported | not supported |
+| `P19` | not supported | not supported | not supported | not supported |
+| `P20` | not supported | not supported | not supported | not supported |
+| `X01` | supported | supported | supported | supported |
+| `X02` | not supported | not supported | not supported | not supported |
+| `X02.broader` | not supported | not supported | not supported | not supported |
+| `X03` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `X04.1` | not supported | not supported | not supported | not supported |
+| `X04.2` | not supported | not supported | not supported | not supported |
+| `X05` | n/a (theory) | n/a (theory) | n/a (theory) | not supported |
+| `X06` | n/a (theory) | n/a (theory) | not supported | not supported |
 
 ## Routes by target
 
 | Method | static / frequentist | static / bayesian | temporal / frequentist | temporal / bayesian |
 | --- | --- | --- | --- | --- |
-| `AnomalyAttribution` | licensed | licensed | licensed | licensed |
-| `Association` | executing | executing | executing | executing |
-| `Attribute` | executing | executing | executing | executing |
-| `AverageDerivative` | licensed | licensed | licensed | licensed |
-| `AverageEffect` | licensed | licensed | licensed | licensed |
-| `ChangeAttribution` | licensed | licensed | licensed | licensed |
-| `ComposedQuantity` | executing | executing | executing | executing |
-| `ConditionalEffect` | licensed | licensed | licensed | licensed |
-| `Counterfactual` | licensed | licensed | licensed | licensed |
-| `DirectionalDerivative` | licensed | licensed | licensed | licensed |
-| `Elasticity` | licensed | licensed | licensed | licensed |
-| `InterferenceQuery` | licensed | licensed | licensed | licensed |
-| `InterventionResponse` | licensed | licensed | licensed | licensed |
-| `InterventionalDistribution` | licensed | licensed | licensed | licensed |
-| `MeasurementCorrectedFunctional` | executing | executing | executing | executing |
-| `MediationEffect` | licensed | licensed | licensed | licensed |
-| `NestedCounterfactualEffect` | licensed | licensed | licensed | licensed |
-| `PathSpecificEffect` | licensed | licensed | licensed | licensed |
-| `PointDerivative` | licensed | licensed | licensed | licensed |
-| `PulseEffect` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `ResponseCurve` | licensed | licensed | licensed | licensed |
-| `ResponseJacobian` | licensed | licensed | licensed | licensed |
-| `SemiElasticity` | licensed | licensed | licensed | licensed |
-| `SustainedEffect` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `TemporalConditionalPulse` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `TemporalConditionalSustained` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `TemporalDesign` | n/a (theory) | n/a (theory) | executing | executing |
-| `TemporalMediationEffect` | n/a (theory) | n/a (theory) | licensed | licensed |
-| `TransportQuery` | licensed | licensed | licensed | licensed |
-| `temporal_effect` | n/a (theory) | n/a (theory) | executing | executing |
+| `AnomalyAttribution` | supported | supported | supported | supported |
+| `Association` | not supported | not supported | not supported | not supported |
+| `Attribute` | not supported | not supported | not supported | not supported |
+| `AverageDerivative` | supported | supported | supported | supported |
+| `AverageEffect` | supported | supported | supported | supported |
+| `ChangeAttribution` | supported | supported | supported | supported |
+| `ComposedQuantity` | not supported | not supported | not supported | not supported |
+| `ConditionalEffect` | supported | supported | supported | supported |
+| `Counterfactual` | supported | supported | supported | supported |
+| `DirectionalDerivative` | supported | supported | supported | supported |
+| `Elasticity` | supported | supported | supported | supported |
+| `InterferenceQuery` | supported | supported | supported | supported |
+| `InterventionResponse` | supported | supported | supported | supported |
+| `InterventionalDistribution` | supported | supported | supported | supported |
+| `MeasurementCorrectedFunctional` | not supported | not supported | not supported | not supported |
+| `MediationEffect` | supported | supported | supported | supported |
+| `NestedCounterfactualEffect` | supported | supported | supported | supported |
+| `PathSpecificEffect` | supported | supported | supported | supported |
+| `PointDerivative` | supported | supported | supported | supported |
+| `PulseEffect` | n/a (theory) | n/a (theory) | supported | supported |
+| `ResponseCurve` | supported | supported | supported | supported |
+| `ResponseJacobian` | supported | supported | supported | supported |
+| `SemiElasticity` | supported | supported | supported | supported |
+| `SustainedEffect` | n/a (theory) | n/a (theory) | supported | supported |
+| `TemporalConditionalPulse` | n/a (theory) | n/a (theory) | supported | supported |
+| `TemporalConditionalSustained` | n/a (theory) | n/a (theory) | supported | supported |
+| `TemporalDesign` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `TemporalMediationEffect` | n/a (theory) | n/a (theory) | supported | supported |
+| `TransportQuery` | supported | supported | supported | supported |
+| `temporal_effect` | n/a (theory) | n/a (theory) | not supported | not supported |
 
 ## Narrowed promises
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
-| `P07.derivative.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P07.derivative.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P07.dose_grid.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P10.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P11.augmented_panel_did.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P11.synthetic_control.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P13.attribution.static.frequentist` | licensed | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `P13.attribution.static.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.attribution.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.attribution.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.refuter.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.refuter.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.refuter.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.refuter.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P14.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P14.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.static.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `X02.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
-| `X02.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.broader.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.broader.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.broader.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X02.broader.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X03.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X03.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X04.1.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.1.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.1.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.1.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.2.static.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.2.static.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.2.temporal.frequentist` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X04.2.temporal.bayesian` | executing | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
-| `X05.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X06.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
-| `X06.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P07.derivative.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P07.derivative.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P07.dose_grid.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P10.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P11.augmented_panel_did.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P11.synthetic_control.temporal.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P13.attribution.static.frequentist` | supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `P13.attribution.static.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.attribution.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.attribution.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.refuter.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.refuter.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.refuter.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P13.refuter.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P14.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P14.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P16.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P16.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P16.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `P16.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.static.frequentist` | not supported | build the missing route through the compiler with the same uncertainty ports |
+| `X02.static.bayesian` | not supported | build the missing route through the compiler with the same uncertainty ports |
+| `X02.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.broader.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.broader.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.broader.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X02.broader.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X03.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X03.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X04.1.static.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.static.bayesian` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.temporal.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.1.temporal.bayesian` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.static.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.static.bayesian` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.temporal.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X04.2.temporal.bayesian` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
+| `X05.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X06.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
+| `X06.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |

@@ -4,7 +4,7 @@
 //!
 //! Each target is computed under the mechanisms fitted on the supplied
 //! structure. None is a geometric support-matrix cell; the route executes and
-//! stays unlicensed until a coverage record licenses it.
+//! stays unsupported until a coverage record supports it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -460,7 +460,7 @@ fn an_interval_or_posterior_request_of_a_discretized_value_is_refused_by_both_pa
     for paradigm in [InferenceParadigm::Frequentist, InferenceParadigm::Bayesian] {
         let refusal = model.uncertainty_refusal(paradigm);
         assert_eq!(refusal.detail, DETAIL_POINT_ONLY);
-        assert_eq!(refusal.reason_code, "cell_not_licensed");
+        assert_eq!(refusal.reason_code, "not_supported");
         assert!(!refusal.remedy.is_empty());
     }
 }
@@ -486,7 +486,7 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
                     closed += 1;
                     assert!(!reason.is_empty());
                     let refusal = require_paradigm(route, paradigm).unwrap_err();
-                    assert_eq!(refusal.reason_code, "cell_not_licensed");
+                    assert_eq!(refusal.reason_code, "not_supported");
                     assert_eq!(refusal.detail, DETAIL_PARADIGM_CLOSED);
                     assert_eq!(refusal.remedy, reason);
                     assert_eq!(

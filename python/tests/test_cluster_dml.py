@@ -278,7 +278,7 @@ def test_unsupported_dyadic_structures_stay_closed_with_a_registered_reason_code
                     execution=ant.Execution(seed=1),
                 )
             )
-        assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
+        assert "dyadic_dependence_not_supported" in refusal_text(error.value)
         assert detail in refusal_text(error.value)
         assert_registered_refusal(error.value)
 

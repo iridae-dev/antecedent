@@ -317,7 +317,7 @@ pub const fn categorical_candidate_prior() -> CategoricalPosteriorPrior {
 pub type ContrastIntervals = Vec<(String, [f64; 2])>;
 
 /// Compute the prior-predictive candidate of every level contrast against the first declared
-/// level, with its native calibration basis. This internal operation grants no licensed
+/// level, with its native calibration basis. This internal operation grants no supported
 /// interval or coverage claim.
 ///
 /// # Errors

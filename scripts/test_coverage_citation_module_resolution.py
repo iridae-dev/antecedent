@@ -25,7 +25,7 @@ class CoverageModuleResolution(unittest.TestCase):
             if lane is not None:
                 (root / "scripts").mkdir()
                 (root / "scripts/gate_calibration.sh").write_text(lane, encoding="utf-8")
-            (root / "parity/support_licensed.toml").write_text(
+            (root / "parity/support_cells.toml").write_text(
                 '[[cell]]\nquery="q"\ngraph_class="g"\nstructure="s"\ninference="i"\nvalidation="v"\nlimitations=' + repr(limitations) + '\n', encoding="utf-8")
             return subprocess.run([sys.executable, str(GATE)], cwd=root, capture_output=True, text=True, check=False)
 

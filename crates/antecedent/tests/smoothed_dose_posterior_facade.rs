@@ -9,7 +9,7 @@
 //! credible interval at every grid dose under both sampling designs, keep the joint
 //! covariance across the grid (checked against the exact Gaussian moments of the declared
 //! conjugate model), export an artifact an independent loader recomputes, and refuse every
-//! forged or resealed change. The row is unlicensed: its calibration is `unmeasured`.
+//! forged or resealed change. The row is unsupported: its calibration is `unmeasured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
@@ -153,7 +153,7 @@ fn posterior_covers_the_closed_form_smoothed_target_under_both_designs() {
         assert_eq!(result.estimator, SMOOTHED_DOSE_POSTERIOR_ESTIMATOR);
         assert_eq!(result.uncertainty, POSTERIOR_ROW_UNCERTAINTY);
         assert_eq!(result.calibration, POSTERIOR_ROW_CALIBRATION);
-        assert!(!result.licensed);
+        assert!(!result.supported);
         assert_eq!(result.coordinates, ["psi_h(1)", "psi_h(2)", "psi_h(3)"]);
         assert_eq!(result.vectors["grid"], GRID);
         let exact = result.exact_mean.as_ref().unwrap();
@@ -250,11 +250,11 @@ fn artifact_round_trips_through_an_independent_loader_and_refuses_forgeries() {
         "{refused:?}"
     );
 
-    // A claimed licence is refused before any replay.
-    let mut licensed = direct.clone();
-    licensed.result.licensed = true;
+    // A claimed support is refused before any replay.
+    let mut supported = direct.clone();
+    supported.result.supported = true;
     assert!(matches!(
-        consume(&reseal(licensed)),
+        consume(&reseal(supported)),
         Err(PosteriorRowArtifactError::UnsupportedSemantics(_))
     ));
 

@@ -190,7 +190,7 @@ fn assumption_ranges_refuse_unrepresentable_moments() {
             b: bits(-1.0),
         };
         let error = JointLawPropagationArtifactWire::seal(&request, numbers, &ctx())
-            .expect_err("finite declarations cannot license a non-finite assumption range");
+            .expect_err("finite declarations cannot support a non-finite assumption range");
         assert_eq!(
             details(&error),
             vec![(
@@ -229,7 +229,7 @@ fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
     wire.shared_evidence.clear();
     reseal(&mut wire);
     let error =
-        wire.consume(None, &ctx()).expect_err("resealing cannot license inconsistent dependence");
+        wire.consume(None, &ctx()).expect_err("resealing cannot support inconsistent dependence");
     assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
 }
 
@@ -428,7 +428,7 @@ fn a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law(
         RequestedReading::Point,
     );
     let wire = JointLawPropagationArtifactWire::seal(&with_covariance, numbers, &ctx())
-        .expect("a covariance licenses the composition");
+        .expect("a covariance supports the composition");
     assert!((value(&wire, "variance") - 2.0).abs() < 1e-15);
 }
 
@@ -704,8 +704,8 @@ fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
     assert_eq!(
         details(&error),
         vec![(
-            "cell_not_licensed".to_owned(),
-            "joint_law_propagation.spread_needs_licensed_dependence".to_owned()
+            "not_supported".to_owned(),
+            "joint_law_propagation.spread_needs_supported_dependence".to_owned()
         )]
     );
 }

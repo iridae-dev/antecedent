@@ -6,7 +6,7 @@
 //! averaged over the treated rows, with treatment-by-covariate interactions centred at the
 //! treated means. Static data takes it through Bayesian g-computation with a `Treated` target
 //! population; units with a history and a calendar period take it through the period-and-history
-//! outcome model. Both are labelled as model-based, execute unlicensed with calibration
+//! outcome model. Both are labelled as model-based, execute unsupported with calibration
 //! unmeasured, and leave the matching posterior refusal in place.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -198,7 +198,7 @@ fn the_history_outcome_model_reports_a_model_based_effect_on_the_treated() {
     let column = posterior.effect_column().expect("the effect on the treated");
     let ate = posterior.summaries.mean[column];
     assert!((ate - truth).abs() < 0.06, "posterior effect {ate} vs effect on treated {truth}");
-    assert!(result.support_status().is_none(), "the route is unlicensed");
+    assert!(result.support_status().is_none(), "the route is unsupported");
     let carries = |id: &str| {
         result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
             matches!(&record.assumption, Assumption::Custom { id: name, .. } if name.as_ref() == id)

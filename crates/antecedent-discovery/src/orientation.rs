@@ -323,7 +323,7 @@ pub struct OrientationState {
     pub pd_path_budget: crate::uncovered_paths::PdPathBudget,
     /// Edges `(a, c)` that R9 / R10 left unresolved (circle kept at `a`) because their
     /// uncovered potentially-directed path search exhausted its budget without finding a
-    /// path that licenses the orientation.
+    /// path that supports the orientation.
     pub pd_path_skipped: HashSet<(u32, u32)>,
 }
 
@@ -653,7 +653,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR2 {
 
 /// Whether two nonadjacent `mediators` `c, d` form an unshielded triple `c — a — d` whose
 /// non-collider status is known. R3 rests on that premise, so a triple marked ambiguous (no
-/// separating set or a tied majority vote) cannot license it.
+/// separating set or a tied majority vote) cannot support it.
 fn has_definite_noncollider_pair<G: CpdagOps>(
     graph: &G,
     state: &OrientationState,

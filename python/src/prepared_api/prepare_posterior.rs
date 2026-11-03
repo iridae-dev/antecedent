@@ -23,7 +23,7 @@ use crate::response_api::build_functional;
 
 #[pymethods]
 impl PyPreparedAnalysis {
-    /// Compile once for licensed AverageEffect × graph_posterior × Bayesian or Frequentist.
+    /// Compile once for supported AverageEffect × graph_posterior × Bayesian or Frequentist.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -75,7 +75,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed ConditionalEffect × graph_posterior.
+    /// Compile once for supported ConditionalEffect × graph_posterior.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -393,7 +393,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed static ResponseCurve × graph_posterior.
+    /// Compile once for supported static ResponseCurve × graph_posterior.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -444,7 +444,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed one-coordinate InterventionResponse × graph_posterior.
+    /// Compile once for supported one-coordinate InterventionResponse × graph_posterior.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -501,7 +501,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed Pulse/Sustained × DBN graph_posterior.
+    /// Compile once for supported Pulse/Sustained × DBN graph_posterior.
     ///
     /// Bayesian mixes per-atom posteriors; Frequentist mixes atom estimates with
     /// a shared circular-block SE from the replicate budget (`0` withholds it).
@@ -585,7 +585,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior.
+    /// Compile once for supported TemporalMediationEffect × DBN graph_posterior.
     ///
     /// Bayesian mixes per-atom posteriors; single-horizon Frequentist mixes atom
     /// estimates with a shared circular-block SE from the replicate budget
@@ -663,7 +663,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed temporal ResponseCurve / InterventionResponse
+    /// Compile once for supported temporal ResponseCurve / InterventionResponse
     /// × DBN or temporal-class graph_posterior.
     #[staticmethod]
     #[pyo3(signature = (
@@ -677,8 +677,8 @@ impl PyPreparedAnalysis {
         intervention_kinds=None,
         intervention_parameters=None,
         horizons,
-        policy=crate::temporal_license::DEFAULT_POLICY,
-        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
+        policy=crate::temporal_support::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_support::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
         max_lag=1,
         force_mcmc=false,
@@ -747,7 +747,7 @@ impl PyPreparedAnalysis {
                     antecedent_core::DerivativeWeighting::Observed,
                 )?;
                 let temporal_policy =
-                    crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+                    crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
                 let origin = -i32::try_from(treatment_lag)
                     .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
                 let functional =

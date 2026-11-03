@@ -153,10 +153,10 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
     assert!(static_effect.se_analytic().is_nan());
     let (lower, upper, _) = static_first_stage.anderson_rubin.expect("an Anderson-Rubin set");
     assert!(lower < ratio && ratio < upper, "[{lower}, {upper}] around {ratio}");
-    // Different licence: the temporal instrument is certified from the unfolded graph and
-    // executes unlicensed; the static cell is licensed.
-    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Licensed));
-    assert_ne!(temporal.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    // Different support: the temporal instrument is certified from the unfolded graph and
+    // executes unsupported; the static cell is supported.
+    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    assert_ne!(temporal.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ fn sequential_query() -> SequentialContrastQuery {
 /// declaration needs two distinct action columns, so a one-decision panel is refused at
 /// validation instead of reducing to a static AIPW. The static AIPW of the first action on the
 /// same subjects targets the total effect of that action alone (with the second decision left to
-/// follow the observed law), a different estimand, and publishes a licensed graph-based effect.
+/// follow the observed law), a different estimand, and publishes a supported graph-based effect.
 /// On this panel the two numbers differ by about the second decision's contribution.
 #[test]
 fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_aipw_of_the_first_action()
@@ -254,7 +254,7 @@ fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_
             .estimator(EstimatorId::Aipw),
     ));
     let total_effect = static_result.estimate().as_effect().unwrap().ate;
-    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Supported));
     // Different estimands: the regime contrast adds the second action's own effect.
     assert!(
         (fit.contrast - total_effect).abs() > 0.2,

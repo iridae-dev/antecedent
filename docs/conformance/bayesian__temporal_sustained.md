@@ -28,7 +28,7 @@ pipeline supports — `until > from` is refused
 (`refuse_multi_step_schedule`, `antecedent-estimate/src/temporal_adjustment.rs`)
 because a single-column regression cannot honor the multi-node contrast a
 true multi-step Sustained estimand requires. This fixture does not attempt to
-exercise multi-step accumulation; that remains unlicensed and untested.
+exercise multi-step accumulation; that remains unsupported and untested.
 
 ## Expected summary
 

@@ -75,7 +75,7 @@ fn regression_kink_quartic_trend_uses_the_higher_order_pilot() {
     assert!((0.925..=0.975).contains(&rate), "quartic kink coverage {rate:.4}");
 }
 
-// The two self-contained tests below are the graphless-license evidence rows
+// The two self-contained tests below are the graphless-support evidence rows
 // cited by `parity/support_graphless.toml`. Each owns its own 2,000-replication
 // known-truth loop so the generator gate can read the literal `interval_95`,
 // `covered`, `REPLICATES`, `TRUTH`, and `0.93..=0.985` tokens in one test body.
@@ -110,9 +110,9 @@ fn fuzzy_jump_ratio_normal_interval_covers_known_truth() {
         covered += usize::from(interval_95.0 <= TRUTH && TRUTH <= interval_95.1);
     }
     let rate = covered as f64 / accepted as f64;
-    eprintln!("fuzzy jump license: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
+    eprintln!("fuzzy jump support: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
     assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
-    assert!((0.93..=0.985).contains(&rate), "fuzzy jump license coverage {rate:.4}");
+    assert!((0.93..=0.985).contains(&rate), "fuzzy jump support coverage {rate:.4}");
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn regression_kink_ratio_normal_interval_covers_known_truth() {
         covered += usize::from(interval_95.0 <= TRUTH && TRUTH <= interval_95.1);
     }
     let rate = covered as f64 / accepted as f64;
-    eprintln!("regression kink license: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
+    eprintln!("regression kink support: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
     assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
-    assert!((0.93..=0.985).contains(&rate), "regression kink license coverage {rate:.4}");
+    assert!((0.93..=0.985).contains(&rate), "regression kink support coverage {rate:.4}");
 }

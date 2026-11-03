@@ -54,7 +54,7 @@ These results establish their specific assertions, not full API acceptance.
 - Native compile check passed (`/private/tmp/python-api-checkpoint-native-check-v2.log`).
 - Fresh extension build passed in 4m28s (`/private/tmp/python-api-checkpoint-build.log`).
 - Ownership, immutable lifecycle, execution controls, canonical load, transport, tiered identification, temporal and adaptive focused batch: **100 passed** (`/private/tmp/python-api-checkpoint-foundation-tests.log`).
-- Combined outcome, cyclic, composition, recalculation and decision batch: **482 passed, 2 failed** (`/private/tmp/python-api-checkpoint-integrated-tests.log`). Both failures are the existing Q08/Q09 measured-evidence predicates: `test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record` and `test_every_published_route_is_licensed_inside_a_measured_coverage_record`. They remain failures and their scientific predicates are unchanged. No new failures remain in these batches.
+- Combined outcome, cyclic, composition, recalculation and decision batch: **482 passed, 2 failed** (`/private/tmp/python-api-checkpoint-integrated-tests.log`). Both failures are the existing Q08/Q09 measured-evidence predicates: `test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record` and `test_every_published_route_is_supported_inside_a_measured_coverage_record`. They remain failures and their scientific predicates are unchanged. No new failures remain in these batches.
 - Latest antecedent-data unit tests: **217 passed** (`/private/tmp/python-api-checkpoint-data-tests.log`).
 - Focused root source/test Ruff check passed (`/private/tmp/python-api-checkpoint-root-ruff.log`).
 

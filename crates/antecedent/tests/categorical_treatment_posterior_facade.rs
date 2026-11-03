@@ -146,7 +146,7 @@ fn the_section_states_its_estimand_prior_and_standing() {
     assert!(posterior.estimand.starts_with("superpopulation_dummy_coefficient_contrast"));
     assert_eq!(posterior.likelihood, "gaussian_homoskedastic_dummy_regression");
     assert_eq!(posterior.calibration, "unmeasured");
-    assert!(!posterior.licensed);
+    assert!(!posterior.supported);
     assert_eq!(posterior.declaration, declaration(1.0));
     assert_eq!(sealed.report().posterior.as_ref(), Some(posterior));
     // The frequentist fit is the same with and without the section.
@@ -230,10 +230,10 @@ fn an_independent_consumer_recomputes_the_section_and_refuses_edits() {
         "categorical_treatment.wrong_contract: posterior_declaration changed"
     );
 
-    // And a claimed license.
+    // And a claimed support.
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
-    meta.posterior.as_mut().unwrap().licensed = true;
-    let forged = encode_parts(&meta, &numbers, "forged-license").unwrap();
+    meta.posterior.as_mut().unwrap().supported = true;
+    let forged = encode_parts(&meta, &numbers, "forged-support").unwrap();
     assert_eq!(
         CategoricalTreatment::consume(&forged, None).err().unwrap().to_string(),
         "stored categorical treatment result does not replay: posterior contrasts, moments or monotonicity bounds"

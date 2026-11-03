@@ -378,19 +378,19 @@ pub enum EstimatorId {
     /// Bayesian g-computation on the lag-aligned temporal adjustment design.
     BayesianTemporalGcomp,
     /// Untempered Gaussian-likelihood posterior of a single-step temporal linear effect, under a
-    /// declared serially independent innovation. Unlicensed; calibration unmeasured.
+    /// declared serially independent innovation. Unsupported; calibration unmeasured.
     BayesianTemporalWhiteInnovation,
     /// Mean-scale contrast of a Bernoulli logit temporal model over independent panel subjects:
-    /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unlicensed;
+    /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unsupported;
     /// calibration unmeasured.
     TemporalGlmLinkContrast,
     /// Laplace posterior of the same mean-scale contrast under a Gaussian coefficient prior.
-    /// Unlicensed; calibration unmeasured.
+    /// Unsupported; calibration unmeasured.
     BayesianTemporalGlmLinkContrast,
     /// Wald contrast of a lagged instrument on the unfolded window graph: the effect of treatment
-    /// under the declared exclusion and exogeneity of the lag. Unlicensed; calibration unmeasured.
+    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration unmeasured.
     TemporalLaggedInstrument,
-    /// Reduced-form ratio posterior of the same lagged-instrument effect. Unlicensed; calibration
+    /// Reduced-form ratio posterior of the same lagged-instrument effect. Unsupported; calibration
     /// unmeasured.
     BayesianTemporalLaggedInstrument,
     /// Sequential g-computation of a sustained treatment window.
@@ -444,7 +444,7 @@ pub enum EstimatorId {
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
     /// Cluster-level Bayesian-bootstrap posterior of the cluster total exposure contrast
-    /// (unlicensed, uncalibrated).
+    /// (unsupported, uncalibrated).
     InterferenceClusterBayesianBootstrap,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
@@ -484,13 +484,13 @@ pub enum EstimatorId {
     DrLearner,
     /// Native honest causal forest CATE.
     CausalForest,
-    /// Bayesian panel difference-in-differences posterior (unlicensed, uncalibrated).
+    /// Bayesian panel difference-in-differences posterior (unsupported, uncalibrated).
     BayesianPanelDid,
-    /// Bayesian simplex synthetic-control posterior (unlicensed, uncalibrated).
+    /// Bayesian simplex synthetic-control posterior (unsupported, uncalibrated).
     BayesianSyntheticControl,
-    /// Bayesian fuzzy-jump and kink local-ratio posterior (unlicensed, uncalibrated).
+    /// Bayesian fuzzy-jump and kink local-ratio posterior (unsupported, uncalibrated).
     BayesianLocalRatio,
-    /// Frequentist difference-in-differences of a declared panel design (unlicensed unless a
+    /// Frequentist difference-in-differences of a declared panel design (unsupported unless a
     /// coverage record names the design).
     PanelDid,
     /// Frequentist convex-donor synthetic control and synthetic difference-in-differences.
@@ -498,59 +498,59 @@ pub enum EstimatorId {
     /// Frequentist fuzzy-jump and kink local ratio with bias-corrected local polynomials.
     LocalRatio,
     /// Piecewise-exponential posterior of the randomized survival and restricted-mean
-    /// contrast (unlicensed, uncalibrated).
+    /// contrast (unsupported, uncalibrated).
     BayesianPiecewiseSurvival,
     /// Dirichlet-multinomial grid-distribution posterior of the randomized potential-outcome
-    /// quantiles and their difference (unlicensed, uncalibrated).
+    /// quantiles and their difference (unsupported, uncalibrated).
     BayesianRandomizedQuantile,
     /// Per-group polynomial dose-curve posterior of a fixed group-to-dose policy value
-    /// (unlicensed, uncalibrated).
+    /// (unsupported, uncalibrated).
     BayesianDosePolicy,
     /// Posterior of the arm contrasts of a randomized trial over the trial's own units, the same
-    /// target as the design-based row (unlicensed, uncalibrated).
+    /// target as the design-based row (unsupported, uncalibrated).
     BayesianRandomizedFinitePopulation,
     /// Posterior of the arm contrasts of a randomized trial in the population the units are
-    /// sampled from (unlicensed, uncalibrated).
+    /// sampled from (unsupported, uncalibrated).
     BayesianRandomizedSuperpopulation,
     /// Bayesian-bootstrap posterior of the complier effect under known Bernoulli encouragement
-    /// (unlicensed, uncalibrated).
+    /// (unsupported, uncalibrated).
     BayesianComplierEffect,
     /// Posterior of the switchback direct effect under a declared carryover and within-sequence
-    /// dependence (unlicensed, uncalibrated).
+    /// dependence (unsupported, uncalibrated).
     BayesianSwitchback,
-    /// Posterior of a fixed binary policy's value under known randomization (unlicensed,
+    /// Posterior of a fixed binary policy's value under known randomization (unsupported,
     /// uncalibrated).
     BayesianBinaryPolicyValue,
     /// Posterior of a prespecified sequential regime's value under known sequential
-    /// randomization (unlicensed, uncalibrated).
+    /// randomization (unsupported, uncalibrated).
     BayesianSequentialRegimeValue,
-    /// Normal interval of the observational cross-fit sequential contrast (unlicensed,
+    /// Normal interval of the observational cross-fit sequential contrast (unsupported,
     /// uncalibrated).
     SequentialCrossfitContrastWald,
-    /// Modular posterior of the observational cross-fit sequential contrast (unlicensed,
+    /// Modular posterior of the observational cross-fit sequential contrast (unsupported,
     /// uncalibrated).
     BayesianSequentialCrossfitContrast,
-    /// Frequentist within-period history-matched contrast (unlicensed, uncalibrated).
+    /// Frequentist within-period history-matched contrast (unsupported, uncalibrated).
     PeriodHistoryMatching,
     /// Bayesian outcome-model effect on the treated of a period-and-history design
-    /// (unlicensed, uncalibrated). A model-based estimand, not a matching posterior.
+    /// (unsupported, uncalibrated). A model-based estimand, not a matching posterior.
     BayesianPeriodHistoryOutcomeModel,
     /// Cluster-robust Horvitz-Thompson excursion contrasts of a sequentially randomized
-    /// unit-period design (unlicensed, uncalibrated).
+    /// unit-period design (unsupported, uncalibrated).
     TemporalDesignExcursion,
-    /// Cluster Bayesian-bootstrap posterior of the same excursion contrasts (unlicensed,
+    /// Cluster Bayesian-bootstrap posterior of the same excursion contrasts (unsupported,
     /// uncalibrated).
     BayesianTemporalDesignExcursion,
     /// Inverse-probability weighted regime survival with a whole-procedure subject bootstrap
-    /// (unlicensed, uncalibrated).
+    /// (unsupported, uncalibrated).
     TemporalRegimeSurvival,
-    /// Joint-likelihood parametric g-formula posterior of regime survival (unlicensed,
+    /// Joint-likelihood parametric g-formula posterior of regime survival (unsupported,
     /// uncalibrated).
     BayesianTemporalRegimeSurvival,
     /// Sharp Balke-Pearl bounds on the average effect of a binary treatment under a binary
-    /// instrument, with an Imbens-Manski row-bootstrap interval (unlicensed, uncalibrated).
+    /// instrument, with an Imbens-Manski row-bootstrap interval (unsupported, uncalibrated).
     IvBoundsSharp,
-    /// Bayesian-bootstrap posterior of the same bounds' endpoints (unlicensed, uncalibrated).
+    /// Bayesian-bootstrap posterior of the same bounds' endpoints (unsupported, uncalibrated).
     BayesianIvBounds,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";

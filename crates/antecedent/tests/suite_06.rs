@@ -11,8 +11,8 @@ mod per_population_discovery_facade;
 mod policy_python_parity;
 #[path = "policy_value_route.rs"]
 mod policy_value_route;
-#[path = "population_license.rs"]
-mod population_license;
+#[path = "population_support.rs"]
+mod population_support;
 #[path = "portable_predictor_resume.rs"]
 mod portable_predictor_resume;
 #[path = "posterior_boundaries_facade.rs"]

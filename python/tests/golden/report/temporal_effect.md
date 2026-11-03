@@ -10,16 +10,16 @@
 - **Route:** TemporalEffectDag
 - **Claim kind:** point
 - **Value:** 0.8976448135
-- **Support status:** licensed
+- **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
-- The route is a licensed support-matrix cell.
+- The route is a supported support-matrix cell.
 - Calibration status is scope\_not\_assessed: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** eceb9fba0ba86c87a64949e84f92d74efcb3eec1b27d3a874d0e18cb134b04d0
+- **Claim id:** 587d2608a794cc03a7978c9b217463e8a75fb3dd7f597e41ed6ccea32d14cff3
 - **Kind:** point
 - **Value:** 0.8976448135
 - **Outcome units:** none
@@ -112,9 +112,9 @@
 - **Basis rows:** 399
 - **Basis successful replicates:** 199
 
-## Support and licence
+## Support
 
-- **Support status:** licensed
+- **Support status:** supported
 - **Modality:** series
 - **Inference:** frequentist
 - **Query kind:** PulseEffect
@@ -123,20 +123,20 @@
 
 ### Support slot
 
-- **Matrix status:** licensed
+- **Matrix status:** supported
 - **Matrix coordinate:** PulseEffect:TemporalDag:explicit:Frequentist:none
 - **Empirical support:** unavailable:not\_evaluated
 
 ### Support cell of the program
 
 - **Coordinate:** PulseEffect:TemporalDag:explicit:Frequentist:none
-- **Licensed:** yes
-- **Status:** licensed
+- **Supported:** yes
+- **Status:** supported
 
 ## Refusals and limits
 
 - **Operation:** execute
-- **Applicability:** licensed
+- **Applicability:** supported
 - **Readiness:** executable
 - **Coordinate:** PulseEffect:TemporalDag:explicit:Frequentist:none
 
@@ -158,7 +158,7 @@ The operation report records no blocker.
 - **Layers the premises preserve:** target, identification, program, support
 - **Layers the premises invalidate:** none
 
-This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.
+This report restates the contract. It computes no estimate, grants no support, and a status recorded here is the status the records carry.
 
 ## Program plan
 

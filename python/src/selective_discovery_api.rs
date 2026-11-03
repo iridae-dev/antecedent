@@ -1740,7 +1740,7 @@ type Measured = (Option<crate::measured_inference_api::NativeMeasuredInference>,
 
 /// Replay a split-effect source and attest its interval from the coverage records.
 ///
-/// Returns `(measured, refusal)`; a refusal is `cell_not_licensed` when no current attesting
+/// Returns `(measured, refusal)`; a refusal is `not_supported` when no current attesting
 /// record covers the construction at this analysis row count.
 #[pyfunction]
 #[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
@@ -1829,7 +1829,7 @@ fn sample_split_parent_set_effect(
 
 /// Replay a parent-set split-effect source and attest its interval from the coverage records.
 ///
-/// Returns `(measured, refusal)`; a refusal is `cell_not_licensed` when no current attesting
+/// Returns `(measured, refusal)`; a refusal is `not_supported` when no current attesting
 /// record covers the construction at this variable count, degree and analysis row count.
 #[pyfunction]
 #[pyo3(signature = (source, seed, *, threads=None, cancel=None))]

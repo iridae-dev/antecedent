@@ -263,7 +263,7 @@ impl AipwAte {
 
     /// Declare the binary-propensity nuisance (see [`PropensityNuisance`]).
     ///
-    /// A ridge- or lasso-logistic penalty is licensed for the untrimmed `AllObserved` mean ATE:
+    /// A ridge- or lasso-logistic penalty is supported for the untrimmed `AllObserved` mean ATE:
     /// it publishes the cross-fitted point estimate, the score table and the intervals
     /// described in the module docs. A ridge or lasso fallback re-runs that route when the GLM
     /// fit fails; an ML fallback is declarable but closed.
@@ -275,7 +275,7 @@ impl AipwAte {
 
     /// Declare the independence unit of the cross-fit: whole clusters of [`InferenceSpec::cluster_ids`]
     /// (which this does not set) share a fold, and the route publishes the cross-fitted point
-    /// estimate and score table with no interval. Licensed for the untrimmed `AllObserved`
+    /// estimate and score table with no interval. Supported for the untrimmed `AllObserved`
     /// mean ATE with `bootstrap_replicates == 0`; see [`ClusterDml`].
     #[must_use]
     pub const fn with_cluster_dml(mut self, cluster_dml: ClusterDml) -> Self {
@@ -449,7 +449,7 @@ impl AipwAte {
         Ok(())
     }
 
-    /// A penalized propensity is licensed for one construction only: the untrimmed
+    /// A penalized propensity is supported for one construction only: the untrimmed
     /// `AllObserved` mean ATE, whose cross-fitted scores keep the table, row identity,
     /// overlap report and retargetability.
     fn require_penalized_scope(
@@ -469,7 +469,7 @@ impl AipwAte {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
                 "penalized_propensity.scope",
-                "a penalized propensity is licensed only for the untrimmed AllObserved mean \
+                "a penalized propensity is supported only for the untrimmed AllObserved mean \
                 ATE: other functionals and populations, and trimmed fits, refit full-sample \
                 nuisances and have no cross-fitted penalized route",
             ));
@@ -489,7 +489,7 @@ impl AipwAte {
         Ok(())
     }
 
-    /// Prepare the licensed logistic/OLS AIPW route from one identified mean ATE claim.
+    /// Prepare the supported logistic/OLS AIPW route from one identified mean ATE claim.
     ///
     /// The receipt retains the selected functional, identification assumptions, semantic
     /// roles, procedure, overlap policy, uncertainty choices, and complete-case row
@@ -864,7 +864,7 @@ impl AipwAte {
     }
 
     /// Refuse a problem prepared under a different nuisance or cluster-DML declaration than this
-    /// estimator's, a penalized or cluster-DML route outside its licensed scope, and a target
+    /// estimator's, a penalized or cluster-DML route outside its supported scope, and a target
     /// population the AIPW score does not cover.
     fn require_point_route(
         &self,
@@ -1259,7 +1259,7 @@ impl AipwAte {
         cluster_se: Option<(f64, usize)>,
     ) {
         // The cluster-DML route publishes the cluster-sandwich SE below; the iid
-        // covariance and influence values of these scores are not a licensed sampling
+        // covariance and influence values of these scores are not a supported sampling
         // distribution for it (see `docs/guides/clustered-dml.md`).
         result.uncertainty.analytic.se = f64::NAN;
         result.uncertainty.analytic.kind = None;

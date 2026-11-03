@@ -6,13 +6,13 @@
 //! treated units, conditional on the period and the history-mean score. The standard error is the
 //! Abadie-Imbens form for one match with replacement; the interval allows serial dependence
 //! between periods (Newey-West over the matched periods, normal at 97.5%) and is absent when
-//! fewer than two periods hold a match. The route is unlicensed and its calibration is unmeasured. A posterior of this contrast does not exist (a
+//! fewer than two periods hold a match. The route is unsupported and its calibration is unmeasured. A posterior of this contrast does not exist (a
 //! matching rule has no likelihood): Bayesian inference with the matching estimator is refused
 //! with that premise and the next attempt. That next attempt is the estimator
 //! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model
 //! with period effects, the history-mean score and a treatment-by-score interaction centred at
 //! the treated mean, reported as the model-based effect on the treated units (a different
-//! estimand, with no donor pairing). It is unlicensed and uncalibrated as well.
+//! estimand, with no donor pairing). It is unsupported and uncalibrated as well.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -161,10 +161,10 @@ impl CheckedHistoryMatchOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.history_match.unlicensed",
+                "estimate.history_match.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unlicensed and uncalibrated route: the mean history carrying the confounding is \
+                "unsupported and uncalibrated route: the mean history carrying the confounding is \
                  the caller's assumption, a match never crosses a calendar period, the standard \
                  error is Abadie-Imbens for one match with replacement, the interval is the Newey-West \
                  interval over the matched calendar periods, and their calibration is unmeasured",
@@ -257,7 +257,7 @@ impl CheckedHistoryMatchOperation {
                     "bayesian.period_history_outcome_model.model_based_effect_on_treated",
                     "the reported effect is the model's contrast averaged over the treated \
                      units of the periods that hold both arms; it is a different estimand from \
-                     the history-matched contrast and its interval is unlicensed with calibration \
+                     the history-matched contrast and its interval is unsupported with calibration \
                      unmeasured"
                         .to_string(),
                 ),

@@ -536,7 +536,7 @@ fn queries_are_disconnected_components(
 /// requested at the same level in each, and each component's own treatments
 /// include every union treatment that remains an ancestor of its outcomes
 /// after the intervention (so its factor is `P*_x(y_side)`, not a law that
-/// marginalizes a treatment the other side fixes). This licenses combining one
+/// marginalizes a treatment the other side fixes). This supports combining one
 /// connected factor per source without the outcomes being in disconnected
 /// graph components.
 fn queries_factorize_under_intervention(
@@ -679,7 +679,7 @@ impl StudyBuilder {
     /// Prepare a point estimator for a checked z-transport formula.
     ///
     /// This entry point accepts exact laws or empirical plugin tables. It does
-    /// not license a general bounded sIDz search, interval estimates, or a
+    /// not support a general bounded sIDz search, interval estimates, or a
     /// `PreparedStudy` artifact/replay contract.
     ///
     /// # Errors

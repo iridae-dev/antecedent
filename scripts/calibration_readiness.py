@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit whether currently unmeasured licensed coordinates have calibration wiring.
+"""Audit whether currently unmeasured supported coordinates have calibration wiring.
 
 This is a static readiness check only. It reads the support registry, evidence
 test sources, and the calibration gate's explicit dry-run group list. It never
@@ -23,7 +23,7 @@ def _slug(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
-SUPPORT = ROOT / "parity/support_licensed.toml"
+SUPPORT = ROOT / "parity/support_cells.toml"
 OUTPUT = ROOT / "parity/calibration_readiness.md"
 
 

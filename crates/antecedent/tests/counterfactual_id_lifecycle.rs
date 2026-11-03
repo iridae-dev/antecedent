@@ -205,7 +205,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
     // enumeration table (multiplicities proportional to the probabilities).
     // One row per exogenous state (8 rows): few enough rows per level that the
     // The fixed-DAG fitter treats the columns as continuous and fits the linear-Gaussian
-    // mechanisms its cell licenses (5 rows per level would make them discrete).
+    // mechanisms its cell supports (5 rows per level would make them discrete).
     let (px, pm, py) = ([1u32, 1], [1u32, 1], [1u32, 1]);
     let (mut xs, mut ms, mut ys) = (Vec::new(), Vec::new(), Vec::new());
     let mut cells = std::collections::BTreeMap::new();
@@ -732,7 +732,7 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
         )),
     ] {
         assert!(
-            text.contains("reason=cell_not_licensed: counterfactual_id.graph_outside_contract"),
+            text.contains("reason=not_supported: counterfactual_id.graph_outside_contract"),
             "{text}"
         );
     }

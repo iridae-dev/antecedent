@@ -190,7 +190,7 @@ fn assert_envelope(result: &antecedent::StudyResult, pin: &serde_json::Value) {
             .any(|d| d.code.as_ref() == "identify.pag.envelope" && d.message.contains(&expected)),
         "PAG envelope diagnostic must report the pinned completion masses ({expected})"
     );
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert_eq!(format!("{:?}", result.identification.status), id["status"].as_str().unwrap());
 }
 
@@ -384,7 +384,7 @@ fn pag_identified_envelope_average_effect_pins() {
                 // estimation are unchanged. Only this rank-coupled Bayesian mixture (which
                 // couples each completion's posterior via the *cross-completion* correlation of
                 // their influence functions on shared rows, `static_envelope_atom_correlation`)
-                // moved. 6890a67 (decide adjustment existence by one test) can license a
+                // moved. 6890a67 (decide adjustment existence by one test) can support a
                 // different, still-valid, non-minimal adjustment set per completion; two sets
                 // that give the same marginal point estimate and SE for their own completion can
                 // still give a different per-unit influence-function *shape*, which changes how
@@ -471,7 +471,7 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 // See the average-effect pin above: the frequentist CATE/SE just above
                 // reproduce the fixture bit-for-bit, so only the rank-coupled Bayesian mixture
                 // moved, for the same cross-completion influence-function-correlation reason
-                // (6890a67 can license a different, still-valid, non-minimal per-completion
+                // (6890a67 can support a different, still-valid, non-minimal per-completion
                 // adjustment set). Re-pinned to the current, verified, deterministic output.
                 // Independent bound on the pinned output, as for the average effect above
                 // (observed gap 0.1 SE, sd ratio 1.03).
@@ -625,7 +625,7 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
             let low = run(0.0);
             for (hi, lo) in high.iter().zip(&low) {
                 for result in [hi, lo] {
-                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
                     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!(
@@ -782,7 +782,7 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
             let study =
                 build(&data, &pag, accepted, curve.clone(), inference.clone(), RefuteSuite::None);
             for result in fresh_and_click(&study, &data, 1) {
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                 assert_eq!(
                     result.logical_plan.estimator.as_deref(),
                     block["estimator"].as_str(),

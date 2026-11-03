@@ -1,6 +1,6 @@
 """Point estimation utilities for explicitly scoped quasi-experimental designs.
 
-These utilities do not add a support-matrix license or interval guarantee.
+These utilities do not add a support-matrix support or interval guarantee.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ class DifferenceInDifferencesEstimate:
         "stable_treatment_assignment",
         "no_interference",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,7 +177,7 @@ class PanelDifferenceInDifferencesEstimate:
     treated_subjects: int
     control_subjects: int
     clusters: int
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     interval_95: tuple[float, float] | None = None
     design: str = "balanced_two_period_panel"
     assumptions: tuple[str, ...] = (
@@ -188,7 +188,7 @@ class PanelDifferenceInDifferencesEstimate:
         "no_interference",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     cohort: int | None = None
     period: int | None = None
 
@@ -255,7 +255,7 @@ class GroupTimeATT:
 class StaggeredAdoptionEstimate:
     effects: tuple[GroupTimeATT, ...]
     control_group: str = "never_treated_cohort_0"
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     design: str = "balanced_staggered_adoption_group_time_att"
     assumptions: tuple[str, ...] = (
         "cohort_specific_parallel_untreated_trends",
@@ -266,7 +266,7 @@ class StaggeredAdoptionEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "comparison_support_counts_reported_per_cohort_period",
         "pretrend_not_tested",
@@ -295,7 +295,7 @@ class StaggeredEventStudyEstimate:
 
     effects: tuple[StaggeredEventTimeEffect, ...]
     control_group: str = "never_treated_cohort_0"
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     design: str = "balanced_staggered_adoption_event_study"
     assumptions: tuple[str, ...] = (
         "cohort_specific_parallel_untreated_trends",
@@ -306,7 +306,7 @@ class StaggeredEventStudyEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "cohort_specific_effects_reported_by_event_time",
         "event_time_minus_one_is_reference_and_omitted",
@@ -347,7 +347,7 @@ class StaggeredRollout:
     summary; ``anticipation`` is the number of periods units may respond before adoption.
     ``resampling`` (``cluster_bootstrap`` or ``cluster_multiplier``) refits the whole procedure
     on ``replicates`` reweightings of whole clusters and reports pointwise intervals and
-    simultaneous bands. The result is ``result.quasi_rollout``: unlicensed, calibration
+    simultaneous bands. The result is ``result.quasi_rollout``: unsupported, calibration
     unmeasured. Under ``Bayesian`` inference the whole procedure is refit on flat-Dirichlet
     whole-unit weights (a Bayesian bootstrap): the section reports posterior means with
     credible intervals and bands beside the posterior; ``resampling=`` is frequentist and
@@ -423,7 +423,7 @@ class CovariateAdjustedDiD:
     ``subject`` rows); ``covariates`` name the baseline covariates, read at each subject's
     first row. ``nuisance`` is ``outcome_regression``, ``inverse_probability_weighting`` or
     ``doubly_robust``. ``resampling`` refits the whole procedure on whole-cluster
-    reweightings. The result is ``result.quasi_rollout``: unlicensed, calibration unmeasured.
+    reweightings. The result is ``result.quasi_rollout``: unsupported, calibration unmeasured.
     ``Bayesian`` inference refits it on flat-Dirichlet whole-unit weights (a Bayesian
     bootstrap) and reports credible intervals beside the posterior.
     """
@@ -490,7 +490,7 @@ class DesignEffect:
 @dataclass(frozen=True, slots=True)
 class QuasiRolloutEstimate:
     """Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
-    or optioned local ratio. The first effect is the scalar summary. Never licensed; the
+    or optioned local ratio. The first effect is the scalar summary. Never supported; the
     calibration of every interval is unmeasured."""
 
     design: str
@@ -503,7 +503,7 @@ class QuasiRolloutEstimate:
     critical_value: float | None = None
     diagnostics: tuple[tuple[str, float], ...] = ()
     calibration: str = "unmeasured"
-    licensed: bool = False
+    supported: bool = False
 
     @property
     def overall(self) -> DesignEffect | None:
@@ -547,7 +547,7 @@ class SyntheticControl:
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
-    #: Conformal intervals for the single treated unit (unlicensed, calibration unmeasured);
+    #: Conformal intervals for the single treated unit (unsupported, calibration unmeasured);
     #: under ``Bayesian`` inference, posterior predictive per-period intervals instead.
     conformal: bool = False
     #: Staggered adoptions ``(unit, adoption period)`` fitted against never-treated donors,
@@ -633,8 +633,8 @@ class SyntheticControlEstimate:
     outcome_model_correction: float | None = None
     augmentation_ridge: float | None = None
     observed_window: ObservedWindowSupport | None = None
-    uncertainty: str = "point_only_with_unlicensed_placebo_rank"
-    support_status: str = "unlicensed_point_utility"
+    uncertainty: str = "point_only_with_unsupported_placebo_rank"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",
     )
@@ -714,7 +714,7 @@ class SyntheticDifferenceInDifferencesEstimate:
         "no_interference_between_units",
         "no_concurrent_treated_unit_specific_shock",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "balanced_panel_and_two_pre_periods_required",
         "unit_and_time_weights_are_simplex_constrained",
@@ -782,7 +782,7 @@ class AugmentedPanelDiDEstimate:
         "strict_propensity_overlap",
         "supplied_nuisance_predictions_are_valid_for_the_evaluation_rows",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "propensity_range_and_weighted_control_effective_sample_size_reported",
         "cross_fitting_is_caller_declared_not_verified",
@@ -803,7 +803,7 @@ class FuzzyRegressionDiscontinuity:
     ``bandwidth``; ``temporal_replicates`` treats the running variable as calendar time and
     reports a block-bootstrap interval; ``density_test`` runs the manipulation test of the
     running variable at the cutoff; ``balance_covariates`` report their jumps at the cutoff.
-    Any of these returns ``result.quasi_rollout`` (unlicensed, calibration unmeasured).
+    Any of these returns ``result.quasi_rollout`` (unsupported, calibration unmeasured).
     Under ``Bayesian`` inference ``mse_optimal`` selects the window and
     ``temporal_replicates`` gives a within-side block-bootstrap credible interval beside the
     posterior.
@@ -892,13 +892,13 @@ class PeriodHistoryMatch:
     a match never crosses a period. ``weight`` is a sampling-weight column and ``caliper`` a
     maximum absolute score distance. The estimand is the weighted effect on the matched treated
     units given the period and the history-mean score. The standard error is Abadie-Imbens for one
-    match with replacement; no interval is reported and the route is unlicensed. A posterior of a
+    match with replacement; no interval is reported and the route is unsupported. A posterior of a
     matching contrast does not exist (a matching rule has no likelihood): ``Bayesian`` inference
     raises ``CausalUnsupportedError`` naming that premise and the next attempt. That attempt is
     ``estimator="bayesian.period_history_outcome_model"`` with ``Bayesian`` inference: the
     posterior of a Gaussian outcome model with period effects, the history-mean score and a
     treatment-by-score interaction centred at the treated mean, reported as the model-based
-    effect on the treated units (a different estimand, unlicensed, equal sampling weights only).
+    effect on the treated units (a different estimand, unsupported, equal sampling weights only).
     """
 
     outcome: str
@@ -925,7 +925,7 @@ class PeriodHistoryMatch:
 
 @dataclass(frozen=True, slots=True)
 class PeriodHistoryMatchEstimate:
-    """History-matched contrast with its matched pairs. Unlicensed, no interval."""
+    """History-matched contrast with its matched pairs. Unsupported, no interval."""
 
     contrast: float
     weight_total: float
@@ -939,9 +939,9 @@ class PeriodHistoryMatchEstimate:
     #: Abadie-Imbens standard error; ``None`` with fewer than two matched units.
     standard_error: float | None = None
     caliper: float | None = None
-    licensed: bool = False
+    supported: bool = False
     calibration_measured: bool = False
-    support_status: str = "unlicensed_uncalibrated"
+    support_status: str = "unsupported_uncalibrated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -956,7 +956,7 @@ class IvBounds:
     interval about the set from row-bootstrap endpoint replicates; ``Bayesian`` inference reports
     the Bayesian-bootstrap posterior of the endpoints. Rows are independent subjects, so a
     declared dependent-series, trajectory or clustered sampling design refuses the row-level
-    draw. The route is unlicensed and its calibration is unmeasured.
+    draw. The route is unsupported and its calibration is unmeasured.
     """
 
     outcome: str
@@ -1005,7 +1005,7 @@ class IvBoundsPosterior:
 
 @dataclass(frozen=True, slots=True)
 class IvBoundsEstimate:
-    """Identified set of average effects under a binary instrument. Unlicensed, never a point.
+    """Identified set of average effects under a binary instrument. Unsupported, never a point.
 
     ``cells`` is the observed law ``P(Y=y, D=d | Z=z)``, instrument arm major, cell order
     ``(0,0) (1,0) (0,1) (1,1)``; the bounds are recomputable from it.
@@ -1021,7 +1021,7 @@ class IvBoundsEstimate:
     interval: IvBoundsInterval | None = None
     posterior: IvBoundsPosterior | None = None
     calibration: str = "unmeasured"
-    licensed: bool = False
+    supported: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -1330,7 +1330,7 @@ class CategoricalDidEstimate:
         "stable_treatment_level_within_subject",
         "no_interference",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
     def contrast(self, level: Any) -> CategoricalDidContrast:
         """The contrast of ``level`` against the reference."""

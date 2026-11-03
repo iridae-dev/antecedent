@@ -99,7 +99,7 @@ def main() -> int:
         "required_assertions": sorted(required),
         "problems": problems,
         "calibration_run": False,
-        "grants_release_license": False,
+        "grants_release_support": False,
     }
     report.with_suffix(".json").write_text(
         json.dumps(receipt, indent=2) + "\n", encoding="utf-8"

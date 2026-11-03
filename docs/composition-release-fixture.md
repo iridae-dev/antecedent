@@ -8,7 +8,7 @@ depends on the resulting claim, new observations revalidate that claim, and a
 consumer that holds nothing but bytes recomputes the decision.
 
 Everything is point-only. No interval, posterior decision or ranking guarantee
-is produced, and each request for one is refused with `cell_not_licensed`.
+is produced, and each request for one is refused with `not_supported`.
 Calibration is unmeasured.
 
 Files: the declared inputs, hand-derived values and expected refusals are
@@ -39,7 +39,7 @@ agree.
 | A measured quantity enters a causal model | `measurement_model` (binary misclassification), `mechanism_composition` (finite tables) | `a_measured_exposure_enters_the_causal_model_through_the_declared_confusion_model` |
 | Several components contribute | the corrected prevalence, the pooled effect, a declared baseline | the same |
 | Shared evidence and dependence | `evidence_ledger` overlap, declared covariance, `joint_law_propagation` | `shared_evidence_is_counted_once_and_dependence_is_declared_or_refused`, `unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is` |
-| A decision depends on the claim | `decision` contract on a caller-declared mean source | `the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities` |
+| A decision depends on the claim | `decision` contract on a caller-declared mean source | `the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities` |
 | New observations revalidate | ledger `update`, `composition_verification` | `new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated` |
 | No double counting | ledger lineage and row overlap | `duplicated_evidence_cannot_be_counted_twice` |
 | Unsupported conversions fail closed | `measurement_model`, `interface_contract`, `decision` | `unsupported_semantic_conversions_fail_closed` |
@@ -65,8 +65,8 @@ agree.
 | Ledger bytes of another history under the retained identity | `route_not_supported` | `evidence_ledger.identity_mismatch` |
 | Claim graph verified at another ledger state | `invalid_argument` | `composition_verification.ledger_mismatch` |
 | Decision while its claim awaits recomputation | `claim_revalidation_required` | `composition_verification.recompute_required` |
-| Decision whose claim rests on a withdrawn pool | `claim_license_withdrawn` | `composition_verification.input_retired` |
-| Interval or posterior of any stage | `cell_not_licensed` | the owning route's detail |
+| Decision whose claim rests on a withdrawn pool | `claim_support_withdrawn` | `composition_verification.input_retired` |
+| Interval or posterior of any stage | `not_supported` | the owning route's detail |
 
 ## Gaps in the public surface
 
@@ -108,4 +108,4 @@ No interval for the corrected prevalence, the pooled effect, the composed
 claim or the decision is produced. The calibration design for any such
 interval is the whole method (measurement correction, pooling, composition,
 decision) at the composed coordinate; none is measured here. A request is
-refused with `cell_not_licensed` and the remedy of the owning route.
+refused with `not_supported` and the remedy of the owning route.

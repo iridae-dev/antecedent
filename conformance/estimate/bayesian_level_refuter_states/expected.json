@@ -84,7 +84,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_intervention_response_refuter_truth.rs",
-          "sha256": "1517361a6d3d265665f7e75351d3671457dff69d6e5987a5e0c6a4416a5dff30"
+          "sha256": "34f4d9749e721b89473a5ba1f47fcadabeb8881a44035bc368e863281b8d1ec5"
         }
       ],
       "fixture_payload_sha256": "2155e583937c12bf1128742fa193641eabeb60ec72e876ff63528edf5ba52cc1"

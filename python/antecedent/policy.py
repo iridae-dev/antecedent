@@ -229,7 +229,7 @@ class DoublyRobustPolicyEvaluation:
         "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
         "nuisance predictions and randomization claims are not independently authenticated",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -665,7 +665,7 @@ class ConditionalDoseResponseEstimate:
     evaluation_method: str = "stratified_triangular_kernel_inverse_density"
     policy_value_estimated: bool = False
     fixed_policy: FixedDosePolicyValueEstimate | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "Conditional exchangeability of continuous dose given the supplied baseline groups.",
         "Consistency, no interference, and correct dose density at observed doses.",

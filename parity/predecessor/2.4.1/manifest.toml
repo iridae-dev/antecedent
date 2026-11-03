@@ -97,13 +97,13 @@ sha256 = "764d7c401850267c5b1ccec4e2e2d9d0fa63ef31f9e8eac8def906b2c6b9b1a2"
 # Support snapshots and calibration files at v2.4.1. Content sha256; files stay in place.
 
 [[tree_file]]
-path = "parity/support_licensed.toml"
+path = "parity/support_cells.toml"
 bytes = 2004230
 sha256 = "12c2b8fb4214dc0c3e17c93221fb43b2d3e4618cc57b05d6d2023807cc30415c"
 role = "support_snapshot"
 
 [[tree_file]]
-path = "parity/support_closed.toml"
+path = "parity/support_refusal_reasons.toml"
 bytes = 14061
 sha256 = "6f14cc385858dd7cb46f165c1d7c8a65756eb485c147e3617ec3e04091199b68"
 role = "support_snapshot"
@@ -121,7 +121,7 @@ sha256 = "6d85112f30b012a540ee9654c64bfedd130930e004eb50a13bc3d6dc2df0a1d1"
 role = "support_snapshot"
 
 [[tree_file]]
-path = "parity/licensed_routes.toml"
+path = "parity/supported_routes.toml"
 bytes = 110743
 sha256 = "123cf4411220f067a933f4a7ee29f24d1478e9ba66f842a8f1b7d618a5a83ad2"
 role = "support_snapshot"

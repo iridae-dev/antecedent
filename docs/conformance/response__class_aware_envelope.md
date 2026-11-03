@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/response/class_aware_envelope`
 
-The licensed cell is the generalized-adjustment envelope already used for ATE,
+The supported cell is the generalized-adjustment envelope already used for ATE,
 evaluated pointwise and mass-weighted. It is not MAG/PAG response ID.
 
 ## InterventionResponse (discrete ATE table)
@@ -58,7 +58,7 @@ and `python/tests/test_class_aware_response_numeric_pins.py`.
 ## Bayesian
 
 Same envelope, `response.bayesian` per completion. Draws are not mixed;
-the licensed number is the identified-mass mean. The two-point intervention
+the supported number is the identified-mass mean. The two-point intervention
 contrast is pinned against the CPDAG / PAG Bayesian ATE fixtures.
 `estimate.envelope.response_posterior_not_mixed` discloses the omitted
 posterior mix. cheap/full stay n/a.

@@ -187,7 +187,7 @@ impl CheckedSurvivalOperation {
             assignment_counts,
             (difference_band, band_unavailable_reason),
         ));
-        self.license_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
+        self.support_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
         Ok(result)
     }
 
@@ -343,7 +343,7 @@ impl CheckedSurvivalOperation {
                         }
                     };
                     let band_support = (band.replicates_ok >= 399
-                        && crate::support::license_if_graphless(
+                        && crate::support::support_if_graphless(
                             crate::support::GraphlessSupportKey {
                                 family: "survival",
                                 design: "two_arm_individual_randomized",
@@ -361,7 +361,7 @@ impl CheckedSurvivalOperation {
                             },
                         )
                         .is_some())
-                    .then_some(crate::support::CellStatus::Licensed);
+                    .then_some(crate::support::CellStatus::Supported);
                     (
                         Some(crate::result::SurvivalDifferenceBand {
                             times: band.times.into(),
@@ -420,15 +420,15 @@ impl CheckedSurvivalOperation {
         }
     }
 
-    /// Grants the graphless scalar license when the paired RMST and horizon intervals clear their support gate.
-    fn license_survival_intervals(
+    /// Grants the graphless scalar support when the paired RMST and horizon intervals clear their support gate.
+    fn support_survival_intervals(
         &self,
         result: &mut StudyResult,
         intervals: Option<&SurvivalBootstrapIntervals>,
         assignment_counts: [usize; 2],
     ) {
         // The paired RMST + horizon survival intervals carry a graphless scalar
-        // license once their own route clears its support gate. Delayed entry,
+        // support once their own route clears its support gate. Delayed entry,
         // fixed-known-G IPCW, and the combined route each have a distinct
         // (design, method) key and its own known-truth coverage row; cause-specific
         // cumulative incidence has no RMST companion and stays off-axis.
@@ -447,7 +447,7 @@ impl CheckedSurvivalOperation {
             } else {
                 "arm_stratified_subject_bootstrap_product_limit"
             };
-            if crate::support::license_if_graphless(
+            if crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "survival",
                     design,
@@ -468,7 +468,7 @@ impl CheckedSurvivalOperation {
             )
             .is_some()
             {
-                result.support_status = Some(crate::support::CellStatus::Licensed);
+                result.support_status = Some(crate::support::CellStatus::Supported);
             }
         }
     }

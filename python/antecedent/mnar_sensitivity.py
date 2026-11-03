@@ -24,7 +24,7 @@ Three things stay distinct and are never merged:
   confidence interval and it is not empirically established;
 * the **departure assumption** is recorded in ``result.assumptions`` with status ``untestable``;
 * the **sampling interval** at each grid point is withheld pending its own calibration;
-  ``point.sampling`` is ``None`` and ``result.sampling_status`` is ``cell_not_licensed``.
+  ``point.sampling`` is ``None`` and ``result.sampling_status`` is ``not_supported``.
   Composing sampling uncertainty with the range also refuses.
 
 Rust owns the estimates, the tipping search and every refusal; this module builds declarations
@@ -78,7 +78,7 @@ class MnarSensitivityRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.StructuredRefusal`: ``code``, ``detail``, ``offending`` and
     ``remedy`` are machine-readable. ``detail`` is the namespaced ``mnar_sensitivity.<slot>``:
     ``mechanism_not_declared``, ``unsupported_mechanism``, ``unsupported_estimator``,
-    ``unbounded_range``, ``range_excludes_mar``, ``composition_not_licensed``, ``invalid_data``,
+    ``unbounded_range``, ``range_excludes_mar``, ``composition_not_supported``, ``invalid_data``,
     ``invalid_loading``, ``invalid_level``, ``invalid_decision``, ``invalid_tolerance``,
     ``insufficient_observed`` or ``bounds_exceeded``. A refusal with code ``invalid_argument``
     is also a :class:`~antecedent.errors.CausalValueError`.
@@ -423,8 +423,8 @@ def mnar_ate_sensitivity(
     Any other estimator refuses (``unsupported_estimator``).
 
     ``sampling_composition`` requests composing the sampling interval with the assumption range
-    by a named method; no method is licensed, so any value refuses
-    (``cell_not_licensed`` / ``mnar_sensitivity.composition_not_licensed``).
+    by a named method; no method is supported, so any value refuses
+    (``not_supported`` / ``mnar_sensitivity.composition_not_supported``).
 
     Raises:
         CausalTypeError: an argument has the wrong type.

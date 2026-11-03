@@ -298,14 +298,14 @@ pub fn hidden_state_refusal() -> CallbackRefusal {
 }
 
 /// Whether a result stands as a diagnostic or as an external claim that may
-/// feed a licensed route. Neither is native.
+/// feed a supported route. Neither is native.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResultStanding {
     /// Inspectable; no claim may be built on it.
     Diagnostic,
     /// An external claim: replayable by contract, attested or verified. It
     /// carries no interval, posterior guarantee, joint law or identification.
-    LicensedExternal,
+    SupportedExternal,
 }
 
 impl ResultStanding {
@@ -314,7 +314,7 @@ impl ResultStanding {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Diagnostic => "diagnostic",
-            Self::LicensedExternal => "licensed_external",
+            Self::SupportedExternal => "supported_external",
         }
     }
 }
@@ -342,10 +342,10 @@ pub fn standing_of(
     }
     match &declaration.trust {
         CallbackTrust::Unverified => Err(diagnostic_only("unverified")),
-        CallbackTrust::ExternallyAttested { .. } => Ok(ResultStanding::LicensedExternal),
+        CallbackTrust::ExternallyAttested { .. } => Ok(ResultStanding::SupportedExternal),
         CallbackTrust::ExactRequestVerified { .. } => {
             if verification_confirmed {
-                Ok(ResultStanding::LicensedExternal)
+                Ok(ResultStanding::SupportedExternal)
             } else {
                 Err(diagnostic_only("verification_not_confirmed"))
             }

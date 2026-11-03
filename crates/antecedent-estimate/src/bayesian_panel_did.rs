@@ -3,7 +3,7 @@
 //! The identifying premise is the frequentist one and is untouched by the prior: parallel
 //! untreated trends (conditional on the supplied covariates for the augmented form), no
 //! anticipation, and a stable population across periods. A posterior puts a distribution on the
-//! same estimand under a stated outcome model; it neither tests nor licenses parallel trends, which
+//! same estimand under a stated outcome model; it neither tests nor supports parallel trends, which
 //! is untestable after treatment. Every fit is a Normal-Inverse-Gamma linear model
 //! `y | beta, sigma2 ~ N(X beta, sigma2 I)`, `beta | sigma2 ~ N(0, sigma2 s^2 I)`,
 //! `sigma2 ~ InvGamma(a, b)`, whose marginal posterior of a coefficient is a Student-t.

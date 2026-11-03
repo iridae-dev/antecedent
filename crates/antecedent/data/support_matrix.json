@@ -34,7 +34,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg. An AverageEffect on a temporal graph denotes the lag-0 contrast and is a refused, executing cell (parity/support_closed.toml)."
+      "reason": "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries supported on it. Latent confounding over time denotes on TemporalAdmg. An AverageEffect on a temporal graph denotes the lag-0 contrast and is a refused, executing cell (parity/support_refusal_reasons.toml)."
     },
     {
       "queries": [
@@ -94,7 +94,7 @@
         "cheap",
         "full"
       ],
-      "reason": "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state."
+      "reason": "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no supported scalar-refuter state."
     },
     {
       "queries": [
@@ -123,7 +123,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "Unknown-tier cells license the two-scenario AverageEffect envelope only."
+      "reason": "Unknown-tier cells support the two-scenario AverageEffect envelope only."
     },
     {
       "queries": [
@@ -151,7 +151,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "CoDetermined cells license AverageEffect and joint InterventionResponse only."
+      "reason": "CoDetermined cells support AverageEffect and joint InterventionResponse only."
     },
     {
       "queries": null,
@@ -182,7 +182,7 @@
         "cheap",
         "full"
       ],
-      "reason": "cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no licensed scalar-refuter state."
+      "reason": "cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no supported scalar-refuter state."
     }
   ],
   "closed_rules": [
@@ -353,8 +353,7 @@
       "reason": "A natural direct effect over a graph posterior of Dag atoms is refused under full validation. The full suite runs the Dag-native refuters on every atom, which need linear-Gaussian mechanism families a discrete atom table does not have, so every atom fails and the failure would read as non-identification. Next attempt: answer the full suite of a Dag atom through the functional refuter state, as the ADMG atoms are, then earn it with the atom-mixture fixture."
     }
   ],
-  "allowed_rules": [],
-  "licensed": [
+  "supported": [
     {
       "query": "NestedCounterfactualEffect",
       "graph_class": "Dag",

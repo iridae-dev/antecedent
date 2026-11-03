@@ -2,7 +2,7 @@
 //!
 //! These projections replay an original artifact consumer. Their identity binds
 //! the whole original source, exact coordinates and affine decision expression.
-//! They do not authenticate observations, issue native authority, or license
+//! They do not authenticate observations, issue native authority, or support
 //! uncertainty. Native unresolved operations require a separate actual executor.
 
 use antecedent_contract::ScientificQuantity;
@@ -164,7 +164,7 @@ impl SourceProjectionArtifact {
         Ok(artifact)
     }
 
-    /// Original source bytes for a separately licensed execution resolver.
+    /// Original source bytes for a separately supported execution resolver.
     #[must_use]
     pub fn original_bytes(&self) -> &[u8] {
         match &self.source {
@@ -247,7 +247,7 @@ fn reconstruct(
         unresolved: original.unresolved,
         trust: original.trust,
         output,
-        scope: "source-backed semantic/numerical replay; no source authentication, executable authority, unit conversion, distribution or calibration license".into(),
+        scope: "source-backed semantic/numerical replay; no source authentication, executable authority, unit conversion, distribution or calibration support".into(),
     })
 }
 

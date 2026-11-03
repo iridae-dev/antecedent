@@ -102,7 +102,7 @@ pub fn add_per_population_claims(
 ///
 /// Always refuses: a difference between two discovered structures is a difference between two
 /// estimates, not a statement that a mechanism differs, and no error rate is attached to it.
-/// The refusal names the number of differing edges and what would license a selection
+/// The refusal names the number of differing edges and what would support a selection
 /// diagram: targets the caller declares.
 ///
 /// # Errors

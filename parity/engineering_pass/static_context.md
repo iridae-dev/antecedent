@@ -73,4 +73,4 @@ result/claim equivalence, independently known adjustment sets where applicable,
 typed cancellation/memory, preserved explicit caps and returned leases. Root executed all of them in the final 1,194-test facade/identify library run,
 followed by 380 affected integration cases; both runs pass. See
 [validation](validation.md) for the exact scope and remaining measured-evidence
-assertions, which are not licensed by these software checks.
+assertions, which are not supported by these software checks.

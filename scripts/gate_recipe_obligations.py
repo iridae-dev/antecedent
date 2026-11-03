@@ -2,14 +2,14 @@
 """Cross-check checked-recipe obligations with the support matrix.
 
 A checked recipe owes a route obligation and a test obligation. Identification
-and calibration stay on the explicit license in ``support_licensed.toml``. A
-coordinate that matches ``support_closed.toml`` stays closed, including when a
-typed-impossibility rule also matches. Obligations for a licensed cell are that
+and calibration stay on the explicit support in ``support_cells.toml``. A
+coordinate that matches ``support_refusal_reasons.toml`` stays closed, including when a
+typed-impossibility rule also matches. Obligations for a supported cell are that
 cell's estimators and checked-execution citations. An estimator the support
-matrix does not list is not a license. A matrix estimator that is only the
+matrix does not list is not support. A matrix estimator that is only the
 calibration join is not a recipe obligation.
 
-``scripts/gate_checked_execution.py`` still fails when a licensed route bypasses
+``scripts/gate_checked_execution.py`` still fails when a supported route bypasses
 its retained program. This script does not replace that check.
 """
 
@@ -62,19 +62,19 @@ def rule_matches(rule: dict, cell: dict) -> bool:
     return True
 
 
-def standing(cell: dict, closed_rules: list[dict], na_rules: list[dict], licensed: set[str]) -> str:
-    """Closed wins over a license and over ``not_applicable``."""
+def standing(cell: dict, closed_rules: list[dict], na_rules: list[dict], supported: set[str]) -> str:
+    """Closed wins over support and over ``not_applicable``."""
     if any(rule_matches(rule, cell) for rule in closed_rules):
         return "closed"
     if any(rule_matches(rule, cell) for rule in na_rules):
         return "not_applicable"
-    if coordinate(cell) in licensed:
-        return "licensed"
-    return "unlicensed"
+    if coordinate(cell) in supported:
+        return "supported"
+    return "unsupported"
 
 
 def emit_obligations(row: dict) -> dict:
-    """Route and test obligations copied from a licensed row.
+    """Route and test obligations copied from a supported row.
 
     Identification and calibration fields on ``row`` are not copied.
     """
@@ -105,8 +105,8 @@ def _strings(values) -> list[str] | None:
 
 
 def cross_check(
-    licensed_rows: list[dict],
-    matrix_licensed: list[dict],
+    supported_rows: list[dict],
+    matrix_supported: list[dict],
     closed_rules: list[dict],
     na_rules: list[dict],
     *,
@@ -120,39 +120,39 @@ def cross_check(
     if closed_snapshot is not None and [rule_key(rule) for rule in closed_rules] != [
         rule_key(rule) for rule in closed_snapshot
     ]:
-        problems.append("support_closed.toml does not match support_matrix.json closed_rules")
+        problems.append("support_refusal_reasons.toml does not match support_matrix.json closed_rules")
     if na_snapshot is not None and [rule_key(rule) for rule in na_rules] != [
         rule_key(rule) for rule in na_snapshot
     ]:
         problems.append("support_n_a.toml does not match support_matrix.json na_rules")
 
     matrix_by: dict[str, dict] = {}
-    for cell in matrix_licensed:
+    for cell in matrix_supported:
         key = coordinate(cell)
         if key in matrix_by:
-            problems.append(f"{key}: support matrix lists this licensed coordinate twice")
+            problems.append(f"{key}: support matrix lists this supported coordinate twice")
         matrix_by[key] = cell
-    licensed_keys = {coordinate(row) for row in licensed_rows}
-    if len(licensed_keys) != len(licensed_rows):
-        problems.append("support_licensed.toml lists a coordinate twice")
-    missing = sorted(set(matrix_by) - licensed_keys)
-    extra = sorted(licensed_keys - set(matrix_by))
+    supported_keys = {coordinate(row) for row in supported_rows}
+    if len(supported_keys) != len(supported_rows):
+        problems.append("support_cells.toml lists a coordinate twice")
+    missing = sorted(set(matrix_by) - supported_keys)
+    extra = sorted(supported_keys - set(matrix_by))
     for key in missing:
-        problems.append(f"{key}: support matrix licenses a route the license table does not")
+        problems.append(f"{key}: support matrix supports a route the support table does not")
     for key in extra:
         query = key.split(":", 1)[0]
-        problems.append(f"{query}: license table names {key}, which the support matrix does not")
+        problems.append(f"{query}: support table names {key}, which the support matrix does not")
 
-    for row in licensed_rows:
+    for row in supported_rows:
         key = coordinate(row)
         query = str(row.get("query"))
         label = f"{query} ({key})"
-        status = standing(row, closed_rules, na_rules, licensed_keys)
+        status = standing(row, closed_rules, na_rules, supported_keys)
         if status == "closed":
-            problems.append(f"{label} stays closed; a license does not open it")
+            problems.append(f"{label} stays closed; support does not open it")
             continue
         if status == "not_applicable":
-            problems.append(f"{label} is not_applicable and is not a license")
+            problems.append(f"{label} is not_applicable and is not support")
             continue
         matrix = matrix_by.get(key)
         if matrix is None:
@@ -161,7 +161,7 @@ def cross_check(
         matrix_estimators = _strings(matrix.get("estimators"))
         route_estimator = matrix.get("route_estimator")
         if estimators is None or matrix_estimators is None or not isinstance(route_estimator, str):
-            problems.append(f"{label}: licensed obligations need estimators and a route estimator")
+            problems.append(f"{label}: supported obligations need estimators and a route estimator")
             continue
         obligations = emit_obligations(row)
         if set(obligations) != OBLIGATION_KEYS:
@@ -173,12 +173,12 @@ def cross_check(
                 problems.append(f"{label}: recipe obligations include explicit {field}")
         named = [item.get("estimator") for item in obligations["routes"]]
         if named != estimators:
-            problems.append(f"{label} is licensed for {estimators}")
+            problems.append(f"{label} is supported for {estimators}")
         if route_estimator not in estimators:
-            problems.append(f"{label} is licensed for route estimator {route_estimator}")
+            problems.append(f"{label} is supported for route estimator {route_estimator}")
         invented = [item for item in estimators if item not in matrix_estimators]
         if invented:
-            problems.append(f"{label} is licensed on the support matrix for {matrix_estimators}")
+            problems.append(f"{label} is supported on the support matrix for {matrix_estimators}")
         tests = obligations["tests"]
         test_names = []
         for entry in tests:
@@ -194,25 +194,25 @@ def cross_check(
                 isinstance(value, str) and value.strip()
                 for value in (estimator, test_rel, assertion)
             ):
-                problems.append(f"{label} is licensed for {estimators}")
+                problems.append(f"{label} is supported for {estimators}")
                 continue
             test_names.append(estimator)
             if estimator not in matrix_estimators:
                 problems.append(
-                    f"{label} is licensed on the support matrix for {matrix_estimators}"
+                    f"{label} is supported on the support matrix for {matrix_estimators}"
                 )
             if cite is not None:
                 for problem in cite(test_rel, assertion):
                     problems.append(f"{label}::estimator={estimator}: {problem}")
         if sorted(test_names) != sorted(estimators):
-            problems.append(f"{label} is licensed for {estimators}")
+            problems.append(f"{label} is supported for {estimators}")
         extras = [item for item in matrix_estimators if item not in estimators]
         for estimator in extras:
             if any(
                 isinstance(entry, dict) and entry.get("estimator") == estimator for entry in tests
             ):
                 problems.append(
-                    f"{label} is licensed for {estimators}; {estimator} stays on the matrix record"
+                    f"{label} is supported for {estimators}; {estimator} stays on the matrix record"
                 )
 
     if axes:
@@ -234,11 +234,11 @@ def cross_check(
                 expected = "closed"
             elif any(applies(rule, cell) for rule in expected_na):
                 expected = "not_applicable"
-            elif coordinate(cell) in licensed_keys:
-                expected = "licensed"
+            elif coordinate(cell) in supported_keys:
+                expected = "supported"
             else:
-                expected = "unlicensed"
-            actual = standing(cell, closed_rules, na_rules, licensed_keys)
+                expected = "unsupported"
+            actual = standing(cell, closed_rules, na_rules, supported_keys)
             if actual != expected:
                 problems.append(f"{coordinate(cell)}: expected {expected}, standing {actual}")
     return problems
@@ -246,11 +246,11 @@ def cross_check(
 
 def matrix_alignment_problems(root: Path, cite=None) -> list[str]:
     """Load the records the support-matrix gate already reads and cross-check them."""
-    licensed_rows = tomllib.loads(
-        (root / "parity" / "support_licensed.toml").read_text(encoding="utf-8")
+    supported_rows = tomllib.loads(
+        (root / "parity" / "support_cells.toml").read_text(encoding="utf-8")
     ).get("cell", [])
     closed_rules = tomllib.loads(
-        (root / "parity" / "support_closed.toml").read_text(encoding="utf-8")
+        (root / "parity" / "support_refusal_reasons.toml").read_text(encoding="utf-8")
     ).get("closed", [])
     na_rules = tomllib.loads(
         (root / "parity" / "support_n_a.toml").read_text(encoding="utf-8")
@@ -269,8 +269,8 @@ def matrix_alignment_problems(root: Path, cite=None) -> list[str]:
         "validation": list(axes_doc["validations"]),
     }
     return cross_check(
-        licensed_rows,
-        matrix.get("licensed") or [],
+        supported_rows,
+        matrix.get("supported") or [],
         closed_rules,
         na_rules,
         closed_snapshot=matrix.get("closed_rules") or [],

@@ -214,22 +214,22 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
         return factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], **options)
 
     error = refusal(lambda: call(level=0.95))
-    assert error.reason_code == "penalized_interval_not_licensed"
+    assert error.reason_code == "penalized_interval_not_supported"
     assert "joint_cells.interval_withheld" in str(error)
     for name in ("ml", "neural_network", "gradient_boosting"):
         error = refusal(lambda name=name: call(nuisance=name))
-        assert error.reason_code == "ml_nuisance_not_licensed"
+        assert error.reason_code == "ml_nuisance_not_supported"
         assert "joint_cells.ml_learner_not_declared" in str(error)
     # An interval over a learner-supplied family is closed whether or not the provider is
     # built: it is refused before any data is read.
     error = refusal(lambda: call(nuisance="random_forest", level=0.95))
-    assert error.reason_code == "ml_nuisance_not_licensed"
+    assert error.reason_code == "ml_nuisance_not_supported"
     assert "joint_cells.ml_interval_withheld" in str(error)
     with pytest.raises(CausalValueError):
         call(nuisance="random_forest", penalties=[0.1])
     with pytest.raises(CausalValueError):
         call(nuisance=3)
-    assert refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_licensed"
+    assert refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_supported"
     assert refusal(lambda: call(nuisance="typo")).reason_code == "invalid_argument"
     assert refusal(lambda: call(ordering=["t0", "t0"])).reason_code == "invalid_argument"
 

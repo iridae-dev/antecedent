@@ -6,8 +6,8 @@
 /// How far a provider's numbers are trusted.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProviderTrust {
-    /// Implemented and licensed by Antecedent. A caller cannot stamp this on.
-    NativeLicensed,
+    /// Implemented and supported by Antecedent. A caller cannot stamp this on.
+    NativeSupported,
     /// Supplier assertion only. No numerical check was performed here.
     ExternallyAttested,
     /// The exact provider contract passed object-level verification.
@@ -21,7 +21,7 @@ impl ProviderTrust {
     #[must_use]
     pub const fn as_wire(self) -> &'static str {
         match self {
-            Self::NativeLicensed => "native_licensed",
+            Self::NativeSupported => "native_supported",
             Self::ExternallyAttested => "externally_attested",
             Self::ExactRequestVerified => "verified_extension",
             Self::Unverified => "unverified",
@@ -47,7 +47,7 @@ impl ProviderTrust {
     #[must_use]
     pub fn from_wire(value: &str) -> Option<Self> {
         match value {
-            "native_licensed" => Some(Self::NativeLicensed),
+            "native_supported" => Some(Self::NativeSupported),
             "externally_attested" | "external_attested" => Some(Self::ExternallyAttested),
             "verified_extension" | "exact_request_verified" | "external_exact_request_verified" => {
                 Some(Self::ExactRequestVerified)
@@ -63,7 +63,7 @@ impl ProviderTrust {
     #[must_use]
     pub fn from_external_state(state: &crate::external::ExternalTrustState) -> Self {
         match state {
-            crate::external::ExternalTrustState::NativeLicensed => Self::NativeLicensed,
+            crate::external::ExternalTrustState::NativeSupported => Self::NativeSupported,
             crate::external::ExternalTrustState::ExternallyAttested { .. } => {
                 Self::ExternallyAttested
             }

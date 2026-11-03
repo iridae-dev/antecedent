@@ -366,7 +366,7 @@ pub enum FixedShiftIdentification {
     ConditionalOnDeclaredDesignAndMissingness,
 }
 
-/// A reconstructed bounded operation, not a causal or calibration license.
+/// A reconstructed bounded operation, not a causal or calibration support.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FixedShiftProgram {
     source_digest: [u8; 32],

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the licensed rows of the counterfactual and nested-effect validation cells on a DAG.
+"""Generate the supported rows of the counterfactual and nested-effect validation cells on a DAG.
 
 The rows are a deterministic function of the table below. They live between two marker lines of
-parity/support_licensed.toml; `--check` fails when the file differs from the generated block and
+parity/support_cells.toml; `--check` fails when the file differs from the generated block and
 `--write` replaces (or appends) the block.
 
     python3 scripts/generate_cross_world_dag_support_rows.py --check
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# BEGIN generated rows: scripts/generate_cross_world_dag_support_rows.py"
 END = "# END generated rows: scripts/generate_cross_world_dag_support_rows.py"
 
@@ -44,7 +44,7 @@ FAMILIES = [
             "and its clean twin passes; on Gaussian disturbances the Bayesian posterior-predictive check "
             "passes the clean case. Subset stability of a homogeneous linear effect has a constant "
             "target across subsets and is reported as a refuter that did not run, not asserted. The "
-            "verdicts are diagnostics, not a calibration claim. The licence of the point and of the unit-effect "
+            "verdicts are diagnostics, not a calibration claim. The support of the point and of the unit-effect "
             "intervals is that of the corresponding validation none cell; the interval's calibration "
             "is not measured."
         ),
@@ -121,7 +121,7 @@ def main(argv: list[str]) -> int:
     if len(argv) != 1 or argv[0] not in {"--check", "--write"}:
         print(__doc__)
         return 2
-    text = LICENSED.read_text(encoding="utf-8")
+    text = SUPPORTED.read_text(encoding="utf-8")
     if BEGIN in text and END in text:
         head, rest = text.split(BEGIN, 1)
         _, tail = rest.split(END, 1)
@@ -130,11 +130,11 @@ def main(argv: list[str]) -> int:
         new = text.rstrip("\n") + "\n\n" + block()
     if argv[0] == "--check":
         if new != text:
-            print("parity/support_licensed.toml differs from the generated cross-world DAG rows")
+            print("parity/support_cells.toml differs from the generated cross-world DAG rows")
             return 1
         print("ok")
         return 0
-    LICENSED.write_text(new, encoding="utf-8")
+    SUPPORTED.write_text(new, encoding="utf-8")
     print(f"wrote {len(rows())} rows")
     return 0
 

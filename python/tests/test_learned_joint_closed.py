@@ -4,7 +4,7 @@ The Rust core fits the outcome mechanism through ``antecedent-learn`` and replay
 independent io artifact, but its posterior claims a calibrated interval whose coverage is
 measured only at the release cut. The public producer therefore validates its request against
 the row's scope through the Rust core, raises the row's own scope refusal for a request outside
-it, and otherwise raises ``cell_not_licensed`` / ``learned_joint_transport.route_frozen``.
+it, and otherwise raises ``not_supported`` / ``learned_joint_transport.route_frozen``.
 """
 
 import pytest
@@ -38,9 +38,9 @@ def learned_kwargs(**overrides):
     return kwargs
 
 
-def test_learned_route_is_closed_with_cell_not_licensed():
+def test_learned_route_is_closed_with_not_supported():
     error = refusal_of(lambda: transport.learned_joint_transport(**learned_kwargs()))
-    assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
+    assert_refused(error, "not_supported", "learned_joint_transport.route_frozen")
     assert "calibration evidence" in str(error)
 
 
@@ -55,7 +55,7 @@ def test_learned_adjacent_graph_refuses_before_the_frozen_route():
     # A graph without a bidirected edge stays a fixed DAG: the frozen refusal, not the scope one.
     dag = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")])
     error = refusal_of(lambda: transport.learned_joint_transport(**learned_kwargs(graph=dag)))
-    assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
+    assert_refused(error, "not_supported", "learned_joint_transport.route_frozen")
 
 
 def test_learned_bad_basis_refuses_with_its_own_detail_first():
@@ -86,7 +86,7 @@ def test_learned_bad_basis_refuses_with_its_own_detail_first():
                 **learned_kwargs(basis_degree=degree)
             )
         )
-        assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
+        assert_refused(error, "not_supported", "learned_joint_transport.route_frozen")
 
 
 def test_learned_scope_refusals_carry_their_own_details():

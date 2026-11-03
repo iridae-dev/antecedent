@@ -48,7 +48,7 @@ record_sha256 = "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw.rs"
-sha256 = "5b540fd74c2a5736e33ca2f23a447a919872f0b213b135a3bcf4cb67d74149c8"
+sha256 = "1d477267b848ed1d437d4c2a03a9e98d0dfc45f5c592fa4cedfd5cc14ec9a15d"
 
 [[method_review.artifacts]]
 role = "implementation"

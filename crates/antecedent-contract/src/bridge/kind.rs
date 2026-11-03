@@ -249,7 +249,7 @@ impl BridgeKind {
 
     /// The `(source, target)` class pairs the kind connects.
     ///
-    /// A pair listed here is not thereby licensed: the importance and score
+    /// A pair listed here is not thereby supported: the importance and score
     /// pairs of the predictive kind are listed so the refusal that closes
     /// them is the named one, not a malformed-declaration refusal.
     #[must_use]

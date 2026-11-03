@@ -17,7 +17,7 @@ use antecedent_identify::{
 };
 use antecedent_io::IoError;
 use antecedent_io::mz_transport_artifact::{
-    MZ_INTERVAL_NOT_LICENSED, MZ_NOMINAL_INTERVAL, MZ_WITHHELD, MzTransportArtifactError,
+    MZ_INTERVAL_NOT_SUPPORTED, MZ_NOMINAL_INTERVAL, MZ_WITHHELD, MzTransportArtifactError,
     MzTransportArtifactInput, MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
 };
 use common::mz_fixture::{
@@ -359,7 +359,7 @@ fn a_consumer_that_cannot_afford_the_stored_memory_cap_refuses_with_a_limits_err
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
+fn the_unmeasured_interval_route_refuses_with_not_supported() {
     let (catalog, exact) = evidence();
     let data = empirical(&exact, 40_000.0);
     let ctx = ExecutionContext::for_tests(5);
@@ -370,8 +370,8 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     // ... and no interval: the route is closed until its coverage records exist.
     let uncertainty = result.uncertainty();
     assert_eq!(uncertainty.status, MZ_WITHHELD);
-    assert_eq!(uncertainty.reason, MZ_INTERVAL_NOT_LICENSED);
-    assert_eq!(uncertainty.reason, "cell_not_licensed");
+    assert_eq!(uncertainty.reason, MZ_INTERVAL_NOT_SUPPORTED);
+    assert_eq!(uncertainty.reason, "not_supported");
     assert!(!uncertainty.available());
     assert!(uncertainty.mean_intervals.is_empty() && uncertainty.seed.is_none());
     assert_eq!(uncertainty.dependence_reason, None);
@@ -451,7 +451,7 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     ));
     // Undeclared dependence is reported beside the closed-route reason.
     let undeclared = prepare(&catalog, empirical(&exact, 40_000.0), true).estimate(&ctx).unwrap();
-    assert_eq!(undeclared.uncertainty().reason, MZ_INTERVAL_NOT_LICENSED);
+    assert_eq!(undeclared.uncertainty().reason, MZ_INTERVAL_NOT_SUPPORTED);
     assert_eq!(
         undeclared.uncertainty().dependence_reason.as_deref(),
         Some("sampling_dependence_unknown")
@@ -547,16 +547,16 @@ fn an_internal_interval_is_recomputed_bit_for_bit_and_refused_by_public_consumer
 }
 
 /// The one refusal every public route gives an interval-bearing artifact: the
-/// `(code, detail)` pair `cell_not_licensed` / `mz_transport.interval_withheld`.
+/// `(code, detail)` pair `not_supported` / `mz_transport.interval_withheld`.
 fn assert_interval_refused(result: Result<(), IoError>) {
     match result {
         Err(error @ IoError::Refused { .. }) => {
-            assert_eq!(error.reason_code(), Some("cell_not_licensed"));
+            assert_eq!(error.reason_code(), Some("not_supported"));
             let IoError::Refused { code, message } = error else { unreachable!() };
-            assert_eq!(code, "cell_not_licensed");
+            assert_eq!(code, "not_supported");
             assert!(message.starts_with("mz_transport.interval_withheld"), "{message}");
         }
-        other => panic!("expected cell_not_licensed, got {other:?}"),
+        other => panic!("expected not_supported, got {other:?}"),
     }
 }
 
@@ -578,7 +578,7 @@ fn shared_dataset_regimes_always_return_the_point() {
         let prepared = prepare(&catalog, data, true);
         let result = prepared.estimate(&ctx).unwrap();
         assert!((risk_of(result.distribution()) - truth).abs() < 1e-2);
-        assert_eq!(result.uncertainty().reason, MZ_INTERVAL_NOT_LICENSED);
+        assert_eq!(result.uncertainty().reason, MZ_INTERVAL_NOT_SUPPORTED);
         assert_eq!(result.uncertainty().dependence_reason.as_deref(), dependence);
         // The consumer re-derives the same dependence reason.
         let bytes = result.export(&prepared, &ctx).unwrap();

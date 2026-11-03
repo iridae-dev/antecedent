@@ -37,17 +37,17 @@ record_sha256 = "d2dae097d3abb404163ac2d59c6f27bb077db05be9ddeb28138596346661dbb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
+sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
-sha256 = "2e4350fdd15fe8a97c7a0dd7329e3d65c3a3c068c371c060f60d0a9a411a3a75"
+sha256 = "af5e4a47308e50ad4728c8afe0e61d826a27dfee5a08327e5c0d66b95ae55286"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adaptive_inference.rs"
-sha256 = "5c97dc9593ba52a2072f2af0c0688a5c2c0a4c04130815d6d18e569f244ed78a"
+sha256 = "15d59f9dfd606f5790f861a8322eba97c53f9c032c41a4eabb866fe4cb750b84"
 
 [[method_review.artifacts]]
 role = "assertion"

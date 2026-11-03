@@ -100,7 +100,7 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
                     RefuteSuite::PlaceboAndRcc => unreachable!("unsupported CATE suite"),
                 }
             );
-            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
             assert_eq!(
                 prepared.structure_source(),
                 if accepted { StructureSource::Accepted } else { StructureSource::Explicit }

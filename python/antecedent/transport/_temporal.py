@@ -9,7 +9,7 @@ that coordinate's slice; every coordinate without one is assumed invariant at it
 slice, and each assumption is reported per slice. Time step 1 and time step 2 are
 never transported separately and multiplied. The claim is exact and point-only:
 temporal sampling intervals, initial-state uncertainty and new-period refresh are
-not licensed, and an interval request refuses.
+not supported, and an interval request refuses.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class TemporalSequenceSpec:
         if isinstance(self.graph, Cpdag | Pag):
             raise CausalUnsupportedError(
                 "temporal_transport.invalid_spec: supply the explicit unrolled ADMG; "
-                "CPDAG/PAG-native temporal transport is not licensed",
+                "CPDAG/PAG-native temporal transport is not supported",
                 reason_code="invalid_argument",
             )
         if not isinstance(self.graph, Admg):
@@ -76,7 +76,7 @@ class TemporalSequenceSpec:
         if self.horizon != HORIZON:
             raise CausalUnsupportedError(
                 f"temporal_transport.horizon: horizon {self.horizon} is outside the "
-                f"licensed horizon of {HORIZON}",
+                f"supported horizon of {HORIZON}",
                 reason_code="route_not_supported",
             )
         covariates = tuple(tuple(step) for step in self.covariates)

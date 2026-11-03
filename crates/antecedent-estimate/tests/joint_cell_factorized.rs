@@ -236,7 +236,7 @@ fn the_score_table_is_a_point_and_score_artifact_that_round_trips() {
         assert!((mean - estimate_of(&fit, column.arm as usize)).abs() < 1e-12);
     }
     let (code, message) = refused(refuse_joint_inference());
-    assert_eq!(code, "penalized_interval_not_licensed");
+    assert_eq!(code, "penalized_interval_not_supported");
     assert!(message.contains("joint_cells.interval_withheld"), "{message}");
 }
 
@@ -474,21 +474,21 @@ fn undeclared_learners_lasso_and_intervals_are_closed() {
         Some(LearnerSpec::GradientBoostedTrees(_))
     ));
     let (code, _) = refused(declared_joint_nuisance("lasso").unwrap_err());
-    assert_eq!(code, "selection_inference_not_licensed");
+    assert_eq!(code, "selection_inference_not_supported");
     for provider in ["ml", "gradient_boosting", "neural_network", "forest", "boosting"] {
         let (code, message) = refused(declared_joint_nuisance(provider).unwrap_err());
-        assert_eq!(code, "ml_nuisance_not_licensed");
+        assert_eq!(code, "ml_nuisance_not_supported");
         assert!(message.contains("joint_cells.ml_learner_not_declared"), "{message}");
     }
     let (code, message) = refused(declared_joint_nuisance("typo").unwrap_err());
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("joint_cells.nuisance_provider"), "{message}");
     let (code, _) = refused(refuse_joint_inference());
-    assert_eq!(code, "penalized_interval_not_licensed");
+    assert_eq!(code, "penalized_interval_not_supported");
     let (code, message) = refused(refuse_joint_learner_inference());
-    assert_eq!(code, "ml_nuisance_not_licensed");
+    assert_eq!(code, "ml_nuisance_not_supported");
     assert!(message.contains("joint_cells.ml_interval_withheld"), "{message}");
-    assert!(message.contains("remainder and coverage license"), "{message}");
+    assert!(message.contains("remainder and coverage support"), "{message}");
 }
 
 fn learner_config() -> FactorizedJointConfig {

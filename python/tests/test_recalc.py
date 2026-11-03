@@ -376,7 +376,7 @@ def test_many_dynamic_route_names_round_trip_without_process_exhaustion() -> Non
         name = f"custom.route_{i}"
         session.set_request_support("off_grid", name)
         capabilities = session.capabilities
-        assert capabilities.licensed_route == name
+        assert capabilities.supported_route == name
         assert Capabilities.from_wire(capabilities.to_wire()) == capabilities
         plan = recalc.plan_recalculation(declared, declared, capabilities)
         assert plan.status(Stage.TREATMENT_GRID).text == (
@@ -393,7 +393,7 @@ def test_many_dynamic_route_names_round_trip_without_process_exhaustion() -> Non
 
     session.set_request_support("unsupported", "custom.after_rejections")
     capabilities = session.capabilities
-    assert capabilities.licensed_route == "custom.after_rejections"
+    assert capabilities.supported_route == "custom.after_rejections"
     plan = recalc.plan_recalculation(declared, declared, capabilities)
     assert plan.status(Stage.TREATMENT_GRID).text == (
         "refused(recalc.unsupported_request[custom.after_rejections])"
@@ -440,13 +440,13 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     assert work(again) == (0, 0, 0, 0, 0)
     assert again.law == first.law
 
-    # Weights that are not a licensed function of the adjustment set refuse at the law.
+    # Weights that are not a supported function of the adjustment set refuse at the law.
     session.set_retarget_support("incompatible")
     changed = replace(base, target=z_weights(base))
     with pytest.raises(RecalcRefusal) as caught:
         require_success(session.execute(changed, execution=Execution(seed=SEED)))
     assert caught.value.detail == "recalc.retarget_incompatible"
-    assert caught.value.reason_code == "construction_not_licensed"
+    assert caught.value.reason_code == "construction_not_supported"
     assert caught.value.plan is not None
     assert caught.value.plan.status(Stage.LAW).text == "refused(recalc.retarget_incompatible)"
     assert session.identities == known, "a refusal changes nothing"

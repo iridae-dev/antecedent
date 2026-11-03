@@ -82,7 +82,7 @@ impl PreparedStudy {
     /// g-computation engine. This explicit realization retains the linear-Gaussian,
     /// fixed-empirical-covariate premise in the target. Compile performs no fitting or new
     /// identification. Unsupported joint support remains model-conditional; a numerical
-    /// result is never a new calibration or causal license.
+    /// result is never a new calibration or causal support.
     ///
     /// # Errors
     /// Requires a completely observed, all-observed static hard-intervention response with
@@ -461,7 +461,7 @@ impl JointResponseResult {
         )
     }
 
-    /// Export licensed mean-functional coordinates for the existing affine decision engine.
+    /// Export supported mean-functional coordinates for the existing affine decision engine.
     ///
     /// # Errors
     /// Unverified world support or malformed source coordinates. No outcome law is implied.
@@ -559,7 +559,7 @@ impl JointResponseResult {
                 weights: None,
                 supported: Some(vec![true; self.world_ids().len()]),
                 calibration: DistributionCalibration::Unmeasured,
-                trust: DistributionTrust::NativeLicensed,
+                trust: DistributionTrust::NativeSupported,
                 legacy_posterior: None,
                 legacy_bindings: None,
             },
@@ -1167,7 +1167,7 @@ mod tests {
         assert_eq!(second.report.counts(Operation::Identification).attempted, 0);
         let second = second.result.unwrap();
         // The additive response cannot express an interaction, but a coordinated
-        // intervention must also produce a useful nonzero, jointly licensed response contrast.
+        // intervention must also produce a useful nonzero, jointly supported response contrast.
         let baseline = target(false);
         let TargetForm::Contrast(baseline_contrast) = baseline.form() else { unreachable!() };
         let linear_target = ScientificTarget::new(
@@ -1531,7 +1531,7 @@ mod tests {
     }
 
     #[test]
-    fn joint_gaussian_conditional_assignment_is_not_licensed_by_repeated_marginal_cells() {
+    fn joint_gaussian_conditional_assignment_is_not_supported_by_repeated_marginal_cells() {
         let ctx = ExecutionContext::for_tests(53);
         let mut columns = [vec![], vec![], vec![], vec![]];
         for index in 0_u32..240 {

@@ -346,6 +346,7 @@ impl core::clone::Clone for antecedent_model::scc_compile::BlockDiagnostic
 impl core::clone::Clone for antecedent_model::scc_compile::CompileBudget
 impl core::clone::Clone for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::clone::Clone for antecedent_model::scc_compile::GaussianDisturbance
+impl core::clone::Clone for antecedent_model::scc_compile::LinearRouteSet
 impl core::clone::Clone for antecedent_model::scc_compile::LinearSupportRoute
 impl core::clone::Clone for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::clone::Clone for antecedent_model::scc_compile::SccCompileError
@@ -758,6 +759,7 @@ impl core::cmp::PartialEq for antecedent_model::scc_compile::BlockDiagnostic
 impl core::cmp::PartialEq for antecedent_model::scc_compile::CompileBudget
 impl core::cmp::PartialEq for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::cmp::PartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::cmp::PartialEq for antecedent_model::scc_compile::LinearRouteSet
 impl core::cmp::PartialEq for antecedent_model::scc_compile::LinearSupportRoute
 impl core::cmp::PartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::cmp::PartialEq for antecedent_model::scc_compile::SccCompileError
@@ -1141,6 +1143,7 @@ impl core::fmt::Debug for antecedent_model::scc_compile::BlockDiagnostic
 impl core::fmt::Debug for antecedent_model::scc_compile::CompileBudget
 impl core::fmt::Debug for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::fmt::Debug for antecedent_model::scc_compile::GaussianDisturbance
+impl core::fmt::Debug for antecedent_model::scc_compile::LinearRouteSet
 impl core::fmt::Debug for antecedent_model::scc_compile::LinearSupportRoute
 impl core::fmt::Debug for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::fmt::Debug for antecedent_model::scc_compile::SccCompileError
@@ -1623,6 +1626,7 @@ impl core::marker::Freeze for antecedent_model::scc_compile::BlockDiagnostic [au
 impl core::marker::Freeze for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::SccCompileError [auto]
@@ -1953,6 +1957,7 @@ impl core::marker::Send for antecedent_model::scc_compile::BlockDiagnostic [auto
 impl core::marker::Send for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Send for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Send for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Send for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::marker::Send for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Send for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Send for antecedent_model::scc_compile::SccCompileError [auto]
@@ -2237,6 +2242,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::BlockD
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompileBudget
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::LinearRouteSet
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::LinearSupportRoute
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::SccCompileError
@@ -2562,6 +2568,7 @@ impl core::marker::Sync for antecedent_model::scc_compile::BlockDiagnostic [auto
 impl core::marker::Sync for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::SccCompileError [auto]
@@ -2892,6 +2899,7 @@ impl core::marker::Unpin for antecedent_model::scc_compile::BlockDiagnostic [aut
 impl core::marker::Unpin for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::SccCompileError [auto]
@@ -3212,6 +3220,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
@@ -3532,6 +3541,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::Blo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::LinearRouteSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
@@ -3804,6 +3814,7 @@ pub const antecedent_model::MAX_ENUMERATED_RELABELLINGS: usize
 pub const antecedent_model::NOISE_REPLAY_STREAM_DOMAIN: antecedent_core::execution::rng::StreamDomain
 pub const antecedent_model::NOISE_ROW_BLOCK: usize
 pub const antecedent_model::VERSION: &str
+pub const antecedent_model::affine_certificate::DEFAULT_CERTIFICATE_BYTES: u64
 pub const antecedent_model::basis::SPLINE_KNOT_QUANTILES: [f64; 3]
 pub const antecedent_model::basis::SPLINE_MIN_DISTINCT: usize
 pub const antecedent_model::compose::COMPOSITION_STREAM_DOMAIN: antecedent_core::execution::rng::StreamDomain
@@ -3825,6 +3836,7 @@ pub const antecedent_model::cyclic_world::DISTINCT_WORLD_ATTEMPT: antecedent_cor
 pub const antecedent_model::cyclic_world::EXECUTION_ATTEMPT: antecedent_core::refusal::NextAttempt
 pub const antecedent_model::cyclic_world::FINITE_FLOAT_LEVEL_ATTEMPT: antecedent_core::refusal::NextAttempt
 pub const antecedent_model::cyclic_world::INTEGRATION_FAILURE_ATTEMPT: antecedent_core::refusal::NextAttempt
+pub const antecedent_model::cyclic_world::NONLINEAR_WORLD_MAX_WORK: u64
 pub const antecedent_model::cyclic_world::NONZERO_DIAGONAL_ATTEMPT: antecedent_core::refusal::NextAttempt
 pub const antecedent_model::cyclic_world::ONE_ACTION_PER_VARIABLE_ATTEMPT: antecedent_core::refusal::NextAttempt
 pub const antecedent_model::cyclic_world::QUERY_SPECIFIC_CERTIFICATE_ATTEMPT: antecedent_core::refusal::NextAttempt
@@ -3868,9 +3880,13 @@ pub const antecedent_model::discretized_scm_artifact::DETAIL_NOT_EXPORTABLE: &st
 pub const antecedent_model::discretized_scm_artifact::DETAIL_REDERIVATION_REFUSED: &str
 pub const antecedent_model::discretized_scm_artifact::DETAIL_VERSION_UNSUPPORTED: &str
 pub const antecedent_model::discretized_scm_artifact::DISCRETIZED_SCM_ARTIFACT_VERSION: u32
+pub const antecedent_model::do_sampler::MAX_MCMC_ITERATIONS: usize
+pub const antecedent_model::do_sampler::MAX_MCMC_KDE_EVALUATIONS: u64
 pub const antecedent_model::external_mechanism::MAX_EXTERNAL_ARITY: usize
 pub const antecedent_model::external_mechanism::MAX_EXTERNAL_DEPENDENCIES: usize
+pub const antecedent_model::falsify::MAX_FALSIFICATION_WORK: u128
 pub const antecedent_model::linear_moments::MAX_AFFINE_MOMENT_ORDER: usize
+pub const antecedent_model::linear_moments::MAX_AFFINE_MOMENT_WORK: u64
 pub const antecedent_model::linear_solution::NONZERO_DIAGONAL_NEXT_ATTEMPT: &str
 pub const antecedent_model::mechanism_expr::MAX_TAPE_GRADIENT_BYTES: usize
 pub const antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH: &str
@@ -4839,7 +4855,7 @@ pub fn <antecedent_model::PolicySupport>::fn decision(&self, route: antecedent_m
 pub fn <antecedent_model::ProbabilisticCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
 pub fn <antecedent_model::ProvenanceOrder>::fn order(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::RouteDecision>::fn assumption(&self) -> core::option::Option<&str>
-pub fn <antecedent_model::RouteDecision>::fn is_licensed(&self) -> bool
+pub fn <antecedent_model::RouteDecision>::fn is_supported(&self) -> bool
 pub fn <antecedent_model::SelectionOptions>::fn constraint_for(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent_model::NodeFamilyConstraint>
 pub fn <antecedent_model::SelectionPolicy>::fn select(self, candidates: &[antecedent_model::MechanismCandidate]) -> core::option::Option<antecedent_model::MechanismFamily>
 pub fn <antecedent_model::SelectionRule>::const fn id(self) -> &'static str
@@ -4946,6 +4962,11 @@ pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn solved_by(&
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn actions(&self) -> &[antecedent_model::cyclic_world::CyclicAction]
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn mean_of(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<f64>
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn retained_by(self, lease: antecedent_core::execution::admission::AdmissionLease) -> Self
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn retained_draws_estimate(order: usize, draws: usize) -> u64
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn retained_gaussian_estimate(order: usize) -> u64
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn retained_trajectory_estimate(order: usize, samples: usize) -> u64
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn summary(&self) -> antecedent_model::cyclic_world::CyclicWorldSummary
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_model::cyclic_world::CyclicWorldResults>::fn get(&self, world: antecedent_core::scientific_target::model::ScientificWorldId) -> core::option::Option<&antecedent_model::cyclic_world::CyclicWorldResult>
@@ -5205,8 +5226,10 @@ pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn local_coefficients(&se
 pub fn <antecedent_model::nonlinear_sde::CompiledSde>::fn system(&self) -> &antecedent_model::nonlinear_sde::SdeSystem
 pub fn <antecedent_model::nonlinear_sde::SdeBoundary>::fn contains_value(&self, x: f64) -> bool
 pub fn <antecedent_model::nonlinear_sde::SdeBoundary>::fn project(&self, x: f64) -> f64
+pub fn <antecedent_model::nonlinear_sde::SdeEnsembleReport>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_model::nonlinear_sde::SdeInput>::fn range(&self) -> (f64, f64)
 pub fn <antecedent_model::nonlinear_sde::SdeInput>::fn value_at(&self, t: f64) -> f64
+pub fn <antecedent_model::nonlinear_sde::SdePaths>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_model::nonlinear_sde::SdeSimulationPolicy>::fn output_times(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_model::nonlinear_sde::SdeSimulationPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_sde::SdeError>
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn boundary(&self, i: usize) -> antecedent_model::nonlinear_sde::SdeBoundary
@@ -5214,6 +5237,8 @@ pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn compile(&self) -> core::
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn parameter_values(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, start: f64, step: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world_continuous(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, start: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world_continuous_as(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, id: &str, start: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn world_plan_bytes(&self, world: &antecedent_model::nonlinear_sde::SdeWorld) -> u64
 pub fn <antecedent_model::nonlinear_sde::WorldPlan>::fn held_value(&self, variable: usize, t: f64) -> core::option::Option<f64>
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn alpha(&self) -> f64
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn beta(&self) -> f64
@@ -5253,6 +5278,12 @@ pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn covariance(&self
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn dimension(&self) -> usize
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn mean(&self) -> &[f64]
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn try_new(mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::scc_compile::SccCompileError>
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn binds(&self, model: &antecedent_model::LinearStructuralMap) -> bool
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn get(&self, model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::option::Option<&antecedent_model::scc_compile::LinearSupportRoute>
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn is_empty(&self) -> bool
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn len(&self) -> usize
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn new(model: &antecedent_model::LinearStructuralMap) -> Self
+pub fn <antecedent_model::scc_compile::LinearRouteSet>::fn route(&mut self, model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<(antecedent_model::scc_compile::LinearSupportRoute, bool), antecedent_model::scc_compile::SccCompileError>
 pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn equilibrium(&self) -> &antecedent_model::scc_compile::CompiledEquilibrium
 pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn route(&self) -> &antecedent_model::scc_compile::LinearSupportRoute
 pub fn <antecedent_model::sparse_equilibrium::CsrMatrix>::fn bytes(&self) -> u64
@@ -5296,7 +5327,9 @@ pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn 
 pub fn <antecedent_model::typed_mechanism_transport::TransportedTypedModel>::fn transported_variables(&self) -> alloc::vec::Vec<&str>
 pub fn <antecedent_model::typed_mechanism_transport::TypedFitError>::fn reason_code(&self) -> &'static str
 pub fn antecedent_model::affine_certificate::certifies_affine_bijection(weights: &[f64], order: usize) -> bool
+pub fn antecedent_model::affine_certificate::certifies_affine_bijection_in(weights: &[f64], order: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<bool, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_model::affine_certificate::certifies_sparse_affine_bijection(rows: &[alloc::vec::Vec<(usize, f64)>], order: usize) -> bool
+pub fn antecedent_model::affine_certificate::certifies_sparse_affine_bijection_in(rows: &[alloc::vec::Vec<(usize, f64)>], order: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<bool, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_model::apply_node_program(program: &antecedent_model::NodeProgram, values: &mut antecedent_model::ValueBatchMut<'_>, node: usize, scratch: &mut alloc::vec::Vec<f64>, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::assess(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::SolutionAssessment, antecedent_model::LinearSolutionError>
 pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
@@ -5304,6 +5337,7 @@ pub fn antecedent_model::basis::spline_knots(columns: &[&[f64]], n_rows: usize, 
 pub fn antecedent_model::check_component_composition(components: &[antecedent_model::ComponentDependency]) -> core::result::Result<antecedent_model::ComponentOrder, antecedent_model::CycleGateError>
 pub fn antecedent_model::check_provenance_chain(citations: &[antecedent_model::ProvenanceCitation]) -> core::result::Result<antecedent_model::ProvenanceOrder, antecedent_model::CycleGateError>
 pub fn antecedent_model::compile::compile_constraints(model: &antecedent_model::equation_system::PolynomialSystem) -> core::result::Result<antecedent_model::compile::CompiledSystemPlan, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_model::compile::compile_equilibria(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, clamp_sets: &[&[antecedent_model::nonlinear_equilibrium::Clamp]]) -> core::result::Result<alloc::vec::Vec<antecedent_model::compile::CompiledSystemPlan>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_model::compile::compile_equilibrium(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, clamps: &[antecedent_model::nonlinear_equilibrium::Clamp]) -> core::result::Result<antecedent_model::compile::CompiledSystemPlan, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_model::compile::compile_ode(model: &antecedent_model::continuous_cyclic::OdeSystem) -> core::result::Result<antecedent_model::compile::CompiledSystemPlan, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_model::compile::compile_ou(model: &antecedent_model::continuous_cyclic::OrnsteinUhlenbeck) -> core::result::Result<antecedent_model::compile::CompiledSystemPlan, antecedent_model::nonlinear_equilibrium::EquilibriumError>
@@ -5319,6 +5353,7 @@ pub fn antecedent_model::cyclic_world::equilibrium_actions(model: &antecedent_mo
 pub fn antecedent_model::cyclic_world::evaluate_continuous_time_world(spec: &antecedent_model::cyclic_world::ContinuousTimeSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, policy: antecedent_model::continuous_cyclic::OdePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::evaluate_linear_world(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::evaluate_linear_worlds(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, requests: &[antecedent_model::cyclic_world::CyclicWorldRequest], demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResults, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::evaluate_linear_worlds_routed(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, requests: &[antecedent_model::cyclic_world::CyclicWorldRequest], demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget, routes: &antecedent_model::scc_compile::LinearRouteSet) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResults, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::evaluate_nonlinear_world(spec: &antecedent_model::cyclic_world::NonlinearCyclicSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, noise_draws: &[f64], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::resolve_cyclic_world(family: antecedent_core::intervention::CyclicFamily, variables: &antecedent_model::cyclic_world::CyclicVariables, initial_laws: &[alloc::sync::Arc<str>], request: &antecedent_model::cyclic_world::CyclicWorldRequest) -> core::result::Result<antecedent_model::cyclic_world::ResolvedCyclicWorld, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::discretized_scm::parity_row(route: antecedent_model::discretized_scm::ParityRoute) -> &'static antecedent_model::discretized_scm::ParityRow
@@ -5389,12 +5424,16 @@ pub fn antecedent_model::sample::soft_to_slot(soft: &antecedent_core::interventi
 pub fn antecedent_model::scc_compile::compile_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::CompiledEquilibrium, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::compile_routed_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::RoutedEquilibrium, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::gaussian_equilibrium_admission(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::AdmissionCost, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::scc_compile::gaussian_equilibrium_peak_bytes(order: usize) -> core::result::Result<u64, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::scc_compile::gaussian_equilibrium_route_work(order: usize) -> core::result::Result<u64, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::route_linear_support(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::LinearSupportRoute, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::sparse_equilibrium::infinity_condition_estimate(matrix: &antecedent_model::sparse_equilibrium::CsrMatrix, lu: &antecedent_model::sparse_equilibrium::SparseLu, lu_transpose: &antecedent_model::sparse_equilibrium::SparseLu) -> core::option::Option<f64>
 pub fn antecedent_model::sparse_equilibrium::nonnegative_spectral_upper_bound(b: &antecedent_model::sparse_equilibrium::CsrMatrix, max_iterations: usize) -> antecedent_model::sparse_equilibrium::SpectralBound
 pub fn antecedent_model::typed_mechanism_transport::fit_mechanism(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
+pub fn antecedent_model::typed_mechanism_transport::fit_mechanism_polled(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
 pub fn antecedent_model::typed_mechanism_transport::invariance_check(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, target: &antecedent_model::typed_mechanism_transport::FittedMechanism, level: f64) -> core::result::Result<antecedent_model::typed_mechanism_transport::InvarianceCheck, antecedent_model::compose::CompositionError>
 pub fn antecedent_model::typed_mechanism_transport::refit_in_target(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
+pub fn antecedent_model::typed_mechanism_transport::refit_in_target_polled(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::MechanismContext, provenance: antecedent_model::compose::MechanismProvenance, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent_model::typed_mechanism_transport::TypedFitError>
 pub fn antecedent_model::typed_mechanism_transport::transport_typed(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest) -> core::result::Result<antecedent_model::typed_mechanism_transport::TransportedTypedModel, antecedent_model::compose::CompositionError>
 pub fn antecedent_model::typed_mechanism_transport::typed_refusal_code(detail: &str) -> core::option::Option<&'static str>
 pub mod antecedent_model::affine_certificate
@@ -5507,6 +5546,7 @@ pub struct antecedent_model::SelectionProvenance
 pub struct antecedent_model::SingularBlock
 pub struct antecedent_model::SolutionAssessment
 pub struct antecedent_model::TemporalPath
+pub struct antecedent_model::TemporalPath has private fields
 pub struct antecedent_model::TemporalPlan<'a>
 pub struct antecedent_model::TreeEnsemble
 pub struct antecedent_model::TreeEnsemble has private fields
@@ -5700,10 +5740,12 @@ pub struct antecedent_model::nonlinear_sde::SdeContrast
 pub struct antecedent_model::nonlinear_sde::SdeContrastEnsemble
 pub struct antecedent_model::nonlinear_sde::SdeDiffusion
 pub struct antecedent_model::nonlinear_sde::SdeEnsembleReport
+pub struct antecedent_model::nonlinear_sde::SdeEnsembleReport has private fields
 pub struct antecedent_model::nonlinear_sde::SdeInput
 pub struct antecedent_model::nonlinear_sde::SdeNumericalError
 pub struct antecedent_model::nonlinear_sde::SdeParameter
 pub struct antecedent_model::nonlinear_sde::SdePaths
+pub struct antecedent_model::nonlinear_sde::SdePaths has private fields
 pub struct antecedent_model::nonlinear_sde::SdeSimulationPolicy
 pub struct antecedent_model::nonlinear_sde::SdeSystem
 pub struct antecedent_model::nonlinear_sde::SdeWorld
@@ -5735,6 +5777,8 @@ pub struct antecedent_model::scc_compile::CompiledEquilibrium
 pub struct antecedent_model::scc_compile::CompiledEquilibrium has private fields
 pub struct antecedent_model::scc_compile::GaussianDisturbance
 pub struct antecedent_model::scc_compile::GaussianDisturbance has private fields
+pub struct antecedent_model::scc_compile::LinearRouteSet
+pub struct antecedent_model::scc_compile::LinearRouteSet has private fields
 pub struct antecedent_model::scc_compile::RoutedEquilibrium
 pub struct antecedent_model::scc_compile::RoutedEquilibrium has private fields
 pub struct antecedent_model::sparse_equilibrium::CsrMatrix
@@ -5948,6 +5992,7 @@ pub use antecedent_model::system_compile::CompiledSystemPlan = antecedent_model:
 pub use antecedent_model::system_compile::ExecutionBlock = antecedent_model::compile::ExecutionBlock
 pub use antecedent_model::system_compile::SystemSemantics = antecedent_model::compile::SystemSemantics
 pub use antecedent_model::system_compile::compile_constraints = antecedent_model::compile::compile_constraints
+pub use antecedent_model::system_compile::compile_equilibria = antecedent_model::compile::compile_equilibria
 pub use antecedent_model::system_compile::compile_equilibrium = antecedent_model::compile::compile_equilibrium
 pub use antecedent_model::system_compile::compile_ode = antecedent_model::compile::compile_ode
 pub use antecedent_model::system_compile::compile_ou = antecedent_model::compile::compile_ou
@@ -6073,9 +6118,9 @@ pub variant antecedent_model::PolicyRoute::ObservationalIdentification
 pub variant antecedent_model::PolicyRoute::Simulation
 pub variant antecedent_model::ProgramKind::Assign
 pub variant antecedent_model::ProgramKind::Transform
-pub variant antecedent_model::RouteDecision::Licensed
-pub variant antecedent_model::RouteDecision::LicensedUnder { assumption: alloc::string::String }
 pub variant antecedent_model::RouteDecision::Refused { code: alloc::string::String, detail: alloc::string::String, message: alloc::string::String }
+pub variant antecedent_model::RouteDecision::Supported
+pub variant antecedent_model::RouteDecision::SupportedUnder { assumption: alloc::string::String }
 pub variant antecedent_model::SelectionPolicy::BestScore
 pub variant antecedent_model::SelectionPolicy::RequireFamily(antecedent_model::MechanismFamily)
 pub variant antecedent_model::SelectionRule::BestScore
@@ -6431,6 +6476,7 @@ pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Gaussia
 pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::HeteroscedasticGaussian
 pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::LogNormal
 pub variant antecedent_model::typed_mechanism_transport::ResponseFamily::Poisson
+pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Cancelled
 pub variant antecedent_model::typed_mechanism_transport::TypedFitError::Data(alloc::string::String)
 pub variant antecedent_model::typed_mechanism_transport::TypedFitError::MissingColumn(alloc::string::String)
 pub variant antecedent_model::typed_mechanism_transport::TypedFitError::NotConverged(alloc::string::String)

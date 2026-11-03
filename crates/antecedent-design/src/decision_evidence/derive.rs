@@ -200,8 +200,8 @@ pub struct DerivedResult {
     pub unresolved: Vec<UnresolvedReason>,
     /// Standing of the result.
     pub standing: Standing,
-    /// Support license inherited: always none.
-    pub license: &'static str,
+    /// Support inherited: always none.
+    pub support: &'static str,
     /// Calibration of the interval: always unmeasured.
     pub calibration: &'static str,
     /// Statement about the interval construction.
@@ -760,20 +760,20 @@ pub fn derive(
             assumption_range: range,
             unresolved,
             standing,
-            license: "none",
+            support: "none",
             calibration: "unmeasured",
             interval_statement: match evidence.design.assignment_design.as_str() {
                 "matched_pairs" => {
-                    "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is unmeasured and no component license is inherited"
+                    "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is unmeasured and no component support is inherited"
                 }
                 "switchback" => {
-                    "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is unmeasured and no component license is inherited"
+                    "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is unmeasured and no component support is inherited"
                 }
                 "temporal_regime" => {
-                    "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is unmeasured and no component license is inherited"
+                    "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is unmeasured and no component support is inherited"
                 }
                 "adaptive_regime" => {
-                    "first-order delta method through aligned delete-subject jackknife covariance with a normal reference; calibration is unmeasured and no component license is inherited"
+                    "first-order delta method through aligned delete-subject jackknife covariance with a normal reference; calibration is unmeasured and no component support is inherited"
                 }
                 _ => DELTA_METHOD_STATEMENT,
             },
@@ -1148,7 +1148,7 @@ pub fn decide(
 }
 
 /// Describe the exact decision-evidence interval construction for calibration measurement.
-/// This is a candidate basis only: it does not license or attest an interval.
+/// This is a candidate basis only: it does not support or attest an interval.
 /// The scope count is the number of independently randomized units, not outcome rows.
 ///
 /// # Errors
@@ -1396,7 +1396,7 @@ pub(super) mod tests {
         let s = r.sampling.unwrap();
         assert!(s.standard_error > 0.0 && s.lower < 3.2 && s.upper > 3.2);
         assert_eq!(r.standing, Standing::Sampled);
-        assert_eq!((r.license, r.calibration), ("none", "unmeasured"));
+        assert_eq!((r.support, r.calibration), ("none", "unmeasured"));
     }
 
     #[test]
@@ -1602,7 +1602,7 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn nonlinear_bound_and_adjustment_do_not_license_decisions() {
+    fn nonlinear_bound_and_adjustment_do_not_support_decisions() {
         let mut ev = evidence(0.05, no_interference());
         ev.adjustments.push(ComponentAdjustment {
             component: "frequency".into(),

@@ -68,7 +68,7 @@ pub(crate) const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
 ///
 /// One rule owns the decision for every transport interval: the estimator's
 /// own failure-fraction refusal, the learned-trial refusal of any failed
-/// replicate, and the facade's licensing floor are the same struct with
+/// replicate, and the facade's support floor are the same struct with
 /// different thresholds, so no path re-derives the arithmetic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ReplicatePolicy {
@@ -99,7 +99,7 @@ impl ReplicatePolicy {
         reason: "bootstrap_replicate_failure",
     };
 
-    /// A nominal-coverage licensing floor on requested and successful replicates.
+    /// A nominal-coverage support floor on requested and successful replicates.
     #[must_use]
     pub const fn percentile_floor(min_replicates: u32) -> Self {
         Self {
@@ -330,7 +330,7 @@ impl WaveBootstrap {
 pub struct ResamplingReport {
     /// The declared schedule, tolerances, level and replicate cap.
     pub rule: WaveStoppingRule,
-    /// Type-7 percentile interval of the successes at `rule.level`, when it is licensed.
+    /// Type-7 percentile interval of the successes at `rule.level`, when it is supported.
     pub interval: Option<(f64, f64)>,
     /// One record per completed wave (attempts, successes, failures by kind).
     pub waves: Vec<crate::adaptive_resample_waves::WaveRecord>,

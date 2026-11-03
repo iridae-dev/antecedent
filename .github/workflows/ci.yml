@@ -545,7 +545,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-conformance, feature-exits]
+        section: [inventory, capability-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-conformance, feature-exits]
     steps: &domain_test_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -574,31 +574,31 @@ jobs:
         run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
       - name: Install cargo-nextest for cited evidence tests
-        if: (startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python') || startsWith(matrix.section, 'checked-')
+        if: (startsWith(matrix.section, 'capability-') && matrix.section != 'capability-python') || startsWith(matrix.section, 'checked-')
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: nextest
 
       - name: Install uv
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'capability-facade-') && matrix.section != 'capability-estimate' && matrix.section != 'capability-identify' && matrix.section != 'capability-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
 
       - name: Sync Python dependencies
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'capability-facade-') && matrix.section != 'capability-estimate' && matrix.section != 'capability-identify' && matrix.section != 'capability-other'
         working-directory: python
         run: uv sync --locked --python 3.12 --group dev --no-install-project
 
       - name: Download same-run native extension
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'capability-facade-') && matrix.section != 'capability-estimate' && matrix.section != 'capability-identify' && matrix.section != 'capability-other'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ci-python-native-linux-cp312
           path: target/ci-python-native
 
       - name: Install and verify same-run native extension
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'capability-facade-') && matrix.section != 'capability-estimate' && matrix.section != 'capability-identify' && matrix.section != 'capability-other'
         working-directory: python
         run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
 
@@ -623,7 +623,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, checked-0, checked-1, checked-2, checked-3, benches]
+        section: [capability-facade-0, capability-facade-1, capability-estimate, capability-identify, capability-other, graphless, checked-0, checked-1, checked-2, checked-3, benches]
     steps: *domain_test_steps
 
   # Retain the required Domain gates check: every section must pass.

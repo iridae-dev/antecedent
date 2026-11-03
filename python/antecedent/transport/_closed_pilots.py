@@ -55,7 +55,7 @@ def _frozen(route: str, detail: str) -> CausalUnsupportedError:
     """The fallback refusal; the native call always raises before it is reached."""
     return CausalUnsupportedError(
         f"{detail}: {route} is a closed route; calibration is unmeasured",
-        reason_code="cell_not_licensed",
+        reason_code="not_supported",
     )
 
 
@@ -285,7 +285,7 @@ def binary_nested_markov(
 
     Native execution checks the frozen prior/sampler/model/count protocol and resolves
     each scalar's original measured basis. Evidence concerns the finite declared
-    interior model design; it does not license arbitrary prior or model coverage.
+    interior model design; it does not support arbitrary prior or model coverage.
     The underlying continuous posterior artifact retains unmeasured standing.
     """
     execution = resolve(execution)
@@ -392,8 +392,8 @@ def binary_nested_markov_fisher_interval(
     """Native-authorized Fisher/delta mean0, mean1 and contrast intervals.
 
     Each scalar resolves its actual construction and current measured record. The
-    finite interior IID binary validation protocol and original licensed ID remain
-    mandatory; other nominal levels/options/count scopes refuse without licensing
+    finite interior IID binary validation protocol and original supported ID remain
+    mandatory; other nominal levels/options/count scopes refuse without support
     the complete unmeasured candidate covariance or an arbitrary model.
     """
     return cast(
@@ -563,7 +563,7 @@ def _sampled_recovery_entry(
     except CausalUnsupportedError as error:
         candidate = getattr(stage, "sampled_measured" if measured else "sampled_candidate", None)
         if (
-            error.reason_code != "cell_not_licensed"
+            error.reason_code != "not_supported"
             or "sampled_recovery.route_frozen" not in str(error)
             or candidate is None
         ):

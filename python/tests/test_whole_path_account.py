@@ -92,7 +92,7 @@ def test_the_account_is_the_enumerated_spread_bound_to_its_execution() -> None:
     for closed in (sealed.interval, sealed.posterior, account.interval, account.posterior):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
 
 
 def test_a_fresh_consumer_derives_the_same_account_from_the_artifact() -> None:

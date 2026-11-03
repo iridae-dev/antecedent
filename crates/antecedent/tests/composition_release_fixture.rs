@@ -17,7 +17,7 @@
 //!
 //! Every stage stays point-only. No interval, posterior decision or ranking
 //! guarantee is produced here; each request for one is refused with
-//! `cell_not_licensed`. Nothing below reaches into an internal constructor,
+//! `not_supported`. Nothing below reaches into an internal constructor,
 //! a test-only hook or a `calibration-internal` item.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -183,7 +183,7 @@ fn draws_artifact(
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -249,7 +249,7 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
             .unwrap_err();
     assert_refused(&refusal, &r["dependence_gap_ledger"]);
 
-    // A declared covariance with cross terms licenses the shared pair.
+    // A declared covariance with cross terms supports the shared pair.
     // GLS: y = (0.10, 0.20), S = [[0.0004, 0.0002], [0.0002, 0.0004]]: weights (1/2, 1/2),
     // estimate 0.15, variance (0.0004 + 0.0002) / 2 = 0.0003.
     let pooled = pool(
@@ -415,7 +415,7 @@ fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is()
     // The aligned moment is the point claim of the composed model.
     let world = World::build(sc);
     close(claim.value("mean").unwrap(), world.excess_risk, loose(&fx), "joint law = composition");
-    assert_eq!(claim.posterior().unwrap_err().code(), "cell_not_licensed");
+    assert_eq!(claim.posterior().unwrap_err().code(), "not_supported");
 }
 
 // ---------------------------------------------------------------------------
@@ -423,7 +423,7 @@ fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is()
 // ---------------------------------------------------------------------------
 
 #[test]
-fn the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities() {
+fn the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities() {
     let fx = fixture();
     let (sc, v) = (&fx["scenario"], &fx["values"]);
     let world = World::build(sc);
@@ -831,10 +831,10 @@ fn a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end() {
     let error = propagate(&request, numbers, &ctx()).expect_err("an unknown dependence");
     assert_eq!(error.code(), text(&r["dependence_gap_rule"]["code"]));
 
-    // Declaring the dependence is what licenses the combination: the vendor's
+    // Declaring the dependence is what supports the combination: the vendor's
     // claim is entered with its rows, and a declared covariance pools it.
     let covered = session.add_source(study_source("vendor_rows", "cohort", 400..900)).unwrap();
-    let licensed = pool(
+    let supported = pool(
         &mut session,
         "pooled_with_declared_dependence",
         &[
@@ -845,7 +845,7 @@ fn a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end() {
         None,
     )
     .unwrap();
-    close(licensed.variance, 0.0003, exact(&fx), "declared dependence");
+    close(supported.variance, 0.0003, exact(&fx), "declared dependence");
 }
 
 // ---------------------------------------------------------------------------
@@ -859,9 +859,9 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     let world = World::build(sc);
     let code = text(&fx["variants"]["interval"]["code"]);
 
-    // The ledger: a pooled interval is never licensed.
+    // The ledger: a pooled interval is never supported.
     let refusal = world.session.pooled_interval(world.pooled.result).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.code, code);
     // The claim graph holds no calibration record for the decision.
     let verification =

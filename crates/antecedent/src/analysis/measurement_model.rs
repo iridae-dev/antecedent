@@ -10,7 +10,7 @@
 //!    the one requested (a proxy is never the construct), that the population,
 //!    regime, arm and representation of the analysis are the ones the model
 //!    was established for, that the declared error structure is the one the
-//!    analysis assumes, and that the route licenses the downstream operation.
+//!    analysis assumes, and that the route supports the downstream operation.
 //!    These are `antecedent_contract::measurement` checks; the data's own
 //!    binding is derived from the same fields, so the two cannot disagree.
 //! 2. **Estimate** ([`PreparedMeasurementModel::estimate`]) runs the corrected
@@ -19,7 +19,7 @@
 //!    delta-method estimate that includes the uncertainty of the estimated
 //!    measurement parameters where the record says it was propagated. No
 //!    interval is produced: [`MeasurementEstimate::interval`] refuses with
-//!    `cell_not_licensed` until the whole measurement-plus-estimation method
+//!    `not_supported` until the whole measurement-plus-estimation method
 //!    has a measured coverage record.
 //! 3. **Export** ([`MeasurementEstimate::export`]) writes the model, its
 //!    identities and the result with its sufficient inputs.
@@ -80,7 +80,7 @@ use antecedent_estimate::measurement::{
     DataBinding, LinearMeasuredData, MeasurementError, PosteriorCombination, PosteriorLinearData,
     RiskDifferenceInput, correct_binary_prevalence, correct_binary_risk_difference,
     correct_categorical, correct_classical_linear_effect, correct_latent_posterior_linear_effect,
-    correct_repeated_linear_effect, interval_not_licensed,
+    correct_repeated_linear_effect, interval_not_supported,
 };
 use antecedent_io::IoError;
 use antecedent_io::measurement_model_wire::{
@@ -93,16 +93,16 @@ use super::StudyBuilder;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `measurement_model.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MeasurementModelRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `measurement_model.<slot>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
-    /// The declaration or evidence that would license the request, when known.
+    /// The declaration or evidence that would support the request, when known.
     pub remedy: Option<String>,
 }
 
@@ -528,7 +528,7 @@ impl StudyBuilder {
     /// the measured column is never offered in its place; the population,
     /// regime, arm and representation match (a changed representation needs
     /// the explicit mapping on `binding`); the assumed error structure is the
-    /// declared one; the route licenses the operation `input` enters; and, for
+    /// declared one; the route supports the operation `input` enters; and, for
     /// the posterior route, the provider object is the exact one the model
     /// names and is attested or verified, never natively trusted.
     ///
@@ -599,10 +599,10 @@ impl PreparedMeasurementModel {
         route_card(self.model.route)
     }
 
-    /// Whether the route licenses `operation` for this binding.
+    /// Whether the route supports `operation` for this binding.
     ///
     /// # Errors
-    /// The coded refusal naming what would license the operation. Conditioning
+    /// The coded refusal naming what would support the operation. Conditioning
     /// on the construct inside an identification proof, intervening on the
     /// representation, transporting to another population, a nonlinear outcome
     /// model and an interval are refused for every route.
@@ -616,10 +616,10 @@ impl PreparedMeasurementModel {
     /// An interval for the corrected functional.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no coverage record measures the whole
+    /// Always `not_supported`: no coverage record measures the whole
     /// measurement-plus-estimation method.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_licensed()))
+        Err(MeasurementModelRefusal::from_estimate(&interval_not_supported()))
     }
 
     /// Form the corrected functional from the retained data.
@@ -974,9 +974,9 @@ impl MeasurementEstimate {
     /// An interval for the corrected functional.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `measurement_model.interval_closed`.
+    /// Always `not_supported` with `measurement_model.interval_closed`.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_licensed()))
+        Err(MeasurementModelRefusal::from_estimate(&interval_not_supported()))
     }
 
     /// Value and variance of a linear functional of the corrected coefficient
@@ -1021,8 +1021,8 @@ impl MeasurementEstimate {
                 Ok((value, variance))
             }
             _ => Err(MeasurementModelRefusal {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
-                detail: "measurement_model.operation_not_licensed".to_owned(),
+                code: antecedent_core::reason_code!("not_supported"),
+                detail: "measurement_model.operation_not_supported".to_owned(),
                 message: "this route has no coefficient vector to take a functional of".to_owned(),
                 remedy: None,
             }),

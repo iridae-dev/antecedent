@@ -114,9 +114,9 @@ outcome=..., imputations=..., n_draws=..., prior_scale=...)` states that study d
 g-computation settings); the exact DAG posterior over the columns in order is searched on every
 completed table and the adjustment is whatever each sampled graph identifies. It returns the
 stacked effect, its posterior sd, the tables' posterior means, and the within, between and total
-variances. An interval is withheld until the combined procedure has its own licensed and
+variances. An interval is withheld until the combined procedure has its own supported and
 calibrated uncertainty route; graph selection, imputation and effect estimation must be
-evaluated together, and no confidence or credible interval follows from the point license.
+evaluated together, and no confidence or credible interval follows from the point support.
 The result retains the
 declared missing-at-random assumption; refusals raise `GraphSelectionImputationRefusal`. Constructions with
 no justified pooling rule are refused with their own detail: a frequentist study
@@ -191,13 +191,13 @@ for a non-responder), with the observation model fitted within each assignment g
 variance is computed on pseudo-outcomes that carry the influence of the fitted response model (stacked M-estimation), so estimating the response probabilities is accounted for; across strata or clusters the shared coefficients are treated as independent between blocks.
 CUPED, ANCOVA and receipt-adjusted fits read further per-unit inputs and refuse.
 
-Under Bayesian inference, `inverse_probability` has a graphless license for two-arm
+Under Bayesian inference, `inverse_probability` has graphless support for two-arm
 Bernoulli and complete randomization with `estimator="bayesian.randomized_superpopulation"`
 and a proper Gaussian Normal-Inverse-Gamma arm prior. Every assigned unit contributes its
 score-adjusted `R Y / pi` pseudo-outcome to the Gaussian working likelihood. The observation
 model is fitted and held fixed; its score correction enters the pseudo-outcome spread, but
 its coefficients do not receive a posterior. This is a modular pseudo-posterior conditional
-on the fitted observation model. Its license covers pointwise 95% posterior quantiles under
+on the fitted observation model. Its support covers pointwise 95% posterior quantiles under
 the declared MAR, positivity and correct logistic-model assumptions; repeated-sampling
 calibration remains **unmeasured**.
 
@@ -206,7 +206,7 @@ responder mean. With saturated response strata the unshrunk pseudo-mean equals t
 post-stratified responder mean. Retained results include source outcomes, response indicators,
 covariates, assignment and prior so the consumer can replay the observation fit and posterior.
 Other Bayesian IPW designs, the finite-population estimand and Beta-Bernoulli arm models
-refuse rather than execute outside this license.
+refuse rather than execute outside this support.
 
 **Panel difference-in-differences, `balanced_panel`.** Units with a missing outcome in any
 period are dropped whole; single unit-periods are never deleted, so no unit is relabelled and
@@ -357,7 +357,7 @@ missingness completely at random and at least three rows on every pair.
 
 ## Recover a law when one response indicator causes another
 
-Two binary variables `X1`, `X2` may each be observed only when a response indicator `R1`, `R2` is 1, and the second response may depend on the first (`R1 -> R2`, optionally with `X1 -> R2`). `antecedent.recovery_chain` asks whether the joint law `P(X1, X2)` is recoverable from the observed pattern law under the graph you declare, and returns it when it is. This is graph-licensed recovery, not complete-case analysis, missing-at-random adjustment or inverse-probability weighting; in the worked fixture of the tests, the complete-case table differs from the recovered one.
+Two binary variables `X1`, `X2` may each be observed only when a response indicator `R1`, `R2` is 1, and the second response may depend on the first (`R1 -> R2`, optionally with `X1 -> R2`). `antecedent.recovery_chain` asks whether the joint law `P(X1, X2)` is recoverable from the observed pattern law under the graph you declare, and returns it when it is. This is graph-supported recovery, not complete-case analysis, missing-at-random adjustment or inverse-probability weighting; in the worked fixture of the tests, the complete-case table differs from the recovered one.
 
 The graph is over `x1`, `x2`, their response indicators `r1`, `r2` and deterministic proxies `p1`, `p2` (`p_i = x_i` when `r_i = 1`, missing when `r_i = 0`), with exactly one response edge. The observed margin is a `PatternLaw`: the 2x2 mass of both observed, the mass of only the first and only the second observed, and the mass of neither.
 

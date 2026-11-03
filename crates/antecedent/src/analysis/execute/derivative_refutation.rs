@@ -18,7 +18,7 @@
 //!   regression, and under full prior sensitivity refitting the whole derivative at
 //!   each prior-grid point and MCMC diagnostics.
 //!
-//! The state executes and is unlicensed: its verdicts are checks, not a calibration
+//! The state executes and is unsupported: its verdicts are checks, not a calibration
 //! claim, and no coverage record names it.
 
 use super::{
@@ -167,7 +167,7 @@ pub(super) fn refute_derivative(
         "derivative refuter state: support at the evaluation point, finite-difference \
          consistency of the identified levels, and under full a whole-procedure bootstrap \
          stability check (Bayesian: also predictive checks and prior sensitivity of the \
-         derivative). ATE-shaped contrast refuters do not apply. It executes unlicensed: no \
+         derivative). ATE-shaped contrast refuters do not apply. It executes unsupported: no \
          coverage or evidence record names it, and the verdicts are checks, not a \
          calibration claim.",
     ));

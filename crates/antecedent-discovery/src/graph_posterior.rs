@@ -734,7 +734,7 @@ impl GraphPosterior {
         if self.atom_kind == GraphPosteriorAtomKind::Dag {
             for atom in self.atoms.iter() {
                 if !crate::adjacency_mask::mask_is_dag(atom, self.n_vars) {
-                    let refusal = antecedent_graph::error::CyclicDagRefusal::unlicensed(
+                    let refusal = antecedent_graph::error::CyclicDagRefusal::unsupported(
                         antecedent_graph::error::DagOperation::GraphPosterior,
                         "graph_posterior",
                         "a DAG-atom posterior does not drop a cyclic atom or mark it \

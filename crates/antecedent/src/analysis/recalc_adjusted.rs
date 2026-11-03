@@ -249,9 +249,9 @@ impl AdjustedRequest {
             Err(RecalcRunError::Request(
                 RecalcRequestCode::ContrastOutOfSupport
                 | RecalcRequestCode::InvalidCategoricalContrast,
-            )) => RequestSupport::OffGrid { licensed_route: None },
+            )) => RequestSupport::OffGrid { supported_route: None },
             Err(RecalcRunError::Request(RecalcRequestCode::IncompatibleContrast)) => {
-                RequestSupport::Unsupported { licensed_route: None }
+                RequestSupport::Unsupported { supported_route: None }
             }
             _ => RequestSupport::OnGrid,
         }
@@ -453,7 +453,7 @@ impl AdjustedSession {
             &self.previous,
             &request.identities(ctx),
             &RecalcCapabilities {
-                retarget: RetargetSupport::Licensed,
+                retarget: RetargetSupport::Supported,
                 request: request.support(),
                 boundary: self.boundary,
             },
@@ -597,7 +597,7 @@ pub fn execute_adjusted_with_receipt(
         &session.previous,
         &requested,
         &RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: request.support(),
             boundary: session.boundary,
         },

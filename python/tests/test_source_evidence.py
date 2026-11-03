@@ -57,7 +57,7 @@ def test_source_evidence_projection_preserves_contributors_and_resolution_requir
     )
     assert resolved.resolution["kind"] == "original_native_response_reexecution"
     assert resolved.resolution["native_authority_issued"] is False
-    assert resolved.resolution["calibration_license_issued"] is False
+    assert resolved.resolution["calibration_support_issued"] is False
     assert resolved.original_acceptance == projected.original_acceptance
     assert require_success(SourceEvidence.consume(bytes(resolved.export()))).resolution is None
     with pytest.raises(TypeError, match="issued native claim"):

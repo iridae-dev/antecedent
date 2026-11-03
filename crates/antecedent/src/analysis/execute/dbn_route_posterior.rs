@@ -58,9 +58,9 @@ const ATOM_ESTIMAND_METHOD: &str = "graph_posterior.dbn_route";
 /// Stable code of the disclosure every dynamic graph-posterior point result carries.
 pub(crate) const DBN_ROUTE_POSTERIOR_CODE: &str = "estimate.graph_posterior.dbn_route";
 
-const CONDITIONAL_PRIOR_REFUSAL: &str = "a temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
-const DERIVATIVE_PRIOR_REFUSAL: &str = "a temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
-const CROSS_WORLD_PRIOR_REFUSAL: &str = "a temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
+const CONDITIONAL_PRIOR_REFUSAL: &str = "a temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
+const DERIVATIVE_PRIOR_REFUSAL: &str = "a temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
+const CROSS_WORLD_PRIOR_REFUSAL: &str = "a temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
 
 /// Whether a posterior is a dynamic-Bayesian posterior over `TemporalDag` atoms.
 #[must_use]
@@ -102,7 +102,7 @@ impl<'a> DbnPoint<'a> {
         let CausalQuery::Response(response) = query else {
             return Ok(vec![Self::of(query)?]);
         };
-        response.require_licensed_temporal_observation()?;
+        response.require_supported_temporal_observation()?;
         let temporal = response.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "a temporal derivative requires TemporalResponseSpec".into(),
         })?;

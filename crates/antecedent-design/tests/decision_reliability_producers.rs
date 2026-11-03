@@ -244,7 +244,7 @@ fn implementation_keyed_rollouts_report_functionals_but_refuse_ranking() {
 }
 
 #[test]
-fn structurally_shared_rollout_noise_licenses_ranking_to_the_carrier() {
+fn structurally_shared_rollout_noise_supports_ranking_to_the_carrier() {
     let carrier =
         reach_carrier(ProducerOutput::Rollout(rollout_input(RolloutNoise::StructuralExogenous)))
             .unwrap();

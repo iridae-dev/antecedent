@@ -58,9 +58,9 @@ def joint_kwargs(**overrides):
     return kwargs
 
 
-def test_joint_bayesian_route_is_closed_with_cell_not_licensed():
+def test_joint_bayesian_route_is_closed_with_not_supported():
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs()))
-    assert_refused(error, "cell_not_licensed", "bayesian_transport.route_frozen")
+    assert_refused(error, "not_supported", "bayesian_transport.route_frozen")
 
 
 def test_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
@@ -74,7 +74,7 @@ def test_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
     # A graph without a bidirected edge stays a fixed DAG: the frozen refusal, not the scope one.
     dag = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=dag)))
-    assert_refused(error, "cell_not_licensed", "bayesian_transport.route_frozen")
+    assert_refused(error, "not_supported", "bayesian_transport.route_frozen")
 
 
 def test_joint_bayesian_scope_refusals_carry_their_own_details():
@@ -127,7 +127,7 @@ def test_nested_bayesian_below_measured_row_range_cannot_borrow_fisher_evidence(
     error = refusal_of(
         lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
     )
-    assert_refused(error, "cell_not_licensed", "sample_size_outside_measured_range")
+    assert_refused(error, "not_supported", "sample_size_outside_measured_range")
 
 
 @pytest.mark.requires_calibration
@@ -328,7 +328,7 @@ def test_sampled_bca_default_rejects_below_measured_rows_and_distinct_method():
     values.pop("replicates")
     values.pop("interval_method")
     error = refusal_of(lambda: transport.sampled_observation_recovery(**values))
-    assert_refused(error, "cell_not_licensed", "sampled_recovery.protocol_not_measured")
+    assert_refused(error, "not_supported", "sampled_recovery.protocol_not_measured")
     with pytest.raises(CausalValueError, match="exactly 2000"):
         transport.sampled_observation_recovery(**values, replicates=500)
     with pytest.raises(CausalValueError, match="interval_method"):

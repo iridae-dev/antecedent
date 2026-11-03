@@ -15,7 +15,7 @@
 //! Bayesian configuration) at 0.95, and the same construction at 0.90 from the
 //! same replicates (`common::reported`). Replicate 0 checks that accepted
 //! structure and the cheap / full validation suites report the identical
-//! interval, so one measurement covers every licensed structure × validation
+//! interval, so one measurement covers every supported structure × validation
 //! coordinate. Every tally is keyed through [`keyed`], this file's one
 //! emission point: the key states only the emitting test, the DGP and the
 //! scored interval method, and the construction each record describes is read
@@ -222,7 +222,7 @@ fn distribution_query() -> CausalQuery {
 
 type Extract = fn(&StudyResult) -> [Option<(f64, f64)>; 2];
 
-/// Score `extract(result)` against `truth`; replicate 0 checks the licensed
+/// Score `extract(result)` against `truth`; replicate 0 checks the supported
 /// structure × validation coordinates report the same interval.
 #[allow(
     clippy::too_many_arguments,
@@ -243,7 +243,7 @@ fn coverage(
 
 /// [`coverage`] for the study built on `structure`; replicate 0 checks the
 /// validation suites on that structure (and accepted structure, which is
-/// licensed beside the explicit one only).
+/// supported beside the explicit one only).
 #[allow(
     clippy::too_many_arguments,
     reason = "one calibration cell per call: test, cell, structure, query, inference, suites, extractor, truth and seed family are the cell coordinates"
@@ -274,7 +274,7 @@ fn coverage_on(
                 accepted.into_iter().chain(suites.iter().map(|&s| (structure, s)))
             {
                 let (_, other) = run(&data, query(), inference(), other_structure, suite, seed)
-                    .expect("licensed coordinate runs");
+                    .expect("supported coordinate runs");
                 assert_eq!(extract(&other), pair, "{other_structure:?} {suite:?}");
             }
         }

@@ -26,7 +26,7 @@ class ReplayContractTests(unittest.TestCase):
         mutations = [
             ("del source_inputs", "del unrelated_builder"),
             ("del measured", "del unrelated_handle"),
-            ("tr.joint_bayesian_transport", "tr.unlicensed_factory"),
+            ("tr.joint_bayesian_transport", "tr.unsupported_factory"),
             ("**source_inputs", "**unbound_inputs"),
             ("expected=identity", "unbound=identity"),
             ("expected=I._from_wire", "unbound=I._from_wire"),
@@ -65,7 +65,7 @@ class ReplayContractTests(unittest.TestCase):
     def test_sole_shared_citation_does_not_prove_distinct_routes(self):
         first = {
             "route": "first",
-            "status": "licensed",
+            "status": "supported",
             "evidence_test": PATH,
             "evidence_assertion": ASSERTION,
         }
@@ -80,15 +80,15 @@ class ReplayContractTests(unittest.TestCase):
         route = {
             "route": "antecedent.transport.joint_bayesian",
             "stage": "uncertainty",
-            "promotion_record": "transport.joint_bayesian",
+            "capability_record": "transport.joint_bayesian",
             "evidence_test": PATH,
             "evidence_assertion": ASSERTION,
         }
         self.assertEqual(source_replay_problems(ROOT, route, self.body), [])
         for key, value in [
-            ("route", "antecedent.transport.unlicensed"),
+            ("route", "antecedent.transport.unsupported"),
             ("stage", "evaluate"),
-            ("promotion_record", "unowned"),
+            ("capability_record", "unowned"),
             ("evidence_test", "unregistered.py"),
         ]:
             with self.subTest(key=key):

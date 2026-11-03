@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/functional_distribution.rs",
-          "sha256": "1c1244602640fbaf0f2e07305b0bb2cbe795be94eb4ecdf366c2487de0f4d278"
+          "sha256": "a052777d984cab501066d3ee73c66ba7554be379d45517b2b2b4a5f436a9b583"
         }
       ],
       "sources": [],

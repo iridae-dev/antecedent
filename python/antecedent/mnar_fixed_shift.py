@@ -1,4 +1,4 @@
-"""Compiler-retained declared-shift MNAR candidate with a coverage-licensed interval."""
+"""Compiler-retained declared-shift MNAR candidate with a coverage-supported interval."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class PreparedMnarFixedShift:
 
     Its measured interval is released only when an attesting coverage record covers
     this construction, the declared shift and missingness, and the row count; without
-    one it refuses with ``cell_not_licensed``.
+    one it refuses with ``not_supported``.
     """
 
     _native: Any
@@ -57,7 +57,7 @@ def prepare_fixed_shift(
     ``design`` must be ``independent_randomized_arms``. ``treated_shift`` is the
     declared mean difference, in outcome units, between the treated arm's missing and
     observed outcomes; the control arm's is zero. It must be finite; it is not capped,
-    and a coverage record licenses only the shift bands it measured.
+    and a coverage record supports only the shift bands it measured.
     Neither the design nor the shift follows from observed rows.
     Subject IDs must be distinct across both arms and aligned with the rows; this
     cannot establish independence or randomization. The source needs at least

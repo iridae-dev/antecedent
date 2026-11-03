@@ -84,7 +84,7 @@ class SourceProjectionArtifact:
 
     @property
     def report(self) -> dict[str, Any]:
-        """Recomputed descriptive report; no execution or calibration license."""
+        """Recomputed descriptive report; no execution or calibration support."""
         return dict(json.loads(json.dumps(self._summary["report"])))
 
     @artifact_export

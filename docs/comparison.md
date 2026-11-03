@@ -71,16 +71,16 @@ Compared to a typical causal influence library:
 | Correctness evidence   | Tests                                              | Tests + provenance + external oracles + conformance + calibration records                       |
 
 
-## What Antecedent is licensed to run
+## What Antecedent is supported to run
 
 The [support matrix](support-matrix.md) is authoritative. A capability present
-in the codebase is not necessarily a licensed `analyze()` combination.
+in the codebase is not necessarily a supported `analyze()` combination.
 
-The licensed coordinates are the generated inventory below. Each combination
+The supported coordinates are the generated inventory below. Each combination
 fixes the question, graph class, structure source, inference method, and
-validation level. Licensed does not mean interval coverage was measured: the
+validation level. Supported does not mean interval coverage was measured: the
 support matrix counts the cells with no coverage measurement for their
-estimator. A successful licensed Python analysis retains a study and
+estimator. A successful supported Python analysis retains a study and
 exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
@@ -88,16 +88,16 @@ Use [supported analyses](supported-analyses.md) to find a starting point and
 [release notes](release-notes/v3.0.0.md) describe what changed in the claims.
 
 <!-- generated:query-inventory:begin -->
-Generated from `parity/support_axes.toml`, `parity/support_licensed.toml`,
+Generated from `parity/support_axes.toml`, `parity/support_cells.toml`,
 and `parity/support_n_a.toml` by `scripts/generate_claim_inventory.py`.
-Licensed coordinates are grouped only where the cell lists the full product
+Supported coordinates are grouped only where the cell lists the full product
 of the structures, inferences, and validations shown. A coordinate that is
 not listed is n/a or refused. Refusal is the default;
-`parity/support_closed.toml` names reasons and does not create a fourth state.
-The [support matrix](support-matrix.md) is the license.
+`parity/support_refusal_reasons.toml` names reasons and does not create a fourth state.
+The [support matrix](support-matrix.md) is the support.
 Do not edit this block by hand.
 
-| Query | Licensed | n/a | Refused |
+| Query | Supported | n/a | Refused |
 |---|---:|---:|---:|
 | AnomalyAttribution | 144 | 36 | 0 |
 | AverageDerivative | 144 | 36 | 0 |
@@ -124,7 +124,7 @@ Do not edit this block by hand.
 | TransportQuery | 90 | 90 | 0 |
 | InterferenceQuery | 90 | 90 | 0 |
 
-2696 licensed cells.
+2696 supported cells.
 
 | Query | Graph class | Structures | Inferences | Validations | Cells |
 |---|---|---|---|---|---:|
@@ -311,21 +311,21 @@ Some important distinctions when choosing a workflow:
 - Temporal graph-posterior paths include Pulse and Sustained effects under
   both inference modes, and temporal mediation on `TemporalDag` and
   `TemporalCpdag` under both inference modes at validation
-  `none`/`cheap`/`full`. `TemporalPag` mediation is not licensed.
+  `none`/`cheap`/`full`. `TemporalPag` mediation is not supported.
 - Frequentist and Bayesian envelopes on incomplete `TemporalCpdag` and
-  `TemporalPag` graphs are supported for licensed queries. A caller-supplied
+  `TemporalPag` graphs are supported for supported queries. A caller-supplied
   `ClassPrior` can provide mixture weights; enumerating completions alone does
   not assign probabilities.
 - Derivatives on explicit or accepted DAGs support Frequentist and Bayesian
   inference at validation `none`. Partial-graph derivatives remain refused.
 - ADMG interventional distributions run through Python `analyze`/`prepare` and
   Rust `Study` at validation `none`.
-- Licensed anomaly/change attribution paths run through Python `analyze`/`prepare`
+- Supported anomaly/change attribution paths run through Python `analyze`/`prepare`
   and Rust `Study` at validation `none`.
-- Licensed transport and interference queries run through both Python `analyze`
+- Supported transport and interference queries run through both Python `analyze`
   and Rust `Study`, with their explicit design assumptions.
 
-`ResponseCurve` and `InterventionResponse` are licensed on temporal DAG,
+`ResponseCurve` and `InterventionResponse` are supported on temporal DAG,
 `TemporalCpdag` and `TemporalPag` graph-posterior cells (see the matrix for
 the validation levels each admits). ADMG graph-posterior AverageEffect at validation `none` identifies each atom with `general.id` and
 estimates `functional.effect`; cheap/full stay closed. These are different
@@ -359,7 +359,7 @@ black-box outputs from pinned external packages:
 Each external claim has an immutable record under `parity/baselines`, a frozen
 fixture, and an executing conformance test. See
 [ADR 0009](https://github.com/iridae-dev/antecedent/blob/main/adr/0009-parity-baselines.md), the parity manifests, and each
-licensed row's evidence kind and limitations. A shared algorithm name is not
+supported row's evidence kind and limitations. A shared algorithm name is not
 evidence of equivalent behavior.
 
 ## Choosing a workflow
@@ -372,7 +372,7 @@ examples, estimator integrations, or GCM workflows are the primary need.
 
 Antecedent differs by making its support matrix and typed refusals part of the
 runtime contract. It also carries accepted partial graphs and selected graph
-posteriors into licensed downstream analyses. That does not imply broad feature
+posteriors into supported downstream analyses. That does not imply broad feature
 parity with DoWhy.
 
 Where the two share a semantic, the comparison is executed rather than asserted: against
@@ -403,9 +403,9 @@ adaptive-neighbourhood variability, so it is not a pointwise standard error and
 predictions carry no pointwise intervals. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
 The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
-covers a binary-treatment linear SCM at one sample size; it does not license
+covers a binary-treatment linear SCM at one sample size; it does not support
 nonlinear-provider or CATE interval calibration. Read each result's calibration status and matching coverage record;
-coverage for a marginal ATE does not license pointwise CATE intervals.
+coverage for a marginal ATE does not support pointwise CATE intervals.
 
 That is not a 12-estimator EconML clone:
 learners never choose the adjustment set, and the EconML handoff remains
@@ -437,7 +437,7 @@ time-series discovery research, its current algorithm set, and its native
 visualization workflow.
 
 Antecedent's temporal discovery implementations are useful when discovery must
-feed a licensed effect, intervention, prepared-analysis, or artifact workflow in
+feed a supported effect, intervention, prepared-analysis, or artifact workflow in
 the same engine. External comparisons are fixture-specific: for example,
 fixed-label per-regime tests are not parity evidence for unsupervised RPCMCI
 regime learning.
@@ -451,7 +451,7 @@ outside Antecedent's implemented set.
 Graphs can be imported through supported interchange formats, but importing a
 graph does not bypass Antecedent's matrix. Its graph class, query, structure
 source, inference mode, and validation suite still determine whether the
-downstream analysis is licensed, not applicable, or refused.
+downstream analysis is supported, not applicable, or refused.
 
 ## Current Antecedent boundaries
 
@@ -475,7 +475,7 @@ These statements are not interchangeable:
 
 - **not applicable** means a matrix coordinate does not denote;
 - **refused** means the coordinate is meaningful but this release does not
-  license it;
+  support it;
 - **outside product scope** names a broader capability Antecedent does not aim
   to provide in this release line.
 

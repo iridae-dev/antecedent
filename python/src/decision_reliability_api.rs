@@ -18,7 +18,7 @@ use antecedent::analysis::decision_reliability::{
     publish_derived_route, reach_decision_carrier,
 };
 use antecedent_design::decision_reliability::{
-    RankingRequest, ReliabilityError, license_route, rank,
+    RankingRequest, ReliabilityError, rank, support_route,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -269,7 +269,7 @@ fn decision_reliability_publish(route: &str, coordinate_json: &str) -> Option<St
         Ok(value) => value,
         Err(refusal) => return Some(refusal),
     };
-    license_route(route, &coordinate).err().map(|error| error_json(&error))
+    support_route(route, &coordinate).err().map(|error| error_json(&error))
 }
 
 /// Derive the three uncertainty components from draws (derived, unmeasured).
@@ -382,7 +382,7 @@ fn decision_reliability_verify_derived(
     Ok(outcome.1)
 }
 
-/// Ask to publish a route from a derivation: refuses `cell_not_licensed`.
+/// Ask to publish a route from a derivation: refuses `not_supported`.
 #[pyfunction]
 fn decision_reliability_publish_derived(route: &str, derived_json: &str) -> Option<String> {
     let route: PublishedRoute = match serde_json::from_value(Json::String(route.to_owned())) {

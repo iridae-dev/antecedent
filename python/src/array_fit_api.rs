@@ -81,7 +81,7 @@ impl PyArrayFit {
         let result = self.inner.result();
         serde_json::to_string(&serde_json::json!({
             "estimator_id": result.estimator_id, "target": result.target,
-            "uncertainty": result.uncertainty, "licensing": result.licensing,
+            "uncertainty": result.uncertainty, "support": result.support,
             "calibration": result.calibration, "request_digest": self.inner.digest(),
             "value_count": result.values.len(), "assumption_count": result.assumptions.len(),
             "diagnostic_count": result.diagnostics.len(), "consumed": self.consumed,

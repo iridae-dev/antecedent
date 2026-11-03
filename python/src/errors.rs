@@ -417,7 +417,7 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
             reason_code!("cell_not_applicable")
         } else {
-            reason_code!("cell_not_licensed")
+            reason_code!("not_supported")
         }),
         // A query that failed its own validation carries the code the facade derives for it.
         RustCausalError::Rejected(_) => {

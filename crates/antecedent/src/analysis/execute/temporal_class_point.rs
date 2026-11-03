@@ -36,9 +36,9 @@ use super::{
 use crate::planner::RouteDefaults;
 use antecedent_core::SupportStatus;
 
-const CONDITIONAL_PRIOR_REFUSAL: &str = "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
-const DERIVATIVE_PRIOR_REFUSAL: &str = "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
-const CROSS_WORLD_PRIOR_REFUSAL: &str = "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
+const CONDITIONAL_PRIOR_REFUSAL: &str = "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
+const DERIVATIVE_PRIOR_REFUSAL: &str = "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
+const CROSS_WORLD_PRIOR_REFUSAL: &str = "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported";
 
 /// The identified completions of one envelope whose own regression could not be fit, and the
 /// first cause. Their mass is unevaluable, not lost: it stays in the structural mixture.
@@ -583,7 +583,7 @@ pub(super) fn assemble_temporal_class_conditional(
     }
     if refute != RefuteSuite::None {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+            message: "temporal conditional effect is point-only; cheap/full refuters are not supported",
         });
     }
     let prior_scale = isotropic_prior_scale(inference, CONDITIONAL_PRIOR_REFUSAL)?;
@@ -636,18 +636,18 @@ pub(super) fn assemble_temporal_class_conditional(
 fn cross_world_backdoor_refusal(query: &CausalQuery) -> &'static str {
     match query {
         CausalQuery::NestedCounterfactual(_) => {
-            "temporal nested effect is licensed when the back-door set is empty"
+            "temporal nested effect is supported when the back-door set is empty"
         }
         CausalQuery::PathSpecific(_) => {
-            "temporal path-specific effect is licensed when the back-door set is empty"
+            "temporal path-specific effect is supported when the back-door set is empty"
         }
         CausalQuery::Counterfactual(_) => {
-            "temporal counterfactual is licensed when the back-door set is empty"
+            "temporal counterfactual is supported when the back-door set is empty"
         }
         CausalQuery::Distribution(_) => {
-            "temporal interventional mean is licensed when the back-door set is empty"
+            "temporal interventional mean is supported when the back-door set is empty"
         }
-        _ => "temporal cross-world effect is licensed when the back-door set is empty",
+        _ => "temporal cross-world effect is supported when the back-door set is empty",
     }
 }
 
@@ -939,7 +939,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware temporal derivative requires TemporalResponseSpec".into(),
         })?;
@@ -993,7 +993,7 @@ impl super::Study {
         diagnostics.extend(skipped.diagnostic());
         diagnostics.extend(uncertainty_diagnostics);
         // A derivative's cheap/full suite is its refuter state on every identified
-        // completion's Pulse witness at the one horizon (unlicensed).
+        // completion's Pulse witness at the one horizon (unsupported).
         let (refutations, predictive_checks) = if self.settings.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
@@ -1085,7 +1085,7 @@ impl super::Study {
         let started = Instant::now();
         if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not supported",
             });
         }
         let prior_scale =
@@ -1237,7 +1237,7 @@ impl super::Study {
         }
         if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+                message: "temporal conditional effect is point-only; cheap/full refuters are not supported",
             });
         }
         let prior_scale =
@@ -1338,7 +1338,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let CausalQuery::Response(query) = &self.query else { unreachable!() };
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware temporal derivative requires TemporalResponseSpec".into(),
         })?;
@@ -1481,7 +1481,7 @@ impl super::Study {
         let started = Instant::now();
         if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not supported",
             });
         }
         let (treatment, outcome, mediator, active, control) = cross_world_endpoints(&self.query)?;

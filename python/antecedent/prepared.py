@@ -304,18 +304,8 @@ class PreparedAnalysis(Generic[T]):
 
     @property
     def evidence_status(self) -> str | None:
-        """`licensed` or `allowed_unlicensed`, or ``None`` when the query is off-axis."""
+        """`supported` or `not_supported`, or ``None`` when the query is off-axis."""
         raw = self._plan_summary().get("evidence_status")
-        return None if raw is None else str(raw)
-
-    @property
-    def allowlist_reason(self) -> str | None:
-        raw = self._plan_summary().get("allowlist_reason")
-        return None if raw is None else str(raw)
-
-    @property
-    def allowlist_parent(self) -> str | None:
-        raw = self._plan_summary().get("allowlist_parent")
         return None if raw is None else str(raw)
 
     def assumption_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:

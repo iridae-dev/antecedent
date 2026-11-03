@@ -243,7 +243,7 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
     # is closed whatever the registry holds; the unqualified readings stay closed.
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
     with pytest.raises(R) as error:
         execution.interval()
@@ -287,7 +287,7 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
     )
     with pytest.raises(R) as error:
         require_success(small.measured_interval("independent_sample"))
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
 
 
@@ -301,7 +301,7 @@ def test_a_whole_path_interval_is_refused_outside_the_measured_cells() -> None:
     for sampling in ("independent_sample", "fixed_units"):
         with pytest.raises(R) as error:
             require_success(execution.measured_interval(sampling))
-        assert error.value.reason_code == "cell_not_licensed"
+        assert error.value.reason_code == "not_supported"
         assert error.value.detail == "cross_world_execution.interval_route_closed"
     # Fewer units than the measured range are closed too.
     evidence = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]
@@ -318,7 +318,7 @@ def test_a_whole_path_interval_is_refused_outside_the_measured_cells() -> None:
     )
     with pytest.raises(R) as error:
         require_success(small.measured_interval("independent_sample"))
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
     # The unqualified interval and posterior readings are closed, never an unmeasured number.
     with pytest.raises(R) as error:
@@ -345,8 +345,8 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                 )
             )
         )
-    assert error.value.reason_code == "cell_not_licensed"
-    assert "transport_license_missing" in error.value.missing
+    assert error.value.reason_code == "not_supported"
+    assert "transport_support_missing" in error.value.missing
 
     with pytest.raises(R) as error:
         require_success(
@@ -375,7 +375,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                     )
                 )
             )
-        assert error.value.reason_code == "cell_not_licensed"
+        assert error.value.reason_code == "not_supported"
     with pytest.raises(R) as error:
         require_success(
             executor.execute(
@@ -388,7 +388,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                 )
             )
         )
-    assert error.value.detail == "cross_world_execution.sampled_abduction_not_licensed"
+    assert error.value.detail == "cross_world_execution.sampled_abduction_not_supported"
     assert executor.retained_len() == 0
     assert executor.counters()["abductions"] == 0
 
@@ -400,8 +400,8 @@ def test_capability_matrix_and_decide() -> None:
     for row in rows.values():
         if row.status == "closed":
             assert row.refusal_code and row.remedy
-    licensed = cw.decide(quantity="natural_path_specific")
-    assert licensed["id"] == "natural_path_specific.finite_markovian_scm"
+    supported = cw.decide(quantity="natural_path_specific")
+    assert supported["id"] == "natural_path_specific.finite_markovian_scm"
     shared = cw.decide(quantity="counterfactual_joint", model="finite_shared_exogenous_scm")
     assert shared["id"] == "counterfactual.finite_shared_exogenous_scm.joint"
     with pytest.raises(R) as error:
@@ -419,7 +419,7 @@ def test_artifact_round_trip_mutation_resume_and_fresh_process(tmp_path) -> None
     assert sealed.result.label == "point_only"
     with pytest.raises(R) as error:
         sealed.interval()
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     with pytest.raises(R):
         require_success(sealed.posterior())
     data = sealed.to_bytes()
@@ -457,7 +457,7 @@ def test_artifact_round_trip_mutation_resume_and_fresh_process(tmp_path) -> None
         assert replay.result.value == sealed.value
         assert dict(replay.identity) == dict(sealed.identity)
 
-    # A licensed resume: an action-only change reuses the verified abduction.
+    # A supported resume: an action-only change reuses the verified abduction.
     executor = cw.CrossWorldExecutor.from_artifact(data)
     resumed = require_success(
         executor.execute(

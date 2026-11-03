@@ -1,6 +1,6 @@
 //! Generated from `parity/support_graphless.toml`; do not edit by hand.
 #[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.
-pub(crate) struct GraphlessLicenseRow {
+pub(crate) struct GraphlessSupportRow {
     pub(crate) family: &'static str,
     pub(crate) design: &'static str,
     pub(crate) method: &'static str,
@@ -36,15 +36,15 @@ pub(crate) struct GraphlessLicenseRow {
     pub(crate) requires_balanced_sequences: bool,
     pub(crate) requires_known_density: bool,
 }
-pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
-    GraphlessLicenseRow {
+pub(crate) const SUPPORTS: &[GraphlessSupportRow] = &[
+    GraphlessSupportRow {
         family: "complier_effect",
         design: "bernoulli",
         method: "wald_ratio_influence",
         inference_claim: "pointwise_95_normal_interval",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_scores.rs::complier_wald_influence_interval_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/complier_effect_route.rs::licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery",
+        retained_route_test: "crates/antecedent/tests/complier_effect_route.rs::supported_complier_and_tot_intervals_round_trip_and_refuse_forgery",
         limitations: "Wald CACE/LATE from independent Bernoulli encouragement and observed treatment receipt, with known assignment probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, a finite positive receipt first stage, positive independent-unit influence-function variance, and a published pointwise 95% normal interval. Exclusion and monotonicity are declared, untestable identifying assumptions. A 2,000-replication known-truth fixture at 1,200 rows and a 0.5 complier share confirms coverage. Weak first stages, sparse or low-probability arms, and adjusted or ITT contrasts do not inherit this row.",
         min_rows: 400,
         min_assignment_units_per_arm: 30,
@@ -73,14 +73,14 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "complier_effect",
         design: "bernoulli_one_sided",
         method: "wald_ratio_influence",
         inference_claim: "pointwise_95_normal_interval",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_scores.rs::one_sided_treatment_on_treated_influence_interval_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/complier_effect_route.rs::licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery",
+        retained_route_test: "crates/antecedent/tests/complier_effect_route.rs::supported_complier_and_tot_intervals_round_trip_and_refuse_forgery",
         limitations: "Treatment-on-treated among recipients under declared one-sided noncompliance: independent Bernoulli encouragement with no control-arm receipt, so every recipient is a complier and the Wald ratio identifies their mean effect. Requires known assignment probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, a finite positive receipt first stage, positive independent-unit influence-function variance, and a published pointwise 95% normal interval. Observed control-arm receipt is refused at query validation. Exclusion is a declared, untestable assumption. A 2,000-replication known-truth fixture at 1,200 rows confirms coverage. Two-sided noncompliance, weak first stages, and sparse arms do not inherit this row.",
         min_rows: 400,
         min_assignment_units_per_arm: 30,
@@ -109,7 +109,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "continuous_dose_policy",
         design: "fixed_group_kernel",
         method: "inverse_density_kernel_paired_scores",
@@ -145,7 +145,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: true,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "difference_in_differences",
         design: "panel_2x2",
         method: "cluster_change_scores_cr1",
@@ -181,7 +181,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "difference_in_differences",
         design: "repeated_cross_section_2x2",
         method: "four_cell_cluster_scores_cr1",
@@ -217,15 +217,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "difference_in_differences",
         design: "staggered_event_study",
         method: "never_treated_event_study_cluster_cr1",
         inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent/tests/panel_did_interval_calibration.rs::retained_staggered_event_study_post_adoption_interval_covers_parallel_trends_truth",
-        retained_route_test: "crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_license",
-        limitations: "Balanced staggered-adoption event study against never-treated controls (cohort zero): each subject observed in every period, adoption cohort and cluster stable within subject, clusters nested within the adoption cohort and the never-treated controls. Licenses the separate pointwise 95% normal cluster interval for each post-adoption event-time contrast (event time at least zero), including the representative group-time ATT, only when the compared adoption cohort and the never-treated controls each have at least 24 independent clusters, at least 48 clusters total, positive CR1 score variation, and a published interval. One 2,000-replication known-truth coverage check re-randomizes cluster shocks at 24 clusters per group. Pre-adoption leads and the omitted event time -1 stay descriptive and point-only, as does the joint pre-trend statistic; cohort-specific parallel untreated trends and no anticipation are declared, not tested; each interval is pointwise and never a simultaneous event-study band, and under-supported cohorts, the single-target group-time design, and augmented or two-period DiD do not inherit this row.",
+        retained_route_test: "crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_support",
+        limitations: "Balanced staggered-adoption event study against never-treated controls (cohort zero): each subject observed in every period, adoption cohort and cluster stable within subject, clusters nested within the adoption cohort and the never-treated controls. Supports the separate pointwise 95% normal cluster interval for each post-adoption event-time contrast (event time at least zero), including the representative group-time ATT, only when the compared adoption cohort and the never-treated controls each have at least 24 independent clusters, at least 48 clusters total, positive CR1 score variation, and a published interval. One 2,000-replication known-truth coverage check re-randomizes cluster shocks at 24 clusters per group. Pre-adoption leads and the omitted event time -1 stay descriptive and point-only, as does the joint pre-trend statistic; cohort-specific parallel untreated trends and no anticipation are declared, not tested; each interval is pointwise and never a simultaneous event-study band, and under-supported cohorts, the single-target group-time design, and augmented or two-period DiD do not inherit this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 24,
         min_blocks: 0,
@@ -253,14 +253,14 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "interference",
         design: "cluster_randomization_total",
         method: "cluster_total_neyman_welch",
         inference_claim: "exposure_contrast_pointwise_95_student_interval",
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent-estimate/src/interference.rs::cluster_total_interval_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::licensed_cluster_total_interval_round_trips_and_refuses_forgery",
+        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::supported_cluster_total_interval_round_trips_and_refuses_forgery",
         limitations: "Complete cluster randomization on a fixed partial-interference network with within-cluster-only edges and one cluster per unit, the (0,0)-to-(1,1) total-effect contrast under NeighborFraction exposure, at least eight independently randomized clusters in each assignment arm, positive between-cluster Neyman variation, and a published pointwise 95% Welch cluster interval. One 2,000-replication known-truth coverage check re-randomizes the cluster allocation at eight clusters per arm. The interval is pointwise for the total effect only; no direct/spillover decomposition, simultaneous band, or Bernoulli/observational design inherits this row, and partial interference and the exposure mapping are declared, not tested.",
         min_rows: 0,
         min_assignment_units_per_arm: 8,
@@ -289,15 +289,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "interference",
         design: "observational_known_exposure",
         method: "observational_known_exposure_cluster_t",
         inference_claim: "exposure_contrast_pointwise_95_student_interval",
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent-estimate/src/interference_observational.rs::observational_known_exposure_interval_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::licensed_observational_known_interval_round_trips_and_refuses_forgery",
-        limitations: "Observational network-exposure contrast with caller-supplied KNOWN, fixed marginal exposure probabilities and an explicit, caller-declared network-exchangeability (no-unmeasured-network-confounding) assumption that the library cannot verify. Requires a fixed network with within-cluster-only edges, at least 30 independent partial-interference clusters, at least eight clusters exposed at each requested level, positive between-cluster CR1 variation, and a published pointwise 95% cluster-t interval. One 2,000-replication known-truth coverage check re-randomizes per-unit exposure with the supplied probabilities. Externally fitted probabilities carry unknown fitting uncertainty and stay point-only with a descriptive CR1 variance; the network-confounding assumption is a declared, documented limitation, never a licensed claim, and no simultaneous band inherits this row.",
+        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::supported_observational_known_interval_round_trips_and_refuses_forgery",
+        limitations: "Observational network-exposure contrast with caller-supplied KNOWN, fixed marginal exposure probabilities and an explicit, caller-declared network-exchangeability (no-unmeasured-network-confounding) assumption that the library cannot verify. Requires a fixed network with within-cluster-only edges, at least 30 independent partial-interference clusters, at least eight clusters exposed at each requested level, positive between-cluster CR1 variation, and a published pointwise 95% cluster-t interval. One 2,000-replication known-truth coverage check re-randomizes per-unit exposure with the supplied probabilities. Externally fitted probabilities carry unknown fitting uncertainty and stay point-only with a descriptive CR1 variance; the network-confounding assumption is a declared, documented limitation, never a supported claim, and no simultaneous band inherits this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 8,
         min_blocks: 30,
@@ -325,15 +325,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: true,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "interference",
         design: "two_stage_saturation",
         method: "saturation_cluster_neyman_welch",
         inference_claim: "exposure_contrast_pointwise_95_student_interval",
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent-estimate/src/interference_saturation.rs::saturation_exposure_interval_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::licensed_saturation_interval_round_trips_and_refuses_forgery",
-        limitations: "Exact two-stage saturation: clusters completely randomized to declared low/high within-cluster treatment probabilities, then independent Bernoulli assignment, on a fixed network with within-cluster-only edges. Licenses a single declared direct, spillover, or total exposure contrast with at least 24 independent clusters in each of the two saturation arms, at least eight exposed clusters at each of the two requested exposure levels, positive between-cluster Welch variation, and a published pointwise 95% cluster interval. One 2,000-replication known-truth coverage check re-randomizes both stages at 24+24 clusters. Each interval is pointwise for its one contrast; no simultaneous curve or joint decomposition, and partial interference and the exposure mapping are declared, not tested.",
+        retained_route_test: "crates/antecedent/tests/interference_interval_route.rs::supported_saturation_interval_round_trips_and_refuses_forgery",
+        limitations: "Exact two-stage saturation: clusters completely randomized to declared low/high within-cluster treatment probabilities, then independent Bernoulli assignment, on a fixed network with within-cluster-only edges. Supports a single declared direct, spillover, or total exposure contrast with at least 24 independent clusters in each of the two saturation arms, at least eight exposed clusters at each of the two requested exposure levels, positive between-cluster Welch variation, and a published pointwise 95% cluster interval. One 2,000-replication known-truth coverage check re-randomizes both stages at 24+24 clusters. Each interval is pointwise for its one contrast; no simultaneous curve or joint decomposition, and partial interference and the exposure mapping are declared, not tested.",
         min_rows: 0,
         min_assignment_units_per_arm: 24,
         min_blocks: 2,
@@ -361,7 +361,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "local_polynomial_ratio",
         design: "fuzzy_jump",
         method: "local_quadratic_cubic_rbc_hc0_delta",
@@ -369,7 +369,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/tests/local_polynomial_ratio_calibration.rs::fuzzy_jump_ratio_normal_interval_covers_known_truth",
         retained_route_test: "crates/antecedent/tests/local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval",
-        limitations: "Fuzzy regression discontinuity as a local outcome-jump over treatment-jump ratio at a prespecified cutoff and fixed triangular-kernel bandwidth. Licenses the pointwise 95% normal ratio interval only when the estimator's own weak-first-stage screen passes (the local treatment jump is separated from zero by its HC0 95% interval), both sides retain at least five local observations for the cubic bias-correction pilot, the delta-method ratio variance is finite and positive, and the interval publishes. Local continuity of untreated potential outcomes, no precise running-variable manipulation, exclusion, and local monotonicity are declared, untestable identifying assumptions. One 2,000-replication known-truth coverage check at bandwidth 0.5 over 1,200 running-variable points confirms nominal coverage. The interval is pointwise for the local complier ratio only; weak first stages, undersupported windows, bandwidth or manipulation-robustness selection, and the regression-kink slope contrast do not inherit this row.",
+        limitations: "Fuzzy regression discontinuity as a local outcome-jump over treatment-jump ratio at a prespecified cutoff and fixed triangular-kernel bandwidth. Supports the pointwise 95% normal ratio interval only when the estimator's own weak-first-stage screen passes (the local treatment jump is separated from zero by its HC0 95% interval), both sides retain at least five local observations for the cubic bias-correction pilot, the delta-method ratio variance is finite and positive, and the interval publishes. Local continuity of untreated potential outcomes, no precise running-variable manipulation, exclusion, and local monotonicity are declared, untestable identifying assumptions. One 2,000-replication known-truth coverage check at bandwidth 0.5 over 1,200 running-variable points confirms nominal coverage. The interval is pointwise for the local complier ratio only; weak first stages, undersupported windows, bandwidth or manipulation-robustness selection, and the regression-kink slope contrast do not inherit this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 5,
         min_blocks: 0,
@@ -397,7 +397,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "local_polynomial_ratio",
         design: "regression_kink",
         method: "local_quartic_slope_rbc_hc0_delta",
@@ -405,7 +405,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/tests/local_polynomial_ratio_calibration.rs::regression_kink_ratio_normal_interval_covers_known_truth",
         retained_route_test: "crates/antecedent/tests/local_polynomial_ratio_route.rs::retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval",
-        limitations: "Regression kink as a local outcome-slope-change over treatment-slope-change ratio at a prespecified cutoff and fixed triangular-kernel bandwidth. Licenses the pointwise 95% normal ratio interval only when the estimator's own weak-first-stage screen passes (the local first-stage slope change is separated from zero by its HC0 95% interval), both sides retain at least six local observations for the quartic slope bias-correction pilot, the delta-method ratio variance is finite and positive, and the interval publishes. Continuity of untreated potential-outcome and treatment derivatives at the cutoff, no precise manipulation, exclusion, and local monotonicity are declared, untestable identifying assumptions. One 2,000-replication known-truth coverage check at bandwidth 1.0 over 1,200 running-variable points confirms nominal coverage. The interval is pointwise for the local complier slope ratio only; weak first stages, undersupported windows, bandwidth selection, and the level-discontinuity jump contrast do not inherit this row.",
+        limitations: "Regression kink as a local outcome-slope-change over treatment-slope-change ratio at a prespecified cutoff and fixed triangular-kernel bandwidth. Supports the pointwise 95% normal ratio interval only when the estimator's own weak-first-stage screen passes (the local first-stage slope change is separated from zero by its HC0 95% interval), both sides retain at least six local observations for the quartic slope bias-correction pilot, the delta-method ratio variance is finite and positive, and the interval publishes. Continuity of untreated potential-outcome and treatment derivatives at the cutoff, no precise manipulation, exclusion, and local monotonicity are declared, untestable identifying assumptions. One 2,000-replication known-truth coverage check at bandwidth 1.0 over 1,200 running-variable points confirms nominal coverage. The interval is pointwise for the local complier slope ratio only; weak first stages, undersupported windows, bandwidth selection, and the level-discontinuity jump contrast do not inherit this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 6,
         min_blocks: 0,
@@ -433,15 +433,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "longitudinal_regime",
         design: "known_sequential_randomized_additive_msm",
         method: "stabilized_ipw_cr1_scores",
         inference_claim: "intercept_and_period_effects_pointwise_95_normal_intervals",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/marginal_structural_model.rs::subject_clustered_msm_intervals_cover_known_coefficients",
-        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::additive_msm_graphless_license_round_trips_and_refuses_forgery",
-        limitations: "Additive binary marginal structural mean over known sequential randomization with stabilized sequential IPTW and subject-clustered CR1 sandwich standard errors, one terminal outcome row per independent subject and at least two treatment periods. Requires at least 300 subjects, at least 200 observed terminal outcomes, Kish effective weighted sample size at least 150, per-period action probability at least 0.4, positive CR1 standard errors, and actually published pointwise 95% intervals for the intercept and every period coefficient. A 2,000-replication known-truth coverage test at 300 subjects confirms nominal coverage of all reported coefficients. The intervals are separate pointwise subject-clustered CR1 claims conditional on the declared stabilized-weight law; simultaneous coverage, treatment interactions, unstabilized weights, the g-formula route, and the sequential doubly robust route are not licensed by this row.",
+        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::additive_msm_graphless_support_round_trips_and_refuses_forgery",
+        limitations: "Additive binary marginal structural mean over known sequential randomization with stabilized sequential IPTW and subject-clustered CR1 sandwich standard errors, one terminal outcome row per independent subject and at least two treatment periods. Requires at least 300 subjects, at least 200 observed terminal outcomes, Kish effective weighted sample size at least 150, per-period action probability at least 0.4, positive CR1 standard errors, and actually published pointwise 95% intervals for the intercept and every period coefficient. A 2,000-replication known-truth coverage test at 300 subjects confirms nominal coverage of all reported coefficients. The intervals are separate pointwise subject-clustered CR1 claims conditional on the declared stabilized-weight law; simultaneous coverage, treatment interactions, unstabilized weights, the g-formula route, and the sequential doubly robust route are not supported by this row.",
         min_rows: 300,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -469,7 +469,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "longitudinal_regime",
         design: "known_sequential_randomized_three_period",
         method: "subject_excluded_q_sequential_dr_scores",
@@ -477,7 +477,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-stats/src/longitudinal_regime.rs::three_period_excluded_fold_q_interval_covers_randomized_truth",
         retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon",
-        limitations: "Known sequential randomization over three periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 800 subjects, at least 600 observed outcomes, at least 60 subjects whose realized treatment matches the evaluated regime across all three periods, per-period action probability at least 0.5, conditional censoring survival at least 0.95, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Four or more periods, fitted-Q uncertainty, g-formula, and MSM intervals are not licensed by this row.",
+        limitations: "Known sequential randomization over three periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 800 subjects, at least 600 observed outcomes, at least 60 subjects whose realized treatment matches the evaluated regime across all three periods, per-period action probability at least 0.5, conditional censoring survival at least 0.95, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Four or more periods, fitted-Q uncertainty, g-formula, and MSM intervals are not supported by this row.",
         min_rows: 800,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -505,15 +505,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "longitudinal_regime",
         design: "known_sequential_randomized_two_period",
         method: "fixed_known_q_g_formula_scores",
         inference_claim: "conditional_q_pointwise_95_normal_interval",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-stats/src/longitudinal_regime.rs::fixed_known_q_g_formula_interval_covers_regime_truth",
-        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery",
-        limitations: "Two-period g-formula value under known sequential randomization from a caller-declared fixed and known conditional period-reward (Q) law, with one outcome row per independent subject. Requires at least 300 subjects, per-period action probability at least 0.2, conditional censoring survival at least 0.8, a finite positive independent-subject score variance, and an actually published pointwise 95% normal interval. A 2,000-replication known-truth coverage test at 400 subjects confirms nominal coverage of the population regime value. The single normal interval is conditional on the declared fixed Q law and excludes all fitted-, selected-, or cross-fitted-Q uncertainty; the caller separately attests the law is fixed and known. Longer horizons, any fitted-Q uncertainty, the sequential doubly robust route, and MSM coefficient intervals are not licensed by this row.",
+        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::fixed_known_q_g_formula_graphless_support_round_trips_and_refuses_forgery",
+        limitations: "Two-period g-formula value under known sequential randomization from a caller-declared fixed and known conditional period-reward (Q) law, with one outcome row per independent subject. Requires at least 300 subjects, per-period action probability at least 0.2, conditional censoring survival at least 0.8, a finite positive independent-subject score variance, and an actually published pointwise 95% normal interval. A 2,000-replication known-truth coverage test at 400 subjects confirms nominal coverage of the population regime value. The single normal interval is conditional on the declared fixed Q law and excludes all fitted-, selected-, or cross-fitted-Q uncertainty; the caller separately attests the law is fixed and known. Longer horizons, any fitted-Q uncertainty, the sequential doubly robust route, and MSM coefficient intervals are not supported by this row.",
         min_rows: 300,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -541,15 +541,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "longitudinal_regime",
         design: "known_sequential_randomized_two_period",
         method: "subject_excluded_q_sequential_dr_scores",
         inference_claim: "conditional_q_pointwise_95_normal_interval",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-stats/src/longitudinal_regime.rs::subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth",
-        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery",
-        limitations: "Known sequential randomization over two periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 300 subjects, at least 200 observed outcomes, at least 50 subjects whose realized treatment matches the evaluated regime across both periods, per-period action probability at least 0.4, conditional censoring survival at least 0.85, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Longer histories, fitted-Q uncertainty, g-formula, and MSM intervals are not licensed by this row.",
+        retained_route_test: "crates/antecedent/tests/longitudinal_regime_route.rs::two_period_sequential_dr_graphless_support_round_trips_and_refuses_forgery",
+        limitations: "Known sequential randomization over two periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 300 subjects, at least 200 observed outcomes, at least 50 subjects whose realized treatment matches the evaluated regime across both periods, per-period action probability at least 0.4, conditional censoring survival at least 0.85, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Longer histories, fitted-Q uncertainty, g-formula, and MSM intervals are not supported by this row.",
         min_rows: 300,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -577,7 +577,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_aipw",
         method: "fixed_held_out_randomized_aipw_scores",
@@ -613,7 +613,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_aipw_crossfit",
         method: "fixed_crossfit_randomized_aipw_scores",
@@ -621,7 +621,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/policy_value.rs::crossfit_aipw_policy_intervals_cover_known_values",
         retained_route_test: "crates/antecedent/tests/policy_value_route.rs::retained_crossfit_policy_intervals_round_trip_and_refuse_forgery",
-        limitations: "Fixed binary AIPW policy and reference on 300 independent evaluation subjects under known 0.5 Bernoulli assignment, with outcome nuisance predictions owned by caller-declared cross-fitted excluded folds, at least 10 policy and reference matches, uncoupled recommendations, positive paired score variance, and both pointwise 95% intervals. Cross-fitting removes own-observation bias so the independent-row influence-function variance is valid; disjoint held-out training keeps its own row. Learned policies and simultaneous coverage are not licensed.",
+        limitations: "Fixed binary AIPW policy and reference on 300 independent evaluation subjects under known 0.5 Bernoulli assignment, with outcome nuisance predictions owned by caller-declared cross-fitted excluded folds, at least 10 policy and reference matches, uncoupled recommendations, positive paired score variance, and both pointwise 95% intervals. Cross-fitting removes own-observation bias so the independent-row influence-function variance is valid; disjoint held-out training keeps its own row. Learned policies and simultaneous coverage are not supported.",
         min_rows: 300,
         min_assignment_units_per_arm: 30,
         min_blocks: 0,
@@ -649,7 +649,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_aipw_uplift",
         method: "fixed_held_out_randomized_aipw_frozen_rank_scores",
@@ -685,7 +685,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_ipw",
         method: "fixed_randomized_ipw_scores",
@@ -721,7 +721,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_ipw_regret",
         method: "fixed_randomized_ipw_finite_class_scores",
@@ -757,7 +757,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "binary_ipw_uplift",
         method: "fixed_randomized_ipw_frozen_rank_scores",
@@ -793,7 +793,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "multi_action_ipw",
         method: "fixed_randomized_multi_action_ipw_scores",
@@ -829,7 +829,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "policy_value",
         design: "multi_action_ipw_cate",
         method: "fixed_randomized_multi_action_ipw_fixed_group_scores",
@@ -865,7 +865,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "bernoulli",
         method: "ancova_hc0",
@@ -901,7 +901,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "bernoulli",
         method: "fixed_cuped_ht_score",
@@ -937,15 +937,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "bernoulli",
         method: "gaussian_ipow_modular_posterior",
         inference_claim: "conditional_pseudo_posterior_pointwise_95_quantiles",
         assignment_unit: "unit",
-        known_truth_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update",
-        retained_route_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_replays_after_the_builder_is_dropped",
-        limitations: "Two-arm bernoulli randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution license. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused.",
+        known_truth_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update",
+        retained_route_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped",
+        limitations: "Two-arm bernoulli randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution support. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused.",
         min_rows: 6,
         min_assignment_units_per_arm: 3,
         min_blocks: 0,
@@ -973,7 +973,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "bernoulli",
         method: "independent_action_ht_score",
@@ -1009,15 +1009,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "cluster",
         method: "fixed_cuped_cluster_totals",
         inference_claim: "pointwise_95_normal_interval",
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent-estimate/src/randomized_neyman.rs::fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt",
-        retained_route_test: "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license",
-        limitations: "Known complete cluster assignment, independent clusters, binary unit-weighted ITT adjusted by one pre-assignment covariate whose coefficient was fixed outside these outcomes, at least 30 clusters per arm, and an actually published interval (positive realized variance). The estimand is the unadjusted per-row ITT; the unit of analysis stays the cluster and the variance is the Neyman bound over cluster totals of the adjusted outcome. A coefficient learned from these rows (ANCOVA), row-level independence, receipt adjustment and other assignment designs are not licensed by this row, and it does not inherit the unadjusted cluster row.",
+        retained_route_test: "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support",
+        limitations: "Known complete cluster assignment, independent clusters, binary unit-weighted ITT adjusted by one pre-assignment covariate whose coefficient was fixed outside these outcomes, at least 30 clusters per arm, and an actually published interval (positive realized variance). The estimand is the unadjusted per-row ITT; the unit of analysis stays the cluster and the variance is the Neyman bound over cluster totals of the adjusted outcome. A coefficient learned from these rows (ANCOVA), row-level independence, receipt adjustment and other assignment designs are not supported by this row, and it does not inherit the unadjusted cluster row.",
         min_rows: 0,
         min_assignment_units_per_arm: 30,
         min_blocks: 0,
@@ -1045,7 +1045,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "cluster",
         method: "neyman_unit_weighted_cluster_totals",
@@ -1053,7 +1053,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "cluster",
         known_truth_test: "crates/antecedent-estimate/src/randomized_neyman.rs::cluster_interval_support_boundary_covers_known_itt",
         retained_route_test: "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering",
-        limitations: "Known complete cluster assignment, independent clusters, binary unit-weighted ITT, at least 30 clusters per arm, and an actually published interval (positive realized variance). Conservative cluster-total variance and a pointwise 95% normal interval; no observational network exposure or other assignment design is licensed by this row.",
+        limitations: "Known complete cluster assignment, independent clusters, binary unit-weighted ITT, at least 30 clusters per arm, and an actually published interval (positive realized variance). Conservative cluster-total variance and a pointwise 95% normal interval; no observational network exposure or other assignment design is supported by this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 30,
         min_blocks: 0,
@@ -1081,15 +1081,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "complete",
         method: "gaussian_ipow_modular_posterior",
         inference_claim: "conditional_pseudo_posterior_pointwise_95_quantiles",
         assignment_unit: "unit",
-        known_truth_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update",
-        retained_route_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::licensed_ipow_posterior_replays_after_the_builder_is_dropped",
-        limitations: "Two-arm complete randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution license. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused.",
+        known_truth_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update",
+        retained_route_test: "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped",
+        limitations: "Two-arm complete randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is unmeasured, not a prerequisite for this execution support. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused.",
         min_rows: 6,
         min_assignment_units_per_arm: 3,
         min_blocks: 0,
@@ -1117,7 +1117,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "complete",
         method: "neyman_difference_in_means",
@@ -1125,7 +1125,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_neyman.rs::complete_interval_support_boundary_covers_known_itt",
         retained_route_test: "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering",
-        limitations: "Known complete assignment, independent units, binary ITT, at least 30 units per arm, and an actually published interval (positive realized variance). Conservative Neyman variance and a pointwise 95% normal interval; no simultaneous interval, CACE, adjustment, or other assignment design is licensed by this row.",
+        limitations: "Known complete assignment, independent units, binary ITT, at least 30 units per arm, and an actually published interval (positive realized variance). Conservative Neyman variance and a pointwise 95% normal interval; no simultaneous interval, CACE, adjustment, or other assignment design is supported by this row.",
         min_rows: 0,
         min_assignment_units_per_arm: 30,
         min_blocks: 0,
@@ -1153,7 +1153,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "factorial_2x2",
         method: "fixed_cell_neyman_contrasts",
@@ -1161,7 +1161,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_neyman.rs::factorial_cell_randomization_covers_three_known_pointwise_effects",
         retained_route_test: "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering",
-        limitations: "Known fixed-cell 2×2 randomization with at least 30 units in every cell and published positive-variance intervals for both main effects and the interaction. Each 95% interval is pointwise; joint or simultaneous coverage is not licensed.",
+        limitations: "Known fixed-cell 2×2 randomization with at least 30 units in every cell and published positive-variance intervals for both main effects and the interaction. Each 95% interval is pointwise; joint or simultaneous coverage is not supported.",
         min_rows: 0,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -1189,7 +1189,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "multi_arm",
         method: "independent_action_ht_scores",
@@ -1197,7 +1197,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_scores.rs::independent_bernoulli_and_multi_arm_coverage",
         retained_route_test: "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering",
-        limitations: "Independent known-probability assignment to at least three actions, 400 rows, at least 30 realized assignments to every action, probabilities at least 0.2 for every action on every row, and a published interval for every action-versus-reference contrast. The intervals are separate pointwise 95% claims; simultaneous coverage is not licensed.",
+        limitations: "Independent known-probability assignment to at least three actions, 400 rows, at least 30 realized assignments to every action, probabilities at least 0.2 for every action on every row, and a published interval for every action-versus-reference contrast. The intervals are separate pointwise 95% claims; simultaneous coverage is not supported.",
         min_rows: 400,
         min_assignment_units_per_arm: 0,
         min_blocks: 0,
@@ -1225,7 +1225,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "stratified",
         method: "blocked_neyman_difference_in_means",
@@ -1233,7 +1233,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/randomized_neyman.rs::blocked_randomization_covers_known_itt_and_withholds_sparse_blocks",
         retained_route_test: "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering",
-        limitations: "Known independent complete assignment within at least four blocks, at least 15 units in every block arm and 60 per overall arm, and a published positive-variance pointwise 95% interval. This row licenses the block-weighted ITT only.",
+        limitations: "Known independent complete assignment within at least four blocks, at least 15 units in every block arm and 60 per overall arm, and a published positive-variance pointwise 95% interval. This row supports the block-weighted ITT only.",
         min_rows: 0,
         min_assignment_units_per_arm: 60,
         min_blocks: 4,
@@ -1261,7 +1261,7 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "randomized_effect",
         design: "switchback",
         method: "independent_sequence_ht_score",
@@ -1297,15 +1297,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: true,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "delayed_entry_two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_ipcw_product_limit",
         inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::delayed_entry_fixed_g_scalar_bootstrap_support_boundary_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forgery",
-        limitations: "Individually randomized independent subjects with both a marginally independent left-truncation entry time and a caller-supplied, subject-fixed censoring survival grid held fixed with each bootstrap subject (combined delayed-entry fixed-known-G IPCW), at least 200 observed subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 200 observed subjects per arm and 299 draws (RMST 1884/2000, S(3) 1882/2000). Entry independence and the fixed censoring survival are declared, not tested; caller-fitted weights are not licensed. The row does not license a simultaneous curve band, conditional censoring beyond the declared grid, or competing-risk incidence.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forgery",
+        limitations: "Individually randomized independent subjects with both a marginally independent left-truncation entry time and a caller-supplied, subject-fixed censoring survival grid held fixed with each bootstrap subject (combined delayed-entry fixed-known-G IPCW), at least 200 observed subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 200 observed subjects per arm and 299 draws (RMST 1884/2000, S(3) 1882/2000). Entry independence and the fixed censoring survival are declared, not tested; caller-fitted weights are not supported. The row does not support a simultaneous curve band, conditional censoring beyond the declared grid, or competing-risk incidence.",
         min_rows: 400,
         min_assignment_units_per_arm: 200,
         min_blocks: 0,
@@ -1333,15 +1333,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: true,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "delayed_entry_two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_product_limit",
         inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery",
-        limitations: "Individually randomized independent subjects with a left-truncation (delayed) entry time that is marginally independent of the potential event time within arm, no caller-supplied censoring weights, at least 160 observed subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the left-truncated RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 160 observed subjects per arm and 299 draws (RMST 1905/2000, S(3) 1902/2000). Entry independence is declared, not tested. The row does not license a simultaneous curve band, conditional censoring, caller-fitted weights, or competing-risk incidence.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_survival_intervals_round_trip_and_refuse_forgery",
+        limitations: "Individually randomized independent subjects with a left-truncation (delayed) entry time that is marginally independent of the potential event time within arm, no caller-supplied censoring weights, at least 160 observed subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the left-truncated RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 160 observed subjects per arm and 299 draws (RMST 1905/2000, S(3) 1902/2000). Entry independence is declared, not tested. The row does not support a simultaneous curve band, conditional censoring, caller-fitted weights, or competing-risk incidence.",
         min_rows: 320,
         min_assignment_units_per_arm: 160,
         min_blocks: 0,
@@ -1369,15 +1369,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_ipcw_product_limit",
         inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery",
-        limitations: "Individually randomized independent subjects with a caller-supplied, subject-fixed censoring survival grid held fixed with each bootstrap subject (fixed-known-G IPCW), no delayed entry, at least 160 subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the IPCW RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 160 subjects per arm and 299 draws (RMST 1901/2000, S(3) 1901/2000). The censoring survival is declared correct and is not fitted or verified; caller-fitted censoring weights carry unknown fitting uncertainty and are not licensed. The row does not license a simultaneous curve band, conditional censoring beyond the declared grid, delayed entry, or competing-risk incidence.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery",
+        limitations: "Individually randomized independent subjects with a caller-supplied, subject-fixed censoring survival grid held fixed with each bootstrap subject (fixed-known-G IPCW), no delayed entry, at least 160 subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the IPCW RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs at 160 subjects per arm and 299 draws (RMST 1901/2000, S(3) 1901/2000). The censoring survival is declared correct and is not fitted or verified; caller-fitted censoring weights carry unknown fitting uncertainty and are not supported. The row does not support a simultaneous curve band, conditional censoring beyond the declared grid, delayed entry, or competing-risk incidence.",
         min_rows: 320,
         min_assignment_units_per_arm: 160,
         min_blocks: 0,
@@ -1405,15 +1405,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: true,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_product_limit",
         inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::randomized_survival_scalar_bootstrap_support_boundary_covers_known_truth",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_survival_scalar_intervals_round_trip_and_refuse_forgery",
-        limitations: "Individually randomized independent subjects, at least 120 observed subjects per arm, marginal independent right censoring within arm, no delayed entry or caller-supplied censoring weights, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for RMST and survival difference at the fixed horizon. Two 2,000-study known-truth coverage checks run at 120 subjects per arm and 299 draws. The row does not license a simultaneous curve band, conditional censoring, delayed entry, or competing-risk incidence.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_survival_scalar_intervals_round_trip_and_refuse_forgery",
+        limitations: "Individually randomized independent subjects, at least 120 observed subjects per arm, marginal independent right censoring within arm, no delayed entry or caller-supplied censoring weights, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for RMST and survival difference at the fixed horizon. Two 2,000-study known-truth coverage checks run at 120 subjects per arm and 299 draws. The row does not support a simultaneous curve band, conditional censoring, delayed entry, or competing-risk incidence.",
         min_rows: 240,
         min_assignment_units_per_arm: 120,
         min_blocks: 0,
@@ -1441,15 +1441,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_supremum_band",
         inference_claim: "simultaneous_95_cumulative_incidence_difference_band",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::simultaneous_competing_incidence_band_covers_entire_event_grid",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_competing_incidence_band_round_trips_and_refuses_forgery",
-        limitations: "Individually randomized independent subjects without delayed entry or caller-supplied censoring weights, at least 80 subjects per arm, and at least 399 valid arm-stratified subject-bootstrap draws with at most 10% draw loss, licensing the simultaneous 95% treatment-minus-control target-cause cumulative-incidence difference band across the entire observed event-time grid. One 400-study known-truth check confirms simultaneous whole-grid coverage (382/400). The band is a distinct claim from any pointwise scalar; the cause-specific pointwise incidence interval remains an off-axis calibrated result and is not licensed by this row.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_competing_incidence_band_round_trips_and_refuses_forgery",
+        limitations: "Individually randomized independent subjects without delayed entry or caller-supplied censoring weights, at least 80 subjects per arm, and at least 399 valid arm-stratified subject-bootstrap draws with at most 10% draw loss, support the simultaneous 95% treatment-minus-control target-cause cumulative-incidence difference band across the entire observed event-time grid. One 400-study known-truth check confirms simultaneous whole-grid coverage (382/400). The band is a distinct claim from any pointwise scalar; the cause-specific pointwise incidence interval remains an off-axis calibrated result and is not supported by this row.",
         min_rows: 160,
         min_assignment_units_per_arm: 80,
         min_blocks: 0,
@@ -1477,15 +1477,15 @@ pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_balanced_sequences: false,
         requires_known_density: false,
     },
-    GraphlessLicenseRow {
+    GraphlessSupportRow {
         family: "survival",
         design: "two_arm_individual_randomized",
         method: "arm_stratified_subject_bootstrap_supremum_band",
         inference_claim: "simultaneous_95_survival_difference_band",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent-estimate/src/survival.rs::simultaneous_survival_difference_band_covers_entire_event_grid",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::licensed_survival_difference_band_round_trips_and_refuses_forgery",
-        limitations: "Individually randomized independent subjects without delayed entry or caller-supplied censoring weights, at least 80 subjects per arm, and at least 399 valid arm-stratified subject-bootstrap draws with at most 10% draw loss, licensing the simultaneous 95% treatment-minus-control survival difference band across the entire observed event-time grid. Its common radius is the 95th percentile of bootstrap suprema of centered curve differences. One 400-study known-truth check confirms simultaneous whole-grid coverage (373/400) with an explicit thin-arm refusal. The band is a distinct claim from the pointwise scalar intervals; delayed entry, fixed or fitted censoring weights, and observational assignment do not inherit it.",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::supported_survival_difference_band_round_trips_and_refuses_forgery",
+        limitations: "Individually randomized independent subjects without delayed entry or caller-supplied censoring weights, at least 80 subjects per arm, and at least 399 valid arm-stratified subject-bootstrap draws with at most 10% draw loss, support the simultaneous 95% treatment-minus-control survival difference band across the entire observed event-time grid. Its common radius is the 95th percentile of bootstrap suprema of centered curve differences. One 400-study known-truth check confirms simultaneous whole-grid coverage (373/400) with an explicit thin-arm refusal. The band is a distinct claim from the pointwise scalar intervals; delayed entry, fixed or fitted censoring weights, and observational assignment do not inherit it.",
         min_rows: 160,
         min_assignment_units_per_arm: 80,
         min_blocks: 0,

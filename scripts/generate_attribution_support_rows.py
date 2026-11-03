@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the licensed attribution rows that share one evidence family.
+"""Generate the supported attribution rows that share one evidence family.
 
 An anomaly or change attribution on an accepted structure is the attribution of the structure the
 accepted record names: the record is the structure's provenance, not a different graph. Each row
@@ -7,7 +7,7 @@ below therefore cites the independently derived truth of the supplied-structure 
 `conformance/estimate/staged_attribution` fixture) and a test that builds the cell with an
 `AcceptedGraph`, plus a checked-execution test that drops its builder and runs the retained plan.
 
-The rows are written between two marker comments in `parity/support_licensed.toml`; the file is
+The rows are written between two marker comments in `parity/support_cells.toml`; the file is
 read, edited and replaced in one step, so a concurrent edit elsewhere in it is never rewritten.
 
     python3 scripts/generate_attribution_support_rows.py          # rewrite the block
@@ -24,7 +24,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# BEGIN generated attribution rows (scripts/generate_attribution_support_rows.py)\n"
 END = "# END generated attribution rows\n"
 ANCHOR = '[[cell]]\nquery = "TransportQuery"\n'
@@ -144,7 +144,7 @@ CLASS_NOUN = {
 
 def class_calibration_reason(graph_class: str, inference: str) -> str:
     # A frequentist class or posterior attribution is a point value (a requested mechanism-refit
-    # interval is a separate, unlicensed construction); a Bayesian one reports a posterior
+    # interval is a separate, unsupported construction); a Bayesian one reports a posterior
     # interval whose coverage is not measured.
     if inference == "Frequentist":
         return "no_interval_reported"
@@ -303,19 +303,19 @@ def main() -> int:
     if sys.argv[1:] and not check:
         print(__doc__)
         return 2
-    text = LICENSED.read_text(encoding="utf-8")
+    text = SUPPORTED.read_text(encoding="utf-8")
     new = spliced(text, render())
     if check:
         if new != text:
-            print("parity/support_licensed.toml: the generated attribution rows drifted; rerun the generator")
+            print("parity/support_cells.toml: the generated attribution rows drifted; rerun the generator")
             return 1
         print("generated attribution rows ok")
         return 0
     if new != text:
-        fd, tmp = tempfile.mkstemp(dir=LICENSED.parent)
+        fd, tmp = tempfile.mkstemp(dir=SUPPORTED.parent)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(new)
-        os.replace(tmp, LICENSED)
+        os.replace(tmp, SUPPORTED)
     return 0
 
 

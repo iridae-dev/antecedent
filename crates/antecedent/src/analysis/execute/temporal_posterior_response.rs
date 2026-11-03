@@ -112,7 +112,7 @@ impl super::Study {
             "the DBN graph-posterior response",
         )?;
         let started = Instant::now();
-        let temporal = self.licensed_dbn_posterior_spec(gp, query, ctx)?;
+        let temporal = self.supported_dbn_posterior_spec(gp, query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
@@ -246,8 +246,8 @@ impl super::Study {
     }
 
     /// The temporal specification of a DBN-posterior response, after the atom
-    /// kind, query, observation and memory-budget licenses.
-    fn licensed_dbn_posterior_spec<'q>(
+    /// kind, query, observation and memory-budget supports.
+    fn supported_dbn_posterior_spec<'q>(
         &self,
         gp: &GraphPosterior,
         query: &'q ResponseQuery,
@@ -255,12 +255,12 @@ impl super::Study {
     ) -> Result<&'q antecedent_core::TemporalResponseSpec, CausalError> {
         if !matches!(gp.atom_kind(), antecedent_discovery::GraphPosteriorAtomKind::Dag) {
             return Err(CausalError::Unsupported {
-                message: "DBN-posterior response is licensed for TemporalDag atoms; \
+                message: "DBN-posterior response is supported for TemporalDag atoms; \
                           TemporalCpdag/TemporalPag posterior atoms use the class-aware combiner",
             });
         }
         dbn_posterior_response_supported(query)?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "DBN-posterior response requires TemporalResponseSpec".into(),
         })?;

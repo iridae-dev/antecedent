@@ -40,7 +40,7 @@ use crate::{
     InterventionAssignment,
 };
 
-/// How a dense joint was obtained. Structural zeros are licensed only for supplied laws.
+/// How a dense joint was obtained. Structural zeros are supported only for supplied laws.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LawOrigin {
     /// Caller-supplied complete population law. Zero cells may be structural.

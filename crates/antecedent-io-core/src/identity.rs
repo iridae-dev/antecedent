@@ -2296,7 +2296,7 @@ pub fn target_weights_digest(wire: &TargetWeightsIdentityWire) -> Result<Semanti
     digest_wire(IdentityDomain::TargetWeights, wire)
 }
 
-/// Licensed inferential commitments (not numeric knobs).
+/// Supported inferential commitments (not numeric knobs).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InferentialCommitmentsWire {
     /// Identity format.
@@ -2353,7 +2353,7 @@ pub struct ProgramIdentityWire {
     /// Temporal-class completion search budget, when capped by the caller.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion_budget: Option<u64>,
-    /// Licensed inferential commitments.
+    /// Supported inferential commitments.
     pub commitments: InferentialCommitmentsWire,
     /// Absent in older programs; newer temporal attribution binds its row law.
     #[serde(default, skip_serializing_if = "Option::is_none")]

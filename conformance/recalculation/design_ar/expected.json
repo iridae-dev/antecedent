@@ -36,7 +36,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/design_ar_precision_calibration.rs",
-          "sha256": "8b66f1b5f7323cf28ce1e330d6956ece9dca236c36aee9d181129c85b8428c53"
+          "sha256": "f91d06f73c277e425b76de290cf4974e9a13928a8a687320a8291e4598d24ca8"
         }
       ],
       "fixture_payload_sha256": "0baccffa027a5478c5ef3baae6aa2b408380065e994e2b673940da0461406b48"

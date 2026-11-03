@@ -252,7 +252,7 @@ def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
                 execution=ant.Execution(seed=1),
             )
         )
-    assert "selection_inference_not_licensed" in refusal_text(error.value)
+    assert "selection_inference_not_supported" in refusal_text(error.value)
     assert_registered_refusal(error.value)
 
 
@@ -357,7 +357,7 @@ def test_a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded():
             )
         )
     text = refusal_text(error.value)
-    assert "nuisance_fallback_not_licensed" in text
+    assert "nuisance_fallback_not_supported" in text
     assert "primary nuisance fit failed" in text
     assert_registered_refusal(error.value)
     # A fit that succeeds is the plain GLM result: the fallback never silently switches.

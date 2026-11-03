@@ -574,14 +574,14 @@ def test_the_retained_contract_is_sealed_with_its_procedure_and_replayed(procedu
     )
 
 
-def test_the_procedure_matrix_licenses_the_family_cell_for_its_three_paradigms():
+def test_the_procedure_matrix_supports_the_family_cell_for_its_three_paradigms():
     cell = next(
         c
         for c in ai.procedure_matrix()
         if c.id
         == "thompson_beta_bernoulli/repeated_measures/fixed_interim_looks/decision_theoretic"
     )
-    assert cell.status == "licensed"
+    assert cell.status == "supported"
     assert cell.paradigms == (
         "bayesian_posterior",
         "decision_theoretic_stopping",

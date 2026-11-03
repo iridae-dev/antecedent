@@ -1,7 +1,7 @@
 //! Cross-world execution artifact (`cross_world_execution_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one finite Markovian
-//! cross-world answer and everything a licensed resume needs:
+//! cross-world answer and everything a supported resume needs:
 //!
 //! * `cross_world_execution_meta` (CBOR): version, feature marker, the point-only
 //!   claim, the matrix row, the **declarations** (mechanisms, factual
@@ -62,7 +62,7 @@ pub struct CrossWorldExecutionRefusalWire {
     pub detail: String,
     /// Offending subject, when there is one.
     pub offending: Option<String>,
-    /// What would license the request, when known.
+    /// What would support the request, when known.
     pub remedy: Option<String>,
     /// Named unmet prerequisites.
     pub missing: Vec<String>,
@@ -306,7 +306,7 @@ pub struct CrossWorldExecutionMeta {
     pub feature: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// The matrix row that licensed the request.
+    /// The matrix row that supported the request.
     pub matrix_row: String,
     /// The declarations.
     pub request: CrossWorldRequestWire,
@@ -725,7 +725,7 @@ impl CrossWorldExecutionArtifact {
     }
 
     /// The executor holding the verified abductions: an action-only change
-    /// executed through it reuses them (the licensed resume).
+    /// executed through it reuses them (the supported resume).
     pub fn executor_mut(&mut self) -> &mut FiniteScmExecutor {
         &mut self.executor
     }

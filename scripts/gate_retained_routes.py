@@ -2,16 +2,16 @@
 
 The route set is derived from three records and the sources that implement them:
 
-* the route manifest (`parity/capabilities/route_manifest.toml`): every licensed,
+* the route manifest (`parity/capabilities/route_manifest.toml`): every supported,
   graphless and execution-only route, and its `retained_operation` field;
 * the `route_lowerings!` registry and the sealed-execution table in
   `crates/antecedent/src/analysis`: which cells lower, which sealed operations
   exist, which sealer admits which cell;
-* the licensed-route record (`parity/licensed_routes.toml`).
+* the supported-route record (`parity/supported_routes.toml`).
 
 `retained_route_problems(root)` returns one message per violation:
 
-* a licensed, graphless or execution-only route with no lowered program entry;
+* a supported, graphless or execution-only route with no lowered program entry;
 * a registered route cell no family-owned sealed operation serves, leaving
   only a program-only operation rather than the route's own computation;
 * a manifest `retained_operation` that names no sealed operation, or one that does
@@ -43,8 +43,8 @@ SRC = "crates/antecedent/src"
 ANALYSIS = f"{SRC}/analysis"
 REGISTRY = f"{ANALYSIS}/lowering/registry.rs"
 MANIFEST = "parity/capabilities/route_manifest.toml"
-LICENSED_ROUTES = "parity/licensed_routes.toml"
-EXECUTING = ("licensed", "graphless", "execution_only")
+SUPPORTED_ROUTES = "parity/supported_routes.toml"
+EXECUTING = ("supported", "graphless", "execution_only")
 
 # Plan routes that are not registry cells and the module that lowers each.
 PLAN_ROUTE_LOWERING = {
@@ -91,7 +91,7 @@ ROUTE_CELLS = (
     (r"randomized|complier|switchback", "RandomizedEffect"),
 )
 
-# Reviewed matrix coordinates that execute without a licensed evidence claim.
+# Reviewed matrix coordinates that execute without a supported evidence claim.
 # Source chain: support/axis.rs -> execute/execute_helpers_route.rs::classify_route
 # -> execute/route_input.rs -> lowering/registry.rs. TemporalAdmg can denote
 # either its contemporaneous tabular projection or its unfolded series; check
@@ -448,19 +448,19 @@ def manifest_problems(
     if text is None:
         return [f"{MANIFEST}: not found"]
     routes = tomllib.loads(text).get("route", [])
-    licensed_text = _read(root, LICENSED_ROUTES)
-    licensed = tomllib.loads(licensed_text).get("route", []) if licensed_text else []
+    supported_text = _read(root, SUPPORTED_ROUTES)
+    supported = tomllib.loads(supported_text).get("route", []) if supported_text else []
     plan_routes = set(PLAN_ROUTE_LOWERING)
     registered = set(cells) | set(posterior)
     name_to_variant = {name: variant for variant, name in names.items()}
     wrappers = wrapper_kinds(sealed_payloads(root))
 
-    # Licensed geometric routes: manifest records and licensed-route rows agree.
+    # Supported geometric routes: manifest records and supported-route rows agree.
     manifest_keys = {
-        (route["target"], route["graph_class"]) for route in routes if route["status"] == "licensed"
+        (route["target"], route["graph_class"]) for route in routes if route["status"] == "supported"
     }
     record_keys = set()
-    for row in licensed:
+    for row in supported:
         target, graph_class = row["coordinate"].split(":")[:2]
         record_keys.add((target, graph_class))
         if row.get("lowering") not in registered:
@@ -469,11 +469,11 @@ def manifest_problems(
             )
     for target, graph_class in sorted(record_keys - manifest_keys):
         problems.append(
-            f"licensed_routes.toml holds {target}:{graph_class}, which the route manifest does not license"
+            f"supported_routes.toml holds {target}:{graph_class}, which the route manifest does not support"
         )
     for target, graph_class in sorted(manifest_keys - record_keys):
         problems.append(
-            f"route manifest licenses {target}:{graph_class}, which licensed_routes.toml lowers nowhere"
+            f"route manifest supports {target}:{graph_class}, which supported_routes.toml lowers nowhere"
         )
 
     for route in routes:
@@ -494,7 +494,7 @@ def manifest_problems(
             problems.append(
                 f"{rid}: graphless route records no retained_operation and retained_route_test"
             )
-        if status not in EXECUTING or status == "licensed":
+        if status not in EXECUTING or status == "supported":
             continue
         lowered_cells = route_cells(route)
         if not lowered_cells:

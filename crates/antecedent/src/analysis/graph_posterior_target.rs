@@ -60,7 +60,7 @@ impl GraphPosteriorEffectTarget {
         matches!(self, Self::Conditional(_))
     }
 
-    /// Frequentist adjustment procedure licensed for this target.
+    /// Frequentist adjustment procedure supported for this target.
     #[must_use]
     pub(crate) const fn frequentist_estimator(&self) -> EstimatorId {
         match self {
@@ -69,7 +69,7 @@ impl GraphPosteriorEffectTarget {
         }
     }
 
-    /// Bayesian g-computation procedure licensed for this target.
+    /// Bayesian g-computation procedure supported for this target.
     #[must_use]
     pub(crate) const fn bayesian_estimator(&self) -> EstimatorId {
         match self {
@@ -89,7 +89,7 @@ mod tests {
     }
 
     #[test]
-    fn targets_record_query_kind_and_licensed_procedures() {
+    fn targets_record_query_kind_and_supported_procedures() {
         let average = GraphPosteriorEffectTarget::from_query(&CausalQuery::AverageEffect(ate()))
             .expect("average effect target");
         assert!(!average.is_conditional());

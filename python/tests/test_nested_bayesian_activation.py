@@ -84,10 +84,10 @@ def test_nested_bayesian_named_prior_is_immutable_and_has_domain_errors():
 def test_nested_bayesian_default_producer_and_consumer_remain_frozen():
     with pytest.raises(CausalUnsupportedError) as caught:
         produce()
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     with pytest.raises(CausalUnsupportedError) as caught:
-        NestedMarkovPosteriorCandidate.load(b"unlicensed", expected_identity="absent")
-    assert caught.value.reason_code == "cell_not_licensed"
+        NestedMarkovPosteriorCandidate.load(b"unsupported", expected_identity="absent")
+    assert caught.value.reason_code == "not_supported"
 
 
 @_CANDIDATE

@@ -377,7 +377,7 @@ impl JointSensitivityUncertainty {
         Self {
             method: JOINT_SENSITIVITY_SAMPLING_METHOD,
             coverage_target: JOINT_SENSITIVITY_COVERAGE_TARGET,
-            reason_code: reason_code!("cell_not_licensed"),
+            reason_code: reason_code!("not_supported"),
             detail: JOINT_SENSITIVITY_INTERVAL_WITHHELD,
         }
     }

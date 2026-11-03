@@ -1,6 +1,6 @@
 //! Expected-Fisher uncertainty for the selected binary nested-Markov likelihood.
 //!
-//! This is an internal implementation for later calibration, not a licensed
+//! This is an internal implementation for later calibration, not a supported
 //! interval. The IID multinomial likelihood has expected information
 //! `N sum_i (dp_i/dtheta)(dp_i/dtheta)'/p_i`. Its inverse propagates the full
 //! eleven-parameter covariance into both intervention means and their contrast.

@@ -1,5 +1,5 @@
 //! Typed refusals of the interface contract: a registered reason code, an
-//! `interface_contract.*` detail and the declaration that would license the
+//! `interface_contract.*` detail and the declaration that would support the
 //! request.
 //!
 //! Every detail literal is written here, beside the reason code it is emitted

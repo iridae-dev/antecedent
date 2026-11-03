@@ -8,7 +8,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Dirichlet posterior means of the supplied finite laws on the existing two-slice selection diagram, pushed through the temporal sequence identifier. A tiny concentration stays at the target truth. This is not a TemporalAdmg license. No interval.",
+  "Dirichlet posterior means of the supplied finite laws on the existing two-slice selection diagram, pushed through the temporal sequence identifier. A tiny concentration stays at the target truth. This is not TemporalAdmg support. No interval.",
   "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
 ]
 
@@ -25,12 +25,12 @@ rationale = "Dirichlet posterior mean of the supplied finite law (TwoStepTempora
 no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "573671d8ebfbd0fe176297cfe29373aa22bb8d827c484297d17e191214e963ea"
+record_sha256 = "2523b367ec7c55a4712586878b750185a5187cfa91772c8e3f5c172c32fcc4d4"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
@@ -40,4 +40,4 @@ sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_transport_execution.rs"
-sha256 = "a8238d60991b229a9f440190062dba392eaea6a776d2601705de51beff1b2e1e"
+sha256 = "6033fc1061d899667cc71e17bb79e1b48c43cace21457a9570d5bbfafb3e804e"

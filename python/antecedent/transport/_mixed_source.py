@@ -91,7 +91,7 @@ def identify_mixed_source_transport(
     non-identification claim. An identified stage offers ``prepare_exact``; the
     decision is never repeated at estimation. Estimation returns exact-law
     points only: ``interval["available"]`` is always ``False``, and counted laws
-    (``prepare_empirical``) are refused as ``cell_not_licensed``. Preparing a
+    (``prepare_empirical``) are refused as ``not_supported``. Preparing a
     decision that did not identify raises its typed reason
     (``transport_missing_evidence``, ``transport_not_certified``,
     ``transport_budget_cancel`` or ``route_not_supported``).

@@ -287,12 +287,12 @@ pub struct LocalPolynomialRatioEstimate {
 }
 
 /// Excursion contrasts of a sequentially randomized unit-period design, or static-regime
-/// survival on subject trajectories (unlicensed, uncalibrated).
+/// survival on subject trajectories (unsupported, uncalibrated).
 ///
 /// One entry per named coordinate. Frequentist results carry standard errors and pointwise
 /// intervals (and, for several contrasts or a dose grid, a simultaneous band); Bayesian results
 /// carry equal-tailed credible intervals of the retained draws, which ride on the result's
-/// posterior. No coverage of any interval has been measured, and the route is not licensed.
+/// posterior. No coverage of any interval has been measured, and the route is not supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemporalDesignEstimate {
     /// Design: `two_arm`, `multi_arm`, `categorical`, `factorial`, `interference`, `dose`,
@@ -341,12 +341,12 @@ pub struct TemporalDesignEstimate {
     pub uncertainty: Arc<str>,
     /// Calibration status of every interval: always `unmeasured`.
     pub calibration: Arc<str>,
-    /// Always `false`: the route is not licensed.
-    pub licensed: bool,
+    /// Always `false`: the route is not supported.
+    pub supported: bool,
 }
 
 /// Effects of a rollout design with the uncertainty of its whole-procedure path
-/// (unlicensed; calibration unmeasured).
+/// (unsupported; calibration unmeasured).
 ///
 /// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
 /// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period
@@ -354,7 +354,7 @@ pub struct TemporalDesignEstimate {
 /// variable. The first effect is the scalar summary. Pointwise intervals and simultaneous bands
 /// come from the design's own procedure (whole-unit resample, conformal test inversion,
 /// placebo variance or block bootstrap), each refitting the whole estimator; none has a
-/// coverage record and the route is not licensed.
+/// coverage record and the route is not supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuasiRolloutEstimate {
     /// Design: `staggered_did`, `covariate_adjusted_did`, `conformal_synthetic_control`,
@@ -380,8 +380,8 @@ pub struct QuasiRolloutEstimate {
     /// Named numeric diagnostics (pre-trend statistic, two-way fixed-effects comparison,
     /// density test, covariate balance, selected bandwidth).
     pub diagnostics: Arc<[(Arc<str>, f64)]>,
-    /// Always `false`: the route is not licensed.
-    pub licensed: bool,
+    /// Always `false`: the route is not supported.
+    pub supported: bool,
 }
 
 impl QuasiRolloutEstimate {
@@ -398,7 +398,7 @@ impl QuasiRolloutEstimate {
     }
 }
 
-/// Within-period history-matched contrast (unlicensed, uncalibrated).
+/// Within-period history-matched contrast (unsupported, uncalibrated).
 ///
 /// The matched pairs are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -446,7 +446,7 @@ pub struct HistoryMatchEstimate {
     pub uncertainty: Arc<str>,
 }
 
-/// Observational two-decision contrast of two static regimes (unlicensed, uncalibrated).
+/// Observational two-decision contrast of two static regimes (unsupported, uncalibrated).
 ///
 /// The cross-fit scores are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -492,7 +492,7 @@ pub struct SequentialContrastEstimate {
 pub struct LongitudinalRegimeEstimate {
     /// Named method: IPW, g-formula, sequential DR, or additive MSM.
     pub method: Arc<str>,
-    /// Exact graphless longitudinal license after observed support and interval checks.
+    /// Exact graphless longitudinal support after observed support and interval checks.
     pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Identity of the caller rule whose actions were frozen in the query.
     pub rule_id: Option<Arc<str>>,
@@ -590,8 +590,8 @@ pub struct SurvivalDifferenceBand {
     pub upper: Arc<[f64]>,
     /// Bootstrap replicates satisfying the original estimator support contract.
     pub replicates_ok: u32,
-    /// Exact graphless simultaneous-band license, when the published band and
-    /// arm support match a licensed band row. Absent for off-axis bands.
+    /// Exact graphless simultaneous-band support, when the published band and
+    /// arm support match a supported band row. Absent for off-axis bands.
     pub support_status: Option<crate::support::CellStatus>,
 }
 
@@ -624,7 +624,7 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_requested: Option<u32>,
     /// Draws satisfying the estimator's original support contract.
     pub bootstrap_replicates_ok: Option<u32>,
-    /// Realized control and treated subject counts for an exact graphless license.
+    /// Realized control and treated subject counts for an exact graphless support.
     pub assignment_counts: [usize; 2],
     /// Caller-supplied fixed censoring function, when the IPCW route was used.
     pub censoring_survival_provenance: Option<Arc<str>>,
@@ -1097,7 +1097,7 @@ impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
 
 /// How identified structural atoms may be combined.
 ///
-/// Mass-weighting is licensed only when every contributing atom names the same
+/// Mass-weighting is supported only when every contributing atom names the same
 /// estimand. Completion enumeration is a [`StructuralWeightBasis`], not a
 /// reason to treat class members as posterior probability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1209,9 +1209,9 @@ pub struct InterferencePointwiseInterval {
 pub struct InterferenceInference {
     /// Construction identifier.
     pub method: &'static str,
-    /// Exact graphless interference license after observed cluster support and
+    /// Exact graphless interference support after observed cluster support and
     /// a published pointwise interval pass; `None` when the interval is withheld
-    /// or the design/exposure support does not match a licensed row.
+    /// or the design/exposure support does not match a supported row.
     pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Pointwise interval, when its support conditions pass.
     pub interval: Option<InterferencePointwiseInterval>,
@@ -1227,9 +1227,9 @@ pub struct InterferenceInference {
     pub to_exposed_clusters: usize,
 }
 
-/// The retained posterior of an unlicensed Bayesian randomized-design row: coordinates, means,
+/// The retained posterior of an unsupported Bayesian randomized-design row: coordinates, means,
 /// equal-tailed 95% credible intervals, the covariance of the joint draws and named summaries.
-/// Its uncertainty is `posterior` and its calibration `unmeasured`; it is never licensed.
+/// Its uncertainty is `posterior` and its calibration `unmeasured`; it is never supported.
 pub type PosteriorRowEstimate = antecedent_io::PosteriorRowWire;
 
 /// The typed answer of one query family, published beside a result's scalar
@@ -1303,7 +1303,7 @@ pub enum ResultPayload {
     ContinuousDoseResponse(ContinuousDoseResponseEstimate),
     /// Randomized right-censored survival or competing-risk curve.
     Survival(SurvivalEstimate),
-    /// Unlicensed Bayesian posterior of a randomized-design row (survival contrast, fixed
+    /// Unsupported Bayesian posterior of a randomized-design row (survival contrast, fixed
     /// group-dose policy value): means, credible intervals and the joint covariance of the
     /// retained draws, with calibration `unmeasured`.
     PosteriorRow(PosteriorRowEstimate),
@@ -1656,9 +1656,9 @@ pub struct StudyResult {
     pub(crate) predictive_replicates: Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
     /// Support-matrix evidence contract that produced this result.
     ///
-    /// `licensed` and `allowed_unlicensed` both yield a successful study.
-    /// Downstream consumers must not treat a number as licensed unless this is
-    /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
+    /// A `not_supported` cell refuses the build, so a successful study carries
+    /// `supported`. Downstream consumers must not treat a number as supported unless this is
+    /// [`crate::support::CellStatus::Supported`]. `None` when the query is not on
     /// the public axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
     /// Prepared contract this result was executed under, stamped by the
@@ -2104,7 +2104,7 @@ fn positive_finite(value: f64) -> bool {
 /// Python copies all read this; they do not prefer `se_bootstrap` on their own.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PublishedScalarUncertainty {
-    /// The one scalar SE the facade publishes, when licensed and positive-finite.
+    /// The one scalar SE the facade publishes, when supported and positive-finite.
     pub standard_error: Option<f64>,
     /// Interval method for what was published: a normal interval from
     /// [`Self::standard_error`] ([`antecedent_core::IntervalMethod::AnalyticSe`] or
@@ -2232,7 +2232,7 @@ impl PublishedScalarUncertainty {
             method: antecedent_core::IntervalMethod::None,
             level: f64::NAN,
             withheld_reason: Some(reason.unwrap_or(
-                "Wald/bootstrap SE not licensed (weak instrument or IV uncertainty withheld)",
+                "Wald/bootstrap SE not supported (weak instrument or IV uncertainty withheld)",
             )),
             lower: None,
             upper: None,
@@ -2669,14 +2669,6 @@ impl StudyResult {
             support_status: self
                 .support_status
                 .map(crate::support::CellStatus::as_str)
-                .map(str::to_string),
-            allowlist_reason: self
-                .support_status
-                .and_then(crate::support::CellStatus::allowlist_reason)
-                .map(str::to_string),
-            allowlist_parent: self
-                .support_status
-                .and_then(crate::support::CellStatus::allowlist_parent)
                 .map(str::to_string),
         }
     }

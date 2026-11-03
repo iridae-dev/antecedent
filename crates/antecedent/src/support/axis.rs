@@ -140,12 +140,12 @@ pub(super) fn naming_class(matrix: &str) -> Option<GraphClass> {
 /// behavior instead of the raw class tag, per each collapse's one-line
 /// justification below. Each collapse is scoped to exactly the query family
 /// `analysis/execute/compile.rs` wires it for — applying it more broadly would
-/// license cells the engine cannot actually run (see the `ResponseCurve` note).
+/// support cells the engine cannot actually run (see the `ResponseCurve` note).
 ///
 /// - **ADMG with no bidirected edges, under `AverageEffect` or `ConditionalEffect`**: `compile.rs`'s
 ///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
 ///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`](antecedent_graph::Admg::has_bidirected) and run the
-///   *static DAG* path when it is false — the Dag cell's license is the
+///   *static DAG* path when it is false — the Dag cell's support is the
 ///   honest claim. Bidirected `CausalQuery::Response` now compiles through
 ///   `general.id` + `functional.effect`; a DAG-coerced ADMG (no bidirected
 ///   edges) still falls through to the Dag response path. The collapse must

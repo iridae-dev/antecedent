@@ -1,4 +1,4 @@
-//! Numeric pins for licensed CPDAG ATE cells.
+//! Numeric pins for supported CPDAG ATE cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -177,7 +177,7 @@ fn assert_prepared_reuse(
             .abs()
             < 1e-12
     );
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     // The Bayesian class route executes its retained envelope from the one-shot
     // facade too; the frequentist one-shot still identifies inline.
     let one_shot_sealed = fresh.logical_plan.estimator.as_deref() == Some("bayesian.gcomp");
@@ -318,7 +318,7 @@ fn cpdag_ate_envelope_numeric_pin() {
             // Bayesian mixture (estimate.envelope.bayesian_mixture_functional, which couples
             // completions by their influence-function correlation on shared rows) moved by 4e-5
             // from the fixture's pinned 0.4615641945101853. 6890a67 (decide adjustment existence
-            // by one test) can license a different, still-valid, non-minimal adjustment set per
+            // by one test) can support a different, still-valid, non-minimal adjustment set per
             // completion; two sets giving the same marginal point estimate/SE for their own
             // completion can still differ in per-unit influence-function shape, which shifts the
             // cross-completion correlation used for rank coupling. The sibling

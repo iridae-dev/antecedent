@@ -463,7 +463,7 @@ fn contract_for_dag(
             },
             support: SlotSectionWire {
                 value: Some(SupportSlotWire {
-                    matrix_status: "licensed".into(),
+                    matrix_status: "supported".into(),
                     matrix_coordinate: Some("AverageEffect:Dag:explicit:Frequentist:none".into()),
                     empirical: "unavailable:not_evaluated".into(),
                 }),
@@ -1295,7 +1295,7 @@ fn calibration_basis_distinguishes_accepted_from_explicit_structure() {
 }
 
 #[test]
-fn off_axis_claim_cannot_self_license_calibration() {
+fn off_axis_claim_cannot_self_support_calibration() {
     let (body, target, _) = fixture_body();
     let mut contract = contract_for(target, &body);
     let support = contract.reasoning.support.value.as_mut().unwrap();
@@ -1575,7 +1575,7 @@ fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
         Some("limited:refuter.placebo.treatment.permute")
     );
     let support = |empirical: &str| SupportSlotWire {
-        matrix_status: "licensed".into(),
+        matrix_status: "supported".into(),
         matrix_coordinate: None,
         empirical: empirical.into(),
     };
@@ -2061,7 +2061,7 @@ fn graphless_calibration_validation_is_bound_to_checked_route_and_no_suite() {
         contract.graph_class = "RandomizedTrial".into();
         contract.structure_source = "randomized_trial".into();
         let support = contract.reasoning.support.value.as_mut().unwrap();
-        support.matrix_status = "licensed".into();
+        support.matrix_status = "supported".into();
         support.matrix_coordinate = Some(coordinate.into());
         contract.program.as_mut().unwrap().commitments.inference = inference.into();
         contract.program.as_mut().unwrap().commitments.validation_suite = None;

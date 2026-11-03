@@ -219,7 +219,7 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
     assert uncertainty.identified_bound is None
     assert isinstance(uncertainty.sampling, sd.SamplingInterval)
 
-    # Asking for the composition refuses: no method is licensed.
+    # Asking for the composition refuses: no method is supported.
     with pytest.raises(sd.SensitivityRefusal) as composed:
         require_success(
             sd.decide(
@@ -229,8 +229,8 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
             )
         )
     assert isinstance(composed.value, CausalUnsupportedError)
-    assert composed.value.reason_code == "cell_not_licensed"
-    assert composed.value.detail == "sensitivity_decision_composition.composition_not_licensed"
+    assert composed.value.reason_code == "not_supported"
+    assert composed.value.detail == "sensitivity_decision_composition.composition_not_supported"
 
     # An artifact that claims a composition is refused at construction.
     claimed = sd.SamplingInterval(
@@ -246,7 +246,7 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
             ],
             sampling=claimed,
         )
-    assert at_construction.value.reason_code == "cell_not_licensed"
+    assert at_construction.value.reason_code == "not_supported"
 
     # An assumption range is never a probability: weights on a ranged surface refuse.
     with pytest.raises(sd.SensitivityRefusal) as weights:
@@ -458,7 +458,7 @@ def test_joint_sensitivity_result_feeds_a_decision_contract():
     assert surface.upper[-1] == pytest.approx(upper, abs=1e-12)
     # The withheld sampling status is carried unchanged: still an assumption range.
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
-    assert artifact.uncertainty.sampling.reason_code == "cell_not_licensed"
+    assert artifact.uncertainty.sampling.reason_code == "not_supported"
     assert artifact.provenance.source_kind == "joint_mechanism_sensitivity"
     # Adopting is best only if the effect clears 0.45. The unperturbed baseline (0.37) does
     # not, and the range's upper end (0.37 + 0.63 t) clears it for t > 0.127, so the best

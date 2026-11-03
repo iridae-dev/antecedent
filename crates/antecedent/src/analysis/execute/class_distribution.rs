@@ -141,7 +141,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_distribution_licensed(query, self.settings.refute)?;
+        super::static_path::ensure_admg_distribution_supported(query, self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) =
             physical.binding().resolve(RouteDefaults::DISTRIBUTION)?;

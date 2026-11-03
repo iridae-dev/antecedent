@@ -316,7 +316,7 @@ pub struct ClaimDomainsWire {
 ///
 /// Identified (and evaluated) only for a full-mass, nonparametric or
 /// parametric identification. Supported only when the matrix cell is
-/// licensed and every executed support check passed; a failed check is
+/// supported and every executed support check passed; a failed check is
 /// `contradicted`; a refused or not-applicable cell is `outside_scope`.
 #[must_use]
 pub fn claim_domains(
@@ -347,12 +347,12 @@ pub fn claim_domain_statuses(
             )
     });
     let support_domain = match support {
-        Some(slot) if matches!(slot.matrix_status.as_str(), "refused" | "not_applicable") => {
+        Some(slot) if matches!(slot.matrix_status.as_str(), "not_supported" | "not_applicable") => {
             DomainStatus::OutsideScope
         }
         Some(slot) if slot.empirical.starts_with("failed:") => DomainStatus::Contradicted,
         Some(slot) if slot.empirical.starts_with("limited:") => DomainStatus::Limited,
-        Some(slot) if slot.matrix_status == "licensed" && slot.empirical == "supported" => {
+        Some(slot) if slot.matrix_status == "supported" && slot.empirical == "supported" => {
             DomainStatus::Supported
         }
         _ => DomainStatus::Unknown,

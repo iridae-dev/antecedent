@@ -368,7 +368,7 @@ fn future_regime(d: FutureRegimeDeclaration) -> PyResult<facade::PanelFutureRegi
 }
 #[pymethods]
 impl PyPanelExperiment {
-    /// Rank candidate studies that may run in their own regime, each with its own licensed
+    /// Rank candidate studies that may run in their own regime, each with its own supported
     /// bridge, response functional, paired affine mapping and current mapping evidence.
     #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn rank_next_studies(

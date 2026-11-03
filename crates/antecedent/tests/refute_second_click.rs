@@ -95,8 +95,8 @@ fn prepared_bayesian_refute_includes_predictive_checks() {
 /// default suite (`RefuteSuite::PlaceboAndRcc`) is not supported must be
 /// told validation was silently turned off, not left to infer it from an
 /// empty `refutations` list. `ResponseCurve` on an explicit `Dag` is
-/// licensed at `RefuteSuite::None` (the surface itself) but has no licensed
-/// or allowlisted cell at `RefuteSuite::PlaceboAndRcc` — exactly the
+/// supported at `RefuteSuite::None` (the surface itself) but has no supported
+/// cell at `RefuteSuite::PlaceboAndRcc` — exactly the
 /// requested-vs-none-suite gap `StudyBuilder::build` downgrades silently.
 #[test]
 fn implicit_default_refute_downgrade_is_diagnosed() {
@@ -173,7 +173,7 @@ fn implicit_default_refute_downgrade_is_diagnosed() {
 
 /// Same shape as above, but on a family whose default suite IS supported
 /// (`AverageEffect` on a confounded `Dag`, `RefuteSuite::PlaceboAndRcc` is
-/// licensed) — no downgrade happens, so the diagnostic must not appear.
+/// supported) — no downgrade happens, so the diagnostic must not appear.
 #[test]
 fn implicit_default_refute_no_downgrade_is_not_diagnosed() {
     let (data, dag, query) = confounded_scm(200, 23);

@@ -927,7 +927,7 @@ mod tests {
     /// On the graph below `w` is a genuine recanting witness (`w→a` on π, `w→b` off it), so
     /// the correct answer is `NotIdentified`. Before the fix, `max_paths = 1` enumerated only
     /// the π path, left the complement empty, found no witness, and returned
-    /// `NonparametricallyIdentified` — licensing an estimand Avin–Shpitser–Pearl forbids.
+    /// `NonparametricallyIdentified` — support an estimand Avin–Shpitser–Pearl forbids.
     #[test]
     fn truncated_path_enumeration_never_claims_identification() {
         // 0=t 1=w 2=a 3=b 4=c 5=y;  t→c→y, t→w→b→y, t→w→a→y.  π = paths through `a`.

@@ -31,17 +31,17 @@ where its numbers came from. Everything downstream is conditional on that statem
     artifact = estimate.export("prevalence")
     again = mm.consume_measurement_model_artifact(artifact, prepared.model_identity)
 
-What is licensed, and what is not:
+What is supported, and what is not:
 
 * **Prepare** refuses before any number is formed: a proxy, a learned representation or a derived
   column offered as the construct, a population, regime, arm or representation the model was not
   established for (a representation change needs an explicit :class:`RepresentationMapping`, which
   carries values and never intervention meaning unless it declares the evidence for it), error that
-  differs while the analysis assumes it does not, and an operation the route does not license.
+  differs while the analysis assumes it does not, and an operation the route does not support.
 * **Estimate** forms one functional of the corrected quantity. The standard error is an
   *uncalibrated* delta-method estimate that includes the uncertainty of the estimated measurement
   parameters where the record says it was propagated. No interval is produced:
-  :meth:`MeasurementEstimate.interval` raises ``cell_not_licensed`` until the whole
+  :meth:`MeasurementEstimate.interval` raises ``not_supported`` until the whole
   measurement-plus-estimation method has a measured coverage record.
 * **Refresh** keeps the model and recomputes the numbers on new outcome-only data of the same
   question; it never changes validation parameters. :meth:`PreparedMeasurementModel
@@ -156,7 +156,7 @@ __all__ = [
     "transport_pooled_differential",
 ]
 
-#: Downstream operations a route may license or refuse.
+#: Downstream operations a route may support or refuse.
 OPERATIONS: tuple[str, ...] = (
     "linear_adjusted_effect",
     "linear_functional_of_coefficients",
@@ -198,7 +198,7 @@ class MeasurementModelRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     ``measurement_model.*`` ``detail``; ``remedy`` names the declaration or evidence that would
-    license the request when one is known.
+    support the request when one is known.
     """
 
 
@@ -1042,7 +1042,7 @@ class ProviderObject:
     """The exact external object a posterior route names, and what is claimed for it.
 
     ``trust`` is ``"externally_attested"`` (with an ``attestor``) or ``"exact_request_verified"``
-    (with a ``receipt`` passed to :func:`prepare_measurement_model`). ``"native_licensed"`` is
+    (with a ``receipt`` passed to :func:`prepare_measurement_model`). ``"native_supported"`` is
     accepted only so the contract can refuse it: metadata never confers native trust.
     """
 
@@ -1145,7 +1145,7 @@ class MeasurementEstimate(ScientificResult):
 
     ``standard_error`` is an uncalibrated delta-method estimate (``inference`` says whether one is
     reported); ``parameter_uncertainty`` says whether the measurement parameters' uncertainty is in
-    it. There is no interval: :meth:`interval` raises ``cell_not_licensed``.
+    it. There is no interval: :meth:`interval` raises ``not_supported``.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -1213,7 +1213,7 @@ class MeasurementEstimate(ScientificResult):
         return detail
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
+        """Always raises ``not_supported``: no coverage record measures the method."""
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
     @outcome_operation
@@ -1276,7 +1276,7 @@ class ContinuousMeasurementEstimate:
     ``outcome_error_no_correction`` (error in the outcome under an identity link, which does not
     bias the slope). ``simex_lambdas`` and ``simex_means`` are the SIMEX path (``0`` first), one
     mean coefficient vector per value. There is no interval: :meth:`interval` raises
-    ``cell_not_licensed``.
+    ``not_supported``.
     """
 
     model_identity: str
@@ -1314,7 +1314,7 @@ class ContinuousMeasurementEstimate:
         return None if self.standard_error is None else self.standard_error**2
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
+        """Always raises ``not_supported``: no coverage record measures the method."""
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
 
@@ -1392,12 +1392,12 @@ class PreparedMeasurementModel:
         return card
 
     def check_operation(self, operation: str) -> None:
-        """Raise the refusal naming what would license ``operation``; return when licensed."""
+        """Raise the refusal naming what would support ``operation``; return when supported."""
         _choice(operation, "operation", OPERATIONS)
         raise_refusal(self._handle.check_operation(operation), MeasurementModelRefusal)
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
+        """Always raises ``not_supported``: no coverage record measures the method."""
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
     @outcome_operation
@@ -1678,7 +1678,7 @@ class InvarianceDeclaration:
 
     ``invariant`` names every parameter the correction uses (``sensitivity`` and ``specificity``
     for a binary indicator, ``confusion_matrix`` for an assigned categorical label,
-    ``error_variance`` for a continuous one). A premise about one parameter does not license a
+    ``error_variance`` for a continuous one). A premise about one parameter does not support a
     correction that uses another. The premise is declared, never tested.
     """
 
@@ -1781,7 +1781,7 @@ class TransportedMeasurementEstimate(ScientificResult):
         return self.estimate.point
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``."""
+        """Always raises ``not_supported``."""
         self.estimate.interval()
 
     @artifact_export

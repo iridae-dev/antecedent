@@ -1,4 +1,4 @@
-//! Fail-closed prior transfer onto licensed Bayesian temporal cells.
+//! Fail-closed prior transfer onto supported Bayesian temporal cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -4,7 +4,7 @@
 //! This is the one place that decides whether the draws or moments of several
 //! inputs may be combined. Unrelated posterior or bootstrap draws are never
 //! paired by index; a row pairing is a statement that the rows are
-//! realizations of one joint law, and it is licensed only by an alignment
+//! realizations of one joint law, and it is supported only by an alignment
 //! identity that every input shares.
 //!
 //! The rule, by operation:
@@ -37,10 +37,10 @@
 //!
 //! A composed quantity has three readings besides the envelope:
 //!
-//! * the **point** value under a licensed dependence route;
+//! * the **point** value under a supported dependence route;
 //! * the **spread** (variance or standard error, and the draw-based summaries
 //!   built on aligned draws) at the composed coordinate, labelled
-//!   `uncalibrated_spread`: it is what the licensed dependence route
+//!   `uncalibrated_spread`: it is what the supported dependence route
 //!   determines and carries no coverage statement;
 //! * an **interval** only through [`check_composed_interval`], which needs a
 //!   measured coverage record for the composed coordinate (operation, route,
@@ -50,7 +50,7 @@
 //!
 //! Every refusal carries a registered reason code, a namespaced
 //! `joint_law_propagation.*` detail and a remedy that names the dependence
-//! information that would license the request.
+//! information that would support the request.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -66,9 +66,9 @@ pub const JOINT_LAW_STAGE: &str = "propagate";
 pub use antecedent_core::STRUCTURAL_ENVELOPE_LABEL;
 /// Label of a range implied by a declared correlation range.
 pub const ASSUMPTION_RANGE_LABEL: &str = "assumption_range";
-/// Label of a value computed under a licensed dependence route.
+/// Label of a value computed under a supported dependence route.
 pub const POINT_ONLY_LABEL: &str = "point_only";
-/// Label of a spread computed under a licensed dependence route, with no
+/// Label of a spread computed under a supported dependence route, with no
 /// coverage statement.
 pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
 /// Label of an interval backed by a measured coverage record at its composed
@@ -253,7 +253,7 @@ pub enum PropagationDependence {
 pub enum RequestedReading {
     /// A point value.
     Point,
-    /// The spread of the composed quantity under the licensed dependence
+    /// The spread of the composed quantity under the supported dependence
     /// route: a variance, a standard error or a draw-based summary, with no
     /// coverage statement.
     Spread,
@@ -289,7 +289,7 @@ pub struct PropagationRequest {
     pub reading: RequestedReading,
 }
 
-/// The computation a licensed request runs. Each route is its own support row.
+/// The computation a supported request runs. Each route is its own support row.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PropagationRoute {
     /// Delta method for a linear map under a covariance (or no cross term for
@@ -506,19 +506,19 @@ fn plan(
 }
 
 fn closed_reading(reading: RequestedReading) -> Option<ExternalRefusal> {
-    let code = antecedent_core::reason_code!("cell_not_licensed");
+    let code = antecedent_core::reason_code!("not_supported");
     match reading {
         RequestedReading::Interval => Some(refuse(
             code,
             "joint_law_propagation.interval_route_closed",
             "interval",
-            "no interval for a composed quantity has a measured coverage record at its composed coordinate, and a component interval does not cover the composition; the labelled point value under a licensed dependence route, or the dependence envelope, is the result",
+            "no interval for a composed quantity has a measured coverage record at its composed coordinate, and a component interval does not cover the composition; the labelled point value under a supported dependence route, or the dependence envelope, is the result",
         )),
         RequestedReading::Posterior => Some(refuse(
             code,
             "joint_law_propagation.posterior_route_closed",
             "posterior",
-            "no posterior statement for a composed quantity has a measured calibration at its composed coordinate; the labelled point value under a licensed dependence route is the result",
+            "no posterior statement for a composed quantity has a measured calibration at its composed coordinate; the labelled point value under a supported dependence route is the result",
         )),
         RequestedReading::Point | RequestedReading::Spread | RequestedReading::Envelope => None,
     }
@@ -640,7 +640,7 @@ fn check_envelope(
     }
     if request.reading != RequestedReading::Envelope {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "joint_law_propagation.envelope_is_not_a_point",
             request.reading.as_str(),
             "the dependence envelope is the set of values no dependence could exceed; it is not a point, an interval or a posterior and does not stand in for an aligned joint law; request the envelope reading, or supply the aligned joint law for a point value",
@@ -777,8 +777,8 @@ fn check_core(
     );
     if request.reading == RequestedReading::Spread && envelope_dependence {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "joint_law_propagation.spread_needs_licensed_dependence",
+            antecedent_core::reason_code!("not_supported"),
+            "joint_law_propagation.spread_needs_supported_dependence",
             "spread",
             "a spread of a composed quantity is determined by a covariance, an aligned joint law, known mixture weights or a declared independence of distinct evidence; a correlation range or the marginals alone give only the labelled envelope, so request the envelope reading",
         ));
@@ -786,7 +786,7 @@ fn check_core(
     if request.reading == RequestedReading::Envelope && !envelope_dependence {
         return Err(invalid(
             "reading",
-            "an envelope reading needs a declared correlation range or the marginals-only declaration; with a licensed dependence route ask for the point value",
+            "an envelope reading needs a declared correlation range or the marginals-only declaration; with a supported dependence route ask for the point value",
         ));
     }
     let transported = request.operation == PropagationOperation::TransportedComposition
@@ -914,7 +914,7 @@ fn check_nonlinear(
 pub struct ComposedCoordinate {
     /// The operation.
     pub operation: PropagationOperation,
-    /// The licensed route.
+    /// The supported route.
     pub route: PropagationRoute,
     /// Sorted role names of the inputs (one entry per input).
     pub roles: Vec<&'static str>,
@@ -1045,7 +1045,7 @@ pub struct ComposedIntervalPlan {
     pub propagation: PropagationPlan,
     /// The coordinate the coverage record was matched against.
     pub coordinate: ComposedCoordinate,
-    /// The record that licensed the interval.
+    /// The record that supported the interval.
     pub record_id: String,
     /// The construction the interval must be built with.
     pub construction: String,
@@ -1055,17 +1055,17 @@ pub struct ComposedIntervalPlan {
     pub label: &'static str,
 }
 
-/// Check a composed interval: the composition's dependence route must license
+/// Check a composed interval: the composition's dependence route must support
 /// its spread, and a measured coverage record must exist for exactly this
 /// composed coordinate and construction.
 ///
 /// Without a record the interval reading is closed (the component intervals do
-/// not cover the composition). With one, the interval is licensed only at the
+/// not cover the composition). With one, the interval is supported only at the
 /// recorded nominal level; the record, not this function, carries the coverage
 /// evidence.
 ///
 /// # Errors
-/// An invalid request, an unlicensed dependence route (the refusals of
+/// An invalid request, an unsupported dependence route (the refusals of
 /// [`check_propagation`] under the spread reading), a request whose reading is
 /// not an interval, a missing, unmeasured or mismatched coverage record, or a
 /// nominal level outside `(0, 1)`.
@@ -1098,7 +1098,7 @@ pub fn check_composed_interval(
     let Some(record) = record else {
         return Err(closed());
     };
-    let code = antecedent_core::reason_code!("cell_not_licensed");
+    let code = antecedent_core::reason_code!("not_supported");
     if !record.measured {
         return Err(refuse(
             code,
@@ -1267,7 +1267,7 @@ mod tests {
     fn detail(request: &PropagationRequest) -> (&'static str, String) {
         let refusal = check_propagation(request).expect_err("refusal");
         refusal.validate().expect("well-formed refusal");
-        assert!(refusal.remedy.is_some(), "every refusal states what would license it");
+        assert!(refusal.remedy.is_some(), "every refusal states what would support it");
         (refusal.code, refusal.detail)
     }
 
@@ -1349,7 +1349,7 @@ mod tests {
             PropagationDependence::Covariance { id: "cov_ab".into() },
             RequestedReading::Point,
         );
-        let plan = check_propagation(&with_covariance).expect("covariance licenses a contrast");
+        let plan = check_propagation(&with_covariance).expect("covariance supports a contrast");
         assert_eq!(plan.route, PropagationRoute::LinearMoments);
         assert_eq!(plan.shared_evidence, vec!["snapshot_1".to_owned()]);
         assert_eq!(plan.label, "point_only");
@@ -1385,7 +1385,7 @@ mod tests {
     }
 
     #[test]
-    fn evidence_aliases_cannot_license_independence_and_reports_are_stable() {
+    fn evidence_aliases_cannot_support_independence_and_reports_are_stable() {
         let lower = "ab".repeat(32);
         let upper = lower.to_uppercase();
         for aliases in [
@@ -1457,7 +1457,7 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        let plan = check_propagation(&paired).expect("aligned draws license a product");
+        let plan = check_propagation(&paired).expect("aligned draws support a product");
         assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
         assert_eq!(plan.alignment_id.as_deref(), Some("joint_17"));
 
@@ -1584,7 +1584,7 @@ mod tests {
             RequestedReading::Point,
         );
         let (code, name) = detail(&as_point);
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert_eq!(name, "joint_law_propagation.envelope_is_not_a_point");
         let mixture = request(
             PropagationOperation::Mixture,
@@ -1610,7 +1610,7 @@ mod tests {
                 reading,
             );
             let (code, name) = detail(&closed);
-            assert_eq!(code, "cell_not_licensed");
+            assert_eq!(code, "not_supported");
             assert_eq!(name, expected);
         }
     }
@@ -1739,8 +1739,8 @@ mod tests {
             RequestedReading::Spread,
         );
         let (code, name) = detail(&envelope);
-        assert_eq!(code, "cell_not_licensed");
-        assert_eq!(name, "joint_law_propagation.spread_needs_licensed_dependence");
+        assert_eq!(code, "not_supported");
+        assert_eq!(name, "joint_law_propagation.spread_needs_supported_dependence");
     }
 
     #[test]
@@ -1846,7 +1846,7 @@ mod tests {
             refusal.validate().expect("well-formed refusal");
             (refusal.code, refusal.detail)
         };
-        assert_eq!(code, "cell_not_licensed");
+        assert_eq!(code, "not_supported");
         assert_eq!(name, "joint_law_propagation.interval_route_closed");
 
         let spread = PropagationRequest { reading: RequestedReading::Spread, ..composed.clone() };

@@ -30,7 +30,7 @@
 //! means, never a law. The overlap check is a fitted-box necessary condition, not a
 //! density or positivity guarantee. No standard error, interval or utility variance is
 //! inherited; [`TransportedCohort::interval_refusal`] and
-//! [`TransportedCohort::law_refusal`] name the evidence that would license either.
+//! [`TransportedCohort::law_refusal`] name the evidence that would support either.
 //!
 //! The retained analysis result carries no population label of its own, so the source
 //! population is declared by the caller and bound into the identity. The route is bounded

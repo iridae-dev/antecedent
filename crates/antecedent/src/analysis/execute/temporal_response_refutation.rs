@@ -19,7 +19,7 @@
 //!   (the unit-step difference of the identified levels — the weight-mixed witness
 //!   effect — against the published identity-scale slope).
 //!
-//! Every state executes and is unlicensed: no coverage or evidence record names it.
+//! Every state executes and is unsupported: no coverage or evidence record names it.
 
 use super::{
     AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
@@ -217,7 +217,7 @@ pub(super) fn state_note(target: &str, witnesses: usize) -> Diagnostic {
             "temporal {target} refuter state: the TemporalDag Pulse-native suite on each of \
              {witnesses} Pulse witness(es) (a horizon's, and on a class a completion's, \
              identified unit contrast under its own proof and lag indexer); witnesses are not \
-             mixed. It executes unlicensed: no coverage or evidence record names it, and the \
+             mixed. It executes unsupported: no coverage or evidence record names it, and the \
              verdicts are checks, not a calibration claim."
         ),
     )

@@ -19,10 +19,10 @@ use antecedent_identify::BoundTransportFunctional;
 
 use crate::error::EstimationError;
 
-/// Licensed default estimator id.
+/// Supported default estimator id.
 pub const EMPIRICAL_TABLE_PLUGIN: &str = "transport.empirical_table_plugin";
 
-/// Named but unlicensed smoothing choice.
+/// Named but unsupported smoothing choice.
 pub(crate) const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
 
 /// Bayesian-bootstrap draw from the empirical support of a finite joint.
@@ -245,7 +245,7 @@ pub(crate) fn draw_empirical_support_transport_law(
 ///
 /// The full Cartesian state space is explicit in `axes`. Every cell receives one unit
 /// of prior mass, including cells never observed in the sample. This is a distinct
-/// posterior law from the empirical-support bootstrap and must not inherit its license.
+/// posterior law from the empirical-support bootstrap and must not inherit its support.
 /// # Errors
 /// Invalid domains or rows, missing observations, empty samples, or excessive size.
 #[cfg(test)]
@@ -294,11 +294,11 @@ fn draw_transport_law(
 pub enum EmpiricalTableEstimator {
     /// Frequencies from fully observed samples, no pseudocounts.
     Plugin,
-    /// Named Dirichlet / pseudocount smoother. Not licensed in T6.1.
+    /// Named Dirichlet / pseudocount smoother. Not supported in T6.1.
     Dirichlet,
-    /// Bayesian bootstrap law on the empirical row support. Not yet support licensed.
+    /// Bayesian bootstrap law on the empirical row support. Not yet support supported.
     EmpiricalSupportBayesianBootstrap,
-    /// Full declared-state-space Dirichlet posterior. Not yet support licensed.
+    /// Full declared-state-space Dirichlet posterior. Not yet support supported.
     StateSpaceDirichlet,
     /// Model-based finite categorical joint; independently uncalibrated.
     Learned(crate::LearnerSpec),
@@ -330,7 +330,7 @@ impl EmpiricalTableEstimator {
 /// Inference settings for the empirical-table path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmpiricalTableOptions {
-    /// Estimator. Plugin and learned categorical are licensed; Dirichlet is not.
+    /// Estimator. Plugin and learned categorical are supported; Dirichlet is not.
     pub estimator: EmpiricalTableEstimator,
     /// Outer bootstrap replicates. Zero withholds the interval.
     pub bootstrap_replicates: u32,
@@ -500,7 +500,7 @@ pub struct StatisticalTransportInput {
 ///
 /// # Errors
 /// Empty or missing observations, values outside the catalog domain, cardinality overflow,
-/// or an unlicensed smoother.
+/// or an unsupported smoother.
 pub fn fit_empirical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
@@ -511,7 +511,7 @@ pub fn fit_empirical_joint(
         return Err(EstimationError::refused(
             antecedent_core::reason_code!("transport_unsupported_evaluator"),
             format!(
-                "{} is not a licensed transport provider; use {}",
+                "{} is not a supported transport provider; use {}",
                 options.estimator.as_str(),
                 EMPIRICAL_TABLE_PLUGIN
             ),
@@ -682,7 +682,7 @@ fn fit_statistical_joint(
 /// Assemble supplied + fitted joints after checking provider coverage.
 ///
 /// # Errors
-/// Missing providers, convenience target samples, unlicensed smoothers, or domain errors.
+/// Missing providers, convenience target samples, unsupported smoothers, or domain errors.
 pub(crate) fn assemble_statistical_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
@@ -703,7 +703,7 @@ fn assemble_laws(
     if options.estimator == EmpiricalTableEstimator::Dirichlet {
         return Err(EstimationError::refused(
             antecedent_core::reason_code!("transport_unsupported_evaluator"),
-            format!("{} is not licensed", options.estimator.as_str()),
+            format!("{} is not supported", options.estimator.as_str()),
         ));
     }
     validate_options(options)?;
@@ -900,15 +900,15 @@ fn catalog_axes_bounded(
 
 /// Whether every estimated binding is IID independent studies.
 #[must_use]
-pub fn licensed_iid_dependence(catalog: &EvidenceCatalog, samples: &[RegimeSample]) -> bool {
-    licensed_iid_regimes(catalog, samples.iter().map(|sample| sample.regime))
+pub fn supported_iid_dependence(catalog: &EvidenceCatalog, samples: &[RegimeSample]) -> bool {
+    supported_iid_regimes(catalog, samples.iter().map(|sample| sample.regime))
 }
 
-/// [`licensed_iid_dependence`] over bare regime ids, for callers that hold a sample
+/// [`supported_iid_dependence`] over bare regime ids, for callers that hold a sample
 /// summary rather than the samples. A catalog binds one dataset per regime, so the
 /// regime's binding is unique.
 #[must_use]
-pub fn licensed_iid_regimes(
+pub fn supported_iid_regimes(
     catalog: &EvidenceCatalog,
     regimes: impl IntoIterator<Item = RegimeId>,
 ) -> bool {
@@ -922,7 +922,7 @@ pub fn licensed_iid_regimes(
     })
 }
 
-/// Stable reason when a licensed interval cannot be claimed.
+/// Stable reason when a supported interval cannot be claimed.
 #[must_use]
 pub fn dependence_refusal(
     catalog: &EvidenceCatalog,
@@ -931,7 +931,7 @@ pub fn dependence_refusal(
     if samples.is_empty() {
         return Some("no_estimated_regime");
     }
-    if licensed_iid_dependence(catalog, samples) {
+    if supported_iid_dependence(catalog, samples) {
         None
     } else {
         Some("transport.unsupported_dependence")
@@ -1312,7 +1312,7 @@ mod tests {
     }
 
     #[test]
-    fn dirichlet_is_an_unlicensed_evaluator() {
+    fn dirichlet_is_an_unsupported_evaluator() {
         let err = fit_empirical_joint(
             &sample(1, 0, 0, 0),
             &[DiscreteAxis {

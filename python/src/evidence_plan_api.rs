@@ -285,7 +285,7 @@ impl FailureStage {
     }
 
     /// The failure as a capability report: the evidence-gathering `next_actions`, one
-    /// licensed `neighbors` entry per repairing route family, and one `unmet_obligations`
+    /// supported `neighbors` entry per repairing route family, and one `unmet_obligations`
     /// entry per obligation (an assumption is `uncheckable`: no study establishes it),
     /// shaped as the host record's members.
     fn capability_report(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {

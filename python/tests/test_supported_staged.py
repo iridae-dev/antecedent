@@ -1,0 +1,1100 @@
+"""Every supported cell must run identify → prepare → estimate, not analyze-only."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import replace
+
+import antecedent
+import numpy as np
+import pytest
+from antecedent.outcomes import require_success
+
+from _repo_text import REPO_ROOT, load_json
+
+
+def _confounded(n: int = 240, seed: int = 19):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (rng.random(n) < 1.0 / (1.0 + np.exp(-(-0.4 + 0.9 * z)))).astype(np.float64)
+    y = 2.0 * t + z + rng.normal(scale=0.4, size=n)
+    return {"t": t, "y": y, "z": z}
+
+
+_ATE_DATA = _confounded()
+_EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
+_DAG = antecedent.Dag.from_edges(["z", "t", "y"], _EDGES)
+_ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
+_ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+_PAG_DATA = {**_ATE_DATA, "r": np.arange(len(_ATE_DATA["t"]), dtype=float) % 2}
+_PAG = antecedent.Pag.from_marked_edges(
+    ["t", "y", "z", "r"],
+    [
+        ("r", "t", "tail", "arrow"),
+        ("z", "t", "tail", "arrow"),
+        ("z", "y", "tail", "arrow"),
+        ("t", "y", "tail", "arrow"),
+    ],
+)
+_PAG_ACCEPTED = antecedent.AcceptedGraph.from_graph(_PAG, algorithm_id="hand")
+
+
+def _frontdoor_table(n: int = 300):
+    u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
+    t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u, strict=True)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u, strict=True)])
+    return {"t": t, "m": m, "y": y}
+
+
+_ADMG_DATA = _frontdoor_table()
+_ADMG = antecedent.Admg.from_edges(
+    ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+)
+_ADMG_ACCEPTED = antecedent.AcceptedGraph.from_graph(_ADMG, algorithm_id="hand")
+_ADMG_ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+
+
+def _curve_table(n: int = 400, seed: int = 19):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = 0.7 * z + rng.normal(size=n)
+    y = 2.0 * t + z + rng.normal(scale=0.2, size=n)
+    return {"t": t, "y": y, "z": z}
+
+
+_CURVE_DATA = _curve_table()
+_CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
+
+
+_BAYES = antecedent.Bayesian(backend="conjugate", n_draws=64)
+
+
+def _interactive(inference):
+    """The estimate-click tier on a declared inference (a Frequentist one when omitted)."""
+    if inference is None:
+        return antecedent.Frequentist(profile="interactive")
+    return replace(inference, profile="interactive")
+
+
+# -- ConditionalEffect / PathSpecificEffect / InterventionalDistribution fixtures --------
+#
+# Small deterministic tables mirroring the Rust prepared_analysis.rs fixtures
+# (conditional_effect_fixture / path_specific_fixture / distribution_fixture in
+# crates/antecedent/tests/prepared_analysis.rs): a `t -> y <- w` interaction table, a
+# discrete `t -> m -> y` chain (no direct edge), and a confounded `z -> t -> y <- z` table.
+
+
+def _conditional_table(n: int = 120):
+    t = np.array([0.0 if i % 2 == 0 else 1.0 for i in range(n)])
+    w = np.array([float(i % 5) for i in range(n)])
+    y = 1.0 + 2.0 * t + 0.5 * t * w
+    return {"t": t, "y": y, "w": w}
+
+
+_CONDITIONAL_DATA = _conditional_table()
+_CONDITIONAL_EDGES = [("t", "y"), ("w", "y")]
+_CONDITIONAL_DAG = antecedent.Dag.from_edges(["t", "y", "w"], _CONDITIONAL_EDGES)
+_CONDITIONAL_ACCEPTED = antecedent.AcceptedGraph.from_graph(_CONDITIONAL_DAG, algorithm_id="hand")
+_CONDITIONAL = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
+
+
+def _path_specific_table():
+    t_vals: list[float] = []
+    m_vals: list[float] = []
+    y_vals: list[float] = []
+    for t, m, y, count in (
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ):
+        t_vals.extend([t] * count)
+        m_vals.extend([m] * count)
+        y_vals.extend([y] * count)
+    return {"t": np.array(t_vals), "m": np.array(m_vals), "y": np.array(y_vals)}
+
+
+_PATH_DATA = _path_specific_table()
+_PATH_EDGES = [("t", "m"), ("m", "y")]
+_PATH_DAG = antecedent.Dag.from_edges(["t", "m", "y"], _PATH_EDGES)
+_PATH_SPECIFIC = antecedent.PathSpecificEffect(treatment="t", outcome="y", path_nodes=["m"])
+
+
+def _distribution_table():
+    combos = [
+        (0.0, 0.0, 0.0, 21),
+        (0.0, 0.0, 1.0, 9),
+        (0.0, 1.0, 0.0, 4),
+        (0.0, 1.0, 1.0, 16),
+        (1.0, 0.0, 0.0, 12),
+        (1.0, 0.0, 1.0, 3),
+        (1.0, 1.0, 0.0, 14),
+        (1.0, 1.0, 1.0, 21),
+    ]
+    t_vals: list[float] = []
+    y_vals: list[float] = []
+    z_vals: list[float] = []
+    for z, t, y, count in combos:
+        for _ in range(count):
+            z_vals.append(z)
+            t_vals.append(t)
+            y_vals.append(y)
+    return {"t": np.array(t_vals), "y": np.array(y_vals), "z": np.array(z_vals)}
+
+
+_DISTRIBUTION_DATA = _distribution_table()
+_DISTRIBUTION_EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
+_DISTRIBUTION_DAG = antecedent.Dag.from_edges(["t", "y", "z"], _DISTRIBUTION_EDGES)
+_DISTRIBUTION = antecedent.InterventionalDistribution(outcome="y", interventions={"t": 1.0})
+
+
+# -- InterventionResponse fixture ------------------------------------------------------
+#
+# Same deterministic generator as the Rust known-truth pin
+# (conformance/response/intervention_response/expected.json /
+# crates/antecedent/tests/response_facade.rs::intervention_response_conforms_to_known_truth_fixture):
+# zero-noise linear structural mean, hard do(t := 0.25).
+
+
+def _intervention_response_table(n: int = 240):
+    z = np.array([math.sin(i / 17.0) for i in range(n)])
+    t = z + np.array([math.cos(i / 11.0) for i in range(n)])
+    y = 1.0 + 2.0 * t + 0.8 * z
+    return {"t": t, "y": y, "z": z}
+
+
+_IR_DATA = _intervention_response_table()
+_IR_EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
+_IR_DAG = antecedent.Dag.from_edges(["t", "y", "z"], _IR_EDGES)
+_IR_ACCEPTED = antecedent.AcceptedGraph.from_graph(_IR_DAG, algorithm_id="hand")
+_IR = antecedent.InterventionResponse(
+    outcome="y", intervention=antecedent.intervention.Set("t", 0.25)
+)
+
+# `_intervention_response_table` is the exact same deterministic generator as
+# `conformance/response/intervention_response/expected.json` (see comment above), so
+# unlike most fixtures in this file this coordinate has a real known-truth value to
+# compare against, not just self-consistency between `analyze()` and `PreparedAnalysis`.
+_REPO_ROOT = REPO_ROOT
+_IR_FIXTURE = load_json(
+    _REPO_ROOT / "conformance" / "response" / "intervention_response" / "expected.json"
+)
+_IR_TRUE_RESPONSE = _IR_FIXTURE["contract"]["true_response"]
+_IR_TOLERANCE = _IR_FIXTURE["tolerance"]["truth_absolute"]
+
+
+def _pulse_table(n: int = 80):
+    t = np.array([math.sin(i / 17.0) for i in range(n)])
+    y = np.zeros(n)
+    for i in range(1, n):
+        y[i] = 0.5 * t[i - 1]
+    return {"t": t, "y": y}
+
+
+_PULSE_DATA = _pulse_table()
+_PULSE_EDGES = [("t", 1, "y", 0)]
+_PULSE_TDAG = antecedent.TemporalDag.from_lagged_edges(["t", "y"], _PULSE_EDGES)
+_PULSE_ACCEPTED = antecedent.AcceptedGraph.from_graph(_PULSE_TDAG, algorithm_id="hand")
+_PULSE = antecedent.PulseEffect(treatment="t", outcome="y", treatment_lag=1, horizon_steps=1)
+_SUSTAINED = antecedent.SustainedEffect(
+    treatment="t", outcome="y", treatment_lag=1, horizon_steps=1
+)
+# Same TemporalDag as `_PULSE_ACCEPTED`; Sustained shares the graph, only the query differs.
+_SUSTAINED_ACCEPTED = _PULSE_ACCEPTED
+
+# `y_i = 0.5 * t_(i-1)`, zero noise: the structural pulse/single-step-sustained
+# contrast at treatment_lag=1 is exactly 0.5. Known truth, not a fixture file.
+_PULSE_TRUE_ATE = 0.5
+
+
+def _mediation_table(n: int = 80):
+    t = np.zeros(n)
+    m = np.zeros(n)
+    y = np.zeros(n)
+    for i in range(1, n):
+        t[i] = 0.1 * math.sin(i)
+        m[i] = 0.8 * t[i - 1] + 0.05 * math.cos(i)
+        y[i] = 0.5 * m[i] + 0.02 * math.sin(i)
+    return {"t": t, "m": m, "y": y}
+
+
+_MED_DATA = _mediation_table()
+_MED_EDGES = [("t", 1, "m", 0), ("m", 0, "y", 0)]
+_MED_TDAG = antecedent.TemporalDag.from_lagged_edges(["t", "m", "y"], _MED_EDGES)
+_MED_ACCEPTED = antecedent.AcceptedGraph.from_graph(_MED_TDAG, algorithm_id="hand")
+_MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+
+
+def _adjusted_ols(data):
+    """OLS coefficients of `y ~ 1 + t + z`, the back-door adjusted linear reference."""
+    n = len(data["t"])
+    design = np.column_stack([np.ones(n), data["t"], data["z"]])
+    return np.linalg.lstsq(design, data["y"], rcond=None)[0]
+
+
+def _mediated_reference(data):
+    """Product of coefficients: m on lagged t, then y on (m, lagged t)."""
+    t, m, y = data["t"], data["m"], data["y"]
+    n = len(t)
+    a = np.linalg.lstsq(np.column_stack([np.ones(n - 1), t[:-1]]), m[1:], rcond=None)[0][1]
+    b = np.linalg.lstsq(np.column_stack([np.ones(n - 1), m[1:], t[:-1]]), y[1:], rcond=None)[0][1]
+    return a * b
+
+
+@pytest.mark.parametrize(
+    "data, graph, query, refute, inference",
+    [
+        (_ATE_DATA, _DAG, _ATE, False, None),
+        (_ATE_DATA, _DAG, _ATE, "cheap", None),
+        (_ATE_DATA, _DAG, _ATE, "full", None),
+        (_ATE_DATA, _ACCEPTED, _ATE, False, None),
+        (_ATE_DATA, _ACCEPTED, _ATE, "cheap", None),
+        (_ATE_DATA, _ACCEPTED, _ATE, "full", None),
+        (_ATE_DATA, _DAG, _ATE, False, _BAYES),
+        (_ATE_DATA, _DAG, _ATE, "cheap", _BAYES),
+        (_ATE_DATA, _DAG, _ATE, "full", _BAYES),
+        (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
+        (_ATE_DATA, _ACCEPTED, _ATE, "cheap", _BAYES),
+        (_ATE_DATA, _ACCEPTED, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, False, None),
+        (_PAG_DATA, _PAG, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG, _ATE, "full", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", None),
+        (_PAG_DATA, _PAG, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, False, None),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, "cheap", None),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, "full", None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, False, None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, "cheap", None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, "full", None),
+        (_CURVE_DATA, _EDGES, _CURVE, False, None),
+        (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, False, None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, "cheap", None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, "full", None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_ACCEPTED, _CONDITIONAL, False, None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_ACCEPTED, _CONDITIONAL, "cheap", None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_ACCEPTED, _CONDITIONAL, "full", None),
+        (_PATH_DATA, _PATH_DAG, _PATH_SPECIFIC, False, None),
+        (_DISTRIBUTION_DATA, _DISTRIBUTION_DAG, _DISTRIBUTION, False, None),
+        (_IR_DATA, _IR_DAG, _IR, False, None),
+        (_IR_DATA, _IR_ACCEPTED, _IR, False, None),
+        (_PULSE_DATA, _PULSE_TDAG, _PULSE, False, None),
+        (_PULSE_DATA, _PULSE_ACCEPTED, _PULSE, False, None),
+        (_PULSE_DATA, _PULSE_TDAG, _PULSE, "cheap", None),
+        (_PULSE_DATA, _PULSE_ACCEPTED, _PULSE, "cheap", None),
+        (_PULSE_DATA, _PULSE_TDAG, _PULSE, False, _BAYES),
+        (_PULSE_DATA, _PULSE_TDAG, _SUSTAINED, False, None),
+        (_PULSE_DATA, _SUSTAINED_ACCEPTED, _SUSTAINED, False, None),
+        (_PULSE_DATA, _PULSE_TDAG, _SUSTAINED, "cheap", None),
+        (_PULSE_DATA, _SUSTAINED_ACCEPTED, _SUSTAINED, "cheap", None),
+        (_PULSE_DATA, _PULSE_TDAG, _SUSTAINED, False, _BAYES),
+        (_MED_DATA, _MED_TDAG, _MED, False, None),
+        (_MED_DATA, _MED_ACCEPTED, _MED, False, None),
+    ],
+    ids=[
+        "ate_explicit_none",
+        "ate_explicit_cheap",
+        "ate_explicit_full",
+        "ate_accepted_none",
+        "ate_accepted_cheap",
+        "ate_accepted_full",
+        "ate_explicit_bayesian_none",
+        "ate_explicit_bayesian_cheap",
+        "ate_explicit_bayesian_full",
+        "ate_accepted_bayesian_none",
+        "ate_accepted_bayesian_cheap",
+        "ate_accepted_bayesian_full",
+        "ate_pag_explicit_none",
+        "ate_pag_explicit_cheap",
+        "ate_pag_explicit_full",
+        "ate_pag_accepted_none",
+        "ate_pag_accepted_cheap",
+        "ate_pag_accepted_full",
+        "ate_pag_explicit_bayesian_none",
+        "ate_pag_explicit_bayesian_cheap",
+        "ate_pag_explicit_bayesian_full",
+        "ate_pag_accepted_bayesian_none",
+        "ate_pag_accepted_bayesian_cheap",
+        "ate_pag_accepted_bayesian_full",
+        "ate_admg_explicit_none",
+        "ate_admg_explicit_cheap",
+        "ate_admg_explicit_full",
+        "ate_admg_accepted_none",
+        "ate_admg_accepted_cheap",
+        "ate_admg_accepted_full",
+        "curve_explicit_none",
+        "curve_accepted_none",
+        "conditional_explicit_none",
+        "conditional_explicit_cheap",
+        "conditional_explicit_full",
+        "conditional_accepted_none",
+        "conditional_accepted_cheap",
+        "conditional_accepted_full",
+        "path_specific_explicit_none",
+        "distribution_explicit_none",
+        "intervention_response_explicit_none",
+        "intervention_response_accepted_none",
+        "pulse_explicit_none",
+        "pulse_accepted_none",
+        "pulse_explicit_cheap",
+        "pulse_accepted_cheap",
+        "pulse_explicit_bayesian_none",
+        "sustained_explicit_none",
+        "sustained_accepted_none",
+        "sustained_explicit_cheap",
+        "sustained_accepted_cheap",
+        "sustained_explicit_bayesian_none",
+        "temporal_mediation_explicit_none",
+        "temporal_mediation_accepted_none",
+    ],
+)
+def test_supported_cell_prepare_matches_analyze(data, graph, query, refute, inference):
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=refute,
+            inference=antecedent.Frequentist(bootstrap=0) if inference is None else inference,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    prepared = antecedent.prepare(
+        data,
+        graph=graph,
+        query=query,
+        refute=refute,
+        inference=_interactive(inference),
+        execution=antecedent.Execution(seed=1),
+    )
+    if isinstance(graph, antecedent.AcceptedGraph) and hasattr(prepared, "structure_source"):
+        assert prepared.structure_source == "accepted"
+    if hasattr(prepared, "evidence_status"):
+        assert prepared.evidence_status == "supported"
+    click = require_success(antecedent.estimate(prepared))
+    assert getattr(click, "evidence_status", None) == "supported"
+    if isinstance(query, antecedent.ResponseCurve):
+        assert click.response is not None and fresh.response is not None
+        assert click.response.values == fresh.response.values
+        # Independent reference: E[y | do(t = g)] = b0 + b1 g + b2 mean(z) from the adjusted OLS.
+        b0, b1, b2 = _adjusted_ols(data)
+        expected = [b0 + b1 * g + b2 * float(np.mean(data["z"])) for g in (-0.5, 0.0, 0.5)]
+        np.testing.assert_allclose(np.asarray(click.response.values).flatten(), expected, atol=0.05)
+        return
+    if isinstance(query, antecedent.InterventionResponse):
+        assert isinstance(click.estimate, float) and isinstance(fresh.estimate, float)
+        assert math.isfinite(click.estimate) and math.isfinite(fresh.estimate)
+        assert click.estimate == fresh.estimate
+        # Known-truth pin, not just self-consistency: `_intervention_response_table`
+        # is the same deterministic generator as the Rust fixture this cell is
+        # supported against (`conformance/response/intervention_response`).
+        assert click.estimate == pytest.approx(_IR_TRUE_RESPONSE, abs=_IR_TOLERANCE)
+        return
+    if isinstance(query, antecedent.TemporalMediationEffect):
+        assert click.mediation is not None and fresh.mediation is not None
+        assert click.mediation.mediated == fresh.mediation.mediated
+        assert click.ate == fresh.ate
+        assert click.mediation.mediated == pytest.approx(_mediated_reference(data), abs=1e-9)
+        return
+    assert math.isfinite(click.ate) and math.isfinite(fresh.ate)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    # Independent known answers, so the cell is checked against more than its own analyze().
+    if isinstance(query, antecedent.AverageEffect) and "z" in data:
+        # Back-door adjustment for z: the adjusted OLS coefficient on t (exact for the
+        # Frequentist fit; the conjugate posterior mean sits within prior shrinkage of it).
+        reference = _adjusted_ols(data)[1]
+        tol = 1e-9 if inference is None else 0.02
+        assert click.ate == pytest.approx(reference, abs=tol)
+        assert abs(reference - 2.0) < 0.05  # and that reference is the structural 2.0
+    elif isinstance(query, antecedent.AverageEffect):
+        # Front-door table: sum_m P(m | t) sum_t' P(t') E[y | m, t'] differences to exactly 0.
+        assert click.ate == pytest.approx(0.0, abs=1e-9)
+    elif isinstance(query, antecedent.ConditionalEffect):
+        # y = 1 + 2t + 0.5tw on balanced w = 0..4: the modifier-averaged contrast is 3.
+        assert click.ate == pytest.approx(3.0, abs=1e-8)
+    elif isinstance(query, antecedent.PathSpecificEffect):
+        # t -> m -> y is unconfounded, so the all-paths effect is E[y|t=1] - E[y|t=0] = 0.8 - 0.5.
+        assert click.ate == pytest.approx(0.3, abs=1e-9)
+    elif isinstance(query, antecedent.InterventionalDistribution):
+        # Back-door over z: sum_z P(z) P(y=1 | t=1, z) = 0.7 from the contingency table.
+        assert click.ate == pytest.approx(0.7, abs=1e-9)
+    if isinstance(query, (antecedent.PulseEffect, antecedent.SustainedEffect)):
+        # Known-truth pin: `y_i = 0.5 * t_(i-1)` with zero noise, so the structural
+        # Pulse/single-step-Sustained contrast at treatment_lag=1 is exactly 0.5.
+        # Frequentist OLS recovers it to machine precision; the Bayesian posterior
+        # mean carries a small prior-shrinkage bias at n=80, hence the looser bound.
+        tol = 1e-9 if inference is None else 1e-3
+        assert click.ate == pytest.approx(_PULSE_TRUE_ATE, abs=tol)
+        if refute == "cheap":
+            # `RefuteSuite::Cheap` on a temporal-unfolded design runs exactly one
+            # refuter: `OverlapRefuter` is `NotApplicable` for temporal designs
+            # (propensity uses schema adjustment columns, which a temporal
+            # unfolded design does not have) and is dropped from the report
+            # entirely, not surfaced as a "skipped" entry — see
+            # `ValidatorId::Overlap` in `crates/antecedent-validate/src/suite.rs`
+            # and `crates/antecedent/tests/manufacturing_temporal.rs` for the
+            # Rust-side pin of the same fact. So "cheap" here is E-value only,
+            # not "overlap + E-value".
+            for view, label in ((fresh.validation, "fresh"), (click.validation, "click")):
+                names = [r.refuter for r in view.reports]
+                assert names == ["sensitivity.evalue"], f"{label}: {names}"
+                # `TemporalDependenceAdjustmentEstimator::fit_dependence_honest`
+                # (`crates/antecedent-estimate/src/temporal_adjustment.rs`) always
+                # reports `se_analytic = NaN` for a lag-aligned temporal design: the
+                # iid OLS SE ignores the serial dependence and a same-bandwidth
+                # Newey-West HAC SE under-covered in calibration, so only
+                # `se_bootstrap` (the circular-block bootstrap, `bootstrap > 0`) is a
+                # usable SE here. Both `fresh` and `prepared` in this test run with
+                # `bootstrap = 0` (explicit above, and the interactive latency tier's
+                # own omitted-Pulse/Sustained-bootstrap default), so neither SE is
+                # usable and the E-value's confidence-limit component is undefined:
+                # `sensitivity.evalue`'s `informative` is correctly `False` here, not
+                # a defect (`crates/antecedent-validate/src/evalue.rs::usable_se`).
+                assert not view.reports[0].informative, (
+                    f"{label}: e-value has no usable SE at bootstrap=0 on a "
+                    "temporal design and must not claim to be informative"
+                )
+
+
+# `parity/support_cells.toml` supports `PulseEffect`/`SustainedEffect` ×
+# `TemporalDag` × `Frequentist` × `full` (explicit and accepted), and
+# `RefuteSuite::Full` now actually completes at this coordinate through both the
+# one-shot `analyze()` path and `antecedent.estimate`.
+#
+# Root cause (fixed; see `crates/antecedent/tests/manufacturing_temporal.rs` for the
+# full trace): `DataSubsetRefuter` (`crates/antecedent-validate/src/data_subset.rs`)
+# used to keep a random subset of rows by calling `TabularData::with_analysis_mask`
+# rather than physically dropping rows. The temporal refit path rebuilt a
+# `TimeSeriesData` from that masked table and lag-gathered it, which
+# unconditionally rejected any non-fully-valid analysis mask (`ensure_unmasked` in
+# `crates/antecedent-data/src/sample.rs`) because lag-gather indexes raw row
+# positions — a masked-out row would corrupt the lag alignment. Physically dropping
+# the masked-out rows instead of hiding them would dodge that error but not the
+# underlying problem: an *interior* hole makes rows on either side no longer
+# adjacent in time, so lag-1/lag-2 would silently mean something else across the
+# seam. The fix keeps one random *contiguous* window of rows for temporal designs
+# (`with_contiguous_row_window`, `crates/antecedent-validate/src/common.rs`)
+# instead: every retained row's immediate predecessor in the window is still its
+# immediate predecessor in the original series, so lag semantics survive, and the
+# refit rebuilds the series time index at the window's (shorter) length.
+@pytest.mark.parametrize(
+    "graph, query",
+    [
+        (_PULSE_TDAG, _PULSE),
+        (_PULSE_ACCEPTED, _PULSE),
+        (_PULSE_TDAG, _SUSTAINED),
+        (_SUSTAINED_ACCEPTED, _SUSTAINED),
+    ],
+    ids=[
+        "pulse_explicit_full",
+        "pulse_accepted_full",
+        "sustained_explicit_full",
+        "sustained_accepted_full",
+    ],
+)
+def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, query):
+    def _assert_data_subset_refuter(result):
+        # `y_i = 0.5 * t_(i-1)`, zero noise (see `_pulse_table`): OLS on *any*
+        # complete contiguous window with enough variation exactly recovers the
+        # structural coefficient 0.5, so the contiguous-window subset refit
+        # reproduces the original ATE to floating point — a genuine, non-degenerate
+        # check that keeps lag semantics valid, not a trivially-passing no-op.
+        subset = result.validation["data.subset"]
+        assert subset.original_ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
+        assert subset.refuted_ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
+        assert subset.comparison == pytest.approx(1.0, abs=1e-6)
+        assert subset.passed
+        assert subset.replicates == 20
+
+    result = require_success(
+        antecedent.analyze(
+            _PULSE_DATA,
+            graph=graph,
+            query=query,
+            refute="full",
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert result.evidence_status == "supported"
+    assert result.ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
+    _assert_data_subset_refuter(result)
+
+    prepared = antecedent.prepare(
+        _PULSE_DATA,
+        graph=graph,
+        query=query,
+        refute="full",
+        inference=antecedent.Frequentist(profile="interactive"),
+        execution=antecedent.Execution(seed=1),
+    )
+    assert prepared.evidence_status == "supported"
+    estimated = require_success(antecedent.estimate(prepared))
+    assert estimated.ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
+    _assert_data_subset_refuter(estimated)
+
+
+def _outcome(data, graph, query):
+    """Estimate, or the refusal type and message when the cell refuses."""
+    try:
+        result = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+    except Exception as error:  # noqa: BLE001 - the refusal itself is compared
+        return type(error), str(error)
+    return repr(result.estimate.ate), repr(result.estimate.se_analytic)
+
+
+def test_pag_analyze_matches_columns_by_name_not_position():
+    # The supported four-variable PAG answers (the three-variable one refuses identically in both
+    # orders, which would make the comparison vacuous), so permuting the columns is a real check.
+    ordered = {name: _PAG_DATA[name] for name in ("y", "r", "z", "t")}
+    assert list(_PAG_DATA) != list(ordered)
+    outcome = _outcome(_PAG_DATA, _PAG, _ATE)
+    assert outcome == _outcome(ordered, _PAG, _ATE)
+    assert isinstance(outcome[0], str) and float(outcome[0]) == pytest.approx(
+        _adjusted_ols(_PAG_DATA)[1], abs=1e-9
+    )
+
+
+def test_admg_analyze_matches_columns_by_name_not_position():
+    admg = antecedent.Admg.from_edges(
+        ["m", "t", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+    )
+    ordered = {name: _ADMG_DATA[name] for name in ("m", "t", "y")}
+    assert list(_ADMG_DATA) != list(ordered)
+    outcome = _outcome(_ADMG_DATA, admg, _ADMG_ATE)
+    assert outcome == _outcome(ordered, admg, _ADMG_ATE)
+    assert isinstance(outcome[0], str) and float(outcome[0]) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_supported_graph_posterior_prepare_matches_analyze():
+    from known_truth import BAYES, STATIC, static_data, static_posterior
+
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=_interactive(BAYES),
+        refute=False,
+        execution=antecedent.Execution(seed=1),
+    )
+    click = require_success(antecedent.estimate(prepared))
+    expected = float(STATIC["expected_effect_given_identified"])
+    tolerance = float(STATIC["effect_abs_tolerance"])
+    assert prepared.evidence_status == "supported"
+    assert click.evidence_status == "supported"
+    assert click.ate is None and fresh.ate is None
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.effect_mean == pytest.approx(expected, abs=tolerance)
+    assert abs(click.posterior.effect_mean - fresh.posterior.effect_mean) < 1e-12
+    assert click.posterior.unidentified_mass == pytest.approx(
+        float(STATIC["expected_unidentified_mass"]), abs=1e-12
+    )
+    # 1.1: prepare freezes per-atom identification; only the click reuses it.
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_supported_graph_posterior_frequentist_prepare_matches_analyze():
+    from known_truth import FREQ, STATIC, static_data, static_posterior
+
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=_interactive(FREQ),
+        refute=False,
+        execution=antecedent.Execution(seed=1),
+    )
+    outcome = antecedent.estimate(prepared)
+    click = require_success(outcome)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "graph_posterior_effect"
+    assert plan["estimator"] == "linear.adjustment.ate"
+    assert plan["validation"] == "none"
+    assert plan["weights"] == pytest.approx(
+        [float(weight) for weight in STATIC["posterior_weights"]]
+    )
+    assert len(plan["graph_keys"]) == len(plan["identified"]) == 3
+    assert prepared.evidence_status == "supported"
+    assert click.evidence_status == "supported"
+    assert click.ate is None and fresh.ate is None
+    assert fresh.posterior is None and click.posterior is None
+    assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+    consumed = antecedent.artifacts.accept(bytes(click.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_graph_posterior_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
+    a = np.array([float(i % 2) for i in range(200)])
+    m = 0.4 * a + np.sin(np.arange(200) * 0.71)
+    y = 0.3 * a + 0.5 * m
+    data = {"a": a, "m": m, "y": y}
+    builder_graph = antecedent.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
+    if accepted:
+        builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
+    builder_query = antecedent.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
+    prepared = antecedent.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=11),
+    )
+    del builder_graph, builder_query
+    # The sealed operation is retained once the study materializes, so read it from the outcome.
+    outcome = antecedent.estimate(prepared)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "static_mediation"
+    assert (plan["treatment"], plan["outcome"], plan["mediators"]) == ("a", "y", ["m"])
+    assert plan["contrast"] == "NaturalDirect"
+    assert plan["estimator"] == "mediation.linear"
+    assert plan["validation"] == "none"
+    assert len(plan["graph_edges"]) == 3
+    result = require_success(outcome)
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
+    changed = {**data, "y": y + 0.1 * a}
+    refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
+    refreshed = require_success(refreshed_outcome)
+    assert refreshed.ate == pytest.approx(0.4, abs=1e-9)
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_mediation_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
+    from known_truth import static_data
+
+    data = static_data(256)
+    builder_graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    if accepted:
+        builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
+    builder_query = antecedent.AverageEffect("t", "y")
+    inference = antecedent.Bayesian(backend="conjugate", n_draws=64, prior_scale=30.0)
+    prepared = antecedent.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        inference=inference,
+        refute=False,
+        execution=antecedent.Execution(seed=12),
+    )
+    del builder_graph, builder_query
+    # The sealed operation is retained once the study materializes, so read it from the outcome.
+    outcome = antecedent.estimate(prepared)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "bayesian_gcomp"
+    assert (plan["treatment"], plan["outcome"]) == ("t", "y")
+    assert plan["estimator"] == "bayesian.gcomp"
+    assert plan["n_draws"] == 64
+    assert plan["prior_scale"] == pytest.approx(30.0)
+    assert plan["transferred_prior"] is False
+    assert plan["validation"] == "none"
+    assert plan["adjustment_set"] == ["z"]
+    result = require_success(outcome)
+    # static_data is exactly y = 2t + z + noise-free structure: the adjusted OLS coefficient is 2.
+    assert _adjusted_ols(data)[1] == pytest.approx(2.0, abs=1e-9)
+    assert result.ate == pytest.approx(2.0, abs=0.02)
+    assert result.posterior is not None
+    changed = {**data, "y": data["y"] + 0.4 * data["t"]}
+    refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
+    refreshed = require_success(refreshed_outcome)
+    assert _adjusted_ols(changed)[1] == pytest.approx(2.4, abs=1e-9)
+    assert refreshed.ate == pytest.approx(2.4, abs=0.02)
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+@pytest.mark.parametrize(
+    ("refute", "validation"),
+    [(False, "none"), ("cheap", "overlap+evalue"), ("full", "validation.full")],
+    ids=["none", "cheap", "full"],
+)
+def test_checked_conditional_effect_retains_interaction_target_and_refresh(
+    accepted: bool, refute: bool | str, validation: str
+):
+    data = _conditional_table()
+    builder_graph = _CONDITIONAL_ACCEPTED if accepted else _CONDITIONAL_DAG
+    builder_query = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
+    prepared = antecedent.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        refute=refute,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=7),
+    )
+    del builder_graph, builder_query
+    # The sealed operation is retained once the study materializes, so read it from the outcome.
+    outcome = antecedent.estimate(prepared)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "conditional_effect"
+    assert (plan["treatment"], plan["outcome"], plan["modifiers"]) == ("t", "y", ["w"])
+    assert plan["estimator"] == "conditional.linear.adjustment"
+    assert plan["procedure"] == "linear_interaction_plugin"
+    assert plan["validation"] == validation
+    assert set(plan["design_roles"]) == {"t", "y", "w"}
+    assert len(plan["source_rows"]) == len(data["t"])
+    assert prepared.structure_source == ("accepted" if accepted else "explicit")
+
+    result = require_success(outcome)
+    # The data generator is the exact SCM y = 1 + 2t + 0.5tw. Averaging its
+    # conditional contrast 2 + 0.5w over the balanced w=0..4 gives 3.
+    assert result.ate == pytest.approx(3.0, abs=1e-8)
+    changed = {**data, "y": data["y"] + 0.4 * data["t"]}
+    refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
+    refreshed = require_success(refreshed_outcome)
+    assert refreshed.ate == pytest.approx(3.4, abs=1e-8)
+    assert refreshed_outcome.study.plan_view().operation["source_rows"] == plan["source_rows"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_conditional_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+@pytest.mark.parametrize(
+    ("query", "policy"),
+    [(_PULSE, "Pulse"), (_SUSTAINED, "Sustained")],
+    ids=["pulse", "sustained"],
+)
+def test_checked_temporal_effect_retains_policy_and_refresh(accepted, query, policy):
+    data = _pulse_table(160)
+    builder_graph = _PULSE_ACCEPTED if accepted else _PULSE_TDAG
+    builder_query = query
+    prepared = antecedent.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=9),
+    )
+    del builder_graph, builder_query
+    # The sealed operation is retained once the study materializes, so read it from the outcome.
+    outcome = antecedent.estimate(prepared)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "temporal_dag_effect"
+    assert policy in plan["policy"]
+    assert plan["horizon_steps"] == 1
+    assert plan["estimator"] == "temporal.linear.adjustment"
+    assert plan["identifier"] == "temporal.backdoor.unfolded"
+    assert plan["validation"] == "none"
+    assert plan["graph_signature"]
+
+    result = require_success(outcome)
+    assert result.ate == pytest.approx(0.5, abs=1e-6)
+    changed = {**data, "y": data["y"] * 1.2}
+    refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
+    refreshed = require_success(refreshed_outcome)
+    assert refreshed.ate == pytest.approx(0.6, abs=1e-6)
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_temporal_dag_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepted: bool):
+    data = _pulse_table(160)
+    graph = _PULSE_ACCEPTED if accepted else _PULSE_TDAG
+    builder_query = antecedent.ResponseCurve(
+        "t", "y", grid=[-0.5, 0.0, 0.5], horizons=[1], policy="pulse"
+    )
+    prepared = antecedent.prepare(
+        data,
+        graph=graph,
+        query=builder_query,
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=8),
+    )
+    del builder_query, graph
+    # The sealed operation is retained once the study materializes, so read it from the outcome.
+    outcome = antecedent.estimate(prepared)
+    plan = outcome.study.plan_view().operation
+    assert plan is not None
+    assert plan["kind"] == "temporal_dag_response"
+    assert plan["grid_members"] == pytest.approx([-0.5, 0.0, 0.5])
+    assert plan["horizons"] == [1]
+    assert plan["estimator"] == "temporal.response.gcomp"
+
+    result = require_success(outcome)
+    assert result.response is not None
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).flatten(), [-0.25, 0.0, 0.25], atol=0.03
+    )
+    changed = {**data, "y": data["y"] + 0.3}
+    refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
+    refreshed = require_success(refreshed_outcome)
+    assert refreshed.response is not None
+    np.testing.assert_allclose(
+        np.asarray(refreshed.response.values).flatten(),
+        np.asarray(result.response.values).flatten() + 0.3,
+        atol=1e-9,
+    )
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_temporal_response_operation" in consumed["unresolved"]
+
+
+def test_supported_dbn_posterior_prepare_matches_analyze():
+    from known_truth import BAYES, TEMPORAL, temporal_posterior, white_noise_pulse_series
+
+    data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+    posterior = temporal_posterior()
+    query = antecedent.PulseEffect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            execution=antecedent.Execution(seed=11),
+        )
+    )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=_interactive(BAYES),
+        refute=False,
+        execution=antecedent.Execution(seed=11),
+    )
+    click = require_success(antecedent.estimate(prepared))
+    expected = float(TEMPORAL["expected_effect_given_identified"])
+    tolerance = float(TEMPORAL["effect_abs_tolerance"])
+    assert prepared.evidence_status == "supported"
+    assert click.evidence_status == "supported"
+    assert click.ate == pytest.approx(expected, abs=tolerance)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        float(TEMPORAL["expected_unidentified_mass"]), abs=1e-12
+    )
+    # 1.1: prepare freezes per-atom DBN identification; only the click reuses it.
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_prepared_exact_dag_posterior_discovery_reuses_identification():
+    posterior = antecedent.discovery.ExactDagPosterior().run(
+        _ATE_DATA, execution=antecedent.Execution(seed=7)
+    )
+    # Real-discovery arm of the prepared graph-posterior handle: discovery runs
+    # once at prepare, identification is frozen per atom, and only the click
+    # reports cache reuse.
+    fresh = require_success(
+        antecedent.analyze(
+            _ATE_DATA,
+            discovery=posterior,
+            query=_ATE,
+            inference=_BAYES,
+            refute=False,
+            execution=antecedent.Execution(seed=7),
+        )
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.prepare(
+        _ATE_DATA,
+        discovery=posterior,
+        query=_ATE,
+        inference=_interactive(_BAYES),
+        refute=False,
+        execution=antecedent.Execution(seed=7),
+    )
+    click = require_success(antecedent.estimate(prepared))
+    assert prepared.evidence_status == "supported"
+    assert click.evidence_status == "supported"
+    assert click.ate is None and fresh.ate is None
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_prepared_dbn_posterior_discovery_reuses_identification():
+    n = 400
+    rng = np.random.default_rng(42)
+    pressure = rng.normal(size=n).astype(np.float64)
+    defect = np.zeros(n, dtype=np.float64)
+    for t in range(1, n):
+        defect[t] = 0.9 * pressure[t - 1]
+    data = {"pressure": pressure, "defect": defect}
+    query = antecedent.PulseEffect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    discovery = antecedent.discovery.DbnPosterior(max_lag=1).run(
+        data, execution=antecedent.Execution(seed=11)
+    )
+    inference = antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate")
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=discovery,
+            query=query,
+            inference=inference,
+            refute=False,
+            execution=antecedent.Execution(seed=11),
+        )
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.prepare(
+        data,
+        discovery=discovery,
+        query=query,
+        inference=_interactive(inference),
+        refute=False,
+        execution=antecedent.Execution(seed=11),
+    )
+    click = require_success(antecedent.estimate(prepared))
+    assert prepared.evidence_status == "supported"
+    assert click.evidence_status == "supported"
+    assert abs(click.ate - fresh.ate) < 1e-12
+    # defect_t = 0.9 pressure_{t-1} with no noise: the pulse effect of the identified atoms is 0.9.
+    assert click.ate == pytest.approx(0.9, abs=0.01)
+    assert fresh.posterior is not None and click.posterior is not None
+    assert 0.0 <= fresh.posterior.unidentified_mass <= 1.0
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_distribution_publishes_bounded_probability_intervals():
+    """Frequentist distribution atoms carry logit intervals inside [0, 1]."""
+    result = require_success(
+        antecedent.analyze(
+            _DISTRIBUTION_DATA,
+            graph=_DISTRIBUTION_DAG,
+            query=_DISTRIBUTION,
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
+    )
+    atoms = result.estimate.distribution
+    assert atoms is not None and len(atoms) == 2
+    for atom in atoms:
+        assert atom.outcomes[0][0] == "y"
+        assert atom.se_bootstrap is not None and atom.se_bootstrap > 0.0
+        assert atom.interval is not None and atom.interval.unavailable is None
+        assert atom.interval.level == pytest.approx(0.95)
+        lower, upper = atom.interval.bounds
+        assert 0.0 < lower < atom.probability < upper < 1.0
+    one = next(a for a in atoms if a.outcomes[0][1] == 1.0)
+    # Back-door over z from the contingency table: sum_z P(z) P(y = 1 | t = 1, z) = 0.7, and the
+    # two atoms form a distribution.
+    assert one.probability == pytest.approx(0.7, abs=1e-9)
+    assert sum(a.probability for a in atoms) == pytest.approx(1.0, abs=1e-9)
+    # The binary headline mean is P(y = 1 | do(t = 1)) and uses that interval.
+    assert result.estimate.mean_interval == one.interval
+    assert result.effect == pytest.approx(one.probability)
+    assert "ci95=[" in repr(result) and "±" not in repr(result)
+    assert "ci95=[" in repr(result.estimate)
+    assert "ci95=[" in result._repr_html_()
+
+
+def test_distribution_boundary_probability_reports_unavailable_interval():
+    """P(y = 1 | do(t = 1)) = 0 has no interval, only a named reason and a diagnostic."""
+    data = {key: value.copy() for key, value in _DISTRIBUTION_DATA.items()}
+    data["y"][data["t"] == 1.0] = 0.0
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_DISTRIBUTION_DAG,
+            query=_DISTRIBUTION,
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
+    )
+    atoms = result.estimate.distribution
+    assert atoms is not None
+    for atom in atoms:
+        assert atom.probability in (0.0, 1.0)
+        assert atom.interval is not None and atom.interval.bounds is None
+        assert atom.interval.unavailable == "boundary_estimate"
+    assert result.estimate.mean_interval is not None
+    assert result.estimate.mean_interval.bounds is None
+    assert "ci=unavailable (boundary_estimate)" in repr(result)
+    assert any(
+        d.startswith("estimate.distribution.interval_unavailable") for d in result.diagnostics
+    )

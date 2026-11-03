@@ -2,7 +2,7 @@
 //!
 //! The whole sequence `do(A_1 = a_1, ..., A_H = a_H)` is one longitudinal
 //! intervention on the explicit unrolled selection diagram of horizon `H`. It is decided by the
-//! licensed classical catalog sID route in one call with both actions as the
+//! supported classical catalog sID route in one call with both actions as the
 //! treatment set; the time steps are never transported separately and
 //! multiplied. The unrolled diagram fixes the finite discrete structure:
 //! baseline covariates, the time-varying covariates observed before each action,
@@ -62,7 +62,7 @@ pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =
     "temporal_transport.history_outside_support";
 /// Detail: a horizon the slots do not carry, a new period, or a changed window.
 pub const TEMPORAL_HORIZON_DETAIL: &str = "temporal_transport.horizon";
-/// Detail: the licensed rules certified nothing.
+/// Detail: the supported rules certified nothing.
 pub const TEMPORAL_SEARCH_INCOMPLETE: &str = "temporal_transport.search_incomplete";
 /// Detail: the shared budget or cancellation stopped the decision.
 pub const TEMPORAL_HISTORY_BUDGET: &str = "temporal_transport.history_budget";

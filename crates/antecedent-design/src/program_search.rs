@@ -199,7 +199,7 @@ pub struct ProgramSearchRow {
     /// Objective functional under the retained source law; not an optimality probability.
     pub value: Option<f64>,
 }
-/// Complete finite-set result. A sampled-law ranking carries no selected-decision license.
+/// Complete finite-set result. A sampled-law ranking carries no selected-decision support.
 #[derive(Clone, Debug)]
 pub struct FiniteProgramSearchResult {
     /// Every declared candidate, including excluded ones.

@@ -1,4 +1,4 @@
-"""Named source/target prior transfer on licensed Bayesian temporal cells."""
+"""Named source/target prior transfer on supported Bayesian temporal cells."""
 
 from __future__ import annotations
 

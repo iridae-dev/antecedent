@@ -10,10 +10,10 @@
 //! The result is a derived law: its descriptor carries
 //! [`antecedent_core::LawOrigin::Recovered`] provenance and its exact table's
 //! snapshot identity is `recovered:<derivation identity>` (see [`RecoveredLaw`]
-//! for exactly where the provenance lives). This is graph-licensed recovery, not
+//! for exactly where the provenance lives). This is graph-supported recovery, not
 //! MAR or inverse-probability weighting: no complete-case fallback exists, and
 //! `ObservationAssumption` is not consulted. Exact laws only; counted laws are
-//! refused as `cell_not_licensed`.
+//! refused as `not_supported`.
 //!
 //! The same module evaluates a retained experimental-recovery law under a hard
 //! clamp. Identify cannot depend on the model crate, so the certified
@@ -144,10 +144,10 @@ fn check_observed(
     derivation: &RecoveryDerivation,
     observed: &ExactDiscreteLaw,
 ) -> Result<Axes, RecoveryError> {
-    use RecoveryDetail::{BoundsExceeded, EmpiricalNotLicensed, InvalidObservedLaw};
+    use RecoveryDetail::{BoundsExceeded, EmpiricalNotSupported, InvalidObservedLaw};
     if observed.origin() != LawOrigin::SuppliedExact {
         return Err(refuse(
-            EmpiricalNotLicensed,
+            EmpiricalNotSupported,
             format!(
                 "a {} law is a sampled provider; the recovery route takes exact laws only",
                 observed.origin().as_str()
@@ -251,7 +251,7 @@ fn check_observed(
 ///
 /// # Errors
 ///
-/// A sampled provider (`recovery.empirical_not_licensed`), a table that is not
+/// A sampled provider (`recovery.empirical_not_supported`), a table that is not
 /// the named law or violates the proxy model or does not normalize under the
 /// m-graph (`recovery.invalid_observed_law`), a complete-case cell with no mass
 /// (`recovery.positivity`), or cancellation (`recovery.budget`).
@@ -757,12 +757,12 @@ impl EvaluatedRecoveryDraw {
 
 /// Which solver produced a certified equilibrium.
 ///
-/// Specified models remain model-conditional. The label grants no scientific license.
+/// Specified models remain model-conditional. The label grants no scientific support.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SolvedBy {
     /// Topological DAG evaluation of an acyclic free support.
     Acyclic,
-    /// The DAG algorithm refused a directed cycle; the cyclic license then compiled it.
+    /// The DAG algorithm refused a directed cycle; the cyclic support then compiled it.
     Cyclic {
         /// Existing next attempt named by the DAG refusal.
         next_attempt: String,
@@ -1384,8 +1384,8 @@ fn evaluate_draw(plan: &RetainedRecoveryPlan, draw: &JointRecoveryDraw) -> Evalu
 /// so it is reported as a clamp fault and not as a failed certificate.
 ///
 /// An acyclic free support uses the DAG algorithm. A directed cycle is refused
-/// by that algorithm and then compiled under the cyclic license. Specified
-/// models remain model-conditional; compilation grants no scientific license.
+/// by that algorithm and then compiled under the cyclic support. Specified
+/// models remain model-conditional; compilation grants no scientific support.
 fn compile_draw(
     plan: &RetainedRecoveryPlan,
     draw: &JointRecoveryDraw,

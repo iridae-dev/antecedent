@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/bayesian/temporal_prior_transfer`
 
-Same-design and mapped prior transfer ride licensed Bayesian temporal cells
+Same-design and mapped prior transfer ride supported Bayesian temporal cells
 on the staged path (`prepare` → estimate). They are not a matrix axis.
 
 Each pin names a **source cell**, a **target cell**, and the existing

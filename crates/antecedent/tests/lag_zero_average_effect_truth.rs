@@ -274,7 +274,7 @@ fn assert_cell(
     no_standard_error: bool,
     label: &str,
 ) {
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     let (low, high) = ends(result);
     assert!(
         (low - truth.beta).abs() < truth.effect_tolerance

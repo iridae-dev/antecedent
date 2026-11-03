@@ -28,8 +28,8 @@ The restrictions on source are an identity guarantee, not a security sandbox: it
 (declared dependencies are bound by name, and ``numpy`` is always bound as ``np``), reach dunder
 attributes or use ``eval`` / ``exec`` / ``open`` / ``globals``, and it runs with a fixed set of
 builtins, so its behaviour is a function of the text and the pinned versions. Randomness and
-clocks are not detectable from source; a callback that uses them is not licensed for
-counterfactual execution (the route's licence states that assumption).
+clocks are not detectable from source; a callback that uses them is not supported for
+counterfactual execution (the route's support states that assumption).
 """
 
 from __future__ import annotations

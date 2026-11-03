@@ -8,7 +8,7 @@
 //! evidence, the requested operations, the meaning of the uncertainty, the
 //! calibration the consumer relies on and the provenance the consumer requires
 //! all agree. Every defect is reported, each as a coded refusal with the
-//! declaration that would license the connection.
+//! declaration that would support the connection.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -252,7 +252,7 @@ pub(super) fn check_ports(
 ///
 /// # Errors
 /// Every defect found, in a fixed order, each a coded refusal with an
-/// `interface_contract.*` detail and the declaration that would license the
+/// `interface_contract.*` detail and the declaration that would support the
 /// connection: a malformed declaration or unknown port first (alone), then
 /// quantity, units, population, regime, support and semantic-identity
 /// mismatches, measurement assumptions, unknown dependence, missing

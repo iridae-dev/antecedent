@@ -419,7 +419,7 @@ impl ObservationMechanismEstimator {
     /// refit in sample. [`SelectedOutcomeCorrection::Ipw`] deliberately keeps its in-sample
     /// maximum-likelihood propensity, which is the published estimator.
     ///
-    /// Cross-fitting removes the in-sample nuisance bias; it does not by itself license an
+    /// Cross-fitting removes the in-sample nuisance bias; it does not by itself support an
     /// interval, and this path still publishes no standard error.
     ///
     /// # Errors
@@ -670,7 +670,7 @@ impl ObservationMechanismEstimator {
     ///
     /// # Errors
     ///
-    /// Unlicensed pair, missing containment, delayed entry, or primitive failure.
+    /// Unsupported pair, missing containment, delayed entry, or primitive failure.
     pub fn adjust_temporal_series(
         &self,
         data: &TimeSeriesData,
@@ -679,7 +679,7 @@ impl ObservationMechanismEstimator {
         outcome_regressors: &[TemporalNodeKey],
     ) -> Result<(TimeSeriesData, ObservationAdjustedOutcome), EstimationError> {
         query.validate()?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         if query.observation == ObservationSpec::Complete {
             return Err(EstimationError::unsupported(
                 "complete outcomes do not require observation-mechanism correction",
@@ -773,7 +773,7 @@ impl ObservationMechanismEstimator {
         anchors: &[usize],
     ) -> Result<Vec<f64>, EstimationError> {
         query.validate()?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         if query.observation == ObservationSpec::Complete {
             return Err(EstimationError::unsupported(
                 "complete outcomes do not require observation-mechanism correction",

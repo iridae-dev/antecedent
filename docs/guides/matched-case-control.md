@@ -80,7 +80,7 @@ Adding any number of the first two classes leaves the estimate bit-for-bit uncha
 | population risk, absolute risk, risk difference, risk ratio | `effect_not_identified` | `matched_case_control.absolute_risk_not_identified` |
 | any other estimand | `route_not_supported` | `matched_case_control.estimand_not_supported` |
 | a sampling design other than `matched_case_control` | `invalid_argument` | `matched_case_control.sampling_design` |
-| an interval (`level=`) | `cell_not_licensed` | `matched_case_control.interval_withheld` |
+| an interval (`level=`) | `not_supported` | `matched_case_control.interval_withheld` |
 | every set concordant or outcome-degenerate | `effect_not_identified` | `matched_case_control.no_informative_sets` |
 | the conditional likelihood has no finite maximizer | `route_not_supported` | `matched_case_control.estimate_not_finite` |
 | non-0/1, missing or unequal-length rows | `invalid_argument` | `matched_case_control.invalid_data` |

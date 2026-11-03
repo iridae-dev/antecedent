@@ -390,7 +390,7 @@ pub struct PolicyValueWire {
     pub reference_standard_error: f64,
     /// Paired incremental value SE.
     pub incremental_standard_error: f64,
-    /// Pointwise 95% interval for policy value when licensed by the retained route.
+    /// Pointwise 95% interval for policy value when supported by the retained route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_interval_95: Option<[f64; 2]>,
     /// Paired pointwise 95% interval for policy minus reference value.
@@ -404,7 +404,7 @@ pub struct PolicyValueWire {
     pub propensity_max: f64,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless policy license, absent when no policy row matches.
+    /// Exact graphless policy support, absent when no policy row matches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
@@ -471,7 +471,7 @@ pub struct ContinuousDoseResponseWire {
     /// Fixed group-to-dose policy value, when requested by the query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fixed_policy: Option<DosePolicyValueWire>,
-    /// Exact graphless fixed-dose policy license, absent for off-axis results.
+    /// Exact graphless fixed-dose policy support, absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -576,7 +576,7 @@ pub struct PanelDidWire {
     pub clusters: usize,
     /// Explicit uncertainty semantics tag.
     pub uncertainty: String,
-    /// Exact graphless two-period `DiD` license, absent off-axis.
+    /// Exact graphless two-period `DiD` support, absent off-axis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
@@ -720,7 +720,7 @@ pub struct LocalPolynomialRatioWire {
     pub first_stage_standard_error: f64,
     /// Interval construction or legacy point-only uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless license status; absent for off-axis or legacy results.
+    /// Exact graphless support status; absent for off-axis or legacy results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -801,7 +801,7 @@ pub struct RandomizedEffectWire {
     pub minimum_assignment_probability: f64,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
-    /// Exact graphless license status; absent for off-axis results.
+    /// Exact graphless support status; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -825,8 +825,8 @@ pub struct SurvivalDifferenceBandWire {
     pub upper: Vec<f64>,
     /// Subject-bootstrap draws satisfying support.
     pub replicates_ok: u32,
-    /// Exact graphless simultaneous-band license (`licensed`), when the
-    /// published band and arm support match a licensed band row. Absent for
+    /// Exact graphless simultaneous-band support (`supported`), when the
+    /// published band and arm support match a supported band row. Absent for
     /// off-axis bands.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
@@ -837,8 +837,8 @@ pub struct SurvivalDifferenceBandWire {
 /// Every coordinate has a posterior mean and an equal-tailed 95% credible interval; the
 /// covariance across coordinates is the covariance of the retained joint draws, so draw `k` of
 /// every coordinate comes from one posterior sample. The calibration is always `unmeasured`
-/// and licensing is separate from calibration. The IPW randomized-arm row has its own exact
-/// graphless license and retained replay inputs; other rows remain unlicensed.
+/// and support is separate from calibration. The IPW randomized-arm row has its own exact
+/// graphless support and retained replay inputs; other rows remain unsupported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PosteriorRowWire {
@@ -850,9 +850,9 @@ pub struct PosteriorRowWire {
     pub uncertainty: String,
     /// Calibration status of every interval (`unmeasured`).
     pub calibration: String,
-    /// Whether an exact graphless license admits this row's construction.
-    pub licensed: bool,
-    /// Whole-procedure replay inputs of a licensed randomized-arm IPW pseudo-posterior.
+    /// Whether an exact graphless support admits this row's construction.
+    pub supported: bool,
+    /// Whole-procedure replay inputs of a supported randomized-arm IPW pseudo-posterior.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub randomized_ipow: Option<crate::randomized_ipow_wire::RandomizedIpowWire>,
     /// Name of every coordinate, in order.
@@ -883,7 +883,7 @@ pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
 pub const POSTERIOR_ROW_CALIBRATION: &str = "unmeasured";
 
 impl PosteriorRowWire {
-    /// An empty posterior of `estimator` over `coordinates`, unlicensed and uncalibrated.
+    /// An empty posterior of `estimator` over `coordinates`, unsupported and uncalibrated.
     #[must_use]
     pub fn new(estimator: &str, target: String, coordinates: Vec<String>, draws: usize) -> Self {
         Self {
@@ -891,7 +891,7 @@ impl PosteriorRowWire {
             target,
             uncertainty: POSTERIOR_ROW_UNCERTAINTY.to_owned(),
             calibration: POSTERIOR_ROW_CALIBRATION.to_owned(),
-            licensed: false,
+            supported: false,
             randomized_ipow: None,
             coordinates,
             mean: Vec::new(),
@@ -932,7 +932,7 @@ impl PosteriorRowWire {
     /// The shape and marker checks every consumer applies before trusting the row.
     ///
     /// # Errors
-    /// An unsupported license, a changed uncertainty or calibration marker, misaligned arrays or a
+    /// An unsupported support, a changed uncertainty or calibration marker, misaligned arrays or a
     /// non-finite value.
     pub fn validate(&self) -> Result<(), crate::IoError> {
         let width = self.coordinates.len();
@@ -940,11 +940,11 @@ impl PosteriorRowWire {
             |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);
         if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
             || self.calibration != POSTERIOR_ROW_CALIBRATION
-            || self.licensed != self.randomized_ipow.is_some()
+            || self.supported != self.randomized_ipow.is_some()
             || self.randomized_ipow.as_ref().is_some_and(|source| {
                 self.estimator != crate::randomized_ipow_wire::ESTIMATOR
                     || self.target != crate::randomized_ipow_wire::TARGET
-                    || !source.licensed(width)
+                    || !source.supported(width)
             })
             || self.estimator.is_empty()
             || width == 0
@@ -959,7 +959,7 @@ impl PosteriorRowWire {
             || self.lower.iter().zip(&self.upper).any(|(lower, upper)| lower > upper)
         {
             return Err(crate::IoError::Convert(
-                "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays".into(),
+                "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays".into(),
             ));
         }
         Ok(())
@@ -969,7 +969,7 @@ impl PosteriorRowWire {
 /// Retained observational two-decision regime contrast and its uncertainty.
 ///
 /// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
-/// interval. The result is unlicensed and its repeated-sampling calibration is unmeasured.
+/// interval. The result is unsupported and its repeated-sampling calibration is unmeasured.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SequentialContrastWire {
@@ -1008,7 +1008,7 @@ pub struct SequentialContrastWire {
     /// Always `unmeasured`.
     pub calibration: String,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 #[allow(
@@ -1024,7 +1024,7 @@ const fn is_zero_lag(lag: &usize) -> bool {
 /// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
 /// the contrast, the weight total and the Abadie-Imbens standard error. The periods of the pairs
 /// are kept so a loader recomputes the Newey-West standard error and interval over the matched
-/// periods too. The result is unlicensed.
+/// periods too. The result is unsupported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryMatchWire {
@@ -1080,7 +1080,7 @@ pub struct HistoryMatchWire {
     /// Always `unmeasured`.
     pub calibration: String,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
 }
 
 /// Retained randomized survival or competing-risk curve and uncertainty.
@@ -1120,7 +1120,7 @@ pub struct SurvivalWire {
     /// Realized control and treated subject counts for graphless support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assignment_counts: Option<[usize; 2]>,
-    /// Exact graphless scalar-interval license; absent for off-axis results.
+    /// Exact graphless scalar-interval support; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Caller-supplied fixed censoring function; absent for unweighted estimates.
@@ -1141,7 +1141,7 @@ pub struct LongitudinalRegimeWire {
     /// Named point method, defaulting to IPW for older artifacts.
     #[serde(default = "default_longitudinal_result_method")]
     pub method: String,
-    /// Exact graphless sequential-DR license; absent for off-axis results.
+    /// Exact graphless sequential-DR support; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Identity of materialized caller rule; source code is not replayable.
@@ -1229,9 +1229,9 @@ pub struct InterferencePointwiseIntervalWire {
 pub struct InterferenceInferenceWire {
     /// Construction identifier.
     pub method: String,
-    /// Exact graphless interference license (`licensed`), when a published
-    /// interval and cluster support match a licensed row. Absent otherwise, and
-    /// on legacy artifacts written before the interference license existed.
+    /// Exact graphless interference support (`supported`), when a published
+    /// interval and cluster support match a supported row. Absent otherwise, and
+    /// on legacy artifacts written before the interference support existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Pointwise interval when support passes.
@@ -1251,7 +1251,7 @@ pub struct InterferenceInferenceWire {
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
-    /// Optional native execution v1 facts, separate from scientific licensing.
+    /// Optional native execution v1 facts, separate from scientific support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_execution: Option<crate::native_execution_wire::NativeExecutionWire>,
     /// Original query.
@@ -1297,25 +1297,25 @@ pub struct AnalysisResultWire {
     /// Subject-owned prespecified longitudinal regime point value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub longitudinal_regime: Option<LongitudinalRegimeWire>,
-    /// Observational two-decision regime contrast, unlicensed.
+    /// Observational two-decision regime contrast, unsupported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sequential_contrast: Option<SequentialContrastWire>,
-    /// Within-period history-matched contrast, unlicensed.
+    /// Within-period history-matched contrast, unsupported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_match: Option<HistoryMatchWire>,
-    /// Sharp bounds on the average effect under a binary instrument, unlicensed. Absent on
+    /// Sharp bounds on the average effect under a binary instrument, unsupported. Absent on
     /// every other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iv_bounds: Option<IvBoundsWire>,
-    /// Noncausal association of the observed data, unlicensed. Absent on every other result,
+    /// Noncausal association of the observed data, unsupported. Absent on every other result,
     /// so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub association: Option<AssociationWire>,
-    /// Rollout design effects with whole-procedure uncertainty, unlicensed. Absent on every
+    /// Rollout design effects with whole-procedure uncertainty, unsupported. Absent on every
     /// other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quasi_rollout: Option<QuasiRolloutWire>,
-    /// Sequentially randomized unit-period design or regime survival, unlicensed. Absent on
+    /// Sequentially randomized unit-period design or regime survival, unsupported. Absent on
     /// every other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temporal_design: Option<TemporalDesignWire>,
@@ -1329,7 +1329,7 @@ pub struct AnalysisResultWire {
     pub interventional_distribution: Option<InterventionalDistributionWire>,
     /// Scalar standard error when justified. Absent when the published interval
     /// is an Anderson–Rubin set (`interval_lower` / `interval_upper`) or when
-    /// no scalar SE is licensed.
+    /// no scalar SE is supported.
     pub standard_error: Option<f64>,
     /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1385,7 +1385,7 @@ pub struct AnalysisResultWire {
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_effect: Option<std::sync::Arc<antecedent_learn::FittedEffect>>,
-    /// Licensed pointwise CATE standard errors, when computed.
+    /// Supported pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<std::sync::Arc<[f64]>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.

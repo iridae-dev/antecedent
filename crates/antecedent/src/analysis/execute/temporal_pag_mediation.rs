@@ -97,7 +97,7 @@ fn window_disclosure(
              stationary over the template, and history deeper than one further template lag is \
              the initial state. Windows overlap, so uncertainty resamples circular blocks of \
              {block} consecutive windows (never shorter than the window), the declared \
-             dependent-series design; the result is unlicensed and no coverage record names it"
+             dependent-series design; the result is unsupported and no coverage record names it"
         ),
     )
     .with_fields([

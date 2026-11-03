@@ -18,7 +18,7 @@ The same binding turns a native response into a typed :class:`NativeClaim` a dec
 or inverse flow can consume::
 
     claim = program_claims.native_claim(result, program)
-    claim.coordinates, claim.support, claim.trust        # native_licensed, never external
+    claim.coordinates, claim.support, claim.trust        # native_supported, never external
     source = claim.as_decision_source(contract)          # a mean source, or a refusal
     decision = contract.evaluate(source.source)
 
@@ -356,7 +356,7 @@ class NativeClaim:
     """A native response as a typed claim: coordinates, support, trust and provenance.
 
     Built by :func:`native_claim` from a response this library produced. Trust is
-    always ``native_licensed`` because the claim is built in process from a typed
+    always ``native_supported`` because the claim is built in process from a typed
     response, never from artifact metadata; ``calibration`` is ``unmeasured`` or
     ``point_only`` and is never upgraded here.
     """
@@ -387,7 +387,7 @@ class NativeClaim:
 
     @property
     def trust(self) -> ProviderTrust:
-        """Always ``native_licensed``: the claim is built in process, never from metadata."""
+        """Always ``native_supported``: the claim is built in process, never from metadata."""
         return ProviderTrust(self._native.trust)
 
     @property
@@ -774,7 +774,7 @@ def compose_study_claims(
     Each parent's claim is minted from its study's retained result and verified by Rust
     against the study's program and target identities: a claim that does not belong to its
     study, coefficients or output weights the parents do not realize, a parent whose kind,
-    identification, support or evaluation does not license a point, incompatible
+    identification, support or evaluation does not support a point, incompatible
     observations or units, duplicate parents, non-finite arithmetic, or an exceeded budget
     all refuse (:class:`~antecedent.errors.CausalValueError`, or
     :class:`~antecedent.errors.CausalResourceError` for budgets). The operation is

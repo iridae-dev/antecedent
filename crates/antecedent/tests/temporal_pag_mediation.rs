@@ -236,7 +236,7 @@ fn a_window_of_one_period_reproduces_the_structural_decomposition() {
             InferenceMode::Frequentist,
             0,
         );
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         let expected = structural(contrast);
         assert!((result.effect() - expected).abs() < 1e-3, "{contrast:?}: {}", result.effect());

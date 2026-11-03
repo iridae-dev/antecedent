@@ -6,7 +6,7 @@
 //! and nothing here changes it.
 //!
 //! A full-likelihood posterior of the same effect, with the likelihood untempered, is a
-//! different object and is licensed only under one more premise: the outcome innovation is
+//! different object and is supported only under one more premise: the outcome innovation is
 //! serially independent given the declared lag window and adjustment set. Then the lag-aligned
 //! regression residual is that innovation, the rows factor as a product of independent Gaussian
 //! terms, and the conjugate or Laplace posterior is the posterior of a correctly specified model.
@@ -197,7 +197,7 @@ pub fn fit_white_innovation_posterior(
             "white_innovation.residual_autocorrelation",
             &format!(
                 "Ljung-Box Q = {:.3} on {} lags (p = {:.4}) rejects serially independent \
-                 innovations at level {}; the untempered likelihood is not licensed. Next \
+                 innovations at level {}; the untempered likelihood is not supported. Next \
                  attempt: widen the lag window or adjustment set until the residual is white, \
                  or use the tempered posterior, whose meaning is a generalized posterior",
                 whiteness.q_statistic, whiteness.lags, whiteness.p_value, whiteness.level

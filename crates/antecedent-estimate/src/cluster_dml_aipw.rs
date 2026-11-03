@@ -21,7 +21,7 @@
 //! (so no endpoint is shared across folds), and the receipt is the two-way
 //! Cameron-Gelbach-Miller variance of the cluster-summed scores. What it does not cover
 //! (an entity appearing in both endpoint roles, a giant component, too few components per
-//! fold) is a typed `dyadic_dependence_not_licensed` / `too_few_clusters` refusal.
+//! fold) is a typed `dyadic_dependence_not_supported` / `too_few_clusters` refusal.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -191,7 +191,7 @@ impl ClusterDml {
     ///
     /// `required_option_missing` without labels, a length mismatch, `too_few_clusters` below
     /// the declared minimum (labels per endpoint, or components per fold), and for a dyadic
-    /// unit `dyadic_dependence_not_licensed` when an endpoint label appears in both roles
+    /// unit `dyadic_dependence_not_supported` when an endpoint label appears in both roles
     /// or one connected component holds more than one fold's share of the rows.
     pub fn declare_units(
         &self,
@@ -256,7 +256,7 @@ impl ClusterDml {
         let largest = sizes.values().copied().max().unwrap_or(0);
         if largest * folds > units.len() {
             return Err(refuse_counted(
-                antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
+                antecedent_core::reason_code!("dyadic_dependence_not_supported"),
                 "cluster_dml.dyadic_giant_component",
                 &format!(
                     "the largest connected component of the endpoint graph holds {largest} of \
@@ -387,7 +387,7 @@ impl ClusterDml {
     /// # Errors
     ///
     /// A label/row mismatch, too few clusters, a unit split across folds, a table that is
-    /// not a single mean contrast, `dyadic_dependence_not_licensed` for an endpoint label in
+    /// not a single mean contrast, `dyadic_dependence_not_supported` for an endpoint label in
     /// both roles, or (dyadic) a two-way variance that is materially negative, which is
     /// reported as an error and never truncated to zero.
     pub fn receipt(
@@ -574,7 +574,7 @@ pub fn cluster_fold_plan(
     crate::crossfit_plan::crossfit_fold_plan(&vec![0; clusters.len()], clusters, folds, seed)
 }
 
-/// The route is licensed for the untrimmed `AllObserved` mean ATE only.
+/// The route is supported for the untrimmed `AllObserved` mean ATE only.
 pub(crate) fn require_scope(
     mean_functional: bool,
     population: &TargetPopulation,
@@ -587,7 +587,7 @@ pub(crate) fn require_scope(
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
             "cluster_dml.scope",
-            "cluster-DML AIPW is licensed only for the untrimmed AllObserved mean ATE: other \
+            "cluster-DML AIPW is supported only for the untrimmed AllObserved mean ATE: other \
              functionals and populations, and trimmed fits, refit full-sample nuisances that \
              have no whole-cluster cross-fit",
         ));
@@ -662,7 +662,7 @@ pub(crate) fn refuse_interval_request(
 ) -> Result<(), EstimationError> {
     if bootstrap_replicates != 0 || !matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         return Err(refuse(
-            antecedent_core::reason_code!("cluster_interval_not_licensed"),
+            antecedent_core::reason_code!("cluster_interval_not_supported"),
             "cluster_dml.interval_withheld",
             "cluster-DML AIPW reports its own cluster-sandwich standard error (a row \
              bootstrap would split clusters and another se_kind is ambiguous); set \
@@ -749,7 +749,7 @@ fn dyad_units(first: &[u32], second: &[u32]) -> Result<Vec<u32>, EstimationError
     let first_labels: BTreeSet<u32> = first.iter().copied().collect();
     if let Some(shared) = second.iter().find(|label| first_labels.contains(label)) {
         return Err(refuse(
-            antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
+            antecedent_core::reason_code!("dyadic_dependence_not_supported"),
             "cluster_dml.dyadic_shared_namespace",
             &format!(
                 "label {shared} is both a first and a second endpoint: an entity in both roles \
@@ -853,7 +853,7 @@ impl DeclaredUnits {
     /// # Errors
     ///
     /// The refusals of [`ClusterDml::declare_units`], or a scope the declaration does not
-    /// license.
+    /// support.
     pub(crate) fn declare(
         &self,
         problem: &mut crate::propensity::PreparedPropensityProblem,

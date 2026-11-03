@@ -388,7 +388,7 @@ fn response_curve_graph_posterior_cheap_and_full_match_the_identified_curves() {
                     .unwrap_or_else(|error| panic!("{label}: {error}"))
                     .run(&context)
                     .unwrap_or_else(|error| panic!("{label}: {error}"));
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 let tolerance = if matches!(inference, InferenceMode::Frequentist) {
                     tolerance_f
                 } else {

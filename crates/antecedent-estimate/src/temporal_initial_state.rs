@@ -44,7 +44,7 @@ pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
 #[must_use]
 pub fn route_frozen_refusal() -> EstimationError {
     EstimationError::refused_detail(
-        reason_code!("cell_not_licensed"),
+        reason_code!("not_supported"),
         INITIAL_STATE_ROUTE_FROZEN,
         "the target initial-state distribution route has not passed truth and artifact evidence",
     )

@@ -172,7 +172,7 @@ def test_temporal_unmeasured_history_protocol_preserves_source_state():
     with pytest.raises(RecalcRefusal) as error:
         session.dependent_interval()
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
-        "cell_not_licensed",
+        "not_supported",
         "temporal_interval.route_frozen",
         "inference",
     )

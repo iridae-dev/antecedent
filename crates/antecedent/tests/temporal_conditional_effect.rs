@@ -81,7 +81,10 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
                     builder
                 };
                 let study = builder.clone().build().unwrap();
-                assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+                assert_eq!(
+                    study.support_status(),
+                    Some(antecedent::support::CellStatus::Supported)
+                );
                 let prepared = study.prepare(&ctx).unwrap();
                 drop(builder);
                 drop(study);

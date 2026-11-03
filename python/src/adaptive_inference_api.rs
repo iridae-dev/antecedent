@@ -9,7 +9,7 @@
 //! the Python layer to raise as a typed exception.
 //!
 //! Every result is point-only. No interval, credible interval or coverage
-//! statement is made: the guarantee route refuses with `cell_not_licensed`.
+//! statement is made: the guarantee route refuses with `not_supported`.
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession, AdaptiveRequest, CellStatus,
@@ -144,8 +144,8 @@ fn declaration_for_rule(
 
 pub(crate) fn status_json(status: &CellStatus) -> Json {
     match status {
-        CellStatus::Licensed { paradigms } => json!({
-            "class": "licensed",
+        CellStatus::Supported { paradigms } => json!({
+            "class": "supported",
             "paradigms": paradigms.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
         }),
         CellStatus::ClosedIncoherent { reason } => {

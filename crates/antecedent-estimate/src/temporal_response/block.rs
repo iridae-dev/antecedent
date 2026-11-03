@@ -32,7 +32,7 @@ use super::{
 /// calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
 /// coverage of nominal 95% bands under AR(1) ρ = 0.5 residuals at n = 160. The
 /// estimation noise the longer block adds is carried by the fixed-b factor of
-/// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
+/// [`block_dispersion_inflation`]; the kernel bias that remains at any supported
 /// length on a persistent influence is carried by the per-cell factor of
 /// [`crate::ar_kernel::kernel_bias_factor`].
 #[must_use]
@@ -58,7 +58,7 @@ pub(crate) fn temporal_block_length(structural_span: usize, n: usize) -> usize {
 ///
 /// The lengthening fires when a score is detectably persistent (an AR(1) φ = 0.9
 /// treatment column, say). The Bartlett kernel of the block still misses `O(1/ℓ)` of
-/// a persistent influence's long-run variance at any licensed length; each published
+/// a persistent influence's long-run variance at any supported length; each published
 /// cell's replicate deviations therefore also carry the parametric kernel-bias factor
 /// of [`crate::ar_kernel::kernel_bias_factor`]. Neither reading
 /// fires when a strongly persistent component is a small share of a score: with AR(1)

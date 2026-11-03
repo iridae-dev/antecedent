@@ -38,10 +38,10 @@ the estimate did not use.
   (`RefuteSuite::Cheap`), that number is the smaller of a point and a converted
   interval-limit E-value; it embeds a converted endpoint and is reported as unavailable
   (`tier_diagnostics.evalue_embeds_interval_limit`), not as a point value. A tiered study
-  does not license the `Cheap` suite at all, so that branch applies to a result whose
+  does not support the `Cheap` suite at all, so that branch applies to a result whose
   estimate carries a mirrored refuter value.
 * **No E-value interval.** `evalue.interval` is always the typed reason
-  (`cell_not_licensed`, `tier_diagnostics.evalue_interval_withheld`): the converted
+  (`not_supported`, `tier_diagnostics.evalue_interval_withheld`): the converted
   effect-interval endpoint is an approximation whose own uncertainty is excluded, and no
   coverage record measures it.
 
@@ -51,9 +51,9 @@ order). It does not test that premise and is not a tier-identification certifica
 
 ## Refusals
 
-`tier_diagnostics` refuses a result that is not a licensed single-treatment tiered
-average-effect result: `cell_not_licensed`
-(`tier_diagnostics.result_not_licensed`), or `invalid_argument`
+`tier_diagnostics` refuses a result that is not a supported single-treatment tiered
+average-effect result: `not_supported`
+(`tier_diagnostics.result_not_supported`), or `invalid_argument`
 (`tier_diagnostics.not_a_tiered_average_result`) for a non-tiered or joint-cell result.
 
 A cancelled `ctx` is observed on entry, before each of the two tier reads and once per

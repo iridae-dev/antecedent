@@ -320,7 +320,7 @@ fn every_unmet_premise_is_named() {
 }
 
 #[test]
-fn interval_and_law_requests_are_refused_with_the_licensing_evidence() {
+fn interval_and_law_requests_are_refused_with_the_support_evidence() {
     let bytes = fit(2.0);
     let transported = transport_cohort_effect_from_result(
         &bytes,
@@ -332,8 +332,8 @@ fn interval_and_law_requests_are_refused_with_the_licensing_evidence() {
     )
     .unwrap();
     let interval = transported.interval_refusal();
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "transported_effect.interval_not_licensed");
+    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.detail, "transported_effect.interval_not_supported");
     assert!(interval.remedy.contains("coverage"));
     let law = transported.law_refusal();
     assert_eq!(law.code, "decision_contract_unsatisfied");

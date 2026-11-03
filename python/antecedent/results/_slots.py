@@ -311,7 +311,7 @@ class ReasoningSlots:
     #: A not-identified contract adds the evidence-gathering ids `measure_variable:<name>`,
     #: `run_experiment:<target>`, `find_instrument` and `collect_panel`.
     next_actions: tuple[dict[str, Any], ...] = ()
-    #: Licensed alternatives that change named premises (`coordinate`, `changed`,
+    #: Supported alternatives that change named premises (`coordinate`, `changed`,
     #: `required_action`): an explicit choice, never an automatic fallback.
     neighbors: tuple[dict[str, Any], ...] = ()
     #: Unresolved obligations of the contract (`id`, `scope`, `kind`, `status`, ...).

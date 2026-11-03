@@ -81,8 +81,8 @@ pub enum DistributionCalibration {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DistributionTrust {
-    /// Native route separately licensed at its exact coordinate.
-    NativeLicensed,
+    /// Native route separately supported at its exact coordinate.
+    NativeSupported,
     /// External provider attestation only.
     #[serde(alias = "externally_attested")]
     ExternalAttested,
@@ -1242,7 +1242,7 @@ mod tests {
         changed_binding.legacy_bindings.as_mut().unwrap()[1].source = source_quantities[0].clone();
         assert!(DistributionArtifact::new(changed_binding, converted.draws().to_vec()).is_err());
         let mut upgraded = converted.metadata().clone();
-        upgraded.trust = DistributionTrust::NativeLicensed;
+        upgraded.trust = DistributionTrust::NativeSupported;
         assert!(DistributionArtifact::new(upgraded, converted.draws().to_vec()).is_err());
 
         assert!(convert_legacy_posterior(&encoded, identity.clone(), &bindings[..1]).is_err());

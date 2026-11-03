@@ -89,7 +89,7 @@ fn the_ledger_refuses_a_transport_without_assumptions() {
     let mut ledger = EvidenceLedger::new();
     let error = ledger
         .add_source(claim_declaration(transport(&["trial_a"], "target", &[])))
-        .expect_err("no assumption licenses nothing");
+        .expect_err("no assumption supports nothing");
     assert_eq!(error.code, "invalid_argument");
     assert_eq!(error.detail, "evidence_ledger.invalid_declaration");
     // The same identity with one assumption registers.

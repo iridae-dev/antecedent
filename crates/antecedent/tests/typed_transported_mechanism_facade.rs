@@ -198,7 +198,7 @@ fn a_shifted_count_mechanism_is_refit_and_the_invariant_covariate_is_carried() {
         let band = 4.5 * (u.standard_error.powi(2) + u.estimate.monte_carlo_se.powi(2)).sqrt();
         assert!((u.estimate.value - truth).abs() <= band, "x={x}: {} vs {truth}", u.estimate.value);
     }
-    assert_eq!(composition.interval().unwrap_err().code(), "cell_not_licensed");
+    assert_eq!(composition.interval().unwrap_err().code(), "not_supported");
 }
 
 #[test]

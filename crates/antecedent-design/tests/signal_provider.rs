@@ -206,7 +206,7 @@ fn native_binomial_and_equivalent_external_law_agree_pointwise() {
 fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     let req = request("study-a", 1);
     let native = NativeBinomialSignal.prepare(&req).unwrap();
-    assert_eq!(native.receipt.trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(native.receipt.trust, SignalTrustLabel::NativeSupported);
     assert_eq!(native.receipt.family, "binomial");
     assert_eq!(native.receipt.update_mode, SignalUpdateMode::NativeUpdate);
     assert!(native.receipt.provider_identity.is_none());
@@ -367,7 +367,7 @@ fn native_trust_capability_and_object_claims_refuse() {
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let error = ExternalSignal::new(
         obj,
-        ExternalTrustState::NativeLicensed,
+        ExternalTrustState::NativeSupported,
         body(&req, frozen_posterior()),
     )
     .unwrap_err();

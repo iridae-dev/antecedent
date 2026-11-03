@@ -320,13 +320,13 @@ mod tests {
         }
     }
 
-    /// Measurement harness for the covariate count beyond the licence: the HC0 normal interval's
-    /// known-truth coverage with three to six covariates under the cells of the licensed record.
-    /// Run with `--ignored --nocapture`; the licence widens only for counts whose every measured
-    /// cell falls inside the licensed coverage band.
+    /// Measurement harness for the covariate count beyond the support: the HC0 normal interval's
+    /// known-truth coverage with three to six covariates under the cells of the supported record.
+    /// Run with `--ignored --nocapture`; the support widens only for counts whose every measured
+    /// cell falls inside the supported coverage band.
     #[test]
-    #[ignore = "measurement harness: prints coverage for covariate counts outside the licence"]
-    fn bernoulli_ancova_hc0_coverage_beyond_two_covariates_is_measured_not_licensed() {
+    #[ignore = "measurement harness: prints coverage for covariate counts outside the support"]
+    fn bernoulli_ancova_hc0_coverage_beyond_two_covariates_is_measured_not_supported() {
         const REPLICATES: usize = 2_000;
         for (n, covariate_count, probability) in
             [(400, 3, 0.5), (400, 4, 0.5), (600, 5, 0.5), (600, 6, 0.5), (400, 3, 0.2)]

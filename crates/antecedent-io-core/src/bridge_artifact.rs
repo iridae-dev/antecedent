@@ -14,12 +14,12 @@
 //!   bridge was transported.
 //!
 //! A consumer trusts none of the stored derived values. It rebuilds the
-//! contract and the source claim, checks the contract licenses its bridge
+//! contract and the source claim, checks the contract supports its bridge
 //! (every refusal of the library applies), derives the claim again and
 //! requires the stored contract identity, claim identity, value (bit for bit),
 //! fit and transport flag to equal the derivation. A resealed edit of any
 //! stored number, assumption, premise or scope is either refused by the
-//! contract's licensing checks or changes the replayed identity or value; an
+//! contract's support checks or changes the replayed identity or value; an
 //! edit that is not resealed is an identity mismatch, and a consumer that
 //! retained the artifact identity independently refuses a consistently
 //! resealed artifact of another bridge.
@@ -38,7 +38,7 @@
 //! bridge, and a bridge whose source is the aligned draws of a posterior or a
 //! predictive law, are carried in format version 2 under the feature marker
 //! `scientific_bridge_extended_v1`. The declaration is part of the contract on
-//! the wire, so a consumer rebuilds it, licenses it again and requires the
+//! the wire, so a consumer rebuilds it, supports it again and requires the
 //! contract identity (which binds it) to replay. A bridge of draws additionally
 //! embeds the source draw table, the seed of the mapping's random stream and the
 //! summary of the mapped table; the consumer maps the draws again and requires the
@@ -118,7 +118,7 @@ crate::sectioned_artifact_enum! {
                 code: &'static str,
                 /// Namespaced `scientific_bridge.*` detail.
                 detail: String,
-                /// The declaration or evidence that would license the request.
+                /// The declaration or evidence that would support the request.
                 message: String,
             },
             /// A stored derived identity, value, fit or flag differs from the replay.
@@ -166,7 +166,7 @@ fn refused(refusal: antecedent_contract::ExternalRefusal) -> ScientificBridgeArt
     ScientificBridgeArtifactError::Refused {
         code: refusal.code,
         detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the bridge is not licensed").to_owned(),
+        message: refusal.remedy.unwrap_or("the bridge is not supported").to_owned(),
     }
 }
 
@@ -1490,7 +1490,7 @@ impl ScientificBridgeAny {
     }
 }
 
-/// Complete licensed bridge declaration, including uncertain estimand translation.
+/// Complete supported bridge declaration, including uncertain estimand translation.
 /// This versioned request wire extends the existing point-claim artifact owner; it
 /// grants no posterior, interval or causal permission by serialization alone.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1581,11 +1581,11 @@ pub struct EstimandWire {
 }
 
 impl FullBridgeContractWire {
-    /// Encode all fields of an actually licensed contract, preserving IEEE values.
+    /// Encode all fields of an actually supported contract, preserving IEEE values.
     /// # Errors
-    /// Every native bridge licensing refusal and existing mapping conversion failure.
+    /// Every native bridge support refusal and existing mapping conversion failure.
     pub fn from_domain(contract: &BridgeContract) -> Result<Self, ScientificBridgeArtifactError> {
-        contract.check_licensing().map_err(refused)?;
+        contract.check_support().map_err(refused)?;
         Ok(Self {
             version: 2,
             identity: *contract.identity().as_bytes(),
@@ -1595,7 +1595,7 @@ impl FullBridgeContractWire {
             estimand: contract.estimand_bridge.as_ref().map(estimand_to_wire),
         })
     }
-    /// Reconstruct the exact contract and repeat all licensing and identity checks.
+    /// Reconstruct the exact contract and repeat all support and identity checks.
     /// # Errors
     /// Unknown versions, malformed native declarations, unsupported mappings or mismatch.
     pub fn to_domain(&self) -> Result<BridgeContract, ScientificBridgeArtifactError> {
@@ -1609,7 +1609,7 @@ impl FullBridgeContractWire {
         contract.mapping_uncertainty = self.uncertainty.as_ref().map(uncertainty_from_wire);
         contract.source_dependence = self.dependence.as_ref().map(dependence_from_wire);
         contract.estimand_bridge = self.estimand.as_ref().map(estimand_from_wire);
-        contract.check_licensing().map_err(refused)?;
+        contract.check_support().map_err(refused)?;
         if self.identity != *contract.identity().as_bytes() {
             return Err(ScientificBridgeArtifactError::ReplayMismatch(
                 "full bridge contract identity",

@@ -1,4 +1,4 @@
-//! Effect-suite applicability: `ConditionalEffect` Placebo/RCC run on the licensed
+//! Effect-suite applicability: `ConditionalEffect` Placebo/RCC run on the supported
 //! interaction-model scalar. Per-run `NotApplicable` skips remain pinned for temporal
 //! overlap in `manufacturing_temporal.rs`.
 //!
@@ -16,7 +16,7 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 
-/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`. The licensed
+/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`. The supported
 /// number is the interaction-model scalar at Ē[W], so Placebo / RCC refit that model
 /// rather than skipping because the estimator id is not `linear.adjustment.ate`.
 fn conditional_query_fixture(n: usize) -> (TabularData, Dag, ConditionalEffectQuery) {
@@ -77,13 +77,13 @@ fn conditional_effect_placebo_and_rcc_run_on_interaction_scalar() {
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     assert!(
         names.iter().any(|n| n.contains("placebo")),
-        "placebo must run on the licensed conditional scalar; got {names:?}"
+        "placebo must run on the supported conditional scalar; got {names:?}"
     );
     assert!(
         names
             .iter()
             .any(|n| n.contains("random.common_cause") || n.contains("random_common_cause")),
-        "RCC must run on the licensed conditional scalar; got {names:?}"
+        "RCC must run on the supported conditional scalar; got {names:?}"
     );
     assert!(
         result.diagnostics.iter().all(|d| d.code.as_ref() != "refute.validator.not_applicable"),

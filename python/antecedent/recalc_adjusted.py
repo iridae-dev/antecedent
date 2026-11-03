@@ -7,7 +7,7 @@ Receipts are portable records. They contain no fitted model or raw training data
 a fresh process resumes only by supplying data and recomputing the fit.
 
 Analytic standard errors retain their producing model assumptions and unmeasured
-calibration standing. Fit reuse adds no confidence-interval or coverage license.
+calibration standing. Fit reuse adds no confidence-interval or coverage support.
 """
 
 from __future__ import annotations

@@ -130,7 +130,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/intervention_response_class_validation_truth.rs",
-          "sha256": "54edafa5ee3836f203720498e7cda36c5cf177462458ba461b844555d8190675"
+          "sha256": "562ee0aa13c5739852ed02e64387ad33169c8855587bde42f005ad9d96008e75"
         }
       ],
       "fixture_payload_sha256": "675a49a43a8d1544fc5bd3c4c5ee391163aa5ddc9a67c55f690167ca2c1f44f9"

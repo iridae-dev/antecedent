@@ -3,8 +3,7 @@
 ``analyze(series, graph=TemporalDag | TemporalCpdag | TemporalPag, query=AverageEffect(x, y))``
 compiles the contrast ``E[Y_t | do(X_t = 1)] - E[Y_t | do(X_t = 0)]`` as the pulse at offset 0
 read at horizon 1. The answer must equal the explicit lag-0 ``PulseEffect``; the support slot
-reports the AverageEffect coordinate as ``refused`` (the cell executes and is unlicensed, so
-``evidence_status`` is None) and the result discloses the reading. Coverage is not measured here.
+reports the AverageEffect coordinate as ``supported`` and the result discloses the reading. Coverage is not measured here.
 """
 
 from __future__ import annotations
@@ -80,10 +79,10 @@ def test_the_lag_zero_average_effect_is_the_explicit_pulse(graph_factory, bayesi
     )
     assert _same(average.ate, pulse.ate)
     assert average.structural_identified_set_interval == pulse.structural_identified_set_interval
-    # The lag-0 cell is licensed by known-truth evidence, like the pulse it compiles to.
-    assert average.evidence_status == "licensed"
+    # The lag-0 cell is supported by known-truth evidence, like the pulse it compiles to.
+    assert average.evidence_status == "supported"
     support = average.reasoning.support.payload
-    assert support["matrix_status"] == "licensed"
+    assert support["matrix_status"] == "supported"
     assert str(support["matrix_coordinate"]).startswith("AverageEffect:")
     assert str(pulse.reasoning.support.payload["matrix_coordinate"]).startswith("PulseEffect:")
     assert any(DISCLOSURE in str(diagnostic) for diagnostic in average.diagnostics)

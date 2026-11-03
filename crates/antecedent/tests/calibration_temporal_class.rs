@@ -207,7 +207,7 @@ fn mediation_atom() -> GraphPosterior {
     temporal_atom(GraphPosteriorAtomKind::Cpdag, 3, contemporaneous, 1, lag_mask)
 }
 
-fn licensed_pulse() -> TemporalEffectQuery {
+fn supported_pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
@@ -457,7 +457,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
             let seed = stream_seed(0x11C_0001, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Cpdag),
                 InferenceMode::Frequentist,
                 BOOT,
@@ -482,7 +482,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
             let seed = stream_seed(0x11C_0002, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Cpdag),
                 bayes(),
                 0,
@@ -511,7 +511,7 @@ fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
             let seed = stream_seed(0x11C_0003, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Pag),
                 InferenceMode::Frequentist,
                 BOOT,
@@ -540,7 +540,7 @@ fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
             let seed = stream_seed(0x11C_0004, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Pag),
                 bayes(),
                 0,

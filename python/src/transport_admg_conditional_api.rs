@@ -408,7 +408,7 @@ impl AdmgConditionalTransportStage {
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
 
-    /// Counted laws are not licensed on this route (no coverage record exists),
+    /// Counted laws are not supported on this route (no coverage record exists),
     /// so preparation refuses: exact-law points only.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
@@ -422,8 +422,8 @@ impl AdmgConditionalTransportStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedAdmgConditionalTransportStage> {
         Err(crate::refusal(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "admg_transport.interval_withheld: counted laws are not licensed on the conditional route; it publishes exact-law points only",
+            antecedent_core::reason_code!("not_supported"),
+            "admg_transport.interval_withheld: counted laws are not supported on the conditional route; it publishes exact-law points only",
         ))
     }
 }

@@ -3,7 +3,7 @@
 The identified set is an interval of average effects, never a point. The known truths are the
 frozen Balke-Pearl table (reproduced by an exact-count sample and by the eight-row weighted law),
 a perfect-compliance law whose effect is point identified, and the Imbens-Manski interval, which
-covers the identified set. Each route is unlicensed and uncalibrated.
+covers the identified set. Each route is unsupported and uncalibrated.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
     expected = TABLE1["expected"]
     assert section.lower == pytest.approx(expected["lower"], abs=1e-9)
     assert section.upper == pytest.approx(expected["upper"], abs=1e-9)
-    assert section.licensed is False and section.calibration == "unmeasured"
+    assert section.supported is False and section.calibration == "unmeasured"
     assert section.interval is None and section.posterior is None
     assert section.rows == 20_000 and section.rows_dropped == 0
 
@@ -75,7 +75,7 @@ def test_the_answer_is_an_identified_set_never_a_point() -> None:
     assert answer.bounds == pytest.approx(
         (TABLE1["expected"]["lower"], TABLE1["expected"]["upper"]), abs=1e-9
     )
-    assert answer.detail is not None and answer.detail.startswith("unlicensed_iv_bounds")
+    assert answer.detail is not None and answer.detail.startswith("unsupported_iv_bounds")
     assert answer.value is None
     assert "partially identified" in result.claim()
 

@@ -13,7 +13,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     """Provider output carried by the shared result API without native claims.
 
     The output remains family-shaped and externally attested. Antecedent does
-    not reinterpret it as a point estimate, interval, or licensed causal claim.
+    not reinterpret it as a point estimate, interval, or supported causal claim.
     """
 
     provider_name: str
@@ -78,7 +78,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             f"Provider {self.provider_name!r} returned output for family "
             f"{self.query_family!r}. Antecedent preserves the provider's declared "
             "assumptions, uncertainty semantics, provenance, and artifact; it does "
-            "not translate this output into a native licensed causal claim."
+            "not translate this output into a native supported causal claim."
         )
 
     def inspect(self) -> InspectionReport:

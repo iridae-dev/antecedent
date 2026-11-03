@@ -11,7 +11,7 @@ construct it measures, and what is closed.
 All values here are exact given a declared model, or a labelled point value of
 a fitted one. Parameter uncertainty is returned as aligned posterior draws whose
 spread is labelled `uncalibrated_spread`. Nothing on this page is a calibrated
-interval: an interval of redrawn parameters is licensed only by a currently
+interval: an interval of redrawn parameters is supported only by a currently
 attesting coverage record, and none is measured.
 
 ## Boundary
@@ -211,7 +211,7 @@ is labelled `uncalibrated_spread`. An interval is returned by
 `ObservationClaim::parameter_interval` only through the composed-interval gate:
 the composed coordinate and the construction must resolve to a currently
 attesting coverage record, and otherwise the interval is refused
-(`cell_not_licensed`). No such record is measured.
+(`not_supported`). No such record is measured.
 
 The Dirichlet redraw agrees with the count-fitted posterior quantiles
 (`antecedent.analysis.count_fitted_observation`, below) on the same counts; that
@@ -248,7 +248,7 @@ value. The count-fitted interval is measured as a whole-method design:
 
 A declared model's posterior probability is an exact number with no sampling
 distribution, so a sampling interval for it is logically closed with
-`cell_not_licensed` (`observation_query.declared_model_has_no_sampling_interval`,
+`not_supported` (`observation_query.declared_model_has_no_sampling_interval`,
 `observation_query.calibrated_probability_closed`). The interval is earned only
 where the number does have a sampling distribution: tables fitted to counts. The
 count-fitted route (`antecedent.analysis.count_fitted_observation`) retains
@@ -296,7 +296,7 @@ replays an artifact against a retained identity. Slots are `Recorded`, `Assigned
 `Hypothetical` and `Measured` (a recorded indicator value with its
 `measurement_models.MeasurementModel`). Every claim is an `ObservationClaim` with its
 `identity`, `operation`, `inference_basis` and sealed `artifact`; `interval()` and
-`calibrated_probability()` raise `cell_not_licensed`, as does `parameter_interval()` without a
+`calibrated_probability()` raise `not_supported`, as does `parameter_interval()` without a
 currently attesting coverage record; `gaussian` and `parameter_draws` carry the typed values. Every refusal is an
 `ObservationQueryRefusal` with a registered `reason_code`, an `observation_query.*` `detail`,
 `expected`/`supplied` (the requested level and the reachable extremum of an unreachable-level

@@ -23,7 +23,7 @@ implementation_deviations = [
   "Reuse is proven by counts, not by the plan alone: fold-fit counts are read from the estimator's own cross-fit nuisance cache (5 folds x 2 nuisance sets = 10 fits on a first run, 0 on a utility-only change, 0 on a compatible retarget). The identification, score-build, reweight and decision counters are call-level counts at the wrapper's call sites and say only that the wrapper invoked the operation; the fold-fit counter independently confirms that a refit really happened.",
   "The cross-fit cache scope lives for one call. It is NOT a persistent fit cache: a second session fits again. Reuse across calls is the retained prepared study and its frozen score table and nothing else. 'Reused' never means persistently cached; across a process boundary it needs a portable fit, scores, data snapshot or provider named in the resume context, and an ordinary loaded result supplies none of them.",
   "The executor drives exactly one route: the cross-fitted AIPW average effect over a binary treatment through Study::prepare, PreparedStudy::refresh and PreparedStudy::retarget, with a net-benefit rule benefit_per_unit * ate - cost. The Prior and ProviderRequest stages and external-study mutations are plan-level only: the planner decides them but this executor runs no prior or provider, so their mutations are exercised through the plan only.",
-  "A retarget reuses frozen scores only when the estimator's retarget route is declared licensed; an undeclared retarget recomputes the score artifact and an incompatible target is refused at the law. The planner trusts the declared capability and does not verify that a target is a licensed function of the adjustment set.",
+  "A retarget reuses frozen scores only when the estimator's retarget route is declared supported; an undeclared retarget recomputes the score artifact and an incompatible target is refused at the law. The planner trusts the declared capability and does not verify that a target is a supported function of the adjustment set.",
   "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
   "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare.",
 ]
@@ -42,29 +42,29 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "The stage model and planner that decide per stage whether an artifact is reused, recomputed or refused from BLAKE3 stage identities, plus one instrumented route (cross-fitted AIPW) that proves reuse by counts."
 no_independent_algorithm = "recalc.rs and recalc/standing.rs compare identity sets and statuses (no floating-point computation); the route in recalc_receipt.rs calls the AIPW estimator and the retarget and keeps the integer fit counts. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
-record_sha256 = "1aa001ce6f041a4632e52039dc848975579fac2d66cd005cac814e3955c196f6"
+record_sha256 = "0068820c63b340e72db1c8bbf0b793854b5fa38f3fddebe8c6263774ffd2754b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/recalc.rs"
-sha256 = "ba408449adcf0775cc735741f54ceb0e3a2055570aa440d937b10d8fa72da9e6"
+sha256 = "23252d8d8b08b1d34c6521a8d2f1d29cd2c581a8dad72468952d07a4a9c16555"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/recalc/standing.rs"
-sha256 = "f396709c20ae224dcfede2b555b030e14d3c9111c8ea0eb813e5f26f330c48c5"
+sha256 = "28fec742ee3dea18b70805612d6adfca7ea032af24000cae516357e7f5393bae"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_receipt.rs"
-sha256 = "8b93f260828e9bb709d86114ec05bd72c138464592d4c1aeaab490964157c4c6"
+sha256 = "f20bfb802c10937fcd9ce7b79b7ef25e03d063223d0180822a8e44caf12b777e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-core/tests/recalc_plan.rs"
-sha256 = "b0e1c87c23969d9bb8f56e58b25f585f2eb3c3751944082a63c157e9b3d30816"
+sha256 = "c5ff5577944647ab6214e4ac04a1a4d3860303ae575f0ef2a30d65082b20f63b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_receipt.rs"
-sha256 = "c349b1f2dcd57db5d3d473c156db7d96bf5507c68408e4c76cb57a126baec2ff"
+sha256 = "20ab2d64ce10ad5e71c9409912e24b142354d63363bce005cbd4b64243402a2a"

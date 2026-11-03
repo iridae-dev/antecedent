@@ -16,8 +16,8 @@ survey = "https://wwwn.cdc.gov/nchs/nhanes/nhefs/"
 citation = [
   "Hernán, M. A. and Robins, J. M. (2020). Causal Inference: What If. Boca Raton: Chapman & Hall/CRC.",
 ]
-# The companion site offers the data for free download and states no licence.
-licence = "not stated by the publisher"
+# The companion site offers the data for free download and states no support.
+support = "not stated by the publisher"
 licence_note = "The book's companion site offers the data for free download and states no licence. Antecedent fetches the file from that site on request and does not redistribute it."
 version = "file as served by the publisher; the SHA-256 below identifies the exact bytes this example was written against"
 retrieved = "2026-10-27"

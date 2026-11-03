@@ -414,7 +414,7 @@ class ExternalReceipt:
 
         The supplied value has no original quantity mapping. Provider, snapshot and
         request references therefore establish no numerical verification or source
-        diagnostic license, even when the original bound response was verified.
+        diagnostic support, even when the original bound response was verified.
         """
         identity = claim.identity_fields
         return cls(

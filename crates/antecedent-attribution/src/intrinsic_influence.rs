@@ -182,7 +182,7 @@ pub struct SourceInfluence {
     /// the spread of the full attribution (row resample, mechanism refit with family
     /// selection, fresh simulation batches) across the mechanism-fit bootstrap, with the
     /// permutation-sampling variance, held fixed across refits, added. Quantified only when
-    /// the bootstrap ran; uncalibrated, and not a licensed interval.
+    /// the bootstrap ran; uncalibrated, and not a supported interval.
     pub whole_procedure: ComponentStatus,
 }
 

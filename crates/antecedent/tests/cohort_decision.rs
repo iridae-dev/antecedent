@@ -335,7 +335,7 @@ fn negative_gates_are_typed_and_actionable() {
     ] {
         assert!(!source.law_refusal(request).remedy.is_empty());
     }
-    assert_eq!(source.interval_refusal().code, "cell_not_licensed");
+    assert_eq!(source.interval_refusal().code, "not_supported");
 }
 
 #[test]

@@ -1,4 +1,4 @@
-"""Measured authority guards; candidate JSON and user basis never mint a license."""
+"""Measured authority guards; candidate JSON and user basis never mint support."""
 
 from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
@@ -105,7 +105,7 @@ def test_bounds_and_missing_native_cannot_be_overridden_by_basis(monkeypatch):
         MeasuredInference.load(b"", expected=identity()._wire())
     with pytest.raises(CausalUnsupportedError) as caught:
         MeasuredInference.load(b"", expected=identity())
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
 
 
 @pytest.mark.parametrize(
@@ -148,6 +148,8 @@ def test_source_report_unreachable_route_guard_is_class_only():
         "choice_interval",
         "split_effect",
         "split_parent_set_effect",
+        "categorical_prior_predictive_interval",
+        "mnar_fixed_shift_interval",
     }
     assert set(re.findall(r'"([a-z_]+)"\s*=>', source)) == routes
     assert "#[new]" not in source
@@ -156,5 +158,9 @@ def test_source_report_unreachable_route_guard_is_class_only():
     )
     start = consumer.index("match expected.route.as_str()")
     end = consumer.index("measured_inference.unsupported_route", start)
-    assert set(re.findall(r'"([a-z_]+)"\s*=>', consumer[start:end])) == routes
+    # The graph-imputation interval is consumed from a compiled-graph artifact only; it has no
+    # source-report constructor, so the consumer's route set is the source set plus that one.
+    assert set(re.findall(r'"([a-z_]+)"\s*=>', consumer[start:end])) == routes | {
+        "graph_imputation_interval"
+    }
     assert '_ => Err(refusal("measured_inference.unsupported_route"' in consumer

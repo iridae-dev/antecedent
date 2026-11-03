@@ -102,7 +102,7 @@ fn verify_distribution_coordinate(
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
     let (contract, inspection_work) =
         antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
     assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
@@ -115,7 +115,7 @@ fn verify_distribution_coordinate(
         SlotAvailability::Available(slot) => assert_eq!(
             slot.matrix_coordinate.as_deref(),
             Some(coordinate),
-            "prepared handle must bind the exact licensed coordinate"
+            "prepared handle must bind the exact supported coordinate"
         ),
         other => panic!("{coordinate} support slot unavailable: {other:?}"),
     }

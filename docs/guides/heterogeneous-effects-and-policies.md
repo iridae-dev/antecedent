@@ -79,7 +79,7 @@ Identification needs conditional exchangeability given the `adjust` columns (you
 
 ### What the standard errors support
 
-They are influence-function standard errors labelled `calibration == "unmeasured"`; no interval is produced and no coverage claim is made. For `cross_fitted_learning` the standard error pools the scores of all folds and treats the fold policies as fixed. That is reasonable when the learned policy stabilises across folds (the cross-fitting argument of Athey and Wager, 2021; Zhou, Athey and Wager, 2023), as a low-dimensional parametric rule does at moderate sample sizes. When the rule changes materially between folds the standard error is approximate and no correction is applied. The learned policy class is the greedy rule over per-action linear outcome models, not an optimal policy search. This route creates no support-matrix license.
+They are influence-function standard errors labelled `calibration == "unmeasured"`; no interval is produced and no coverage claim is made. For `cross_fitted_learning` the standard error pools the scores of all folds and treats the fold policies as fixed. That is reasonable when the learned policy stabilises across folds (the cross-fitting argument of Athey and Wager, 2021; Zhou, Athey and Wager, 2023), as a low-dimensional parametric rule does at moderate sample sizes. When the rule changes materially between folds the standard error is approximate and no correction is applied. The learned policy class is the greedy rule over per-action linear outcome models, not an optimal policy search. This route creates no support-matrix support.
 
 ## Evaluate a fixed policy under randomized assignment
 
@@ -87,7 +87,7 @@ They are influence-function standard errors labelled `calibration == "unmeasured
 
 Provide unique evaluation subject IDs and one of two ownership contracts: training subject IDs disjoint from evaluation subjects, or fold IDs matching the fold excluded when each row's predictions and recommendation were produced. These checks validate only the supplied metadata; they do not inspect model training records. Randomization propensities must be strictly between zero and one. The standard errors assume independent evaluation subjects and condition on the supplied nuisance predictions and policy; no clustered standard error or calibrated interval is claimed.
 
-The route evaluates a precomputed policy and does not train it. Identification requires the declared randomized assignment, consistency and no interference. It creates no support-matrix license. When propensities are unknown or the policy may have been learned from the same rows, use the observational route above.
+The route evaluates a precomputed policy and does not train it. Identification requires the declared randomized assignment, consistency and no interference. It creates no support-matrix support. When propensities are unknown or the policy may have been learned from the same rows, use the observational route above.
 
 ## Conditional dose-response at chosen doses
 

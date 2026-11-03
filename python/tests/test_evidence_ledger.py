@@ -264,7 +264,7 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
     assert error.sources == () or all(len(s) == 64 for s in error.sources)
 
 
-def test_a_declared_covariance_with_cross_terms_licenses_the_shared_pair():
+def test_a_declared_covariance_with_cross_terms_supports_the_shared_pair():
     ledger = el.EvidenceLedger()
     s3 = ledger.add_source(data("s3", 90, 120))
     s4 = ledger.add_source(data("s4", 110, 150))
@@ -707,19 +707,19 @@ def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
                 )
             ).result
             error = refused(lambda legacy=legacy: ledger.pooled_interval(legacy))
-            expect(error, "cell_not_licensed", "evidence_ledger.hksj_study_count_not_measured")
+            expect(error, "not_supported", "evidence_ledger.hksj_study_count_not_measured")
     three = require_success(ledger.pool_summaries("three", summaries(0.01, 3))).result
     error = refused(lambda: ledger.pooled_interval(three))
-    expect(error, "cell_not_licensed", "evidence_ledger.interval_not_measured")
+    expect(error, "not_supported", "evidence_ledger.interval_not_measured")
 
 
 def test_a_pooled_interval_refuses_without_a_measured_record():
     scenario = Scenario()
     error = refused(lambda: scenario.ledger.pooled_interval(scenario.r_all))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail in {
         "evidence_ledger.interval_not_measured",
-        "evidence_ledger.interval_not_licensed",
+        "evidence_ledger.interval_not_supported",
     }
     error = refused(lambda: scenario.ledger.pooled_interval("ab" * 32))
     assert error.reason_code == "invalid_argument"
@@ -1205,7 +1205,7 @@ def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrow
     assert replay.method == "equal_study_gaussian"
     assert replay.values == pytest.approx((ys.mean(), ys.var(ddof=1) / len(ys)), abs=TOL)
     error = refused(lambda: ledger.pooled_interval(outcome.result))
-    assert error.code == "cell_not_licensed"
+    assert error.code == "not_supported"
 
 
 def test_unknown_declaration_key_refused():

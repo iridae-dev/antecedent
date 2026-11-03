@@ -138,7 +138,7 @@ def test_path_specific_exact_dag_posterior_map():
     assert result.answer.detail == "identified_set"
     assert result.answer.bounds == pytest.approx((0.0, difference), abs=1e-9)
     assert result.estimate.ate == pytest.approx(difference / 2.0, abs=1e-9)
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():

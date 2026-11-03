@@ -112,7 +112,7 @@ impl TemporalEffectQuery {
         self
     }
 
-    /// Licensed single-step Sustained is `[from, from]`. A wider window is sequential.
+    /// Supported single-step Sustained is `[from, from]`. A wider window is sequential.
     #[must_use]
     pub const fn is_multi_step_sustained(&self) -> bool {
         matches!(self.policy, TemporalPolicy::Sustained { from, until } if from != until)

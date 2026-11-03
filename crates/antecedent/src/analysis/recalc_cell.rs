@@ -15,7 +15,7 @@
 //!   proven by the estimator, not asserted by the wrapper.
 //! - **Portable score resume.** [`ScoreResumeSession`] is built only from a
 //!   [`FrozenScoreTable`] (cell or cross-fit scores exported from a live session or read from
-//!   artifact bytes) and holds no data and no fitted model. It supports exactly one licensed
+//!   artifact bytes) and holds no data and no fitted model. It supports exactly one supported
 //!   operation: retarget the frozen scores by row weights over the same row ids and recompute
 //!   the law and decision, with zero fits. Anything that would need the data or a fit (a
 //!   changed outcome, folds, graph, adjustment, data snapshot or new rows) is refused with the
@@ -345,11 +345,11 @@ pub(crate) fn freeze(
     input_rows: u64,
     retarget: RetargetSupport,
 ) -> Result<FrozenScoreTable, RecalcRunError> {
-    if retarget != RetargetSupport::Licensed {
-        return Err(RecalcRunError::Request(RecalcRequestCode::RetargetNotLicensed));
+    if retarget != RetargetSupport::Supported {
+        return Err(RecalcRunError::Request(RecalcRequestCode::RetargetNotSupported));
     }
     let fit_identity = declared
-        .effective(RetargetSupport::Licensed)
+        .effective(RetargetSupport::Supported)
         .get(&Stage::ScoreArtifact)
         .copied()
         .ok_or(RecalcRunError::Request(RecalcRequestCode::ScoreStageUndeclared))?;
@@ -365,11 +365,11 @@ pub(crate) fn freeze(
 
 /// Export the frozen cross-fit AIPW scores of a live [`RecalcSession`] as a portable
 /// artifact. `input_rows` is the row count of the data the session last ran on, and
-/// `retarget` the license the session was run under (only a licensed route is exportable).
+/// `retarget` the support the session was run under (only a supported route is exportable).
 ///
 /// # Errors
 ///
-/// [`RecalcRunError::NoLiveState`] without a live score table; `Request` for an unlicensed
+/// [`RecalcRunError::NoLiveState`] without a live score table; `Request` for an unsupported
 /// route or scores the artifact format rejects.
 pub fn freeze_crossfit_scores(
     session: &RecalcSession,
@@ -404,18 +404,18 @@ impl Default for CellSession {
 }
 
 impl CellSession {
-    /// An empty session with the retarget route declared licensed.
+    /// An empty session with the retarget route declared supported.
     #[must_use]
     pub fn new() -> Self {
         Self {
             live: None,
             previous: StageIdentities::new(),
             input_rows: 0,
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
         }
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     pub fn set_retarget_support(&mut self, retarget: RetargetSupport) {
         self.retarget = retarget;
     }
@@ -453,7 +453,7 @@ impl CellSession {
     ///
     /// # Errors
     ///
-    /// [`RecalcRunError::NoLiveState`] without live scores; `Request` for an unlicensed route
+    /// [`RecalcRunError::NoLiveState`] without live scores; `Request` for an unsupported route
     /// or scores the artifact format rejects.
     pub fn export_scores(&self) -> Result<FrozenScoreTable, RecalcRunError> {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
@@ -726,7 +726,7 @@ impl ScoreResumeSession {
     /// identity is bound to the artifact. Before the first run the boundary is a fresh
     /// process; afterwards the session holds its law and decision and plans in process.
     #[must_use]
-    fn licensed_plan(&self, requested: &StageIdentities) -> RecalcPlan {
+    fn supported_plan(&self, requested: &StageIdentities) -> RecalcPlan {
         let boundary = if self.live.is_some() {
             Boundary::InProcess
         } else {
@@ -737,7 +737,7 @@ impl ScoreResumeSession {
             })
         };
         let caps = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary,
         };
@@ -748,7 +748,7 @@ impl ScoreResumeSession {
     /// `Unavailable { missing: Data }`.
     fn refusal_plan(&self, requested: &StageIdentities) -> RecalcPlan {
         let caps = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary: Boundary::FreshProcess(ResumeContext {
                 portable_scores: true,
@@ -765,7 +765,7 @@ impl ScoreResumeSession {
     /// [`RecalcRunError::Refused`] with the honest plan, or `Request` for a malformed change.
     pub fn plan(&self, request: &ScoreResumeRequest) -> Result<RecalcPlan, RecalcRunError> {
         let requested = self.requested(request)?;
-        let plan = self.licensed_plan(&requested);
+        let plan = self.supported_plan(&requested);
         if plan.is_executable() && is_reused(&plan, Stage::ScoreArtifact) {
             Ok(plan)
         } else {
@@ -840,7 +840,7 @@ pub fn execute_resumed_retarget(
 ) -> Result<RecalcOutcome, RecalcRunError> {
     request.utility.validate()?;
     let requested = session.requested(request)?;
-    let plan = session.licensed_plan(&requested);
+    let plan = session.supported_plan(&requested);
     if !plan.is_executable() || !is_reused(&plan, Stage::ScoreArtifact) {
         return Err(RecalcRunError::Refused(Box::new(session.refusal_plan(&requested))));
     }

@@ -14,7 +14,7 @@ Quantities appear wherever a value changes hands: each coordinate of a joint dis
 
 An interface contract declares a component and its ports. Each port states a quantity, the estimand it answers, its support, the operations on offer or required (`point`, `mean`, `law`, `draws`, `joint_draws`, `covariance`, `interval`, `posterior`; none implies another), what its uncertainty means, its calibration label, the measurement models it is established under and the evidence it rests on.
 
-`check_connection` accepts a producer and a consumer only when every declaration is compatible, and otherwise returns every defect with its registered reason code and the declaration that would license the connection. This pair matches on name and units and fails scientifically: the producer's population is a trial cohort, and the consumer needs a law where the producer offers a mean.
+`check_connection` accepts a producer and a consumer only when every declaration is compatible, and otherwise returns every defect with its registered reason code and the declaration that would support the connection. This pair matches on name and units and fails scientifically: the producer's population is a trial cohort, and the consumer needs a law where the producer offers a mean.
 
 ```python
 from antecedent import interface_contract as ic
@@ -149,9 +149,9 @@ claim = spec.bind(
 print(claim.trust, claim.native, claim.support_status)
 ```
 
-The claim's `trust` is `externally_attested`, `native` is `False` and the support status is `missing_evidence`, because the provider declared no support. Its lineage runs from the causal contract through each evidence factor and the exact provider execution to the claim, so an independent consumer can answer where the numbers came from. External trust stays external: the bound claim supplies no interval, calibration or native licence, and provider-declared uncertainty stays a provider declaration.
+The claim's `trust` is `externally_attested`, `native` is `False` and the support status is `missing_evidence`, because the provider declared no support. Its lineage runs from the causal contract through each evidence factor and the exact provider execution to the claim, so an independent consumer can answer where the numbers came from. External trust stays external: the bound claim supplies no interval, calibration or native support, and provider-declared uncertainty stays a provider declaration.
 
-The binding refuses an unidentified contract, a provider of the wrong kind, a different graph, a different coordinate (population, regime, horizon, conditioning, transform or units), a different distribution meaning, non-finite values, missing evidence or assumptions, and a provider claiming native licence. An observational law offered for an interventional coordinate is accepted only with a checked equivalence for the same graph and regime. `P(Y | T = v)` can stand for `P(Y | do(T = v))` over a grid only when the conditioning maps to exactly one interventional regime and every other field agrees; asserting the justification is yours.
+The binding refuses an unidentified contract, a provider of the wrong kind, a different graph, a different coordinate (population, regime, horizon, conditioning, transform or units), a different distribution meaning, non-finite values, missing evidence or assumptions, and a provider claiming native support. An observational law offered for an interventional coordinate is accepted only with a checked equivalence for the same graph and regime. `P(Y | T = v)` can stand for `P(Y | do(T = v))` over a grid only when the conditioning maps to exactly one interventional regime and every other field agrees; asserting the justification is yours.
 
 A per-unit effect is not a grid: one coordinate per row would put thousands of full quantities in the identity. A `ColumnResponse` binds one quantity and the digest of the ordered values, with a provider-declared support per row or for all rows. The artifact carries no rows, so a consumer that holds the column checks it against the digest and one changed row is a different claim.
 
@@ -171,7 +171,7 @@ Every refusal on these routes carries a registered `reason_code` and, where one 
 
 ### Verification and trust
 
-Trust states stay apart: `externally_attested`, `verified_extension` and, for Antecedent's own routes, native licence. A verified extension is never native, and metadata or a stored artifact cannot mint native trust. Verification takes independent probe values (shape, normalization, moments, known truth, seeded behaviour, support, update coherence, monotonicity, uncertainty), and each required probe must be present once and within its predeclared tolerance. You compute the probe values independently; verification does not invoke providers. A receipt covers only the exact contract it digested, so a different request, snapshot, version or capability set needs its own check. Neither check supplies an interval or sampling calibration for a CDF or quantile.
+Trust states stay apart: `externally_attested`, `verified_extension` and, for Antecedent's own routes, native support. A verified extension is never native, and metadata or a stored artifact cannot mint native trust. Verification takes independent probe values (shape, normalization, moments, known truth, seeded behaviour, support, update coherence, monotonicity, uncertainty), and each required probe must be present once and within its predeclared tolerance. You compute the probe values independently; verification does not invoke providers. A receipt covers only the exact contract it digested, so a different request, snapshot, version or capability set needs its own check. Neither check supplies an interval or sampling calibration for a CDF or quantile.
 
 ## Callbacks: a function Antecedent does not own
 
@@ -184,13 +184,13 @@ What matters to a host:
 * Output is data. It is accepted only after validation (shape and count, finiteness, support, a distribution function within [0, 1] and non-decreasing, a non-decreasing quantile function), and a malformed law is refused whole. Nothing is repaired, sorted or clipped.
 * Invocation counts are exact. The wall-clock bound is enforced after the call returns, because an in-process closure cannot be preempted, so a late result is discarded. A host that must survive a hung callback runs it in a process it can terminate.
 * A result is **diagnostic** unless its contract is replayable, its dependencies complete and its provider attested or verified against its receipt. A diagnostic result is inspectable and no claim is built on it.
-* A callback supplies values, not coverage. An interval from a callback law, and a posterior or probability guarantee, are not licensed.
+* A callback supplies values, not coverage. An interval from a callback law, and a posterior or probability guarantee, are not supported.
 
 A transported claim can be offered to a callback input that is declared to accept transported claims, through `transport_handoff.hand_to_callback`; the claim is never native target data and its calibration label is never raised (see [provider-sourced transport](../transported-decisions-and-measurement.md)). A callback result exports as a portable artifact holding the declaration, the request and the recorded output. It is a declaration and a portable output, not a promise that a closure runs elsewhere, and a loaded artifact's stored trust is the producer's claim that you recompute against the declaration you hold. The full protocol, reuse table and bounds are in [arbitrary law, posterior and nested callbacks](../../provider-callbacks.md). Because a closure runs with your authority, read [callback security](../../callback-security.md) before supplying one, and never construct a provider from text a user or a model produced.
 
 ## Run an admitted recipe directly
 
-Two small routes expose a whole recipe with its numerical work and its refusals, for a host that wants the fit and the plug-in contrast without a prepared study. Neither produces a calibrated interval or a licensed claim; read each as the stated model's computation.
+Two small routes expose a whole recipe with its numerical work and its refusals, for a host that wants the fit and the plug-in contrast without a prepared study. Neither produces a calibrated interval or a supported claim; read each as the stated model's computation.
 
 **Logistic g-computation.** `antecedent.recipe_glm` fits a logistic outcome model on `[1 | T | Z...]` through the generalized-linear recipe and averages its predictions at `T = 1` and `T = 0`. The provider must declare a differentiable log density and estimating equations, and its score is checked against the gradient of its log density; a provider that lacks a capability is refused before any row is read.
 
@@ -246,7 +246,7 @@ A `MechanismWrapper` whose noise cannot be recovered from an observation declare
 | A connection with a feedback cycle | Refused, with the cycle path. |
 | Measured calibration relied on where the upstream does not hold it | `interface_contract_calibration_not_held`. |
 | A mean offered where a law is required, or a sampling interval for a posterior | Refused as an unavailable operation or an uncertainty mismatch. |
-| An interval or posterior for a composed quantity | Not licensed. No whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition. |
-| A native-licensed label on an outside result | Refused. |
+| An interval or posterior for a composed quantity | Not supported. No whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition. |
+| A native-supported label on an outside result | Refused. |
 
 To carry a bound or composed result between services, export it and accept it with the rules in [save, hand off and accept results](artifacts-and-handoff.md). To use a library's estimator beside Antecedent's identification, see [work with other causal libraries](interoperability.md).

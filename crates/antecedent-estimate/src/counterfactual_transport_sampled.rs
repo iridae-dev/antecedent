@@ -1,7 +1,7 @@
 //! Sampled inference for general counterfactual transport.
 //!
 //! The exact route ([`crate::counterfactual_transport`]) evaluates a stored
-//! derivation on supplied finite laws and licenses no sampling uncertainty. This
+//! derivation on supplied finite laws and supports no sampling uncertainty. This
 //! route evaluates the same stored derivation, without re-identifying, on finite
 //! laws estimated from sampled counts, and reports four distinct claims:
 //!
@@ -17,7 +17,7 @@
 //! 4. *Statistical inference*: withheld. No coordinate of this route has
 //!    measured whole-method coverage, so no interval is published; the delta
 //!    method standard error is reported only as `uncalibrated_standard_error`,
-//!    and the interval request carries `cell_not_licensed`.
+//!    and the interval request carries `not_supported`.
 //!
 //! # Evidence
 //!
@@ -138,8 +138,8 @@ pub(crate) const DETAIL_CANCELLED: &str = "counterfactual_transport_sampled.canc
 pub(crate) const DETAIL_ENVELOPE_EMPTY: &str =
     "counterfactual_transport_sampled.envelope_undefined";
 /// Detail of the withheld interval.
-pub const DETAIL_INTERVAL_NOT_LICENSED: &str =
-    "counterfactual_transport_sampled.interval_not_licensed";
+pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str =
+    "counterfactual_transport_sampled.interval_not_supported";
 
 pub(crate) fn refused(
     code: &'static str,
@@ -175,7 +175,7 @@ pub struct SampledClaimLabels {
     pub exact_finite_law_evaluation: &'static str,
     /// What kind of number the value is.
     pub point_estimate: &'static str,
-    /// What statistical inference is licensed.
+    /// What statistical inference is supported.
     pub statistical_inference: &'static str,
 }
 
@@ -190,7 +190,7 @@ pub const LABEL_SMOOTHED_PLUG_IN: &str = "smoothed_plug_in_point_estimate";
 /// No point estimate: a structural envelope only.
 pub const LABEL_ENVELOPE_ONLY: &str = "structural_envelope_no_point_estimate";
 /// Inference withheld: no coordinate has measured coverage.
-pub const LABEL_INFERENCE_WITHHELD: &str = "withheld_cell_not_licensed";
+pub const LABEL_INFERENCE_WITHHELD: &str = "withheld_not_supported";
 
 /// A plug-in value and its parts.
 #[derive(Clone, Debug, PartialEq)]
@@ -229,9 +229,9 @@ pub struct UncalibratedStandardError {
 /// An interval route that is closed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WithheldUncertainty {
-    /// Always `cell_not_licensed`.
+    /// Always `not_supported`.
     pub code: &'static str,
-    /// Always [`DETAIL_INTERVAL_NOT_LICENSED`].
+    /// Always [`DETAIL_INTERVAL_NOT_SUPPORTED`].
     pub detail: &'static str,
     /// Calibration reason: `estimator_grid_not_measured`.
     pub reason: &'static str,
@@ -986,8 +986,8 @@ pub fn estimate_sampled_counterfactual_transport(
             standard_error,
             standard_error_withheld_reason,
             interval: WithheldUncertainty {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
-                detail: DETAIL_INTERVAL_NOT_LICENSED,
+                code: antecedent_core::reason_code!("not_supported"),
+                detail: DETAIL_INTERVAL_NOT_SUPPORTED,
                 reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
             },
         },

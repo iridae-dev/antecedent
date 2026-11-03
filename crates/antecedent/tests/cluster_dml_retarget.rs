@@ -226,7 +226,7 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
     }
 }
 
-/// These are lookup fixtures only: the stored normal row must never license Student endpoints.
+/// These are lookup fixtures only: the stored normal row must never support Student endpoints.
 #[test]
 fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     use antecedent::estimator_spec::EstimatorSpec;

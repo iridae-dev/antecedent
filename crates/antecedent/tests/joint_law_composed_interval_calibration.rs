@@ -1,7 +1,7 @@
 //! Coverage of the composed interval of a linear combination of two estimates.
 //!
 //! The whole method is the component estimators (sample means of two rows
-//! columns), their sampling covariance and the licensed dependence route, and
+//! columns), their sampling covariance and the supported dependence route, and
 //! the normal-approximation interval built on the composed value. Every design
 //! scores the interval a sealed claim reports against the known composed truth
 //! and binds the calibration key the claim itself derives
@@ -327,7 +327,7 @@ fn composed_contrast_aligned_bootstrap_skewed_pair_l95() {
 }
 
 /// A violated declaration of independence is undetectable, and its interval
-/// under-covers: the declaration is a premise of the licence, not something the
+/// under-covers: the declaration is a premise of the support, not something the
 /// route checks. No record is emitted, because a boundary under the independent
 /// key would govern every honest declaration.
 #[test]

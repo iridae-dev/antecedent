@@ -367,7 +367,7 @@ pub enum InformationRegularity {
     },
 }
 
-/// Observed information and the delta-method covariance it licenses.
+/// Observed information and the delta-method covariance it supports.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DynamicObservedInformation {

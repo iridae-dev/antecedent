@@ -102,7 +102,7 @@
 //! # What a result does not say
 //!
 //! Point estimates and bootstrap standard errors only; the bootstrap's coverage is unmeasured.
-//! Nothing here licenses a causal claim beyond the declared premises, and the class labels are
+//! Nothing here supports a causal claim beyond the declared premises, and the class labels are
 //! an ordering convenience, not a discovered meaning.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

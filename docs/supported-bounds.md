@@ -7,7 +7,7 @@ can supply a separate execution/search budget where the API explicitly allows it
 a default budget is not a universal hard cap. Semantic-only policies do not acquire
 a coordinate limit from an unrelated distribution artifact. Each value in the
 generated table is the integer `bounds` entry of that record in
-`parity/promotion.toml`. `parity/limits.toml` names the implementation place, the
+`parity/capability_records.toml`. `parity/limits.toml` names the implementation place, the
 source guard, the original refusal path and an original executing fixture for that
 family. A fixture entry is not a claim that every listed cap was independently
 stress-tested.

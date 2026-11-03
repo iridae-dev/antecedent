@@ -59,8 +59,8 @@ pub mod transport_revalidation;
 
 pub use antecedent_core::refusal::{NextAttempt, Refusal, Refused};
 pub use capability::{
-    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, SemanticApplicability,
+    BlockedOperation, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, SemanticApplicability, SupportedNeighbor,
 };
 pub use claim::{
     AcceptanceReport, AttestedEvidence, CalibrationView, CheckedWorldPoint, CheckedWorldPointError,

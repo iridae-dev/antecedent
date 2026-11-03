@@ -52,7 +52,7 @@ must not agree. Nested `Sequence` and Soft families other than
 At horizon 1, the two-point surface contrast
 `mean(dose=1) - mean(dose=0) = 2` matches the `PulseEffect` value for
 active `1` versus control `0`; both dispatch through `TemporalLinearAdjustment`
-and agree numerically on this fixture. The licensed single-step
+and agree numerically on this fixture. The supported single-step
 `SustainedEffect` window at offset `-1` recovers the same contrast. This is
 observed numerical agreement via shared adjustment machinery, not a
 derivation of one from the other and not a separate response estimand;

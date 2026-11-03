@@ -4,7 +4,7 @@ This low-level utility evaluates static or history-adaptive binary regimes using
 user-supplied sequential treatment and censoring probabilities. The regime
 value and sequential g-formula paths are point-only; the binary MSM path
 returns pointwise subject-clustered standard errors. No path fits the nuisance
-probabilities or adds a support-matrix license.
+probabilities or adds a support-matrix support.
 """
 
 from __future__ import annotations
@@ -435,7 +435,7 @@ class LongitudinalRegimeEstimate:
     method: str = "ipw"
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     period_effects: tuple[float, ...] | None = None
     standard_errors: tuple[float, ...] | None = None
     stabilizing_numerator_probabilities: tuple[float, ...] | None = None
@@ -456,7 +456,7 @@ class SequentialContrast:
     exchangeability given the measured history, positivity, consistency and no interference are
     declared, not derived. Frequentist inference reports the normal interval of the cross-fit
     contrast; ``Bayesian`` inference reports the modular Bayesian-bootstrap posterior of the same
-    scores. Neither is licensed and neither has a measured repeated-sampling calibration.
+    scores. Neither is supported and neither has a measured repeated-sampling calibration.
     """
 
     outcome: str
@@ -499,7 +499,7 @@ class SequentialContrast:
 
 @dataclass(frozen=True, slots=True)
 class SequentialContrastEstimate:
-    """Cross-fit contrast of two regimes with its scores. Unlicensed, calibration unmeasured."""
+    """Cross-fit contrast of two regimes with its scores. Unsupported, calibration unmeasured."""
 
     active_regime: tuple[int, int]
     control_regime: tuple[int, int]
@@ -519,9 +519,9 @@ class SequentialContrastEstimate:
     interval: tuple[float, float] | None = None
     fits_computed: int = 0
     fits_reused: int = 0
-    licensed: bool = False
+    supported: bool = False
     calibration_measured: bool = False
-    support_status: str = "unlicensed_uncalibrated"
+    support_status: str = "unsupported_uncalibrated"
     assumptions: tuple[str, ...] = (
         "sequential_conditional_exchangeability_given_measured_history",
         "positivity_at_each_decision",
@@ -609,7 +609,7 @@ class MarginalStructuralModelResult:
     crossfit_status: str = (
         "caller_supplied propensity data dependence is not independently verified"
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "consistency for the observed longitudinal treatment histories",
         "sequential exchangeability conditional on the histories used for treatment probabilities",
@@ -1169,7 +1169,7 @@ def trajectory_hazard_credible_interval(
 ) -> tuple[float, float]:
     """A credible interval for the trajectory survival contrast: always refused.
 
-    Raises a ``cell_not_licensed`` refusal (``trajectory_survival.credible_interval_not_licensed``)
+    Raises a ``not_supported`` refusal (``trajectory_survival.credible_interval_not_supported``)
     naming the missing premise, a joint likelihood for the confounders, treatment, censoring and
     event hazard (a parametric g-formula posterior), and the next attempt: supply a longitudinal
     confounder, treatment, censoring and event model with priors, or report the conditional

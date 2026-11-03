@@ -68,7 +68,7 @@ impl CheckedBayesianGraphPosteriorAte {
         };
         let query = target.inner();
         let atom_query = target.atom_identification_query();
-        let licensed = target.bayesian_estimator();
+        let supported = target.bayesian_estimator();
         if posterior.atom_kind() != GraphPosteriorAtomKind::Dag
             || !posterior_cache_matches(&posterior, &*identification, CacheKeys::PosteriorKeys)
             || identification.atoms.iter().any(|atom| atom.identification.query != atom_query)
@@ -76,10 +76,10 @@ impl CheckedBayesianGraphPosteriorAte {
             || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
             || query.target_population != antecedent_core::TargetPopulation::AllObserved
             || !validation.is_point()
-            || procedure.id() != licensed
+            || procedure.id() != supported
             || !physical
                 .binding()
-                .names(crate::strategy_table::IdentifierId::BackdoorAdjustment, licensed)
+                .names(crate::strategy_table::IdentifierId::BackdoorAdjustment, supported)
         {
             return Err(CausalError::Unsupported {
                 message: "checked Bayesian graph-posterior ATE has incompatible graph, target, identification, or procedure",

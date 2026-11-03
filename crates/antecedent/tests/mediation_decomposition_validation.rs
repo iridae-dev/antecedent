@@ -277,8 +277,8 @@ fn an_admg_decomposition_runs_the_mediation_suite_on_both_inferences() {
                 inference.clone(),
                 suite,
             );
-            // The cell is licensed under its validation suite.
-            assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+            // The cell is supported under its validation suite.
+            assert_eq!(built.support_status(), Some(CellStatus::Supported));
             let result = built.run(&ctx).unwrap_or_else(|e| panic!("{suite:?}: {e}"));
             assert_suite(&result, suite);
             // Validation observes the estimate, it does not move it.
@@ -521,7 +521,7 @@ fn a_pag_decomposition_is_refuted_member_by_member_against_the_structural_effect
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let result = built.run(&ctx).unwrap();
         let found = ids(&result);
         // The members that identify different functionals are refuted one by one; a single
@@ -578,7 +578,7 @@ fn a_temporal_admg_window_runs_the_suite_on_contiguous_stretches_of_windows() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+            assert_eq!(built.support_status(), Some(CellStatus::Supported));
             let result = built.run(&ctx).unwrap_or_else(|e| panic!("{suite:?}: {e}"));
             assert_suite(&result, suite);
             let sensitivity = report(&result, "mediation.sequential_ignorability");
@@ -689,7 +689,7 @@ fn a_temporal_pag_window_is_refuted_on_the_window_table_for_every_contrast() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+            assert_eq!(built.support_status(), Some(CellStatus::Supported));
             let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?} {suite:?}: {e}"));
             let found = ids(&result);
             let has = |prefix: &str| found.iter().any(|id| id.starts_with(prefix));
@@ -832,7 +832,7 @@ fn a_mediation_posterior_refutes_each_atom_on_its_own_window_and_mixes_the_repor
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{suite:?}: {e}"));
         let found = ids(&result);
         assert!(found.iter().any(|id| id == "mediation.sequential_ignorability"), "{found:?}");

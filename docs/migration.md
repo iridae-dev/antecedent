@@ -276,7 +276,7 @@ The treatment-model nuisance score posterior is now an explicit fitting operatio
 | Fixed difference and interaction contrasts only | `InterventionContrast::linear` takes an explicit finite combination of worlds with one nonzero coefficient each and an explicit reference. Adding a term changes the question; it does not identify the added world. |
 | Convenience evaluation of a dose-grid posterior | `Study::prepare_posterior_row(request, ctx)` compiles without fitting or drawing; `estimate(ctx)` runs it and `retarget(grid, functional, ctx)` reuses the coefficient posterior for compatible grid and functional changes. Changed data, priors, draws or seeds need a new preparation. The convenience calls delegate to the same compiled owner. |
 | Panel joint responses without a retained program | `Study::prepare_joint_panel`; retarget worlds on the prepared program to reuse a compatible fit. |
-| Context-free bridge propagation | Contract-bound affine propagation and support mapping call `BridgeContract::check_licensing()` first. |
+| Context-free bridge propagation | Contract-bound affine propagation and support mapping call `BridgeContract::check_support()` first. |
 
 Python's `dose_grid_posterior` and `consume_dose_grid_posterior_artifact` take an optional `execution=Execution(threads=..., limits=ResourceLimits(memory_bytes=...), cancel=...)`; omitting it keeps the default policy. Resource and cancellation refusals raise the existing typed errors.
 

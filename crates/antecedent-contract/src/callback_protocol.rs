@@ -27,8 +27,8 @@
 //! * [`validate_output`] accepts a returned value only if it is a well-formed
 //!   answer of the declared quantity and support; a malformed law is refused.
 //! * [`standing_of`] separates a diagnostic result from an external claim a
-//!   licensed route may consume. Neither is native; metadata cannot mint
-//!   native trust, a joint law or an identification licence, and no interval or
+//!   supported route may consume. Neither is native; metadata cannot mint
+//!   native trust, a joint law or an identification evidence, and no interval or
 //!   posterior guarantee is carried.
 //! * [`callback_source_declaration`] registers a callback and its evidence in
 //!   the one evidence ledger so nested callbacks' overlap is computed.

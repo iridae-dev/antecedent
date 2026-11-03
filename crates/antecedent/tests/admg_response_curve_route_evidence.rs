@@ -109,7 +109,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} source"
     );
-    assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "ResponseCurve", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");

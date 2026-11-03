@@ -14,9 +14,9 @@ preprocessing outside the folds. The robustness claimed is model double robustne
 of the point estimate: it is consistent when either the outcome regressions or the
 participation model is. No efficiency, rate or CATE claim is made.
 
-The point estimate and the estimator menu are licensed. The whole-estimator
+The point estimate and the estimator menu are supported. The whole-estimator
 interval (joint outer refit percentile bootstrap of the cross-fitted estimator) is
-not: its route is closed with ``cell_not_licensed`` until its coverage records are
+not: its route is closed with ``not_supported`` until its coverage records are
 measured, so an estimate reports the interval withheld and never publishes one.
 """
 
@@ -123,7 +123,7 @@ class EstimatorMenuEntry:
 class EstimatorMenu:
     """The estimators for one graph, query and learner configuration.
 
-    Selection is manual: no entry is ranked or recommended, because no licensed
+    Selection is manual: no entry is ranked or recommended, because no supported
     comparison criterion exists between the estimators.
     """
 
@@ -202,7 +202,7 @@ class LearnedContinuousEstimate(ScientificResult):
 
     ``overlap`` keeps source membership (``selection``) and treatment overlap apart.
     ``uncertainty`` is ``point_only`` when no interval was requested and ``withheld``
-    (``cell_not_licensed``, or ``estimator_inference_mismatch`` below the replicate
+    (``not_supported``, or ``estimator_inference_mismatch`` below the replicate
     floor) for a legacy bootstrap request. ``interval()`` returns an ``available``
     analytic influence interval and its standard error.
     """

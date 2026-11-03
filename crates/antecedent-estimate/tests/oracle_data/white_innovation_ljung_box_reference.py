@@ -13,7 +13,7 @@ and the p-value is the upper tail of a chi-square variable with m degrees of fre
 Q(m/2, Q/2) the regularized upper incomplete gamma function.  Persistent-error and periodic-shock series are used, so
 the p-values span a non-rejection and clear rejections.  The Normal-Inverse-Gamma posterior of the
 treatment coefficient (prior scale 10, Inv-Gamma(1e-3, 1e-3), Student-t with mean mn and variance
-bn / (an - 1) Vn) is also frozen for the untempered fit the gate licenses.
+bn / (an - 1) Vn) is also frozen for the untempered fit the gate supports.
 Repository-authored (MIT OR Apache-2.0).
 """
 import json

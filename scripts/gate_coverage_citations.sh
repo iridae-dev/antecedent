@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Coverage citation gate.
 #
-# A licensed row that quotes a measured coverage cites the test that produced
+# A supported row that quotes a measured coverage cites the test that produced
 # it, in the form `0.895 (static_calibration::path_specific_two_path_*)` or
 # `(crates/antecedent/tests/derivative_calibration.rs::ade_..._coverage)`.
 # The 2026-09-15 traceability pass found quoted numbers that no test had
 # produced on the current tree; a citation that names a test which does not
 # exist is the cheapest such drift to catch mechanically. This gate resolves
-# every `<module>::<fn>` citation in parity/support_licensed.toml against the
+# every `<module>::<fn>` citation in parity/support_cells.toml against the
 # test functions actually defined in crates/antecedent/tests/<module>.rs
 # (`fn name` and the `name => (...)` entries of the calibration macros),
 # expanding `{a,b}` alternatives and `*` globs, and fails on any citation that

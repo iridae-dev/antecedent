@@ -57,7 +57,7 @@ Ask the same exported decision two questions.
 
 **Can the numbers be reproduced?** Yes. `replay_decision` returns exactly the sealed mean and variance, and the assertion in the example checks it after the withdrawal.
 
-**May the decision be used now?** No. `workflow.decision()`, `export_decision()`, `load(...)` and further utility changes each raise `MixedDecisionRefusal`. Its `reason_code` is registered and its `detail` begins with `evidence_ledger.`, which says the refusal comes from the ledger's standing for a source, not from a numerical fault. The decision's inputs have not become wrong; one of them has stopped being licensed for this use.
+**May the decision be used now?** No. `workflow.decision()`, `export_decision()`, `load(...)` and further utility changes each raise `MixedDecisionRefusal`. Its `reason_code` is registered and its `detail` begins with `evidence_ledger.`, which says the refusal comes from the ledger's standing for a source, not from a numerical fault. The decision's inputs have not become wrong; one of them has stopped being supported for this use.
 
 The distinction is the point. A replay shows that a computation is reproducible. Current permission says that the evidence behind it still counts. Withdrawing the trial removes the second without touching the first, because the first never depended on the ledger.
 

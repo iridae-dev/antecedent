@@ -330,7 +330,7 @@ impl MechanismTape {
         Ok(parameters)
     }
     /// Conservative domain-wide absolute derivative bounds on all of R^n.
-    /// Infinity means that this sufficient certificate cannot license a density.
+    /// Infinity means that this sufficient certificate cannot support a density.
     pub fn derivative_bounds(&self, parameters: &[f64]) -> Result<Vec<f64>, EquilibriumError> {
         if parameters.len() != self.parameters || parameters.iter().any(|v| !v.is_finite()) {
             return Err(invalid("expression bound parameters"));

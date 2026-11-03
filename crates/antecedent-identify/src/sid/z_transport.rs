@@ -143,7 +143,7 @@ pub enum ZTransportNotCertifiedKind {
     /// Search reached a `TRz` line-10 exchange but the source c-factor could not
     /// be identified from the cited source law, so no formula was produced.
     SourceCFactorUnidentified,
-    /// The bounded recursive search exhausted its licensed rules without reaching
+    /// The bounded recursive search exhausted its supported rules without reaching
     /// an identifying formula or a checked line-11 terminal.
     NoRecursiveFormula,
     /// Search reached a checked `TRz` line-11 terminal. Deciding the same query
@@ -661,12 +661,12 @@ impl ZTransportDerivation {
     }
 }
 
-/// Bounded outcome of the currently licensed sIDz special case.
+/// Bounded outcome of the currently supported sIDz special case.
 #[derive(Clone, Debug)]
 pub enum ZTransportResult {
     /// Formula and theorem premises were checked for the registered graph family.
     Identified(Box<ZTransportDerivation>),
-    /// This bounded implementation did not find a licensed case. This is not
+    /// This bounded implementation did not find a supported case. This is not
     /// a theorem-specific impossibility result.
     NotCertified {
         /// Stable scope note.

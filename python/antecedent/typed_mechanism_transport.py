@@ -45,7 +45,7 @@ What this is, and is not:
   independence. The transport assumption adds no variance (``uncertainty_scope``). The Monte
   Carlo error of a response (``monte_carlo_se``) is numerical-approximation uncertainty and is
   reported apart. No interval is produced: :meth:`TypedTransportedComposition.interval` raises
-  ``cell_not_licensed``. Support is ``extrapolative`` and inference ``point_only``.
+  ``not_supported``. Support is ``extrapolative`` and inference ``point_only``.
 
 Every fit, admission, test, response, variance and identity is computed in Rust; this module
 builds the declaration and presents the result.
@@ -743,7 +743,7 @@ class TypedTransportedComposition:
         )
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
+        """Always raises ``not_supported``: no coverage includes the transport assumption."""
         raise_refusal(self._handle.interval(), TypedMechanismRefusal)
 
 

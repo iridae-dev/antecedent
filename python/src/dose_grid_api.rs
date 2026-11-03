@@ -251,7 +251,7 @@ fn posterior_report_json(done: &BayesianPosteriorRow) -> PyResult<String> {
     .to_string())
 }
 
-/// Run the unlicensed Bayesian dose-grid posterior and seal it:
+/// Run the unsupported Bayesian dose-grid posterior and seal it:
 /// `(report json, artifact bytes, refusal json)`.
 ///
 /// `request_json` is the `dose_grid` request with empty `dose` and `outcome`; the table is

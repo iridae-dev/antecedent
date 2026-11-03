@@ -245,10 +245,10 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
         for accepted in [false, true] {
             for bayesian in [false, true] {
                 let built = dag_study(&data, accepted, bayesian, RefuteSuite::None);
-                // The cell is licensed: the Dag reads as the confounder-free selection diagram.
-                assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+                // The cell is supported: the Dag reads as the confounder-free selection diagram.
+                assert_eq!(built.support_status(), Some(CellStatus::Supported));
                 let result = built.run(&ctx).unwrap();
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+                assert_eq!(result.support_status(), Some(CellStatus::Supported));
                 let reference = build(&data, bayesian).run(&ctx).unwrap();
                 let (got, want) = (
                     result.estimate().as_effect().unwrap().ate,
@@ -291,7 +291,7 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                 )
                 .unwrap(),
             );
-            assert!(matches!(status, CellStatus::Licensed), "{class}: {status:?}");
+            assert!(matches!(status, CellStatus::Supported), "{class}: {status:?}");
         }
     });
 }

@@ -512,7 +512,7 @@ fn an_interval_request_is_refused_with_its_reason_code() {
         declared(&raw, 20).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster),
     ] {
         let error = requested.prepare(&data, &estimand, &query).unwrap_err();
-        code_of(&error, "cluster_interval_not_licensed");
+        code_of(&error, "cluster_interval_not_supported");
     }
     let est = declared(&raw, 20);
     let problem = est.prepare(&data, &estimand, &query).unwrap();
@@ -521,11 +521,11 @@ fn an_interval_request_is_refused_with_its_reason_code() {
     let point = est.fit(&problem, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
     let boot = est.with_bootstrap_replicates(5);
     let error = boot.attach_bootstrap(&problem, &mut workspace, &ctx, point).unwrap_err();
-    code_of(&error, "cluster_interval_not_licensed");
+    code_of(&error, "cluster_interval_not_supported");
 }
 
 #[test]
-fn scope_labels_and_combinations_outside_the_license_are_refused() {
+fn scope_labels_and_combinations_outside_the_support_are_refused() {
     let raw = draw(30, 10, 4);
     let (data, estimand, query) = build(&raw);
     let trimmed = AipwAte {
@@ -831,7 +831,7 @@ fn the_two_way_route_reduces_to_the_one_way_route_for_a_trivial_second_dimension
 
 /// One giant component (a bridge row per block joins all blocks, or one third of the rows
 /// share a second endpoint) and an entity in both endpoint roles stay closed with
-/// `dyadic_dependence_not_licensed`, before any fit.
+/// `dyadic_dependence_not_supported`, before any fit.
 #[test]
 fn unsupported_dyadic_structures_stay_closed() {
     let (blocks, na, nb) = (30usize, 3usize, 4usize);
@@ -845,7 +845,7 @@ fn unsupported_dyadic_structures_stay_closed() {
         bridged.second[k * na * nb] = raw.second[(k - 1) * na * nb];
     }
     let error = run(&declared_two_way(&bridged, 20, 4), &bridged, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
+    code_of(&error, "dyadic_dependence_not_supported");
     assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
 
     // One third of the rows share one second endpoint: a component larger than a fold's share.
@@ -855,21 +855,21 @@ fn unsupported_dyadic_structures_stay_closed() {
         *slot = hub;
     }
     let error = run(&declared_two_way(&heavy, 20, 4), &heavy, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
+    code_of(&error, "dyadic_dependence_not_supported");
     assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
 
     // An entity that is a first endpoint of some rows and a second endpoint of others.
     let mut shared = raw.clone();
     shared.second[0] = raw.cluster[5];
     let error = run(&declared_two_way(&shared, 20, 4), &shared, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
+    code_of(&error, "dyadic_dependence_not_supported");
     assert!(error.to_string().contains("cluster_dml.dyadic_shared_namespace"), "{error}");
     let fit = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap();
     let error = ClusterDml::dyadic(20, 4)
         .unwrap()
         .receipt(table(&fit), &shared.cluster, Some(&shared.second))
         .unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
+    code_of(&error, "dyadic_dependence_not_supported");
 }
 
 /// Too few labels at an endpoint, too few components per fold, a missing or misplaced second
@@ -1008,7 +1008,7 @@ fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
     let shared = raw.cluster.clone();
     code_of(
         &spec.influence_covariance(&[&psi], &raw.cluster, Some(&shared)).unwrap_err(),
-        "dyadic_dependence_not_licensed",
+        "dyadic_dependence_not_supported",
     );
 }
 

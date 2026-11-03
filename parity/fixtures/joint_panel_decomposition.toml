@@ -20,7 +20,7 @@ python = "antecedent.joint_panel.JointDesignResult.decompose_reference_component
 positive_evidence = ["crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::continuous_history_bootstrap_and_posterior_reference_preserve_the_actual_law", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_parameter_factorial_reference_decomposes_static_and_temporal_posterior_sources", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_population_transport_decomposition_is_positive_in_both_modes_and_time_forms", "python/tests/test_joint_panel_reference_decomposition.py", "crates/antecedent/tests/joint_panel_workflow.rs"]
 counterexamples = ["overlapping component bindings", "missing/mixed hybrid intervention", "unidentified source", "selection at response mechanism", "baseline latent confounding", "unsupported baseline values/history", "changed current population/diagram/scope", "resource/cancellation"]
 calibration_procedure = "parity/joint_response_calibration.toml#compiled_reference_decomposition"
-grants_release_license = false
+grants_release_support = false
 
 [[axis]]
 time = "static"

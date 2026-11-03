@@ -200,7 +200,7 @@ def test_prepared_rank_plans_reject_role_reconstruction_and_loose_execution_keyw
         pf.diagnose_fit({"t": [0, 1], "y": [1, 2]})
     with pytest.raises(CausalUnsupportedError) as refused:
         pf.plan_rank_drop(study, priority=["a"])
-    assert refused.value.reason_code == "rank_drop_not_licensed"
+    assert refused.value.reason_code == "rank_drop_not_supported"
     assert refused.value.refusal_fields["implicated_columns"] == ["b"]
 
 

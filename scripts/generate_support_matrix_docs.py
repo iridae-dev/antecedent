@@ -4,7 +4,7 @@
 Idempotent: unchanged outputs keep their bytes and modification times so
 regeneration does not invalidate Rust builds that embed the snapshots.
 
-The licensed-cell block is rewritten only in the active documentation release
+The supported-cell block is rewritten only in the active documentation release
 notes (`docs/release-notes/vX.Y.Z.md`). During release preparation this can be
 ahead of the workspace package version; `docs/release-notes/preparation.toml`
 is the explicit, reviewed source for that temporary target.
@@ -31,10 +31,10 @@ SUPPORT_SNAPSHOT = ROOT / "crates" / "antecedent" / "data" / "support_matrix.jso
 COVERAGE_SNAPSHOT = ROOT / "crates" / "antecedent-io-core" / "data" / "coverage_records.json"
 REASON_CODES_OUT = ROOT / "crates" / "antecedent-core" / "src" / "reason_codes_data.rs"
 NOTES_DIR = ROOT / "docs" / "release-notes"
-RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
-RN_END = "<!-- generated:support-matrix:licensed:end -->"
-FROZEN_BEGIN = "<!-- frozen:support-matrix:licensed:begin -->"
-FROZEN_END = "<!-- frozen:support-matrix:licensed:end -->"
+RN_BEGIN = "<!-- generated:support-matrix:supported:begin -->"
+RN_END = "<!-- generated:support-matrix:supported:end -->"
+FROZEN_BEGIN = "<!-- frozen:support-matrix:supported:begin -->"
+FROZEN_END = "<!-- frozen:support-matrix:supported:end -->"
 
 
 def write_text(path: Path | str, data: str) -> int:
@@ -87,7 +87,7 @@ def git_tag_exists(version: str) -> bool:
     return result.returncode == 0
 
 
-def freeze_licensed_block(path: Path) -> bool:
+def freeze_supported_block(path: Path) -> bool:
     """Rewrite live generated markers to frozen. Returns whether the file changed."""
     text = read_text(path)
     if RN_BEGIN not in text and RN_END not in text:
@@ -97,7 +97,7 @@ def freeze_licensed_block(path: Path) -> bool:
 
 
 def assert_historical_notes_are_frozen(version: str) -> None:
-    """Only the current cut may keep live generated licensed-block markers."""
+    """Only the current cut may keep live generated supported-block markers."""
     current = release_notes_path(version).resolve()
     live: list[Path] = []
     for path in sorted(NOTES_DIR.glob("v*.md")):
@@ -109,7 +109,7 @@ def assert_historical_notes_are_frozen(version: str) -> None:
     if live:
         names = ", ".join(str(p.relative_to(ROOT)) for p in live)
         raise SystemExit(
-            f"{names}: still have live generated licensed-block markers. "
+            f"{names}: still have live generated supported-block markers. "
             f"Freeze them (`{FROZEN_BEGIN}` / `{FROZEN_END}`) so a later "
             f"matrix regen cannot overwrite a shipped cut. Only "
             f"{current.relative_to(ROOT)} may keep live markers."
@@ -138,9 +138,18 @@ def matches(rule: dict, cell: dict) -> bool:
 def main() -> int:
     axes = load("parity/support_axes.toml")
     na_rules = load("parity/support_n_a.toml").get("n_a") or []
-    closed_rules = load("parity/support_closed.toml").get("closed") or []
-    allowed_rules = load("parity/support_allowlist.toml").get("allowed") or []
-    cells = load("parity/support_licensed.toml").get("cell") or []
+    closed_rules = load("parity/support_refusal_reasons.toml").get("closed") or []
+    cells = load("parity/support_cells.toml").get("cell") or []
+    # The one support count: every supported unit (matrix cell, graphless row, capability
+    # outside the matrix) passes the one rule in scripts/gate_support.py.
+    import gate_support
+
+    units = gate_support.summarize(gate_support.evaluate())
+    headline = gate_support.headline(units)
+    listed_failing = len(cells) - units["matrix"]
+    # Pages list and describe the supported cells only; a listed cell that fails the rule is
+    # not supported (it still shows in the count above, never in a supported inventory).
+    supported_cells = [c for c in cells if gate_support.cell_ident(c) in units["matrix_ok"]]
     queries = list(axes["queries"]) + list(axes.get("stage_queries") or [])
     graphs = list(axes["graph_classes"])
     structures = list(axes["structures"])
@@ -153,17 +162,9 @@ def main() -> int:
     def is_closed(cell: dict) -> bool:
         return (not is_n_a(cell)) and any(matches(rule, cell) for rule in closed_rules)
 
-    def is_allowed(cell: dict) -> bool:
-        return (
-            (not is_n_a(cell))
-            and (not is_closed(cell))
-            and any(matches(rule, cell) for rule in allowed_rules)
-        )
-
     cartesian = 0
     n_a_count = 0
     reason_backed_refused_count = 0
-    allowed_count = 0
     for q, g, s, inf, v in product(queries, graphs, structures, inferences, validations):
         cartesian += 1
         cell = {
@@ -177,10 +178,8 @@ def main() -> int:
             n_a_count += 1
         elif is_closed(cell):
             reason_backed_refused_count += 1
-        elif is_allowed(cell):
-            allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
-    unreasoned_refused_count = refused - reason_backed_refused_count - allowed_count
+    unreasoned_refused_count = refused - reason_backed_refused_count
 
     def bullets(xs: list[str]) -> str:
         return "\n".join(f"- `{x}`" for x in xs)
@@ -198,19 +197,7 @@ def main() -> int:
     na_lines = rule_lines(na_rules)
     closed_lines = rule_lines(closed_rules)
 
-    def allowed_lines(rules: list[dict]) -> list[str]:
-        lines = []
-        for rule in rules:
-            bits = []
-            for key in ("queries", "graph_classes", "structures", "inferences", "validations"):
-                if key in rule:
-                    bits.append(f"{key} ∈ {{{', '.join(rule[key])}}}")
-            lines.append(f"- {' ∧ '.join(bits)} — {rule['reason']} (parent: {rule['parent']})")
-        return lines
-
-    allowed_md_lines = allowed_lines(allowed_rules)
-
-    if cells:
+    if supported_cells:
 
         def md_cell(value: str) -> str:
             return " ".join(value.split()).replace("|", r"\|")
@@ -221,7 +208,7 @@ def main() -> int:
             "| query | graph | structure | inference | validation | evidence | external oracles | limitations |",
             "|---|---|---|---|---|---|---|---|",
         ]
-        for row in cells:
+        for row in supported_cells:
             ev = row.get("evidence_kind", "")
             fix = row.get("known_truth_fixture", "")
             test = row.get("evidence_test", "")
@@ -241,39 +228,38 @@ def main() -> int:
                 f"| `{row['query']}` | `{row['graph_class']}` | `{row['structure']}` | "
                 f"`{row['inference']}` | `{row['validation']}` | {ev_s} | {external} | {limitations} |"
             )
-        licensed_md = "\n".join(lic_rows)
+        supported_md = "\n".join(lic_rows)
     else:
-        licensed_md = (
-            "No licensed cells yet. Every remaining combination is **refused** "
+        supported_md = (
+            "No supported cells yet. Every remaining combination is **refused** "
             "until it runs on the staged path (`identify` → prepare → estimate) "
             "with recorded evidence."
         )
 
-    ext = external_evidence.counts()
+    ext = external_evidence.counts(supported_cells)
     ext_summary = (
-        f"Of {len(cells)} licensed cells, {ext['cell_level']} compare their own output with "
+        f"Of {len(supported_cells)} supported matrix cells, {ext['cell_level']} compare their own output with "
         f"an external oracle; {ext['component_level_only']} more run an identifier or "
         f"estimator that an external oracle checks; {ext['discovery_only']} more are "
         f"accepted-graph cells whose class a discovery oracle backs; {ext['neither']} rest "
         "on internal evidence only."
     )
 
-    calibration_md = calibration_summary(cells)
+    calibration_md = calibration_summary(supported_cells)
 
     text = f"""# Support matrix
 
 Want to check a particular analysis? Start with [supported analyses](supported-analyses.md).
-Here, **licensed** means a supported execution path with recorded evidence and
+Here, **supported** means a supported execution path with recorded evidence and
 limitations. It does not verify your causal assumptions or data support.
 
 Generated by `scripts/generate_support_matrix_docs.py` from
 `parity/support_axes.toml`, `parity/support_n_a.toml`,
-`parity/support_closed.toml`, `parity/support_allowlist.toml`, and
-`parity/support_licensed.toml`.
+`parity/support_refusal_reasons.toml`, and `parity/support_cells.toml`.
 Do not edit this page by hand.
 
-This page is the public **license**. `docs/capabilities.md` is an inventory
-of what exists in the codebase; it does not license a cell.
+This page is the public **support**. `docs/capabilities.md` is an inventory
+of what exists in the codebase; it does not support a cell.
 See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/main/adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
@@ -281,33 +267,59 @@ validation) is **{cartesian}** cells. That denominator is not a feature count.
 Of those cells, **{n_a_count}** are typed impossibilities and
 **{cartesian - n_a_count}** are meaningful combinations.
 
-Every cell is in exactly **one of three runtime states**: **licensed** (a
-result), **n/a** (the coordinate does not denote — a typed impossibility),
-or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
-cell that is not licensed and not n/a is refused. `support_closed.toml`
-does not close anything — it is the **reason table** for refused cells,
-not a fourth state. Every refused cell has a named
-reason; a missing rule still refuses at runtime with the shared default
-message. `allowed_unlicensed` is retained as a compatibility wire value,
-but the current matrix has no active allowlist entries.
+## Supported units
+
+**{headline}.**
+
+A *supported unit* is one scientific combination, and one rule decides it: a
+provenance record plus an executed independent scientific check (known truth, an
+analytic or enumerated value, or an external reference implementation; never
+internal consistency or a frozen output of this library). A unit is one of:
+
+- a **matrix cell** (this page, {units["matrix"]} supported of {len(cells)} listed),
+- a **graphless row** in `parity/support_graphless.toml` (a design-family method
+  with no graph axes, {units["graphless"]} supported), or
+- a **capability outside the matrix** described by a capability record in
+  `parity/capability_records.toml` (transport stages, adaptive procedures,
+  decisions, bridges; {units["capabilities"]} supported). A record that
+  describes a matrix cell or graphless row names it and is not counted again.
+
+API and stage routes listed under a capability record are **entry points**. They
+have no support status of their own: a route is open only as an entry point of a
+supported unit and otherwise refuses with `not_supported`. A count of routes is
+never the support count. `scripts/gate_support.py` prints this headline and lists
+every unit that violates the rule.
+
+Every cell is in exactly **one of three states**: **supported** (a route with
+provenance and independent scientific checks, which runs), **n/a** (the
+coordinate does not denote — a typed impossibility), or **not supported**
+(`SupportRefusal::NotSupported`; the route refuses in release builds, and a
+later development build will run it and report `would_refuse`). Refusal is the
+*default*: any cell that is not supported and not n/a is not supported.
+`support_refusal_reasons.toml` does not close anything — it is the **reason
+table** for cells that are not supported, not a fourth state. Every such cell has
+a named reason; a missing rule still refuses at runtime with the shared default
+message. Calibration status (calibrated, outside measured scope, measured below
+nominal, not measured) is an annotation on a supported cell and never decides
+whether it runs.
 
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | {cartesian} | Axis product, not a coverage score |
 | n/a | {n_a_count} | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
-| Licensed | {len(cells)} | Staged path plus the row's recorded evidence contract and limitations |
-| `allowed_unlicensed` compatibility entries | {allowed_count} | Retained wire value; the release gate requires this count to remain zero |
-| Refused — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
-| Refused — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
+| Supported (matrix units) | {units["matrix"]} | Staged path plus the row's recorded evidence contract and limitations; passes the support rule |
+| Not supported — listed cell fails the support rule | {listed_failing} | Must stay 0; `scripts/gate_support.py` names the missing provenance or independent check |
+| Not supported — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_refusal_reasons.toml`, including mislabeled-inference laundering |
+| Not supported — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_refusal_reasons.toml` rule |
 
-Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
-carry their recorded evidence contracts**; no cells run through the retained
-`allowed_unlicensed` compatibility path; the rest are n/a or refused.
+Do not read "{units["matrix"]} / {cartesian}" as coverage. Read: **{units["matrix"]} matrix
+units carry a provenance record and an executed independent check**; the rest are n/a or
+not supported. The headline above is the only support count.
 
-Every licensed cell also executes each of its licensed estimators from a
+Every supported cell also executes each of its supported estimators from a
 retained checked operation with no builder alive: its `checked_execution`
-entries in `parity/support_licensed.toml` cite, per estimator, the executing
+entries in `parity/support_cells.toml` cite, per estimator, the executing
 test that drops its builder, executes the retained plan, and inspects it.
 `scripts/gate_support_matrix.sh` resolves those citations and
 `scripts/gate_checked_execution.sh` runs them.
@@ -317,14 +329,12 @@ test that drops its builder, executes the retained plan, and inspects it.
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
 the explicit [observation pair contract](observation-contract.md);
-observation mechanisms are not a matrix axis. Unlicensed non-`Complete`
+observation mechanisms are not a matrix axis. Unsupported non-`Complete`
 pairs refuse at compile.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
-licensed. A cell is exactly one of licensed / n/a / refused.
-`allowed_unlicensed` remains a readable wire value for compatibility with
-older artifacts and clients, but no current matrix cell can produce it.
+supported. A cell is exactly one of supported / n/a / not supported.
 
 ## Python graph-input compatibility
 
@@ -333,8 +343,8 @@ Python input object's class. On derivative, mediation, counterfactual,
 path-specific and interventional-distribution routes, the existing Python
 compatibility adapter converts a **fully oriented CPDAG** to its unique DAG.
 The prepared/result report therefore names a `Dag` coordinate (and retains
-`accepted` when the input was accepted). These calls exercise the licensed DAG
-cell; they do not license CPDAG class execution. An incomplete CPDAG refuses
+`accepted` when the input was accepted). These calls exercise the supported DAG
+cell; they do not support CPDAG class execution. An incomplete CPDAG refuses
 with an orientation/undirected-edge reason. Callers can make the normalization
 explicit with `cpdag.try_into_dag()`. Class-aware ATE/CATE, `ResponseCurve`, and
 `InterventionResponse` routes retain their CPDAG coordinates. No unresolved
@@ -362,51 +372,44 @@ edge is silently oriented.
 
 ## Refusal reasons
 
-These cells are refused (wire id `refused`) — the default runtime state for
-any cell that is not licensed and not n/a — and each row below is the
+These cells are refused (wire id `not_supported`) — the default runtime state for
+any cell that is not supported and not n/a — and each row below is the
 documented reason for that refusal. This is a reason table, not a fourth
 state: an undocumented refused cell behaves identically, it just has no
 row here yet.
 
 {chr(10).join(closed_lines) if closed_lines else "_None._"}
 
-## `allowed_unlicensed` compatibility entries
-
-The wire value is retained for compatibility with older artifacts and clients.
-The release gate requires this list to be empty: every active cell is licensed,
-n/a, or refused.
-
-{chr(10).join(allowed_md_lines) if allowed_md_lines else "_None._"}
-
-## Licensed cells
+## Supported cells
 
 The **evidence** column is the row's own evidence: the test that runs the whole
 route. The **external oracles** column keeps two kinds apart. *Cell output
 compared with* means the cell's own result is checked against a pinned upstream
 run. *Component oracles* means a component the cell's execution ran (its
-identifier or estimator, from `parity/licensed_routes.toml`, generated from the
+identifier or estimator, from `parity/supported_routes.toml`, generated from the
 executed plans) is checked against an external oracle by that parity row; the
 cell's own output is not. *Discovery oracles* apply when an accepted graph of
 that class came from that discovery strategy.
 
 {ext_summary}
 
-{licensed_md}
+{supported_md}
 """
     write_text(OUT, text)
-    write_snapshot(SUPPORT_SNAPSHOT, support_snapshot(na_rules, closed_rules, allowed_rules, cells))
+    write_snapshot(SUPPORT_SNAPSHOT, support_snapshot(na_rules, closed_rules, cells))
     write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot())
     write_text(REASON_CODES_OUT, render_reason_codes())
     write_release_notes_block(
-        cells,
+        supported_cells,
         {
             "cartesian": cartesian,
-            "licensed": len(cells),
+            "supported": len(supported_cells),
+            "headline": headline,
+            "matrix_supported": units["matrix"],
             "n_a": n_a_count,
             "reason_backed_refused": reason_backed_refused_count,
-            "allowed": allowed_count,
             "unreasoned_refused": (
-                cartesian - n_a_count - reason_backed_refused_count - allowed_count - len(cells)
+                cartesian - n_a_count - reason_backed_refused_count - len(cells)
             ),
         },
         axes,
@@ -415,14 +418,14 @@ that class came from that discovery strategy.
     print(f"Wrote {SUPPORT_SNAPSHOT.relative_to(ROOT)}")
     print(f"Wrote {COVERAGE_SNAPSHOT.relative_to(ROOT)}")
     print(f"Wrote {REASON_CODES_OUT.relative_to(ROOT)}")
-    print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (licensed block)")
+    print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (supported block)")
     return 0
 
 
 def calibration_summary(cells: list[dict]) -> str:
-    """One sentence saying how many licensed cells carry interval-coverage records.
+    """One sentence saying how many matrix cells carry interval-coverage records.
 
-    A licensed cell is not necessarily a cell whose interval was ever measured;
+    A supported cell is not necessarily a cell whose interval was ever measured;
     the split by `calibration_reason` keeps that visible.
     """
     total = len(cells)
@@ -439,21 +442,21 @@ def calibration_summary(cells: list[dict]) -> str:
     other = total - recorded - not_measured - no_interval
     if other:
         raise AssertionError(
-            f"{other} licensed cells have neither calibration records nor a known "
+            f"{other} matrix cells have neither calibration records nor a known "
             "calibration_reason"
         )
     return (
-        f"Interval calibration of the {total} licensed cells: {recorded} cite coverage "
+        f"Interval calibration of the {total} matrix cells: {recorded} cite coverage "
         f"records; {not_measured} across {len(gap_coordinates)} distinct coordinates have no "
         "coverage measurement for their estimator "
         f"(`estimator_grid_not_measured`); {no_interval} report no interval "
-        "(`no_interval_reported`). A licensed cell therefore does not imply that its "
+        "(`no_interval_reported`). A supported unit therefore does not imply that its "
         "interval coverage was measured, and cited records do not by themselves make "
         "a result `calibrated` (see `result.calibration`)."
     )
 
 
-def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
+def render_release_supported(cells: list[dict], axes: dict) -> list[str]:
     """Compact only graph classes with identical rectangular cell products."""
     from itertools import product as iproduct
 
@@ -502,7 +505,7 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
                 lines.append(f"- `{q}` × {g_part} × {s_part} × `{inf}` × validation {v_part}")
                 emitted.update(iproduct(graphs, structs, vals))
 
-            # Focused invariant: compaction must preserve the exact licensed
+            # Focused invariant: compaction must preserve the exact supported
             # graph × structure × validation set for this query/inference pair.
             if emitted != expected:
                 missing = sorted(expected - emitted)
@@ -544,14 +547,14 @@ def _frozen_block(path: Path) -> str:
 
 
 def frozen_support_coordinates(path: Path) -> set[tuple[str, ...]]:
-    """Licensed coordinates named by a frozen notes block.
+    """Supported coordinates named by a frozen notes block.
 
-    A full inventory is the ``N licensed of`` list. A later cut may freeze a
+    A full inventory is the ``N supported of`` list. A later cut may freeze a
     delta (``N added, M removed``) against an older notes file; that delta is
     applied to the older inventory.
     """
     block = _frozen_block(path)
-    count = re.search(r"^(\d+) licensed of ", block, re.MULTILINE)
+    count = re.search(r"^(\d+) supported of ", block, re.MULTILINE)
     if count:
         previous = _support_coordinates(block, path)
         if len(previous) != int(count[1]):
@@ -596,7 +599,7 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
             [
                 "### Added analysis coordinates",
                 "",
-                *render_release_licensed(added, axes),
+                *render_release_supported(added, axes),
                 "",
             ]
         )
@@ -614,7 +617,7 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
             [
                 "### Removed analysis coordinates",
                 "",
-                *render_release_licensed(removed, removed_axes),
+                *render_release_supported(removed, removed_axes),
                 "",
             ]
         )
@@ -632,7 +635,7 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
 
 
 def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
-    """Replace the marked licensed block in the *current* release notes.
+    """Replace the marked supported block in the *current* release notes.
 
     Fails if the live markers are missing, or if a historical notes file still
     has live markers. A git tag for this version freezes the notes: regeneration
@@ -652,15 +655,17 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         body_lines = release_support_delta(cells, axes, release_notes_path(baseline_match[1]))
     else:
         body_lines = [
-            f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
-            f"cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
+            f"**{counts['headline']}.** Entry-point routes are not counted.",
+            "",
+            f"{counts['matrix_supported']} supported of "
+            f"{counts['cartesian'] - counts['n_a']} meaningful "
+            f"matrix cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
             f"{counts['reason_backed_refused']} refused with a reason on file; "
-            f"{counts['unreasoned_refused']} refused without a reason; "
-            f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
+            f"{counts['unreasoned_refused']} refused without a reason.",
             "",
             calibration_summary(cells),
             "",
-        ] + render_release_licensed(cells, axes)
+        ] + render_release_supported(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
     head, rest = text.split(RN_BEGIN, 1)
     _, tail = rest.split(RN_END, 1)
@@ -896,9 +901,9 @@ def estimators_from_calibration(
 ) -> list[str]:
     """Wire-ids implied by unambiguous tokens in calibration record ids.
 
-    Only gated and named-boundary records are licensing evidence. A
+    Only gated and named-boundary records are support evidence. A
     `reported_level` record is an unasserted diagnostic that a cell may cite,
-    but it never licenses the estimator it measures.
+    but it never supports the estimator it measures.
     """
     if roles is None:
         roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
@@ -928,7 +933,7 @@ def cell_estimators(
 ) -> list[str]:
     """Estimator wire-ids whose evidence ran for this geometric cell.
 
-    Union of the licensed_routes compiler-plan estimator, explicitly licensed
+    Union of the supported_routes compiler-plan estimator, explicitly supported
     estimator ids on the evidence row, and estimators implied by unambiguous
     calibration-record tokens. Never infer an estimator from limitations prose.
     """
@@ -950,7 +955,7 @@ def cell_estimators(
     return out
 
 
-def _rule_snapshot(rule: dict, *, parent: bool = False) -> dict:
+def _rule_snapshot(rule: dict) -> dict:
     item = {
         "queries": rule.get("queries"),
         "graph_classes": rule.get("graph_classes"),
@@ -959,17 +964,12 @@ def _rule_snapshot(rule: dict, *, parent: bool = False) -> dict:
         "validations": rule.get("validations"),
         "reason": rule["reason"],
     }
-    if rule.get("executes_unlicensed"):
-        item["executes_unlicensed"] = True
-    if parent:
-        item["parent"] = rule["parent"]
     return item
 
 
 def support_snapshot(
     na_rules: list[dict],
     closed_rules: list[dict],
-    allowed_rules: list[dict],
     cells: list[dict],
 ) -> dict:
     """Resolved support matrix. Omitted rule axes stay JSON null (`None` in Rust)."""
@@ -980,9 +980,9 @@ def support_snapshot(
         row["id"]: row["role"]
         for row in load("parity/coverage_records.toml").get("record") or []
     }
-    licensed = []
+    supported = []
     for row in cells:
-        licensed.append(
+        supported.append(
             {
                 "query": row["query"],
                 "graph_class": row["graph_class"],
@@ -996,8 +996,7 @@ def support_snapshot(
     return {
         "na_rules": [_rule_snapshot(rule) for rule in na_rules],
         "closed_rules": [_rule_snapshot(rule) for rule in closed_rules],
-        "allowed_rules": [_rule_snapshot(rule, parent=True) for rule in allowed_rules],
-        "licensed": licensed,
+        "supported": supported,
     }
 
 
@@ -1006,10 +1005,10 @@ def _freeze_cli(version: str) -> int:
     if not path.is_file():
         print(f"no notes to freeze: {path.relative_to(ROOT)}")
         return 0
-    if freeze_licensed_block(path):
-        print(f"Froze licensed block in {path.relative_to(ROOT)}")
+    if freeze_supported_block(path):
+        print(f"Froze supported block in {path.relative_to(ROOT)}")
     else:
-        print(f"{path.relative_to(ROOT)} has no live licensed-block markers")
+        print(f"{path.relative_to(ROOT)} has no live supported-block markers")
     return 0
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify generated graphless licenses and that each cited test is executing evidence.
+# Verify generated graphless supports and that each cited test is executing evidence.
 #
 # The Rust job runs the default nextest selection. This gate reports excluded
 # calibration simulations as incomplete unless explicitly opted in, and

@@ -32,4 +32,4 @@ record_sha256 = "92a07fc0b4bb983a7a4b53d11e9f04d353c9dcf273ede15c8b35f9cbe3d24a7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/calibration_coverage.rs"
-sha256 = "cf11b8d92ea85a925d8828f23858a51c21acd213f3bf9b57ce938990a78aac13"
+sha256 = "9331b68c4a381fd5c74f0021214337216fcc28f24eaa9c6deb4269ee8e862bff"

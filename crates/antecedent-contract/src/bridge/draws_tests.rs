@@ -1,4 +1,4 @@
-//! Unit tests of the rules of a bridge that carries draws: licensing, the
+//! Unit tests of the rules of a bridge that carries draws: support, the
 //! coefficient law of each mapping, the conditional draw it implies and the
 //! identity of the derived claim.
 //!
@@ -141,25 +141,22 @@ fn code(error: &super::super::BridgeRefusal) -> (&'static str, &str) {
 #[test]
 fn a_posterior_is_carried_only_by_the_draws_check() {
     let bridge = affine(ValueKind::Posterior, None, None);
-    assert!(bridge.check_draws_licensing().is_ok());
-    let refused = bridge.check_licensing().unwrap_err();
-    assert_eq!(code(&refused), ("cell_not_licensed", "scientific_bridge.value_kind_not_carried"));
+    assert!(bridge.check_draws_support().is_ok());
+    let refused = bridge.check_support().unwrap_err();
+    assert_eq!(code(&refused), ("not_supported", "scientific_bridge.value_kind_not_carried"));
     // A mean still goes through the point check and is not a draws bridge's business.
     let mean = affine(ValueKind::Mean, None, None);
-    assert!(mean.check_licensing().is_ok());
+    assert!(mean.check_support().is_ok());
     // An identified set or a joint law is carried by neither.
     for kind in [ValueKind::IdentifiedSet, ValueKind::JointOutcomeLaw] {
-        let refused = affine(kind, None, None).check_draws_licensing().unwrap_err();
-        assert_eq!(
-            code(&refused),
-            ("cell_not_licensed", "scientific_bridge.value_kind_not_carried")
-        );
+        let refused = affine(kind, None, None).check_draws_support().unwrap_err();
+        assert_eq!(code(&refused), ("not_supported", "scientific_bridge.value_kind_not_carried"));
     }
     // The source and target kinds still have to agree.
     let mut mixed = affine(ValueKind::Posterior, None, None);
     mixed.target_value = ValueKind::PredictiveLaw;
     assert_eq!(
-        code(&mixed.check_draws_licensing().unwrap_err()).1,
+        code(&mixed.check_draws_support().unwrap_err()).1,
         "scientific_bridge.value_kind_substitution"
     );
 }
@@ -167,29 +164,29 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
 #[test]
 fn an_uncertain_map_declares_its_dependence_and_no_map_counts_its_uncertainty_twice() {
     let some = Some(uncertainty(0.01, 0.04, 0.0));
-    let refused = affine(ValueKind::Posterior, some.clone(), None).check_draws_licensing();
+    let refused = affine(ValueKind::Posterior, some.clone(), None).check_draws_support();
     assert_eq!(code(&refused.unwrap_err()).1, "scientific_bridge.source_dependence_missing");
-    let refused = affine(ValueKind::Posterior, None, Some(independent())).check_draws_licensing();
+    let refused = affine(ValueKind::Posterior, None, Some(independent())).check_draws_support();
     assert_eq!(code(&refused.unwrap_err()).1, "scientific_bridge.mapping_uncertainty_missing");
     assert!(
         affine(ValueKind::Posterior, some.clone(), Some(independent()))
-            .check_draws_licensing()
+            .check_draws_support()
             .is_ok()
     );
 
     // A trial-level line takes its uncertainty from its trials, so declaring it again is refused.
     let line = contract(trial_line(), ValueKind::Posterior, some, Some(independent()));
     assert_eq!(
-        code(&line.check_draws_licensing().unwrap_err()).1,
+        code(&line.check_draws_support().unwrap_err()).1,
         "scientific_bridge.mapping_uncertainty_invalid"
     );
     let line = contract(trial_line(), ValueKind::Posterior, None, None);
     assert_eq!(
-        code(&line.check_draws_licensing().unwrap_err()).1,
+        code(&line.check_draws_support().unwrap_err()).1,
         "scientific_bridge.source_dependence_missing"
     );
     let line = contract(trial_line(), ValueKind::Posterior, None, Some(independent()));
-    assert!(line.check_draws_licensing().is_ok());
+    assert!(line.check_draws_support().is_ok());
 }
 
 #[test]
@@ -381,7 +378,7 @@ fn only_aligned_draws_of_the_declared_kind_and_quantity_are_bridged() {
     let refused = bridge
         .plan_distribution(&source(Some(ValueKind::Posterior), ClaimKind::Associational, true), 1)
         .unwrap_err();
-    assert_eq!(code(&refused), ("cell_not_licensed", "scientific_bridge.source_not_draws"));
+    assert_eq!(code(&refused), ("not_supported", "scientific_bridge.source_not_draws"));
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // Draws of another meaning are neither a posterior nor a predictive law.
     let refused = bridge.plan_distribution(&source(None, ClaimKind::Mixture, true), 1).unwrap_err();
@@ -497,6 +494,6 @@ fn the_derived_claim_is_one_realization_of_the_bridge() {
     assert!(first.require_value_kind(ValueKind::PredictiveLaw).is_ok());
     assert_eq!(
         code(&first.request_interval().unwrap_err()).1,
-        "scientific_bridge.interval_not_licensed"
+        "scientific_bridge.interval_not_supported"
     );
 }

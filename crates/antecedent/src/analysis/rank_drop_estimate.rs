@@ -67,8 +67,13 @@ pub struct RankDropEstimate {
     pub note: &'static str,
 }
 
-/// Refuse with `rank_drop_not_licensed` and the plan's subject; nothing was estimated.
-fn not_licensed(subject: &str, reason: &str, implicated: Vec<String>, remedy: &str) -> CausalError {
+/// Refuse with `rank_drop_not_supported` and the plan's subject; nothing was estimated.
+fn not_supported(
+    subject: &str,
+    reason: &str,
+    implicated: Vec<String>,
+    remedy: &str,
+) -> CausalError {
     let fields = RefusalFields {
         stage: Some("rank_drop_estimate".to_string()),
         subject: Some(subject.to_string()),
@@ -78,7 +83,7 @@ fn not_licensed(subject: &str, reason: &str, implicated: Vec<String>, remedy: &s
         ..RefusalFields::default()
     };
     EstimationError::refused_detail_with_fields(
-        reason_code!("rank_drop_not_licensed"),
+        reason_code!("rank_drop_not_supported"),
         subject,
         format!("{reason}; nothing was estimated"),
         fields,
@@ -86,10 +91,10 @@ fn not_licensed(subject: &str, reason: &str, implicated: Vec<String>, remedy: &s
     .into()
 }
 
-fn not_licensed_estimator() -> CausalError {
+fn not_supported_estimator() -> CausalError {
     crate::unsupported_reason!(
         "route_not_supported",
-        "rank_drop_estimate.estimator_not_licensed: estimation after a rank drop is licensed \
+        "rank_drop_estimate.estimator_not_supported: estimation after a rank drop is supported \
          only for the linear adjustment and the cross-fitted AIPW estimators: other nuisance \
          fits (penalized, lasso, matching, stratification) are not shown invariant to a \
          span-preserving column removal"
@@ -107,7 +112,7 @@ fn not_licensed_estimator() -> CausalError {
 /// # Errors
 ///
 /// `route_not_supported` for another estimator or a design that is not a binary contrast of
-/// one treatment; `rank_drop_not_licensed` for every refusal above; the study errors from the
+/// one treatment; `rank_drop_not_supported` for every refusal above; the study errors from the
 /// reduced estimate; cancellation.
 pub fn estimate_with_rank_drop(
     input: &PreflightInput<'_>,
@@ -118,7 +123,7 @@ pub fn estimate_with_rank_drop(
     let projection_invariance = match estimator {
         EstimatorId::LinearAdjustmentAte => "exact",
         EstimatorId::Aipw => "unpenalized_logistic_no_separation",
-        _ => return Err(not_licensed_estimator()),
+        _ => return Err(not_supported_estimator()),
     };
     let ([treatment], [control, active]) = (input.treatments.as_slice(), input.arms.as_slice())
     else {
@@ -131,7 +136,7 @@ pub fn estimate_with_rank_drop(
     let (Some(&(_, control_level)), Some(&(_, active_level))) =
         (control.levels.first(), active.levels.first())
     else {
-        return Err(not_licensed_estimator());
+        return Err(not_supported_estimator());
     };
 
     let plan = plan_rank_drop(input, policy, ctx)?;
@@ -146,7 +151,7 @@ pub fn estimate_with_rank_drop(
             PropensityOutcome::Absent { .. } => false,
         };
         if !clean {
-            return Err(not_licensed(
+            return Err(not_supported(
                 &plan.subject,
                 "rank_drop_estimate.propensity_separates: the propensity fit on the reduced \
                  design separates, saturates, fails or does not converge, so a penalized refit \
@@ -190,7 +195,7 @@ pub fn estimate_with_rank_drop(
         .map(|k| VariableId::from_raw(u32::try_from(k).unwrap_or(u32::MAX)))
         .collect();
     if certified != expected {
-        return Err(not_licensed(
+        return Err(not_supported(
             &plan.subject,
             "the estimator certified an adjustment set other than the retained columns",
             plan.kept_adjustment.clone(),

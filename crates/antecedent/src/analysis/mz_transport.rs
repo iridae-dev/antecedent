@@ -7,7 +7,7 @@
 //! is unchanged; evidence under another snapshot, regime or catalog needs a new
 //! decision and a new preparation.
 //!
-//! The multi-source interval route is registered closed (`cell_not_licensed`)
+//! The multi-source interval route is registered closed (`not_supported`)
 //! until its coverage records are measured: an estimate on counted laws returns
 //! the point and withholds the interval with that reason, never a nominal one.
 //! The internal joint bootstrap the calibration harness measures is
@@ -23,7 +23,7 @@ use antecedent_identify::BoundMzTransportFunctional;
 use antecedent_io::IoError;
 use antecedent_io::mz_transport_artifact::{
     MzContrastWire, MzTransportArtifactInput, MzTransportArtifactWire, MzTransportConsumeLimits,
-    MzUncertaintyWire, mz_point_contrasts, refuse_unlicensed_interval,
+    MzUncertaintyWire, mz_point_contrasts, refuse_unsupported_interval,
 };
 
 /// A prepared mz formula: frozen proof, bound catalog, laws and compiled plans.
@@ -70,7 +70,7 @@ impl MzTransportResult {
     }
 
     /// Interval status and reason. Counted laws report `withheld` with
-    /// `cell_not_licensed` while the interval route is closed.
+    /// `not_supported` while the interval route is closed.
     #[must_use]
     pub const fn uncertainty(&self) -> &MzUncertaintyWire {
         &self.uncertainty
@@ -120,7 +120,7 @@ impl MzTransportResult {
 /// Independently consume an mz artifact: re-decide, re-bind, recompute every
 /// point and contrast and recheck the bookkeeping, without fetching data or
 /// providers. An artifact that carries an interval is refused with
-/// `cell_not_licensed` while the interval route is closed.
+/// `not_supported` while the interval route is closed.
 ///
 /// # Errors
 /// Any reconstruction or replay failure, or a carried interval.
@@ -130,7 +130,7 @@ pub fn consume_mz_transport_artifact(
     ctx: &ExecutionContext,
 ) -> Result<MzTransportResult, IoError> {
     let consumed = MzTransportArtifactWire::consume_with_limits(bytes, limits, ctx)?;
-    refuse_unlicensed_interval(&consumed.wire.uncertainty)?;
+    refuse_unsupported_interval(&consumed.wire.uncertainty)?;
     Ok(MzTransportResult {
         distributions: consumed.distributions,
         contrasts: consumed.contrasts,
@@ -254,7 +254,7 @@ impl PreparedMzTransport {
 
     /// Evaluate every retained plan and the point contrasts. Exact laws are
     /// point-only. Counted laws return the point with the interval withheld as
-    /// `cell_not_licensed` (the interval route is closed until its coverage
+    /// `not_supported` (the interval route is closed until its coverage
     /// records exist), together with the declared-sampling reason the internal
     /// joint bootstrap would also withhold for; no interval is ever attached.
     ///
@@ -271,7 +271,7 @@ impl PreparedMzTransport {
             let dependence =
                 antecedent_estimate::mz_interval_withheld_reason(&self.functional, &self.data)
                     .map_err(estimate_err)?;
-            MzUncertaintyWire::not_licensed(dependence)
+            MzUncertaintyWire::not_supported(dependence)
         };
         Ok(MzTransportResult { distributions, contrasts, uncertainty })
     }

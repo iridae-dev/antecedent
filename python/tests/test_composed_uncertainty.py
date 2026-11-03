@@ -188,7 +188,7 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
                 "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
             )
         )
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
     with pytest.raises(R) as error:
         require_success(claim.check_composed_interval("normal_approximation", evidence_rows=100))
@@ -212,7 +212,7 @@ def test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_rec
     # Below the measured evidence size no record covers the composed coordinate.
     with pytest.raises(R) as error:
         require_success(claim.check_composed_interval("normal_approximation", evidence_rows=100))
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "joint_law_propagation.coverage_record_unmeasured"
     assert error.value.remedy
     # Another construction is not a measured route of this coordinate.
@@ -222,7 +222,7 @@ def test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_rec
                 "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
             )
         )
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
     with pytest.raises(CausalValueError):
         require_success(claim.check_composed_interval("normal_approximation", evidence_rows=0))
@@ -243,8 +243,8 @@ def test_an_envelope_has_no_composed_interval() -> None:
     )
     with pytest.raises(R) as error:
         require_success(env.check_composed_interval("normal_approximation", evidence_rows=200))
-    assert error.value.reason_code == "cell_not_licensed"
-    assert error.value.detail == "joint_law_propagation.spread_needs_licensed_dependence"
+    assert error.value.reason_code == "not_supported"
+    assert error.value.detail == "joint_law_propagation.spread_needs_supported_dependence"
     with pytest.raises(R):
         env.coordinate_id()
 
@@ -408,7 +408,7 @@ def test_a_spread_claim_names_its_composed_coordinate_from_its_sealed_artifact()
     assert contrast.coordinate_id() == "contrast|aligned_joint_law|estimate,estimate"
     assert total.coordinate_id() == "sum|aligned_joint_law|estimate,estimate"
     assert contrast.coordinate_id() != total.coordinate_id()
-    # An envelope declares no licensed dependence, so it has no composed coordinate.
+    # An envelope declares no supported dependence, so it has no composed coordinate.
     env = require_success(
         jl.dependence_envelope(
             "sum",

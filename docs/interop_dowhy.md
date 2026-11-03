@@ -32,7 +32,7 @@ inside Antecedent APIs.
 5. Call DoWhy `identify_effect` / `estimate_effect` for a familiar estimand
    (for example `backdoor.linear_regression`).
 
-Antecedent owns identification licensing; DoWhy receives a graph string and
+Antecedent owns identification support; DoWhy receives a graph string and
 runs its own estimand/estimator stack. Compare adjustment sets and effect
 **sign** (and, on this toy SCM, magnitudes near \(+2\)), not byte-identical
 intervals.

@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/tests/dose_grid_functional.rs",
-          "sha256": "f8c498270a22114b1c72c45cc23eb32796f25ea89f8a196cbf5efb4f30fc1e10"
+          "sha256": "c3f7424bacfbc9200abcdf360c139cd79a94dbffddc6055d92133756d5df0af0"
         }
       ],
       "fixture_payload_sha256": "755a3c530f78da2330f5b81f6cece40ee2b7dedf5e8d521a18fac028d717d4e1"

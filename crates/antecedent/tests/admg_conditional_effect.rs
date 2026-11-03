@@ -329,7 +329,7 @@ fn a_post_treatment_modifier_is_refused_and_names_the_distribution_query() {
 
 /// Tabular rows carry no time index, so a `ConditionalEffect` on a `TemporalAdmg` is the conditional
 /// contrast of its contemporaneous projection: the same stratified difference the static ADMG
-/// gives, a licensed cell (the temporal conditional contrast is `TemporalConditionalPulse`).
+/// gives, a supported cell (the temporal conditional contrast is `TemporalConditionalPulse`).
 #[test]
 fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
     let graph = confounded_modifier_graph();
@@ -346,11 +346,11 @@ fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(antecedent::CellStatus::Licensed));
+        assert_eq!(study.support_status(), Some(antecedent::CellStatus::Supported));
         let result = study.run(&ctx).unwrap();
         let tolerance = if bayesian { 0.05 } else { 1e-12 };
         assert!((ate(&result) - expected).abs() < tolerance, "{} vs {expected}", ate(&result));
-        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
         let prepared = study.prepare(&ctx).unwrap();
         let again = prepared.estimate(&data, &ctx).unwrap();
         assert!((ate(&again) - ate(&result)).abs() < 1e-9);
@@ -452,7 +452,7 @@ fn verify_conditional_coordinate(coordinate: &str, accepted: bool, bayesian: boo
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
     assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("functional.effect"));
     let result =

@@ -132,13 +132,13 @@ pub fn parse_matched_estimand(name: &str) -> Result<(), EstimationError> {
                 "'{name}' is not identified from matched sets sampled on the outcome: the case \
                  fraction is fixed by design, so absolute risks need outcome prevalence or \
                  selection information this cell does not take; only the conditional odds \
-                 ratio is licensed"
+                 ratio is supported"
             ),
         )),
         other => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
             "matched_case_control.estimand_not_supported",
-            &format!("estimand '{other}' is not licensed; only '{MATCHED_ESTIMAND}' is"),
+            &format!("estimand '{other}' is not supported; only '{MATCHED_ESTIMAND}' is"),
         )),
     }
 }
@@ -147,7 +147,7 @@ pub fn parse_matched_estimand(name: &str) -> Result<(), EstimationError> {
 #[must_use]
 pub fn refuse_matched_interval() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         "matched_case_control.interval_withheld",
         "no interval is reported: a Wald interval needs asymptotic conditions (many informative \
          sets, bounded set size, a fixed odds ratio) that no coverage record has measured; the \

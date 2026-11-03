@@ -2,9 +2,9 @@
 
 Bayesian ``InterventionResponse`` with ``refute="cheap"`` or ``"full"`` runs the
 Bayesian refuter state (plugin-level overlap on the posterior-mean level and the
-prior and posterior predictive checks; full adds prior sensitivity) and is licensed
-(``evidence_status`` is ``"licensed"``); a static derivative runs its derivative
-refuter state and is licensed too.
+prior and posterior predictive checks; full adds prior sensitivity) and is supported
+(``evidence_status`` is ``"supported"``); a static derivative runs its derivative
+refuter state and is supported too.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def _level_query():
 
 
 @pytest.mark.parametrize("suite", ["cheap", "full"])
-def test_bayesian_level_refuter_state_runs_and_is_licensed(suite):
+def test_bayesian_level_refuter_state_runs_and_is_supported(suite):
     data, mean_z = _data()
     result = require_success(
         antecedent.analyze(
@@ -53,7 +53,7 @@ def test_bayesian_level_refuter_state_runs_and_is_licensed(suite):
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     refuters = _refuter_names(result)
     assert any(name.startswith("overlap") for name in refuters), refuters
     assert "prior_predictive" in refuters and "posterior_predictive" in refuters, refuters
@@ -61,7 +61,7 @@ def test_bayesian_level_refuter_state_runs_and_is_licensed(suite):
     assert abs(float(result.effect) - (3.0 + 1.5 * mean_z)) < 0.15
 
 
-def test_bayesian_level_without_refute_stays_licensed():
+def test_bayesian_level_without_refute_stays_supported():
     data, _ = _data(seed=7)
     result = require_success(
         antecedent.analyze(
@@ -73,7 +73,7 @@ def test_bayesian_level_without_refute_stays_licensed():
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     # No suite ran: the result carries no refuter reports (no view, or an empty one).
     assert _refuter_names(result) == []
 
@@ -92,7 +92,7 @@ def test_derivative_cheap_runs_its_refuter_state():
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     refuters = _refuter_names(result)
     assert "derivative.support" in refuters and "derivative.finite_difference" in refuters
     # The outcome is linear in t with slope 2 after adjusting for z.

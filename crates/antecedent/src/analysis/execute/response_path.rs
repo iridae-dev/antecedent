@@ -727,7 +727,7 @@ impl super::Study {
                 "refute.evalue.not_a_contrast",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                "contrast-shaped refuters are not supported for a plugin intervention level; \
                  cheap runs overlap only and full runs overlap plus sampling-stability of the \
                  g-comp level",
             ));
@@ -776,7 +776,7 @@ impl super::Study {
         ))
     }
 
-    /// Identify and estimate a continuous response, including licensed observation correction.
+    /// Identify and estimate a continuous response, including supported observation correction.
     pub(super) fn execute_response(
         &self,
         data: &TabularData,
@@ -934,7 +934,7 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         diagnostics.extend(response.support.warnings.iter().cloned());
-        // A front-door derivative's cheap/full suite is its own refuter state (unlicensed).
+        // A front-door derivative's cheap/full suite is its own refuter state (unsupported).
         let (refutations, refute_notes) = self.refute_front_door_derivative_response(
             (&data_est, query),
             &front_door,
@@ -967,9 +967,9 @@ impl super::Study {
                 ..Default::default()
             }),
         );
-        // No evidence row names the front-door derivative route: the cell's licence belongs to
+        // No evidence row names the front-door derivative route: the cell's support belongs to
         // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
-        result.support_status = Some(crate::support::CellStatus::Refused);
+        result.support_status = Some(crate::support::CellStatus::NotSupported);
         Ok(result)
     }
 
@@ -1425,7 +1425,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-comp level. cell.aipw cheap uses the cell-versus-control contrast.",
+                    "contrast-shaped refuters are not supported for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-comp level. cell.aipw cheap uses the cell-versus-control contrast.",
                 ));
             }
             RefutationRun {
@@ -1517,7 +1517,7 @@ impl super::Study {
     /// closure's generalized adjustment set, one posterior over every coordinate of the
     /// joint arm. The outcome regression is additive in the treatments, so the level is
     /// that model's joint level, not the saturated cell mean cell.aipw estimates. The
-    /// route executes and is unlicensed.
+    /// route executes and is unsupported.
     fn execute_codetermined_bayesian_joint(
         &self,
         data: &TabularData,
@@ -1570,7 +1570,7 @@ impl super::Study {
              closure's generalized adjustment set, one posterior over every coordinate of the \
              joint arm. The outcome regression is additive in the treatments, so this is that \
              model's joint level, not the saturated cell mean of cell.aipw. It executes \
-             unlicensed: no coverage or evidence record names it.",
+             unsupported: no coverage or evidence record names it.",
         ));
         diagnostics.extend(response.support.warnings.iter().cloned());
         Ok(self.finish_identified_execute(
@@ -1888,13 +1888,13 @@ impl super::Study {
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
             return Err(CausalError::Unsupported {
-                message: "cell.aipw is licensed for discrete joint InterventionResponse",
+                message: "cell.aipw is supported for discrete joint InterventionResponse",
             });
         };
         let (treatments, requested_arm) = Self::parse_cell_aipw_interventions(interventions)?;
         if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
-                message: antecedent_estimate::POINT_CDE_UNLICENSED,
+                message: antecedent_estimate::POINT_CDE_UNSUPPORTED,
             });
         }
         if treatments.len() < 2 {
@@ -2266,7 +2266,7 @@ impl super::Study {
         let mut diagnostics =
             self.class_response_diagnostics(envelope, envelope_diag, &mixed, identify_cached);
         // A class-aware intervention level runs its per-completion refuter state
-        // (unlicensed); a curve keeps the skipped note.
+        // (unsupported); a curve keeps the skipped note.
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
         if !matches!(self.settings.refute, RefuteSuite::None)
@@ -2549,7 +2549,7 @@ impl super::Study {
         // A multi-completion envelope must not keep a single atom's plugin
         // interval. Mix IFs only when every contributing identified atom
         // supplies one and every completion is identified. Unidentified
-        // mass is retained on status; it is not a license to publish the
+        // mass is retained on status; it is not support to publish the
         // identified-atom SE as the envelope.
         if envelope.cases.len() > 1 {
             mixed.uncertainty = ResponseUncertainty::None;
@@ -2758,7 +2758,7 @@ impl super::Study {
                 "the band is formed from the completions' joint row influence (the additive-GAM \
                  coefficient sandwich for a Jacobian or directional derivative, the robust \
                  bias-corrected local fit for a point derivative); no coverage record measures it \
-                 and the cell is unlicensed",
+                 and the cell is unsupported",
             ));
         }
         if envelope.cases.iter().any(|c| {
@@ -3692,7 +3692,7 @@ mod uncertainty_tests {
     }
 }
 
-/// Normal interval from the front-door plug-in bootstrap SE of a general-ID response, when one is licensed.
+/// Normal interval from the front-door plug-in bootstrap SE of a general-ID response, when one is supported.
 fn general_id_bootstrap_interval(
     est: &FunctionalEffect,
     prepared: &antecedent_estimate::PreparedFunctionalEffect,
@@ -3789,7 +3789,7 @@ pub(super) fn estimate_general_id_response(
 ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
     if !matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
         return Err(CausalError::Unsupported {
-            message: "general-ID MAG/PAG/DAG response atoms are licensed for \
+            message: "general-ID MAG/PAG/DAG response atoms are supported for \
                       InterventionResponse Set means; MeanCurve stays on the \
                       adjustment envelope",
         });

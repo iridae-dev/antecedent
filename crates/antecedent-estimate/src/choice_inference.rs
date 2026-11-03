@@ -17,7 +17,7 @@
 //!   respondents' heterogeneity (two or three options), by deterministic quadrature.
 //!
 //! No result carries an interval or a coverage statement as a claim. Every guarantee slot is a
-//! [`WithheldGuarantee`] that refuses with `cell_not_licensed` until coverage of the exact
+//! [`WithheldGuarantee`] that refuses with `not_supported` until coverage of the exact
 //! procedure has been measured. The numerics are in
 //! [`antecedent_stats::adaptive_inference`]; the posterior is a statement about choices in the
 //! declared choice set, and stated choices do not identify behaviour or a causal effect.
@@ -577,7 +577,7 @@ pub const CHOICE_INTERVAL_METHOD: &str = "posterior_quantile";
 pub const MEASURED_LEVEL: f64 = 0.95;
 
 /// The calibration key of one measured choice interval. `rows` is the planned number of
-/// respondents. The key carries no authority: an interval is licensed only when it resolves to a
+/// respondents. The key carries no authority: an interval is supported only when it resolves to a
 /// currently attesting coverage record.
 #[must_use]
 pub fn calibration_basis(
@@ -714,8 +714,8 @@ mod tests {
         let p = choice_posterior(&[1.0, 1.0], &[7.0, 3.0], &ctx()).unwrap();
         assert_eq!(p.alpha, vec![8.0, 4.0]);
         assert!((p.probability_best.iter().sum::<f64>() - 1.0).abs() < 1e-9);
-        assert_eq!(p.guarantee.code, "cell_not_licensed");
-        assert!(p.guarantee.refusal("a credible interval").message.contains("not licensed"));
+        assert_eq!(p.guarantee.code, "not_supported");
+        assert!(p.guarantee.refusal("a credible interval").message.contains("not supported"));
     }
 
     #[test]
@@ -738,7 +738,7 @@ mod tests {
         let mass: f64 = oc.selection.iter().sum::<f64>() + oc.undecided;
         assert!((mass - 1.0).abs() < 1e-12);
         assert!(oc.selection[0] > oc.selection[1]);
-        assert_eq!(oc.guarantee.code, "cell_not_licensed");
+        assert_eq!(oc.guarantee.code, "not_supported");
     }
 
     #[test]

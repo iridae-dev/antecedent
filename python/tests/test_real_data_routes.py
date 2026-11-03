@@ -142,7 +142,7 @@ def _check(data, treatment, outcome, covariates, estimator, target, expected=_AN
         assert status == "partial"
     # A diagnostic that marks the result weakly supported (a code ending in ``.limited``:
     # overlap, dropped bootstrap replicates, weak sampler diagnostics) never leaves the claim
-    # supported. An unlicensed cell (``outside_scope``) or a failed check (``contradicted``)
+    # supported. An unsupported cell (``outside_scope``) or a failed check (``contradicted``)
     # takes precedence over ``limited`` and makes the claim unsupported.
     if any(".limited" in line for line in result.value.diagnostics):
         assert claim["support_domain"] in {"limited", "outside_scope", "contradicted"}

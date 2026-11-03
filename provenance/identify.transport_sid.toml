@@ -47,7 +47,7 @@ sha256 = "f043718798b0f68f61c1342b5841436c2ce9b21a04464b2c279d219a2b039ef2"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/transport.rs"
-sha256 = "ee9e073de50a29ee4aefa3ca5dfe28f8b5a25a7019a1ec9a9983e759d166a15c"
+sha256 = "dc5d4a18cb1e1c448b2e5e65b3ca7d3117efc69883df44ea59aa8df764128c67"
 
 [[method_review.artifacts]]
 role = "assertion"

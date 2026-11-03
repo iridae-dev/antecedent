@@ -1,4 +1,4 @@
-# Security, licensing, unsafe-code, and dependency review
+# Security, support, unsafe-code, and dependency review
 
 Date: 2026-10-18
 <!-- generated:release:reviewed-version:begin -->
@@ -81,7 +81,7 @@ standing) and the executor in the analysis facade (`CallbackSession`).
 | Resource bounds | Invocation count per request, `MAX_CALLBACK_DRAWS` and `MAX_CALLBACK_POINTS`, and `max_output_values` bound the output; cancellation is observed before the call, passed to the callback and observed after it. The wall-clock bound is applied after return (late results are discarded); there is no preemption and no sandbox. |
 | Output | `validate_output` accepts only a well-formed value of the declared quantity and support; non-finite or malformed laws are refused. |
 | Ledger | `CallbackSession` keeps an append-only history, per-request attempt counts, the invocation count and the evidence ledger in which nested callbacks' overlap is computed. A resumed process without a compatible provider records the stage `unavailable`; the historical result stays inspectable and is not silently re-executed. |
-| Standing | Results are `diagnostic` or an external claim (`standing_of`); metadata does not mint native trust, a joint law, an identification licence, an interval or a posterior guarantee. |
+| Standing | Results are `diagnostic` or an external claim (`standing_of`); metadata does not mint native trust, a joint law, an identification evidence, an interval or a posterior guarantee. |
 
 Residual risk: a provider is arbitrary in-process code with the caller's privileges. The
 library bounds and records the call; it does not isolate it. Treat provider code as trusted
@@ -126,7 +126,7 @@ Version gates refuse newer and unknown versions rather than reading them best-ef
 
 Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io-core lose `deny` / their scoped escape modules.
 
-## Licensing
+## Support
 
 - Project: `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`, ADR 0008).
 - Dependencies audited with **cargo-deny** (`deny.toml` license allow-list and
@@ -149,7 +149,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io-core los
 
 `cargo deny check` passed on 2026-09-07: advisories, bans, licenses, and
 sources were all `ok`. Its configured warning-level duplicate dependency and
-unused license-allowance reports remain non-failing maintenance signals;
+unused support-allowance reports remain non-failing maintenance signals;
 `yanked = "warn"` is unchanged in `deny.toml`.
 
 ## Wheel purity
@@ -181,7 +181,7 @@ Optional `blas` features (if added later) are non-default.
 # Local slow path: unsafe forbid scan + inventory + benches (+ optional deny)
 bash scripts/gate_release.sh
 
-# License / advisory / source policy (optional local)
+# Support / advisory / source policy (optional local)
 cargo deny check
 
 # CodeQL (strict local gate — 0 findings; CI uses .github/workflows/codeql.yml)

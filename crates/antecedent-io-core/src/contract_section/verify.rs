@@ -155,7 +155,7 @@ pub(in crate::contract_section) fn contract_unresolved_with_source(
             key.family, key.design, key.method, key.inference_claim
         );
         if contract.reasoning.support.value.as_ref().is_none_or(|slot| {
-            slot.matrix_status != "licensed"
+            slot.matrix_status != "supported"
                 || slot.matrix_coordinate.as_deref() != Some(coordinate.as_str())
         }) || !contract_uses_estimator(contract, crate::randomized_ipow_wire::ESTIMATOR)
         {
@@ -1482,13 +1482,13 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                         && matches!(key.validation.as_str(), "none" | "cheap" | "full")))
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
-            // Exact graphless DiD licenses are bound to the executed result.
+            // Exact graphless DiD supports are bound to the executed result.
             // New bases name the measured graphless design; historical
             // unknown-validation bases retain their original compiled axes.
             graphless_validation_ok
                 && contract.graph_class == "RandomizedTrial"
                 && contract.structure_source == "randomized_trial"
-                && slot.matrix_status == "licensed"
+                && slot.matrix_status == "supported"
                 && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                     coordinate.starts_with("graphless:difference_in_differences/")
                 })
@@ -1501,7 +1501,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             graphless_validation_ok
                 && contract.graph_class == "RandomizedTrial"
                 && contract.structure_source == "randomized_trial"
-                && slot.matrix_status == "licensed"
+                && slot.matrix_status == "supported"
                 && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                     coordinate.starts_with("graphless:randomized_effect/")
                         && coordinate.ends_with("/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles")
@@ -1515,7 +1515,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Off-axis design results retain their interval construction in
-            // the claim even though the support matrix has no licensed cell.
+            // the claim even though the support matrix has no supported cell.
             // The query-specific payload validator verifies its support and
             // endpoints; calibration remains unavailable on this axis.
             key.validation.is_empty()

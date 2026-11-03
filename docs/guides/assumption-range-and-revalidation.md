@@ -29,7 +29,7 @@ has no single point to shift and is refused
 
 It is an assumption range. It is not a confidence or credible interval, no
 probability attaches to a shift, the `bound` is your declaration and the data do
-not license it, and a sampling interval is not composed into it. The route set
+not support it, and a sampling interval is not composed into it. The route set
 covers cohort decisions, statistical and z-transport, path-specific effects,
 measurement, mechanism, synthesis, bridge, policy, temporal policy, adaptive
 trial source and provider handoff.
@@ -69,7 +69,7 @@ value is left as it was.
 | --- | --- |
 | Range for a discovered structure (no scalar family) | Use the structural envelope; declare a graph |
 | Missing shift bound, grid or population/quantity bindings | Declare them; none is chosen for you |
-| Reading the range as an interval or posterior | Not licensed; use as a tipping or sensitivity statement |
+| Reading the range as an interval or posterior | Not supported; use as a tipping or sensitivity statement |
 | Calibration carried from another target | Withdrawn; measure at the new target |
 | Reusing an earlier fit after the diagram changed | `recompute`: derive again |
 | A scene that names a claim twice, an unknown claim, a claim about another target or a source with no declared evidence | Correct the scene (`transport_revalidation.duplicate_claim`, `unknown_claim`, `claim_target_mismatch`, `source_undeclared`) |

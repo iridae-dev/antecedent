@@ -178,7 +178,7 @@ def test_native_and_equivalent_external_signal_agree_on_known_truth() -> None:
     for value in (native, external):
         assert value.evsi == pytest.approx(1.0 / 16.0, abs=1e-12)
         assert value.evpi == pytest.approx(0.125, abs=1e-12)
-    assert native.provider_trust == "native_licensed"
+    assert native.provider_trust == "native_supported"
     assert native.natively_replayed
     assert native.provider is None
     assert external.provider_trust == "externally_attested"
@@ -547,7 +547,7 @@ def test_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
         require_success(dr.consume(bytes(data[: len(data) // 2]), skip_expectation_check=True))
 
 
-def test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed() -> None:
+def test_structural_order_is_preserved_when_no_probabilistic_model_is_supported() -> None:
     structural = [
         dr.StructuralCandidate("precise", True, 5, 100),
         dr.StructuralCandidate("noisy", True, 1, 100),

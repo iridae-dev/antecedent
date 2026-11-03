@@ -746,11 +746,11 @@ mod tests {
                     "distance matching {target:?} {kind:?}: {err}"
                 );
             }
-            // The licensed Abadie–Imbens homoskedastic SE is still published on the same data.
-            let licensed = PropensityMatching::new().with_bootstrap_replicates(0);
+            // The supported Abadie–Imbens homoskedastic SE is still published on the same data.
+            let supported = PropensityMatching::new().with_bootstrap_replicates(0);
             let mut ws = PropensityEstimationWorkspace::default();
-            let prep = licensed.prepare(&data, &estimand, &query).unwrap();
-            let fit = licensed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            let prep = supported.prepare(&data, &estimand, &query).unwrap();
+            let fit = supported.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
             assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0, "{target:?}");
         }
     }

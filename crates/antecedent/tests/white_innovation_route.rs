@@ -2,12 +2,12 @@
 //!
 //! A single-step pulse on a `TemporalDag` has a tempered (generalized) posterior by default.
 //! Declaring serially independent innovations on the Bayesian inference swaps in the untempered
-//! full-likelihood posterior of the same effect, licensed only by that declaration and refutable
-//! by a Ljung-Box test of the residuals. The same premise licenses the untempered posterior of a
+//! full-likelihood posterior of the same effect, supported only by that declaration and refutable
+//! by a Ljung-Box test of the residuals. The same premise supports the untempered posterior of a
 //! response curve at the single horizon of one step ahead; any other horizon, and the default,
 //! keep the tempered generalized posterior. The reference is the least-squares coefficient and its
 //! standard error of the lag-aligned regression, computed here from the raw series. The route is
-//! an unlicensed estimator with calibration unmeasured, and every result says so.
+//! an unsupported estimator with calibration unmeasured, and every result says so.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

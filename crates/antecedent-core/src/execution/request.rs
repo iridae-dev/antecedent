@@ -48,7 +48,7 @@ pub enum ExecutionRequestState {
     Running,
     /// Finished with a published scientific result.
     Completed,
-    /// Refused before or during execution (scientific or license).
+    /// Refused before or during execution (scientific or support).
     Refused,
     /// Failed without publishing a completed claim.
     Failed,

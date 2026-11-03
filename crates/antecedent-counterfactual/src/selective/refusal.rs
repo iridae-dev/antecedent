@@ -8,7 +8,7 @@ use thiserror::Error;
 /// Stage reported by the refusals of this module.
 pub const EXECUTE_STAGE: &str = "execute";
 
-/// A structured refusal plus the prerequisites that would license the request.
+/// A structured refusal plus the prerequisites that would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossWorldRefusal {
     /// Registered code, stage, namespaced detail, offending subject and remedy.

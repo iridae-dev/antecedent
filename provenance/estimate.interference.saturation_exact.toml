@@ -39,7 +39,7 @@ record_sha256 = "84e515ac5b5bd8130438195b18ebfccb5e9785afad7419eee6bb5f35255249c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference_saturation.rs"
-sha256 = "c632f25a5fc584e5b1e63361e9025df8dd9d62ad8dd2bc872fd1721a2ac7734a"
+sha256 = "71c784476bfb98a20baf2b8c1edd9ec434fddbb6a40cc7ad0855b4acb421e54c"
 
 [[method_review.artifacts]]
 role = "implementation"

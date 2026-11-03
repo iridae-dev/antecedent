@@ -1,6 +1,6 @@
 {
   "schema": "calibration_validation_history.v1",
-  "purpose": "Durable historical evidence and exact fixed-budget replay recipes. Historical failures remain failures under their original decision rule. This file does not grant calibration, a support license, or a prospective family-wise claim to old data.",
+  "purpose": "Durable historical evidence and exact fixed-budget replay recipes. Historical failures remain failures under their original decision rule. This file does not grant calibration, a support, or a prospective family-wise claim to old data.",
   "original_registry": {
     "commit": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
     "path": "parity/coverage_records.toml",

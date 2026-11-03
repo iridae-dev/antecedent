@@ -768,7 +768,7 @@ fn rank_drop_json(
 }
 
 /// Estimate a declared binary-effect design on the span-preserving reduced adjustment set of
-/// a rank-drop plan (`estimator` is a licensed estimator id, e.g. `aipw`).
+/// a rank-drop plan (`estimator` is a supported estimator id, e.g. `aipw`).
 #[pyfunction]
 #[pyo3(signature = (names, columns, treatment, outcome, adjustment, estimator, priority=None, control=0.0, active=1.0, *, seed=1, threads=None))]
 #[allow(clippy::too_many_arguments, reason = "mirrors the Python keyword surface")]

@@ -37,7 +37,7 @@ record_sha256 = "97290f05304ae914f2bdbf2c7a9f5b5c4d118fd4b20a8edcbc1d655c3026583
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_scores.rs"
-sha256 = "f3b7351d609fe36b5fe6c1e02fc03c0118c80510a26044306690465b34e7d8b4"
+sha256 = "4ec7214a2b9352a7bbd38a68f85b25dbee301f978114d1bd4491676df6300ac8"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -8,7 +8,7 @@ copied_tests = false
 # Strategy-table implementation id: estimate.bayesian_iv_joint_fixed_loading
 # (EstimatorId::BayesianIvJointLinear, public name iv.bayesian_joint_linear).
 #
-# No primary paper. The licensed route fits the two-equation Gaussian structural
+# No primary paper. The supported route fits the two-equation Gaussian structural
 # system `T = alpha + pi Z + v`, `Y = mu + beta T + v + epsilon` with a fixed unit
 # loading of the treatment disturbance in the outcome equation, declared positive
 # variances for `v` and `epsilon`, and independent N(0, prior_sd^2) priors on
@@ -19,7 +19,7 @@ copied_tests = false
 # the repository's own; no publication introduces this estimator, and the
 # IV identification citations live in identify.iv and estimate.iv_2sls. The
 # free-loading control-function candidate that also lives in bayesian_iv.rs
-# (`fit_bayesian_iv`, `fit_bayesian_iv_fixed_variances`) is not the licensed route.
+# (`fit_bayesian_iv`, `fit_bayesian_iv_fixed_variances`) is not the supported route.
 papers = []
 
 implementation_deviations = [

@@ -108,7 +108,7 @@ impl FittedEffectModel {
     /// # Errors
     /// Missing or outside support, a feature-schema, unit, population or contrast mismatch,
     /// or an undeclared population shift; each refusal names the declaration or evidence
-    /// that would license the request.
+    /// that would support the request.
     pub fn decision_source(
         &self,
         cohort: &CohortBinding,

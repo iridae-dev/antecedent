@@ -104,7 +104,7 @@ fn labelled_native() -> DistributionArtifact {
     joint(
         "engine",
         "snap-n",
-        DistributionTrust::NativeLicensed,
+        DistributionTrust::NativeSupported,
         DistributionCalibration::Exact,
         None,
     )
@@ -298,7 +298,7 @@ fn boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
     )
     .unwrap();
     assert_eq!(native.provenance().provider_kind, ProviderKind::Native);
-    assert_eq!(native.provenance().trust, DistributionTrust::NativeLicensed);
+    assert_eq!(native.provenance().trust, DistributionTrust::NativeSupported);
     assert_eq!(native.provenance().calibration, CalibrationStatus::Exact);
     assert_eq!(
         native.provenance().receipt,
@@ -394,7 +394,7 @@ fn boundary_missing_coordinate_beside_supported_action_joint_source() {
         &joint(
             "engine",
             "snap-n",
-            DistributionTrust::NativeLicensed,
+            DistributionTrust::NativeSupported,
             DistributionCalibration::Exact,
             Some(vec![true, true, false]),
         ),
@@ -849,13 +849,13 @@ fn boundary_shared_data_refuses_independent_pooling() {
     );
     let refusal = error.to_refusal();
     assert_eq!(refusal.detail, "composition_boundary.shared_evidence_not_independent");
-    assert_eq!(refusal.code, "scenario_aggregate_not_licensed");
+    assert_eq!(refusal.code, "scenario_aggregate_not_supported");
     assert_eq!(refusal.offending.as_deref(), Some("native~external"));
     assert!(refusal.validate().is_ok());
 }
 
 #[test]
-fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_licensed() {
+fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_supported() {
     let native = joint_input("native", "engine", "snap-n", &native_record("engine", "snap-n"));
     let external = joint_input("external", "lab", "snap-x", &attested());
     let pair = [native, external];
@@ -886,7 +886,7 @@ fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_license
     // A covariance cannot pair draws row by row.
     let error = check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))])
         .unwrap_err();
-    assert!(matches!(error, BoundaryError::DependenceRouteNotLicensed { .. }));
+    assert!(matches!(error, BoundaryError::DependenceRouteNotSupported { .. }));
 }
 
 #[test]
@@ -916,14 +916,17 @@ fn boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() {
         .unwrap_err();
         assert_eq!(
             error,
-            BoundaryError::DependenceRouteNotLicensed {
+            BoundaryError::DependenceRouteNotSupported {
                 left: "native".into(),
                 right: "external".into(),
             }
         );
-        assert_eq!(error.to_refusal().detail, "composition_boundary.dependence_route_not_licensed");
+        assert_eq!(
+            error.to_refusal().detail,
+            "composition_boundary.dependence_route_not_supported"
+        );
     }
-    // Where the mean source is the native joint law's partner, a licensed route passes.
+    // Where the mean source is the native joint law's partner, a supported route passes.
     let ok = DependenceRoute {
         kind: RouteKind::JointLaw,
         id: "joint-law-1".into(),
@@ -1097,9 +1100,9 @@ fn boundary_conflicting_atoms_never_become_a_silent_average() {
         .unwrap_err();
     assert_eq!(error, BoundaryError::ConflictingAtomsNotAveraged);
     assert_eq!(error.to_refusal().detail, "composition_boundary.conflicting_atoms_not_averaged");
-    assert_eq!(error.reason_code(), "scenario_aggregate_not_licensed");
+    assert_eq!(error.reason_code(), "scenario_aggregate_not_supported");
 
-    // Probabilities on only some atoms are still not a license to average.
+    // Probabilities on only some atoms are still not support to average.
     let partial = [atom("graph-a", Some(0.5)), atom("graph-b", None)];
     assert_eq!(
         check_atom_combination(&partial, AtomCombination::WeightedByDeclaredProbabilities)
@@ -1117,7 +1120,7 @@ fn boundary_conflicting_atoms_never_become_a_silent_average() {
         AtomPlan::WorstCase
     );
 
-    // Declared probabilities license the weighted plan; missing mass is not renormalized.
+    // Declared probabilities support the weighted plan; missing mass is not renormalized.
     let declared = [atom("graph-a", Some(0.25)), atom("graph-b", Some(0.5))];
     assert_eq!(
         check_atom_combination(&declared, AtomCombination::WeightedByDeclaredProbabilities)

@@ -19,7 +19,7 @@ use antecedent::analysis::provider_callbacks::{
     ResultStanding, RetryContract, ValidatedOutput, check_callback_connection,
     check_claim_to_callback, consume_callback_result, export_callback_result,
     forecast_law_from_sample, inspect_callback_result, output_values_digest, predictive_law_source,
-    refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
+    refuse_identification_evidence, refuse_interval, refuse_joint_law, refuse_native_trust,
     refuse_posterior_guarantee, register_callback_source, supersede_callback_source,
 };
 use antecedent_contract::evidence_ledger::{
@@ -231,7 +231,7 @@ fn the_gaussian_reference_callback_matches_tabulated_values() {
     )
     .expect("mean");
     assert_eq!(values_of(&mean), vec![MU]);
-    assert_eq!(mean.standing, ResultStanding::LicensedExternal);
+    assert_eq!(mean.standing, ResultStanding::SupportedExternal);
     // Distribution function: Phi(-1.96) = 0.0249978951482205, Phi(0) = 0.5,
     // Phi(1) = 0.8413447460685429 (standard-normal tables).
     let thresholds = vec![MU - 1.96 * SD, MU, MU + SD];
@@ -609,7 +609,7 @@ fn a_changed_hidden_state_is_detected_through_the_protocol_and_never_guessed() {
     assert_eq!(changed.recomputed_because, Some(RecomputeReason::StateChanged));
     assert_eq!(values_of(&changed), vec![20.0]);
     assert_eq!(calls.get(), 2);
-    // A stateful result is diagnostic: it cannot back a licensed claim.
+    // A stateful result is diagnostic: it cannot back a supported claim.
     assert_eq!(changed.standing, ResultStanding::Diagnostic);
     // State that the protocol does not expose is never shown current.
     let hidden = mean_only(ReplayContract::Stateful { exposes_state_identity: false });
@@ -996,12 +996,12 @@ fn opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic() {
 
 #[test]
 fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed() {
-    let closed = antecedent_core::reason_code!("cell_not_licensed");
+    let closed = antecedent_core::reason_code!("not_supported");
     for (refusal, detail) in [
-        (refuse_interval(), "callback_protocol.interval_not_licensed"),
-        (refuse_posterior_guarantee(), "callback_protocol.posterior_guarantee_not_licensed"),
+        (refuse_interval(), "callback_protocol.interval_not_supported"),
+        (refuse_posterior_guarantee(), "callback_protocol.posterior_guarantee_not_supported"),
         (refuse_native_trust(), "callback_protocol.native_trust_not_conferred"),
-        (refuse_identification_licence(), "callback_protocol.identification_not_conferred"),
+        (refuse_identification_evidence(), "callback_protocol.identification_not_conferred"),
     ] {
         assert_eq!(refusal.code, closed);
         assert_eq!(refusal.detail, detail);
@@ -1184,7 +1184,7 @@ fn a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one() 
     let meta = inspect_callback_result(&bytes).expect("inspect");
     assert_eq!(meta.stage.status, "computed");
     assert_eq!(meta.stage.value_count, 5);
-    assert_eq!(meta.standing, "licensed_external");
+    assert_eq!(meta.standing, "supported_external");
     // A fresh process with no provider: the stage is recorded unavailable and
     // nothing runs; the historical result stays in the history.
     let mut fresh = CallbackSession::new();

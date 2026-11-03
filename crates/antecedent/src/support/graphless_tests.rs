@@ -1,4 +1,4 @@
-//! Tests of the graphless design license rows.
+//! Tests of the graphless design support rows.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -26,7 +26,7 @@ fn fixed_dose_policy_requires_every_local_and_provenance_gate() {
         known_density: true,
         ..Default::default()
     };
-    assert!(matches!(classify_graphless(key, support), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(classify_graphless(key, support), GraphlessSupportStatus::Supported { .. }));
     for weaker in [
         GraphlessAssignmentSupport { rows: 599, ..support },
         GraphlessAssignmentSupport { min_group_rows: 299, ..support },
@@ -65,7 +65,7 @@ fn exact_randomized_design_claims_require_measured_assignment_support() {
     };
     assert!(matches!(
         classify_graphless(complete, unit_30),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(
         classify_graphless(complete, GraphlessAssignmentSupport { treated: 29, ..unit_30 }),
@@ -105,7 +105,7 @@ fn exact_randomized_design_claims_require_measured_assignment_support() {
     };
     assert!(matches!(
         classify_graphless(cluster, cluster_30),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(classify_graphless(cluster, unit_30), GraphlessSupportStatus::Refused);
     assert_eq!(
@@ -137,9 +137,9 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
     };
     assert!(matches!(
         classify_graphless(bernoulli, binary),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
-    // The two-action score rule is arm support, not a row count: 300 balanced rows are licensed,
+    // The two-action score rule is arm support, not a row count: 300 balanced rows are supported,
     // an arm the design expects to fill with 39 rows is not.
     assert!(matches!(
         classify_graphless(
@@ -152,7 +152,7 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
                 ..binary
             }
         ),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(
         classify_graphless(
@@ -185,7 +185,10 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
         min_block_arm: 15,
         ..binary
     };
-    assert!(matches!(classify_graphless(blocked, blocks), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(
+        classify_graphless(blocked, blocks),
+        GraphlessSupportStatus::Supported { .. }
+    ));
     assert_eq!(
         classify_graphless(blocked, GraphlessAssignmentSupport { min_block_arm: 14, ..blocks }),
         GraphlessSupportStatus::Refused
@@ -201,7 +204,7 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
         GraphlessAssignmentSupport { min_factorial_cell: 30, reported_intervals: 3, ..binary };
     assert!(matches!(
         classify_graphless(factorial, cells),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(
         classify_graphless(
@@ -219,7 +222,7 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
     };
     let actions =
         GraphlessAssignmentSupport { min_action_rows: 30, reported_intervals: 3, ..binary };
-    assert!(matches!(classify_graphless(multi, actions), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(classify_graphless(multi, actions), GraphlessSupportStatus::Supported { .. }));
     assert_eq!(
         classify_graphless(
             multi,
@@ -255,7 +258,7 @@ fn precision_adjusted_bernoulli_rows_are_exact_and_cap_ancova_covariates() {
     };
     assert!(matches!(
         classify_graphless(ancova, observed),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(
         classify_graphless(ancova, GraphlessAssignmentSupport { covariates: 3, ..observed }),
@@ -279,10 +282,13 @@ fn precision_adjusted_bernoulli_rows_are_exact_and_cap_ancova_covariates() {
                 ..observed
             }
         ),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     let cuped = GraphlessSupportKey { method: "fixed_cuped_ht_score", ..ancova };
-    assert!(matches!(classify_graphless(cuped, observed), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(
+        classify_graphless(cuped, observed),
+        GraphlessSupportStatus::Supported { .. }
+    ));
     assert_eq!(
         classify_graphless(GraphlessSupportKey { method: "wald_cace", ..ancova }, observed),
         GraphlessSupportStatus::Refused
@@ -317,7 +323,7 @@ fn exact_policy_rows_require_ownership_support_and_every_interval() {
     };
     assert!(matches!(
         classify_graphless(binary, observed),
-        GraphlessSupportStatus::Licensed { .. }
+        GraphlessSupportStatus::Supported { .. }
     ));
     assert_eq!(
         classify_graphless(binary, GraphlessAssignmentSupport { policy_matches: 9, ..observed }),
@@ -352,7 +358,7 @@ fn exact_policy_rows_require_ownership_support_and_every_interval() {
         reported_intervals: 4,
         ..observed
     };
-    assert!(matches!(classify_graphless(uplift, bins), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(classify_graphless(uplift, bins), GraphlessSupportStatus::Supported { .. }));
     assert_eq!(
         classify_graphless(uplift, GraphlessAssignmentSupport { min_bin_rows: 299, ..bins }),
         GraphlessSupportStatus::Refused
@@ -384,7 +390,7 @@ fn exact_policy_rows_require_ownership_support_and_every_interval() {
         reported_intervals: 6,
         ..observed
     };
-    assert!(matches!(classify_graphless(cate, groups), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(classify_graphless(cate, groups), GraphlessSupportStatus::Supported { .. }));
     assert_eq!(
         classify_graphless(cate, GraphlessAssignmentSupport { min_group_arm_rows: 49, ..groups }),
         GraphlessSupportStatus::Refused
@@ -411,7 +417,10 @@ fn exact_two_period_did_rows_require_independent_cluster_cells() {
         reported_intervals: 1,
         ..Default::default()
     };
-    assert!(matches!(classify_graphless(panel, observed), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(
+        classify_graphless(panel, observed),
+        GraphlessSupportStatus::Supported { .. }
+    ));
     assert_eq!(
         classify_graphless(panel, GraphlessAssignmentSupport { treated: 29, ..observed }),
         GraphlessSupportStatus::Refused
@@ -428,7 +437,10 @@ fn exact_two_period_did_rows_require_independent_cluster_cells() {
         min_block_arm: 30,
         ..observed
     };
-    assert!(matches!(classify_graphless(repeated, cells), GraphlessSupportStatus::Licensed { .. }));
+    assert!(matches!(
+        classify_graphless(repeated, cells),
+        GraphlessSupportStatus::Supported { .. }
+    ));
     assert_eq!(
         classify_graphless(repeated, GraphlessAssignmentSupport { min_block_arm: 29, ..cells }),
         GraphlessSupportStatus::Refused

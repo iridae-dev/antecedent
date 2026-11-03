@@ -197,9 +197,9 @@ impl std::fmt::Display for DagOperation {
 
 /// What to try after a DAG operation refuses a directed cycle.
 ///
-/// [`Self::SigmaSeparation`] is the licensed conditional-independence query.
-/// [`Self::Condensation`] is the licensed reading of feedback structure.
-/// [`Self::Unlicensed`] names the consumer that has no cyclic license yet and
+/// [`Self::SigmaSeparation`] is the supported conditional-independence query.
+/// [`Self::Condensation`] is the supported reading of feedback structure.
+/// [`Self::Unsupported`] names the consumer that has no cyclic support yet and
 /// the attempt that consumer still owes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -215,8 +215,8 @@ pub enum CyclicNextAttempt {
     /// The schedule is the feedback structure. It is not an identification,
     /// a sample, or an abduction.
     Condensation,
-    /// This consumer has no cyclic license. `attempt` is the design to try.
-    Unlicensed {
+    /// This consumer has no cyclic support. `attempt` is the design to try.
+    Unsupported {
         /// The DAG consumer that refused.
         consumer: &'static str,
         /// The next design, named explicitly.
@@ -234,8 +234,8 @@ impl std::fmt::Display for CyclicNextAttempt {
                 "CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback \
                  structure",
             ),
-            Self::Unlicensed { consumer, attempt } => {
-                write!(f, "{consumer} has no cyclic license; next attempt: {attempt}")
+            Self::Unsupported { consumer, attempt } => {
+                write!(f, "{consumer} has no cyclic support; next attempt: {attempt}")
             }
         }
     }
@@ -270,16 +270,16 @@ impl CyclicDagRefusal {
         Self::new(operation, CyclicNextAttempt::Condensation)
     }
 
-    /// Refusal of `operation` by a `consumer` that has no cyclic license.
+    /// Refusal of `operation` by a `consumer` that has no cyclic support.
     ///
     /// `attempt` names the next design for the same request.
     #[must_use]
-    pub const fn unlicensed(
+    pub const fn unsupported(
         operation: DagOperation,
         consumer: &'static str,
         attempt: &'static str,
     ) -> Self {
-        Self::new(operation, CyclicNextAttempt::Unlicensed { consumer, attempt })
+        Self::new(operation, CyclicNextAttempt::Unsupported { consumer, attempt })
     }
 }
 
@@ -493,10 +493,10 @@ mod tests {
             CyclicDagRefusal::new(DagOperation::Discovery, CyclicNextAttempt::Condensation),
         );
         assert_eq!(
-            CyclicDagRefusal::unlicensed(DagOperation::Simulation, "example", "try this"),
+            CyclicDagRefusal::unsupported(DagOperation::Simulation, "example", "try this"),
             CyclicDagRefusal::new(
                 DagOperation::Simulation,
-                CyclicNextAttempt::Unlicensed { consumer: "example", attempt: "try this" },
+                CyclicNextAttempt::Unsupported { consumer: "example", attempt: "try this" },
             ),
         );
     }
@@ -526,10 +526,10 @@ mod tests {
     }
 
     #[test]
-    fn a_self_loop_is_a_cycle_and_an_unlicensed_consumer_names_its_attempt() {
+    fn a_self_loop_is_a_cycle_and_an_unsupported_consumer_names_its_attempt() {
         let refusal = refuse_directed_cycle(
             DagOperation::Identification,
-            CyclicNextAttempt::Unlicensed {
+            CyclicNextAttempt::Unsupported {
                 consumer: "example",
                 attempt: "hold the edges as a CyclicDigraph",
             },
@@ -538,7 +538,7 @@ mod tests {
         )
         .unwrap_err();
         let text = refusal.to_string();
-        assert!(text.contains("example has no cyclic license"), "{text}");
+        assert!(text.contains("example has no cyclic support"), "{text}");
         assert!(text.contains("CyclicDigraph"), "{text}");
     }
 }

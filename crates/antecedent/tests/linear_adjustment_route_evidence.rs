@@ -39,7 +39,7 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     let contract = prepared.contract().unwrap();
     match &contract.reasoning.support {
         SlotAvailability::Available(slot) => assert_eq!(

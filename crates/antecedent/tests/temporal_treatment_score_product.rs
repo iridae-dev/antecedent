@@ -194,7 +194,7 @@ fn the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept() {
         );
         assert!(lower < score && score < upper && value(&format!("score{index}.se")) > 0.0);
     }
-    assert_eq!(product.result().licensing, "unlicensed");
+    assert_eq!(product.result().support, "unsupported");
     assert_eq!(product.result().calibration, "unmeasured");
     assert_eq!(product.estimator_id(), "temporal.penalized_propensity");
 }

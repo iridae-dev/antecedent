@@ -1,7 +1,7 @@
 //! The calibration key of a composed interval, and its resolution against the
 //! shipped coverage records.
 //!
-//! A composed interval is licensed only by a coverage record the registry
+//! A composed interval is supported only by a coverage record the registry
 //! holds for exactly its composed coordinate and construction. The caller
 //! supplies no record: the key is derived from the sealed claim, and the
 //! resolver answers whether a currently attesting record governs it. The

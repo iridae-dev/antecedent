@@ -1,7 +1,7 @@
 //! Checking a cross-world query on a fixed Markovian DAG (stage one of three).
 //!
 //! The cross-world estimand is evaluated in three separable stages: this check
-//! decides whether the graph and the query license it and returns a
+//! decides whether the graph and the query support it and returns a
 //! machine-checkable witness; a coupled operation abducts, acts and predicts over
 //! shared exogenous terms; and a result carries the point beside the witness. A
 //! later counterfactual-identification route on latent-variable graphs replaces
@@ -100,7 +100,7 @@ impl CrossWorldRefusal {
 
     fn graph(message: impl Into<String>) -> Self {
         Self {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             detail: "cross_world.graph_outside_contract",
             message: message.into(),
         }
@@ -212,7 +212,7 @@ pub fn check_cross_world_edges(
     }
     if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
         antecedent_graph::error::DagOperation::Identification,
-        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+        antecedent_graph::error::CyclicNextAttempt::Unsupported {
             consumer: "cross_world",
             attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
                       this cell does not identify a cyclic contrast",
@@ -491,7 +491,7 @@ mod tests {
         let refusal = check_cross_world_edges(2, &[(0, 1), (1, 0)], &query).unwrap_err();
         assert_eq!(refusal.detail, "cross_world.graph_outside_contract");
         assert!(
-            refusal.message.contains("cross_world has no cyclic license"),
+            refusal.message.contains("cross_world has no cyclic support"),
             "{}",
             refusal.message
         );

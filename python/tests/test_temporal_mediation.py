@@ -53,7 +53,7 @@ def test_temporal_mediation_decomposition():
 
 
 def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
-    """analyze is prepare().estimate(); Bayesian TemporalMediationEffect stays licensed."""
+    """analyze is prepare().estimate(); Bayesian TemporalMediationEffect stays supported."""
     n = 80
     t = np.zeros(n)
     m = np.zeros(n)

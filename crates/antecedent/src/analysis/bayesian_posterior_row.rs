@@ -1,4 +1,4 @@
-//! The unlicensed Bayesian randomized-dose grid posterior and its portable artifact.
+//! The unsupported Bayesian randomized-dose grid posterior and its portable artifact.
 //!
 //! The dose-grid row has no `Study` query (its frequentist row,
 //! [`crate::analysis::dose_grid_functional`], is a standalone family too), so its Bayesian
@@ -10,7 +10,7 @@
 //! `bayesian.continuous_dose_policy`) and the smoothed dose transport posterior is
 //! [`crate::PreparedSmoothedDose::posterior`].
 //!
-//! The row is explicitly unlicensed and its calibration is `unmeasured`; the result says so and
+//! The row is explicitly unsupported and its calibration is `unmeasured`; the result says so and
 //! no support-matrix coordinate is claimed. [`BayesianPosteriorRow::evaluate`] runs and seals the
 //! row; [`BayesianPosteriorRow::consume`] recomputes the posterior from the exported table and
 //! refuses any resealed change of premise, table or value.
@@ -113,7 +113,7 @@ impl BayesianPosteriorRow {
         })
     }
 
-    /// Native observations from this execution; no additional scientific license.
+    /// Native observations from this execution; no additional scientific support.
     #[must_use]
     pub fn execution_facts(&self) -> Option<&antecedent_core::execution_facts::ExecutionFacts> {
         self.native_execution.as_ref()
@@ -357,7 +357,7 @@ mod prepared_tests {
         let result = observed.result.unwrap();
         assert_eq!(result.execution_facts().unwrap().observed_model_fits(), Some(0));
         assert_eq!(result.result().calibration, "unmeasured");
-        assert!(!result.result().licensed);
+        assert!(!result.result().supported);
         let bytes = result.export().unwrap();
         drop(prepared);
         drop(next);

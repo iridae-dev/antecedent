@@ -882,12 +882,12 @@ def consume_temporal_worlds_artifact(
 class TransportedPrerequisites:
     """Which prerequisites of a transported counterfactual have passed.
 
-    All default to ``False``: no composed license exists. Declaring one ``True`` records that
+    All default to ``False``: no composed support exists. Declaring one ``True`` records that
     the gate passed; it never opens the route, because the joint theorem has not passed.
     """
 
-    transport_license: bool = False
-    fixed_population_license: bool = False
+    transport_support: bool = False
+    fixed_population_support: bool = False
     cross_population_assumptions: bool = False
 
 
@@ -917,11 +917,11 @@ def transported_path_specific(
 
     Transporting a counterfactual needs both an identified target transport functional and a
     fixed-population cross-world theorem for the same quantity; neither a transported mean
-    nor a source counterfactual alone licenses their composition, and the joint theorem has
+    nor a source counterfactual alone supports their composition, and the joint theorem has
     not passed. Nothing is evaluated whatever is supplied.
 
     The refusal is :class:`~antecedent.temporal.TemporalRefusal` with
-    ``reason_code="cell_not_licensed"`` and detail ``transported_counterfactual.route_frozen``
+    ``reason_code="not_supported"`` and detail ``transported_counterfactual.route_frozen``
     (``offending`` is the first missing gate) while a prerequisite gate is missing, and also
     when every gate passes and every regime factor is present. When every gate passes but a
     required factor (``"source:<regime>"`` / ``"target:<regime>"``) is absent from
@@ -942,8 +942,8 @@ def transported_path_specific(
     supplied = [(*_factor(k), str(v)) for k, v in (supplied_factors or {}).items()]
     raise_refusal(
         _transported_refusal(
-            declared.transport_license,
-            declared.fixed_population_license,
+            declared.transport_support,
+            declared.fixed_population_support,
             declared.cross_population_assumptions,
             required,
             supplied,
@@ -952,5 +952,5 @@ def transported_path_specific(
     )
     raise CausalUnsupportedError(  # pragma: no cover - the native route always refuses
         "transported_counterfactual.route_frozen: the transported route is closed",
-        reason_code="cell_not_licensed",
+        reason_code="not_supported",
     )

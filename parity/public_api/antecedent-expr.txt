@@ -710,6 +710,7 @@ pub fn <antecedent_expr::Assignment>::fn remove(&mut self, var: antecedent_core:
 pub fn <antecedent_expr::Assignment>::fn set(&mut self, var: antecedent_core::ids::VariableId, value: antecedent_core::value::Value)
 pub fn <antecedent_expr::CausalExprArena>::fn backdoor_ate(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], active: antecedent_core::value::Value, control: antecedent_core::value::Value) -> antecedent_expr::ExprId
 pub fn <antecedent_expr::CausalExprArena>::fn backdoor_mean(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], level: antecedent_core::value::Value) -> antecedent_expr::ExprId
+pub fn <antecedent_expr::CausalExprArena>::fn backdoor_response_surface(&mut self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId]) -> antecedent_expr::ExprId
 pub fn <antecedent_expr::CausalExprArena>::fn bind_certificate(&self, id: antecedent_expr::ExprId, expected: &[antecedent_expr::LeafBinding]) -> core::result::Result<(), antecedent_expr::ExprError>
 pub fn <antecedent_expr::CausalExprArena>::fn bind_leaf_certificate(&self, id: antecedent_expr::ExprId, expected: &[antecedent_expr::LeafSignature]) -> core::result::Result<(), antecedent_expr::ExprError>
 pub fn <antecedent_expr::CausalExprArena>::fn compile(&self, root: antecedent_expr::ExprId) -> core::result::Result<antecedent_expr::CompiledEvaluator, antecedent_expr::EvalError>
@@ -791,6 +792,7 @@ pub fn <antecedent_expr::ExactEvaluationPlan>::const fn arena(&self) -> &anteced
 pub fn <antecedent_expr::ExactEvaluationPlan>::const fn root(&self) -> antecedent_expr::ExprId
 pub fn <antecedent_expr::ExactEvaluationPlan>::fn compile(spec: antecedent_expr::ExactEvaluationSpec<'_>, data: antecedent_expr::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_expr::EvalError>
 pub fn <antecedent_expr::ExactEvaluationPlan>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactLawError>::const fn is_cancelled(&self) -> bool
 pub fn <antecedent_expr::ExactLawError>::const fn is_missing_provider(&self) -> bool
 pub fn <antecedent_expr::ExactLawError>::fn is_null_conditioning_event(&self) -> bool
 pub fn <antecedent_expr::ExactTransportData>::const fn max_support_rows(&self) -> usize

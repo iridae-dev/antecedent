@@ -361,7 +361,7 @@ def select_instrumented_program(
     The target is population improvement under the declared homogeneous structural
     moment model. Held-out joint IV covariance is asymptotic and requires sufficient
     instrument strength. Search bounds concern fitted training utility; bootstrap
-    diagnostics do not establish coverage at ties or grant a calibration license.
+    diagnostics do not establish coverage at ties or grant a calibration support.
     """
     return InstrumentedProgramSelection(
         run_panel(
@@ -443,7 +443,7 @@ class PanelResult:
         ``{"window_average": {"from": 0, "until": 3}}``. Every world is evaluated on the
         same parameter draw, so the interval carries the cross-world covariance; it
         is withheld when a slot failed or the fit does not authorize a complete law.
-        The value is conditional on the fitted mechanism and grants no causal license.
+        The value is conditional on the fitted mechanism and grants no causal support.
         """
         return json.loads(self._handle.scheduled_contrast(_json(functional), level))
 
@@ -1028,7 +1028,7 @@ def prepare(
     to identify the joint intervention on the declared unrolled graph.
 
     ``execution`` owns the seed, threads, memory limit and cancellation.
-    Neither ``exogenous_context`` nor a finite fit establishes a causal license.
+    Neither ``exogenous_context`` nor a finite fit establishes a causal support.
     """
     declaration = _declaration(
         groups,
@@ -1089,7 +1089,7 @@ def prepare_imputed(
     intervention itself, a season level a design label), and a panel with an analysis mask
     is refused. Serial context is one neighbouring step of the stacked follow-up rows, so
     the first and last follow-up row of a unit read a row of the adjacent unit; the fit's
-    own serial law is unchanged. Pooling grants no causal license, and a missingness
+    own serial law is unchanged. Pooling grants no causal support, and a missingness
     mechanism other than missing-at-random is refused with its next attempt named.
     """
     if not isinstance(imputation, ImputationSpec):
@@ -1148,7 +1148,7 @@ class JointResponseLaw:
     (``"aligned_posterior"``) carry the cross-world dependence; marginal intervals are never
     subtracted. ``identified_claim`` is false when conditional joint-world support is not
     established, and ``calibration`` is ``"unmeasured"``: a numerical result grants neither
-    causal nor calibration license.
+    causal nor calibration support.
     """
 
     world_ids: tuple[int, ...]

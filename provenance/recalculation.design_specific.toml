@@ -21,9 +21,9 @@ record_sha256 = "832039b4bf94fc7f807249a343d882dc36299809108528d3c7c34c6ed4e8837
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_design.rs"
-sha256 = "c485ba6ae06811475d7a6bf2ddd1858ef3de5463d045ef524dab3debc1659275"
+sha256 = "e0ac36bdb140d15fff9488510bf10ca27f64515c082a3a723c61aa52861a4801"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_design.rs"
-sha256 = "cd6c5c64e8fa2d042ee42d28aa666cd7e134ed301ae719199c1f021f5dbf4a21"
+sha256 = "4aed3cad1469af26ce99107034aa17dc00a40ad96ab168c887182c520a55550d"

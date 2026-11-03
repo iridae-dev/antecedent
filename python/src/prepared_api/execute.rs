@@ -551,12 +551,6 @@ impl PyPreparedAnalysis {
         out.insert("structure_source".into(), self.inner.structure_source().as_str().to_string());
         if let Some(status) = self.inner.support_status() {
             out.insert("evidence_status".into(), status.as_str().to_string());
-            if let Some(reason) = status.allowlist_reason() {
-                out.insert("allowlist_reason".into(), reason.to_string());
-            }
-            if let Some(parent) = status.allowlist_parent() {
-                out.insert("allowlist_parent".into(), parent.to_string());
-            }
         }
         if let Some(b) = rec.estimated_peak_memory_bytes {
             out.insert("estimated_peak_memory_bytes".into(), b.to_string());

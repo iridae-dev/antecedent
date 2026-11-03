@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Which external oracles each licensed support-matrix cell rests on.
+"""Which external oracles each supported support-matrix cell rests on.
 
 Two kinds are kept apart and never merged:
 
-* **cell-level**: the licensed row's own evidence is `frozen_external_oracle`:
+* **cell-level**: the supported row's own evidence is `frozen_external_oracle`:
   its cited test compares the cell's output with a pinned upstream run
   recorded in `known_truth_fixture` (gate_support_matrix.sh requires that test
   to consume the fixture).
 * **component-level**: a component the cell's execution ran is checked against
   an external oracle elsewhere. The components come from
-  `parity/licensed_routes.toml`, which the licensed compiler test generates from
+  `parity/supported_routes.toml`, which the supported compiler test generates from
   each cell's executed logical plan (identifier and estimator ids). A parity row
   with an external evidence kind declares the components its oracle test
   exercises in `oracle_components` (`estimator:<id>`, `identifier:<id>`); the
@@ -31,8 +31,8 @@ from pathlib import Path
 from _repo import REPO_ROOT as ROOT
 from evidence_kinds import EXTERNAL_KINDS
 
-LICENSED = ROOT / "parity/support_licensed.toml"
-ROUTES = ROOT / "parity/licensed_routes.toml"
+SUPPORTED = ROOT / "parity/support_cells.toml"
+ROUTES = ROOT / "parity/supported_routes.toml"
 AXES = ROOT / "parity/support_axes.toml"
 COMPONENT_KINDS = ("estimator", "identifier", "discovery")
 
@@ -47,7 +47,7 @@ def _manifests() -> list[Path]:
     return sorted(
         p
         for p in (ROOT / "parity").glob("*.toml")
-        if p.name not in {"support_licensed.toml", "licensed_routes.toml", "coverage_records.toml"}
+        if p.name not in {"support_cells.toml", "supported_routes.toml", "coverage_records.toml"}
     )
 
 
@@ -100,8 +100,10 @@ def render(links: dict) -> str:
     return "; ".join(parts) or "none"
 
 
-def counts() -> dict[str, int]:
-    cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
+def counts(cells: list[dict] | None = None) -> dict[str, int]:
+    """Evidence-link split of the given cells (default: every listed cell)."""
+    if cells is None:
+        cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
     comps, rts = component_rows(), routes()
     out = {"cell_level": 0, "component_level_only": 0, "discovery_only": 0, "neither": 0}
     for cell in cells:
@@ -119,15 +121,15 @@ def counts() -> dict[str, int]:
 
 def check() -> list[str]:
     problems: list[str] = []
-    cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
+    cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
     rts = routes()
-    licensed = {coordinate(c) for c in cells}
+    supported = {coordinate(c) for c in cells}
     if not rts:
         problems.append(f"{ROUTES.relative_to(ROOT)} is missing or empty")
-    for missing in sorted(licensed - set(rts)):
-        problems.append(f"licensed cell {missing} has no route in parity/licensed_routes.toml")
-    for stale in sorted(set(rts) - licensed):
-        problems.append(f"parity/licensed_routes.toml routes {stale}, which is not licensed")
+    for missing in sorted(supported - set(rts)):
+        problems.append(f"supported cell {missing} has no route in parity/supported_routes.toml")
+    for stale in sorted(set(rts) - supported):
+        problems.append(f"parity/supported_routes.toml routes {stale}, which is not supported")
     ran = {kind: {r.get(kind) for r in rts.values()} for kind in ("identifier", "estimator")}
     graph_classes = set(tomllib.loads(AXES.read_text(encoding="utf-8")).get("graph_classes", []))
     for component, rows in component_rows().items():
@@ -145,8 +147,8 @@ def check() -> list[str]:
             problems.append(f"oracle component {component!r} is not kind:id ({COMPONENT_KINDS})")
         elif kind in ran and ident not in ran[kind]:
             problems.append(
-                f"oracle component {component!r} is not a {kind} any licensed cell runs "
-                "(parity/licensed_routes.toml)"
+                f"oracle component {component!r} is not a {kind} any supported cell runs "
+                "(parity/supported_routes.toml)"
             )
         elif kind == "discovery" and ident not in graph_classes:
             problems.append(f"oracle component {component!r} names no graph class")

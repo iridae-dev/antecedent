@@ -3421,7 +3421,7 @@ impl super::Study {
         super::series_weights::refuse_unread_series_weights(data, "DBN graph-posterior mediation")?;
         if query.horizons.len() > 1 && self.settings.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
-                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                message: "Frequentist DBN-posterior mediation is supported for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
             });
         }
@@ -4606,7 +4606,7 @@ pub(super) fn gcomp_arm_effect_assumption(
                      {arm} covariate means; it is a model-based effect on the {arm}, not a \
                      matching estimand and not the all-observed effect, and it is biased if the \
                      outcome mean is not linear in the adjustment columns and their \
-                     interactions with treatment; the arm-effect interval is unlicensed and \
+                     interactions with treatment; the arm-effect interval is unsupported and \
                      its coverage is unmeasured"
                 )),
             },

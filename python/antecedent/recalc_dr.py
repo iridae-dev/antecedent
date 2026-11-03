@@ -4,7 +4,7 @@ Compatible utilities and same-row target weights reuse retained marginal AIPW
 scores. CATE prediction separately uses the fitted final-stage map, with measured
 zero fits and no pointwise interval claim. Changed snapshots, graphs, folds or
 learner settings refit their dependencies. Partially linear DML and unsupported
-score/population operations refuse rather than inheriting an AIPW license.
+score/population operations refuse rather than inheriting an AIPW support.
 
 Receipts record historical work; they supply no executable model. Fresh-process
 retargeting requires verified portable scores, prediction requires a verified
@@ -77,7 +77,7 @@ class CatePrediction:
     model_fits: int
 
     def to_dict(self) -> dict[str, object]:
-        """Prediction-only disclosure; no marginal score or interval license."""
+        """Prediction-only disclosure; no marginal score or interval support."""
         return {
             "values": list(self.values),
             "model_fits": self.model_fits,
@@ -220,7 +220,7 @@ class DrSession:
         """Predict named CATE feature rows with the retained final-stage map.
 
         This distinct operation measures actual zero model fits, supplies no new
-        shared-stage receipt, and grants no score-retarget or inference license.
+        shared-stage receipt, and grants no score-retarget or inference support.
         """
         run = _execution(execution)
         ctl = _native_controls(run, resources=False)

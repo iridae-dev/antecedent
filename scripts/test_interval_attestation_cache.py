@@ -13,14 +13,14 @@ class AttestationInvocationTests(unittest.TestCase):
         records = [
             {
                 "id": f"owner.{name}",
-                "status": "carried_forward",
-                "inference_claim": "calibrated",
+                "status": "not_supported",
+                "inference_claim": "interval",
                 "coverage_records": [f"cov.fixture.{name}"],
             }
             for name in ("first", "second")
         ]
         files = {
-            "parity/promotion.toml": {"record": records},
+            "parity/capability_records.toml": {"record": records},
             "parity/coverage_records.toml": {
                 "record": [{"id": row["coverage_records"][0]} for row in records] if present else []
             },

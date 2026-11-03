@@ -164,7 +164,7 @@ fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent() {
         vec!["indicator_provider", "sibling_claim", "sibling_data", "target"]
     );
     assert!(keys(&r, Revalidation::Withdrawn).is_empty());
-    // numerical invalidation only: no license is withdrawn and none is retained for old numbers
+    // numerical invalidation only: no support is withdrawn and none is retained for old numbers
     for key in keys(&r, Revalidation::Recompute) {
         let claim = r.claim(key).expect("claim");
         assert!(claim.withdrawals.is_empty(), "{key}");
@@ -245,12 +245,12 @@ fn a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers() {
         keys(&r, Revalidation::StillValid),
         vec!["cohort", "sibling_claim", "sibling_data", "target"]
     );
-    // withdrawal of a license is not numerical invalidation
+    // withdrawal of support is not numerical invalidation
     assert!(r.claims().all(|c| c.numerical.is_empty()));
     let decision = r.claim("decision").expect("claim");
     assert!(decision.withdrawn_for(WithdrawalKind::ProviderTrust));
     let refusal = r.require_valid("decision").expect_err("withdrawn");
-    assert_eq!(refusal.code, "claim_license_withdrawn");
+    assert_eq!(refusal.code, "claim_support_withdrawn");
     assert_eq!(refusal.detail, "composition_verification.provider_trust_withdrawn");
     assert_eq!(refusal.offending.as_deref(), Some("decision"));
 }
@@ -289,7 +289,7 @@ fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused() {
     assert!(reported.numerical.is_empty());
     assert!(reported.withdrawn_for(WithdrawalKind::Calibration));
     let refusal = r.require_valid("reported_effect").expect_err("refused");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "composition_verification.calibration_not_held");
     // a point-only dependent does not lose its value to a calibration withdrawal
     assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
@@ -374,7 +374,7 @@ fn transported_calibration_is_never_inherited_by_a_different_target() {
 }
 
 #[test]
-fn a_removed_input_is_a_retired_license_not_a_stale_number() {
+fn a_removed_input_is_a_retired_support_not_a_stale_number() {
     let before = build(&params());
     let mut after = CompositionGraph::new();
     for n in before.nodes().filter(|n| n.key != "target") {
@@ -727,7 +727,7 @@ fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved() {
     let provider = r.claim("indicator_provider").expect("claim");
     assert_eq!(provider.numerical[0].cause, NumericalCause::TrustChanged);
     assert_eq!(provider.authority, PriorAuthority::NotRetained);
-    // a numerical reason, not a lost license
+    // a numerical reason, not a lost support
     assert!(r.claims().all(|c| c.withdrawals.is_empty()));
     assert!(r.claim("sibling_claim").expect("claim").authority == PriorAuthority::Retained);
 }
@@ -755,7 +755,7 @@ fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs() {
 }
 
 #[test]
-fn a_provider_standing_nobody_stated_is_not_a_license() {
+fn a_provider_standing_nobody_stated_is_not_a_support() {
     let g = build(&Params { trust: TrustStanding::Undeclared, ..params() });
     let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
     let provider = r.claim("indicator_provider").expect("claim");
@@ -768,7 +768,7 @@ fn a_provider_standing_nobody_stated_is_not_a_license() {
 }
 
 #[test]
-fn restored_support_recomputes_the_claims_that_were_never_licensed_there() {
+fn restored_support_recomputes_the_claims_that_were_never_supported_there() {
     let before = build(&Params { target_unsupported: true, ..params() });
     let after = build(&params());
     let r = revalidate(&before, &after, &no_effects()).expect("revalidate");

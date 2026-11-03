@@ -16,9 +16,9 @@
 //!
 //! A discretized value is `point_only`. It carries no interval, posterior or
 //! calibration ([`PreparedDiscretizedComposition::uncertainty`] refuses with
-//! `cell_not_licensed`); parameter uncertainty declared on the source mechanisms is
+//! `not_supported`); parameter uncertainty declared on the source mechanisms is
 //! not propagated through the discretization and the result says so. Exact
-//! finite-law arithmetic supplies no calibration license. Levels are declared per
+//! finite-law arithmetic supplies no calibration support. Levels are declared per
 //! variable, never defaulted.
 //!
 //! # Lifecycle
@@ -96,7 +96,7 @@ impl DiscretizationRefusal {
         }
     }
 
-    /// What would license the request, when the refusal names it.
+    /// What would support the request, when the refusal names it.
     #[must_use]
     pub fn remedy(&self) -> Option<&'static str> {
         match self {
@@ -225,7 +225,7 @@ impl PreparedDiscretizedComposition {
     /// An interval, band, posterior or law-valued reading of a discretized value.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` (`discretized_scm.point_only`): a discretized
+    /// Always `not_supported` (`discretized_scm.point_only`): a discretized
     /// value is a point with a computed mean-error bound.
     pub fn uncertainty(
         &self,

@@ -1031,7 +1031,7 @@ fn wald_coverage_on(
                 "{label}: non-homoskedastic AR must be withheld"
             );
             assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
-            // No licensed interval product — score as a miss, not a Wald SE.
+            // No supported interval product — score as a miss, not a Wald SE.
             None
         };
         (effect.ate, weak, set)
@@ -1059,7 +1059,7 @@ fn wald_coverage_on(
             tally.assert(label);
         }
     } else {
-        // HC1 / robust: licensed product withheld; do not claim Wald coverage.
+        // HC1 / robust: supported product withheld; do not claim Wald coverage.
         tally.report(label);
     }
 }

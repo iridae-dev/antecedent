@@ -42,7 +42,7 @@ record_sha256 = "ba196d5a11a0c5e09768b8bc0ac56933d3fe26f343cc6512856a0e5f553de2b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
+sha256 = "6f050d88acea6d04166adb1169e850e88cf9c93b0d9954c9f2c30f88edffe0e3"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -17,7 +17,7 @@ citation. This module checks what those do not:
   and execute the route, assert the retained program's identity, and assert a number or
   interval of the result.
 * **Axis rows.** Every `[[family_axis]]` route of `parity/support_graphless.toml` is a
-  manifest route that executes, and every license's citation is the one its graphless route
+  manifest route that executes, and every support's citation is the one its graphless route
   records.
 
 Each function returns messages; none builds or runs anything.
@@ -477,7 +477,7 @@ def axis_problems(root: Path, routes: list[dict], today: str) -> list[str]:
         return [f"{GRAPHLESS}: not found"]
     data = tomllib.loads(text)
     by_id = {route["id"]: route for route in routes}
-    executing = ("execution_only", "graphless", "licensed", "fitting_gap")
+    executing = ("execution_only", "graphless", "supported", "fitting_gap")
     problems: list[str] = []
     seen_axes: set[tuple[str, str]] = set()
     for axis in data.get("family_axis", []):
@@ -504,17 +504,17 @@ def axis_problems(root: Path, routes: list[dict], today: str) -> list[str]:
             )
         if axis.get("exit_by") and str(axis["exit_by"]) < today:
             problems.append(f"{GRAPHLESS}: {key} exit_by {axis['exit_by']} has passed")
-    families = {license["family"] for license in data.get("license", [])}
+    families = {support["family"] for support in data.get("support", [])}
     for family in sorted(families):
         for axis in ("bayesian", "temporal"):
             if (family, axis) not in seen_axes:
                 problems.append(f"{GRAPHLESS}: family {family} has no {axis} axis row")
     cited = {route.get("retained_route_test") for route in routes if route["status"] == "graphless"}
-    for license in data.get("license", []):
-        if license.get("retained_route_test") not in cited:
+    for support in data.get("support", []):
+        if support.get("retained_route_test") not in cited:
             problems.append(
-                f"{GRAPHLESS}: license {license['family']}/{license['design']}/{license['method']} "
-                f"cites {license.get('retained_route_test')}, which no graphless route records"
+                f"{GRAPHLESS}: support {support['family']}/{support['design']}/{support['method']} "
+                f"cites {support.get('retained_route_test')}, which no graphless route records"
             )
     return problems
 

@@ -336,7 +336,7 @@ def test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims(
     with pytest.raises(cv.CompositionVerificationRefusal) as withdrawn:
         verification.require_valid("decision")
     assert_registered_refusal(withdrawn.value)
-    assert withdrawn.value.reason_code == "claim_license_withdrawn"
+    assert withdrawn.value.reason_code == "claim_support_withdrawn"
     assert withdrawn.value.detail == "composition_verification.input_retired"
 
     # nothing asks the withdrawn source for permission any more

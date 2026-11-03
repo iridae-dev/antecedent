@@ -293,7 +293,7 @@ fn a_declared_shift_is_extrapolative_and_needs_an_explicit_weaker_policy() {
 }
 
 #[test]
-fn the_cohort_mean_is_a_licensed_forward_source_of_an_inverse_query() {
+fn the_cohort_mean_is_a_supported_forward_source_of_an_inverse_query() {
     use antecedent_design::inverse_query::{
         Comparison, FeasibilityStatus, ForwardEvidence, GridScope, InverseConstraint, InverseQuery,
         SelectionOutcome, SelectionRule, evaluate_inverse_query,
@@ -353,7 +353,7 @@ fn the_cohort_mean_is_a_licensed_forward_source_of_an_inverse_query() {
     }];
     assert!(evaluate_inverse_query(&quantile, &evidence).is_err());
 
-    // A shifted cohort is not offered as a licensed forward source.
+    // A shifted cohort is not offered as a supported forward source.
     let shifted = CohortDecisionSource::build(
         &model(),
         &cohort("clinic_b"),
@@ -368,6 +368,6 @@ fn the_cohort_mean_is_a_licensed_forward_source_of_an_inverse_query() {
     let refusal = cohort_forward_claim(&shifted).unwrap_err();
     // One shape for a consumer that does not accept a transported claim: the
     // same code and detail as the inverse forward source.
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "inverse_forward_source.transported_not_accepted");
 }

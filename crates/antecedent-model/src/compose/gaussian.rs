@@ -30,7 +30,7 @@ use super::{
 /// A topological simulation refused a directed cycle and named the next attempt.
 fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
     CompositionError::Numerical {
-        message: antecedent_graph::error::CyclicDagRefusal::unlicensed(
+        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
             antecedent_graph::error::DagOperation::Simulation,
             consumer,
             attempt,
@@ -503,7 +503,7 @@ pub struct FunctionalUncertainty {
     pub standard_error: f64,
     /// What the declared parameter law means, when any mechanism reports one.
     pub meaning: Option<UncertaintyMeaning>,
-    /// How the dependence between mechanisms was licensed.
+    /// How the dependence between mechanisms was supported.
     pub dependence: &'static str,
     /// Method label.
     pub method: &'static str,
@@ -605,7 +605,7 @@ impl ComposedLinearGaussian {
                 return Err(cyclic_simulation_refusal(
                     "composed_linear_gaussian",
                     "CyclicDigraph::condensation for the feedback structure; \
-                     this executor has no cyclic license and does not sample a cycle",
+                     this executor has no cyclic support and does not sample a cycle",
                 ));
             };
             done[v] = true;

@@ -47,7 +47,7 @@
 //! [`route_linear_support`] asks the DAG algorithm first. A directed cycle is
 //! refused there, with that algorithm's next attempt, and only then does the
 //! strongly connected compiler run. Specified models remain model-conditional;
-//! compilation grants no scientific license.
+//! compilation grants no scientific support.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -541,7 +541,7 @@ pub fn compile_gaussian_equilibrium(
 /// How the free support of a linear map was scheduled.
 ///
 /// Specified models remain model-conditional. Choosing this schedule grants no
-/// scientific license.
+/// scientific support.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LinearSupportRoute {
     /// Topological order of the free nodes, sources before sinks.
@@ -739,29 +739,29 @@ pub fn route_linear_support(
             }
         }
     }
-    Ok(LinearSupportRoute::Cyclic { next_attempt: dag_license_refusal(), blocks })
+    Ok(LinearSupportRoute::Cyclic { next_attempt: dag_support_refusal(), blocks })
 }
 
-pub(crate) fn dag_license_refusal() -> String {
-    antecedent_graph::error::CyclicDagRefusal::unlicensed(
+pub(crate) fn dag_support_refusal() -> String {
+    antecedent_graph::error::CyclicDagRefusal::unsupported(
         antecedent_graph::error::DagOperation::Simulation,
         "CompiledCausalModel",
         "a directed cycle belongs in a CyclicDigraph; condensation describes the feedback and \
-         does not sample or abduct. This compiler has no cyclic license",
+         does not sample or abduct. This compiler has no cyclic support",
     )
     .to_string()
 }
 
 /// Compile a Gaussian equilibrium, using the DAG algorithm when the free support is acyclic.
 ///
-/// A directed cycle is refused by that algorithm. The cyclic license then runs
+/// A directed cycle is refused by that algorithm. The cyclic support then runs
 /// the existing strongly connected compiler. Specified models remain
-/// model-conditional; compilation grants no scientific license.
+/// model-conditional; compilation grants no scientific support.
 ///
 /// # Errors
 ///
 /// The errors of [`compile_gaussian_equilibrium`]. A directed cycle is compiled
-/// by the cyclic license after the DAG refusal is recorded on the route.
+/// by the cyclic support after the DAG refusal is recorded on the route.
 pub fn compile_routed_gaussian_equilibrium(
     component: &CyclicComponent,
     model: &LinearStructuralMap,

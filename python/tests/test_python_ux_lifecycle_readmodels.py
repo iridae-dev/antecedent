@@ -114,7 +114,7 @@ def test_graphless_design_description_retains_native_standing_without_graph_cert
     export.clear()
     assert identification.to_dict(), "an editable export cannot change the retained view"
     result = require_success(ant.estimate(study))
-    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert result.longitudinal_regime.support_status == "unsupported_point_utility"
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
 
 

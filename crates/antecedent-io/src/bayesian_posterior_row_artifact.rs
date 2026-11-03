@@ -1,4 +1,4 @@
-//! Retained rows of the unlicensed Bayesian randomized-design posteriors, and the independent
+//! Retained rows of the unsupported Bayesian randomized-design posteriors, and the independent
 //! artifact of the randomized-dose grid posterior.
 //!
 //! The renderers [`dose_grid_row`], [`policy_row`], [`quantile_row`] and [`survival_row`] turn a
@@ -14,7 +14,7 @@
 //! declared polynomial coefficient prior) is sealed here as format version 1 together with
 //! every premise and the compact data table it was computed from. Every result is a posterior
 //! whose calibration is `unmeasured`: no coverage claim is made and the estimator is not
-//! licensed.
+//! supported.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request, recomputes
 //! the posterior from the embedded table with the stored seed and accepts only a result that
@@ -644,10 +644,10 @@ impl PosteriorRowArtifactWire {
         }
         if result.uncertainty != POSTERIOR_ROW_UNCERTAINTY
             || result.calibration != POSTERIOR_ROW_CALIBRATION
-            || result.licensed
+            || result.supported
         {
             return Err(unsupported(
-                "these rows publish unlicensed posteriors with unmeasured calibration",
+                "these rows publish unsupported posteriors with unmeasured calibration",
             ));
         }
         let width = result.coordinates.len();

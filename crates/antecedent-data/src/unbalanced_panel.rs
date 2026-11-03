@@ -689,7 +689,7 @@ impl PanelBalanceReport {
         })
     }
 
-    /// Keep the rows `mode` licenses.
+    /// Keep the rows `mode` supports.
     ///
     /// # Errors
     ///
@@ -1076,7 +1076,7 @@ impl PreparedPanel {
 
     /// Runs of consecutive grid periods of one unit. One run per kept unit spanning the
     /// grid under `BalancedUnits`, each maximal run under `ContiguousRuns`, and none under
-    /// `AvailableUnitPeriods`, which licenses no lag.
+    /// `AvailableUnitPeriods`, which supports no lag.
     #[must_use]
     pub fn runs(&self) -> &[UnitRun] {
         &self.runs

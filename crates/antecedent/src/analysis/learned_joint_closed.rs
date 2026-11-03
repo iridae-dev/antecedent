@@ -6,7 +6,7 @@
 //! its posterior claims a *calibrated* interval whose coverage is unmeasured. The
 //! public producer is therefore closed: it validates its request against
 //! the row's scope with the core's own bounds and details and otherwise refuses with the live
-//! typed `cell_not_licensed` refusal `learned_joint_transport.route_frozen`. A request outside
+//! typed `not_supported` refusal `learned_joint_transport.route_frozen`. A request outside
 //! the row refuses first with the row's own scope refusal, so a caller learns the real
 //! obstruction before the closed route.
 //!
@@ -163,7 +163,7 @@ fn scope_refusal(request: &LearnedJointRequest<'_>) -> Option<LearnedJointRefusa
 
 /// The refusal of a request to the closed learned joint transport route: the row's scope
 /// refusal when the request is outside it, otherwise
-/// `cell_not_licensed` / `learned_joint_transport.route_frozen`.
+/// `not_supported` / `learned_joint_transport.route_frozen`.
 #[must_use]
 pub fn learned_joint_transport_refusal(request: &LearnedJointRequest<'_>) -> LearnedJointRefusal {
     scope_refusal(request).unwrap_or_else(|| from_core(&learned::route_frozen_refusal()))
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn learned_joint_route_is_frozen_and_scope_refusals_come_first() {
         let frozen = learned_joint_transport_refusal(&request());
-        assert_eq!(frozen.code, "cell_not_licensed");
+        assert_eq!(frozen.code, "not_supported");
         assert_eq!(frozen.detail, learned::DETAIL_ROUTE_FROZEN);
         let admg = learned_joint_transport_refusal(&LearnedJointRequest {
             graph_class: "admg",

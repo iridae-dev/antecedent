@@ -1622,7 +1622,7 @@
         {
           "role": "assertion_source",
           "path": "python/tests/test_posterior_moments.py",
-          "sha256": "29d8829145d1f655c1e109f49113487af633d0a7186819baa69b5fec762bc6dd"
+          "sha256": "8583f968c41a605993620940ba80426cbb17749291de87a577180aefaae31ee1"
         },
         {
           "role": "assertion_source",

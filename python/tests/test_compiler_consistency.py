@@ -2,7 +2,7 @@
 
 - An estimator never runs under an inference mode it does not implement; the
   request is refused with a registered code instead of executing the other mode
-  under the requested license coordinate.
+  under the requested support coordinate.
 - A refusal reaching Python carries a registered reason code.
 - A not-identified question is a typed refusal carrying its identification
   outcome.
@@ -120,10 +120,10 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
 
 
 def _assert_sealed_estimator(accepted: Any) -> None:
-    """A checked estimator operation without retained replay data is recognized, not verified."""
+    """A checked estimator operation replays from its retained inputs and is verified."""
     assert accepted["recognized"] == "true"
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert accepted["unresolved"] == "dependencies.checked_estimator_operation"
+    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["unresolved"] == ""
 
 
 def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:

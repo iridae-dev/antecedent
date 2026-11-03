@@ -9,7 +9,7 @@
 //! heteroskedastic noise. The fit retains its row count `n` and design width `p`, so
 //! the cohort-mean interval is `phibar' b_hat +/- t_{n-p} sqrt(phibar' V phibar)`.
 //!
-//! What licenses this fit. Treatment assignment that is randomized or ignorable given
+//! What supports this fit. Treatment assignment that is randomized or ignorable given
 //! exactly the declared features, an outcome mean linear in those features under each
 //! treatment arm, and independent rows. A misspecified effect or arm mean, and a cohort
 //! whose rows lie in high-leverage regions of the fitted design, are named boundaries of
@@ -341,7 +341,7 @@ pub const FIT_PROCEDURE_ID: &str = "ols_hc3_treatment_by_basis";
 /// Refusal detail of a declared (caller-built) export asked for an interval.
 pub const DETAIL_REQUIRES_NATIVE_FIT: &str = "cohort_decision.interval_requires_native_fit";
 /// Refusal detail of a shifted or otherwise point-only source asked for an interval.
-pub const DETAIL_NOT_LICENSED: &str = "cohort_decision.interval_not_licensed";
+pub const DETAIL_NOT_SUPPORTED: &str = "cohort_decision.interval_not_supported";
 /// Refusal detail of an invalid nominal level.
 pub const DETAIL_LEVEL_INVALID: &str = "cohort_decision.interval_level_invalid";
 /// Scope of the issued interval.
@@ -507,7 +507,7 @@ pub struct CohortIntervalRefusal {
     pub detail: &'static str,
     /// What the refusal is about.
     pub subject: String,
-    /// The declaration or evidence that would license the request.
+    /// The declaration or evidence that would support the request.
     pub remedy: &'static str,
 }
 
@@ -544,7 +544,7 @@ pub struct CohortMeanInterval {
 
 fn refusal(detail: &'static str, subject: &str, remedy: &'static str) -> CohortIntervalRefusal {
     CohortIntervalRefusal {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         detail,
         subject: subject.to_owned(),
         remedy,
@@ -577,7 +577,7 @@ pub fn native_cohort_interval(
     let fit = native.size();
     if source.shift().is_some() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            DETAIL_NOT_SUPPORTED,
             "declared_covariate_shift",
             "a shifted cohort is point-only; evaluate a cohort of the model's own \
              population to receive an interval",
@@ -587,14 +587,14 @@ pub fn native_cohort_interval(
         .is_ok_and(|model| model.identity() == source.model().identity());
     let Some(diagnostic) = source.uncalibrated_standard_error() else {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            DETAIL_NOT_SUPPORTED,
             "model",
             "the source retains no coefficient covariance",
         ));
     };
     if !bound || !source.model().is_linear_compact() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            DETAIL_NOT_SUPPORTED,
             "source",
             "build the decision source from exactly the exported native fit",
         ));
@@ -605,7 +605,7 @@ pub fn native_cohort_interval(
     let point = source.mean_contrast();
     if !half.is_finite() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            DETAIL_NOT_SUPPORTED,
             "interval",
             "the interval is not finite; refit with more rows",
         ));

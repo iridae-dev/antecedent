@@ -166,7 +166,7 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                 let study = builder.clone().build().unwrap();
                 assert_eq!(
                     study.support_status(),
-                    Some(antecedent::support::CellStatus::Licensed),
+                    Some(antecedent::support::CellStatus::Supported),
                     "{key} accepted={accepted} bayesian={bayesian}"
                 );
                 let prepared = study.prepare(&ctx).unwrap();

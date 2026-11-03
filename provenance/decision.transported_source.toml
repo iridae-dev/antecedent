@@ -11,7 +11,7 @@ copied_tests = false
 papers = []
 implementation_deviations = [
   "A transported mean supplies only the expectation of an affine utility; a request that needs a law is refused (law_not_supplied), never widened by an assumed spread.",
-  "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is licensed from the transport step.",
+  "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is supported from the transport step.",
   "The source model's standard error is retained as an uncalibrated diagnostic and never becomes a decision, interval or feasibility statement. The inverse origin is a declaration; replay re-checks that the embedded numbers match it, not that the producing route re-executes.",
 ]
 upstream_implementations_observed = []
@@ -23,17 +23,17 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "A transported response, policy value or synthesis as a licensed decision source: it validates declared populations, support and identity and forwards the transported point or law."
+rationale = "A transported response, policy value or synthesis as a supported decision source: it validates declared populations, support and identity and forwards the transported point or law."
 no_independent_algorithm = "The single square root takes the standard deviation of a synthesis variance that a transport record already produced; no transport estimator is implemented here."
 covered_by = ["decision.contract", "cohort_decision.declared_shift"]
-record_sha256 = "daa461430e7de34f88435b48007913032f199a4a03a6c9385abd4f775c3d4b7b"
+record_sha256 = "f495b709987f184ae34e1acd57bfec302b89c9b9143a9a2f0f2f8a599e459716"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_transported_source.rs"
-sha256 = "f9032962ffec7ae3c1273a51e2723a9ff563cd740b35e11a5d117a2837238c6a"
+sha256 = "ce885bf0908d777bc50d2ec80ee0dd322aeb8dded4464c3e5a55bbba5c5e1fa6"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_transported_source.rs"
-sha256 = "519278a9e6f26b297bcb65468bbac41fde43f567788cb5cbe866094b4a2b865d"
+sha256 = "4fbf2b86da04488884bcd6cf699f0cb47b6a3a0d0c9d7c2675409b70479315c0"

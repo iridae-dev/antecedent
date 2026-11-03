@@ -238,7 +238,7 @@ fn verify_coordinate(
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "MediationEffect", "{coordinate}");
     assert_eq!(contract.inference.as_ref(), if bayesian { "bayesian" } else { "frequentist" });

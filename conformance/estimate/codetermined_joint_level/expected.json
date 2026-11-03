@@ -110,7 +110,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/codetermined_bayesian_response_truth.rs",
-          "sha256": "2806bbe2c6a1beaabac4e69b0029454d06d6bee49cadc6421e1d4ceff9087cc5"
+          "sha256": "f6abe09ea57d918174de2776ac01a5f21c7f7ecd7390970360b12811cc8e6d02"
         }
       ],
       "fixture_payload_sha256": "a12d3983c5261ff408fa27d4dc5444f78e3d9b3511ee26e2ed8695ea2bdb750a"

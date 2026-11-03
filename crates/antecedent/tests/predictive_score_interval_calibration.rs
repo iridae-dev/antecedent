@@ -29,7 +29,7 @@
 //! design (heavy-tailed truth: Student-t with 3 df scaled to unit variance, log score)
 //! is recorded under its own functional and never gates a route.
 //!
-//! The scored interval is `construct_expected_score_interval`, the unlicensed
+//! The scored interval is `construct_expected_score_interval`, the unsupported
 //! construction, and every replicate is bound under the key `score_interval_basis` gives,
 //! which is the key the public `expected_score_interval` resolves a record with.
 //!
@@ -319,7 +319,7 @@ fn run(
         tally.emit_named_boundary();
     } else if test == "serial_crps_mean_l95" {
         // 18,891 of 20,000 replicates cover at the largest size: a half point under the level,
-        // stable across replicate counts, so it is the measured level and not a licence.
+        // stable across replicate counts, so it is the measured level and not support.
         tally.assert_boundary_at([Some(0.945); 3]);
     } else {
         tally.assert();

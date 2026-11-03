@@ -217,7 +217,7 @@ pub struct PlannedMechanism {
 /// What an uncertainty claim over the composition needs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UncertaintyRoute {
-    /// Point-only: the declarations do not license joint parameter uncertainty.
+    /// Point-only: the declarations do not support joint parameter uncertainty.
     Closed(ExternalRefusal),
     /// Joint parameter uncertainty can be assembled under the named declaration.
     Declared(&'static str),

@@ -294,8 +294,8 @@ fn adapter_identified_set_refusals() {
         AdmissibilityRules::default(),
     );
     let error = evaluate_identified_sets(&quantile, &sets).unwrap_err();
-    assert_eq!(error, AdapterError::CriterionNotLicensedForSet);
-    assert_eq!(error.to_refusal().detail, "decision_adapters.criterion_not_licensed_for_set");
+    assert_eq!(error, AdapterError::CriterionNotSupportedForSet);
+    assert_eq!(error.to_refusal().detail, "decision_adapters.criterion_not_supported_for_set");
 
     let c = plain(StructuralPolicy::Maximin);
     let error = evaluate_identified_sets(&c, &sets[..1]).unwrap_err();
@@ -697,7 +697,7 @@ fn adapter_unsupported_atom_keeps_its_support_status_beyond_unevaluated() {
     );
     assert_eq!(decision.robust.actions[1].unsupported_in, vec!["g2".to_owned()]);
     assert!(decision.robust.actions[0].unsupported_in.is_empty());
-    // A leads everywhere B is licensed to compete, and everywhere it is not.
+    // A leads everywhere B is supported to compete, and everywhere it is not.
     assert_eq!(decision.robust.verdict, RobustVerdict::SupportRobust("A".into()));
 }
 

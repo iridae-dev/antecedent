@@ -122,7 +122,7 @@ Preflight JSON reports disclose nonfinite values through JSON-pointer paths in
 discovery links carry a `tested` flag. Observation reports expose numeric status fields;
 when a required Bayes factor is outside float range, `required_factor` raises
 `CausalValueError` and `required_log_factor` retains the finite logarithm. These
-reporting changes do not license parameter intervals.
+reporting changes do not support parameter intervals.
 
 ## Cyclic solver diagnostics and numerical boundaries
 
@@ -325,7 +325,7 @@ compute a different question.
 Independence checks now compare evidence identifiers consistently: surrounding
 whitespace is ignored, and 64-character hexadecimal source IDs are compared as
 digests regardless of letter case. Other opaque labels retain their case and
-internal whitespace. Equal keys cannot license independence, even if the source
+internal whitespace. Equal keys cannot support independence, even if the source
 is absent from a supplied ledger; distinct unregistered keys remain unknown to
 ledger-backed checks. Original labels and stored plan identities keep their
 spelling. Shared-evidence reports use one deterministic original label per key.

@@ -2,12 +2,9 @@
 # is n/a (not refused). Omitted keys mean "any value on that axis."
 #
 # Only a cell whose estimand does not denote, or whose structure axis does not
-# exist for the graph class, belongs here. A route that is merely not built is a
-# refusal: it goes to support_closed.toml with a reason that names the next
-# attempt, or, once built, with `executes_unlicensed = true` (the derivative and
-# the TemporalDag / Cpdag / Pag InterventionResponse refuter states, the Bayesian
-# Dag InterventionResponse refuter state, the Bayesian joint InterventionResponse
-# on a CoDetermined tier closure).
+# exist for the graph class, belongs here. A route that is merely not built is
+# not supported: it goes to support_refusal_reasons.toml with a reason that names
+# the next attempt.
 # Theory-blocked contrasts that do denote but are not identified (temporal
 # contrasts on TemporalAdmg, TemporalMediationEffect on TemporalPag) are also
 # recorded there, with the identification reason.
@@ -23,7 +20,7 @@ queries = [
   "MediationEffect",
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg. An AverageEffect on a temporal graph denotes the lag-0 contrast and is a refused, executing cell (parity/support_closed.toml)."
+reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries supported on it. Latent confounding over time denotes on TemporalAdmg. An AverageEffect on a temporal graph denotes the lag-0 contrast and is a refused, executing cell (parity/support_refusal_reasons.toml)."
 
 [[n_a]]
 queries = ["TransportQuery", "InterferenceQuery"]
@@ -42,7 +39,7 @@ queries = ["ResponseCurve"]
 graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
-reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state."
+reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no supported scalar-refuter state."
 
 [[n_a]]
 queries = [
@@ -66,7 +63,7 @@ queries = [
   "InterferenceQuery",
 ]
 graph_classes = ["Unknown"]
-reason = "Unknown-tier cells license the two-scenario AverageEffect envelope only."
+reason = "Unknown-tier cells support the two-scenario AverageEffect envelope only."
 
 [[n_a]]
 queries = [
@@ -89,7 +86,7 @@ queries = [
   "InterferenceQuery",
 ]
 graph_classes = ["CoDetermined"]
-reason = "CoDetermined cells license AverageEffect and joint InterventionResponse only."
+reason = "CoDetermined cells support AverageEffect and joint InterventionResponse only."
 
 [[n_a]]
 graph_classes = ["CoDetermined", "Unknown"]
@@ -100,4 +97,4 @@ reason = "Tier-rule backgrounds are an explicit structure source."
 queries = ["AverageEffect", "InterventionResponse"]
 graph_classes = ["CoDetermined", "Unknown"]
 validations = ["cheap", "full"]
-reason = "cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no licensed scalar-refuter state."
+reason = "cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no supported scalar-refuter state."

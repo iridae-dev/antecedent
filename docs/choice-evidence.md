@@ -1,6 +1,6 @@
 # Categorical-choice evidence to decision
 
-Repeated categorical choices (which of K options was chosen, many times) run through the same compiler-owned layers as the other adaptive-inference families: a declared contract, a procedure-matrix cell that licenses each route, an estimator, a sealed artifact that a consumer replays, and a decision value over the result. This page states what each stage keeps and refuses.
+Repeated categorical choices (which of K options was chosen, many times) run through the same compiler-owned layers as the other adaptive-inference families: a declared contract, a procedure-matrix cell that supports each route, an estimator, a sealed artifact that a consumer replays, and a decision value over the result. This page states what each stage keeps and refuses.
 
 Rust: `antecedent::analysis::choice_inference` (contract `antecedent_contract::adaptive_design::ChoiceDesignContract`, estimators `antecedent_estimate::choice_inference`, artifact `antecedent_io::choice_inference_result_artifact`, ranking `antecedent_design::choice_evsi`). Python: `antecedent.choice_inference`.
 
@@ -21,7 +21,7 @@ The same observation row is never counted twice, between a source and the respon
 
 ## Intervals
 
-`interval()` refuses with `cell_not_licensed`. `measured_interval(request)` builds the interval of one result for the measured choice cells (the routes below) and binds it to a currently attesting coverage record. No record exists yet, so it refuses with `cell_not_licensed` for every study. The cells are Dirichlet share intervals of the pooled posterior (final-only, and looks under an efficacy or decision-theoretic rule) and the hierarchical population-share interval (final-only and looks under a decision-theoretic rule).
+`interval()` refuses with `not_supported`. `measured_interval(request)` builds the interval of one result for the measured choice cells (the routes below) and binds it to a currently attesting coverage record. No record exists yet, so it refuses with `not_supported` for every study. The cells are Dirichlet share intervals of the pooled posterior (final-only, and looks under an efficacy or decision-theoretic rule) and the hierarchical population-share interval (final-only and looks under a decision-theoretic rule).
 
 ## Verification
 

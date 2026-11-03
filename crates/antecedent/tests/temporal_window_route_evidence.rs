@@ -15,7 +15,7 @@
     clippy::too_many_lines,
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    reason = "one loop covers every licensed coordinate; fixture states are small exact indices"
+    reason = "one loop covers every supported coordinate; fixture states are small exact indices"
 )]
 
 use antecedent::analysis::RetainedOperation;
@@ -277,7 +277,7 @@ fn temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences(
         .unwrap();
         assert!(result.effect().abs() < 1e-9, "{kind}: {}", result.effect());
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 #[test]
@@ -449,7 +449,7 @@ fn temporal_admg_window_validation_reports_the_known_refits_and_detects_a_plante
         assert!((split.original_ate - contrast_truth(kind)).abs() < 0.15, "{kind}: {split:?}");
         assert!((split.refuted_ate - planted_truth(kind)).abs() < 0.05, "{kind}: {split:?}");
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +611,7 @@ fn temporal_admg_window_posterior_mixes_by_posterior_weight_and_accounts_for_uni
             assert!(window.message.contains("3 periods"), "{}", window.message);
         }
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 #[test]
@@ -736,7 +736,7 @@ fn temporal_admg_window_posterior_validation_mixes_the_per_atom_window_suite() {
         let split = report(&result, "window.split_half");
         assert!(!split.passed, "{kind}: {split:?}");
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -878,7 +878,7 @@ fn temporal_admg_window_mediation_matches_the_enumerated_decomposition_on_both_i
         - mediation_truth("natural_direct_effect")
         - mediation_truth("natural_indirect_effect");
     assert!(gap.abs() > 0.05, "{gap}");
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 #[test]
@@ -1017,7 +1017,7 @@ fn temporal_admg_window_mediation_validation_runs_the_mediation_suite_on_the_win
             }
         }
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -1158,7 +1158,7 @@ fn temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_
     assert!((mixture.unidentified_mass - 0.3).abs() < 1e-12);
     let expected = mediation_truth("natural_indirect_effect");
     assert!((again.effect() - expected).abs() < 1e-9, "{}", again.effect());
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 #[test]
@@ -1217,7 +1217,7 @@ fn temporal_admg_window_mediation_posterior_validation_mixes_the_per_atom_report
             assert!((result.effect() - expected).abs() < tolerance);
         }
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,7 +1328,7 @@ fn temporal_pag_window_mediation_brackets_the_enumerated_decomposition_on_both_i
             }
         }
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 #[test]
@@ -1441,7 +1441,7 @@ fn temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_ident
     drop(builder);
     let again = prepared.estimate_retained(&ctx).unwrap();
     assert!((again.structural_response.as_ref().unwrap().unidentified_mass - 0.3).abs() < 1e-12);
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }
 
 /// Two `TemporalPag` atoms: the template whose edges are visible (weight 0.7) and the template
@@ -1577,5 +1577,5 @@ fn temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_me
             }
         }
     }
-    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
+    assert!(statuses.iter().all(|status| *status == Some(CellStatus::Supported)), "{statuses:?}");
 }

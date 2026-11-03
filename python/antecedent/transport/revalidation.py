@@ -93,9 +93,9 @@ DIAGRAM_NODE_KEY = "selection_diagram"
 
 TrustStanding = Literal["not_applicable", "held", "withdrawn", "undeclared"]
 ProviderTrustLevel = Literal[
-    "native_licensed", "externally_attested", "verified_extension", "unverified"
+    "native_supported", "externally_attested", "verified_extension", "unverified"
 ]
-_PROVIDER_TRUST = ("native_licensed", "externally_attested", "verified_extension", "unverified")
+_PROVIDER_TRUST = ("native_supported", "externally_attested", "verified_extension", "unverified")
 
 
 def _provider_trust(level: str | None) -> str | None:
@@ -334,7 +334,7 @@ class TransportSceneBuilder:
 
 @dataclass(repr=False, frozen=True, slots=True, eq=False)
 class TransportScene(ScientificResult):
-    """Everything that decides which claims about one target are licensed.
+    """Everything that decides which claims about one target are supported.
 
     ``target_identity`` is the identity of the target (population and data); ``selection_diagram``
     the content identity of the diagrams the claims name; ``sources`` the declared source
@@ -451,8 +451,8 @@ class TransportRevalidation(ScientificResult):
 
         Raises:
             TransportedResponseRefusal: the typed refusal of a claim that must be recomputed or
-                whose license was withdrawn (a calibration record from another target is
-                ``cell_not_licensed``), or ``invalid_argument`` for an unknown key.
+                whose support was withdrawn (a calibration record from another target is
+                ``not_supported``), or ``invalid_argument`` for an unknown key.
         """
         _unwrap(self._handle.require_valid(key))
         return self.claim(key)

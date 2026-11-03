@@ -18,7 +18,7 @@
 //! computed here is the procedure that is run. The comparison band is
 //! [`THRESHOLD_TOLERANCE`], as in the Bernoulli rules.
 //!
-//! Exact finite-law arithmetic supplies no interval or calibration licence: the law is of the
+//! Exact finite-law arithmetic supplies no interval or calibration support: the law is of the
 //! declared procedure under a hypothesized truth, nothing more.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

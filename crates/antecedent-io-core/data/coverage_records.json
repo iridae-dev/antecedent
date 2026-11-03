@@ -7007,7 +7007,7 @@
           "boundary": false
         }
       ],
-      "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data",
+      "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::supported_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_discovered_effect_nominal_95_coverage",
       "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
     },
@@ -7064,7 +7064,7 @@
           "boundary": true
         }
       ],
-      "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data",
+      "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::supported_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_full_row_reuse_boundary_95",
       "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
     },

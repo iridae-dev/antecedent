@@ -177,7 +177,7 @@ impl InstrumentedSelectionRequest {
     /// and independent observational evaluation of the chosen structural contrast.
     /// Every resample repeats the complete same method-owner procedure. Its
     /// delete-unit uncertainty is asymptotic under the explicit homogeneous moment
-    /// model, not a posterior, weak-IV guarantee or release calibration license.
+    /// model, not a posterior, weak-IV guarantee or release calibration support.
     /// # Errors
     /// Invalid split/target, failed rank or feature premises, infeasible domains,
     /// unsupported certificate expressions, cancellation or resources.
@@ -654,7 +654,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Q08/E14: measure only on a stable candidate; implementation simulations grant no license"]
+    #[ignore = "Q08/E14: measure only on a stable candidate; implementation simulations grant no support"]
     fn whole_procedure_continuous_structural_selection_calibration_l95() {
         let n = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
             .ok()

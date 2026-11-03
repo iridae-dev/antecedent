@@ -75,7 +75,7 @@ impl super::Study {
         let started = Instant::now();
         if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
             return Err(CausalError::Unsupported {
-                message: "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms",
+                message: "ConditionalEffect graph-posterior mixing is supported only for DAG atoms",
             });
         }
         if !matches!(

@@ -46,7 +46,7 @@ impl ProviderEnvelopeLimits {
 }
 
 /// Host trust assigned to a separately installed provider result.
-/// Native licensing is deliberately absent from this external envelope.
+/// Native support is deliberately absent from this external envelope.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExternalProviderTrust {
@@ -75,7 +75,7 @@ pub struct ProviderEnvelopeHeader {
     pub provider: String,
     /// Query family declared by the provider contract.
     pub query_family: String,
-    /// Host trust boundary; native licensing cannot be encoded here.
+    /// Host trust boundary; native support cannot be encoded here.
     pub trust: ExternalProviderTrust,
     /// Digest of the provider's declarative contract.
     pub spec_digest: String,

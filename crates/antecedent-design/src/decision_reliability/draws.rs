@@ -438,21 +438,21 @@ impl DecisionDraws {
         }
         // The stream identities are consistent with the declaration; whether the
         // candidates may be compared on that dependence is the propagation rule's call.
-        self.license_comparison(PropagationOperation::Contrast).map(|_| ())
+        self.support_comparison(PropagationOperation::Contrast).map(|_| ())
     }
 
     /// Whether candidates' draws may be paired by index for a rank, top-`k` or
     /// better-than statement. These are nonlinear functionals of the candidates'
-    /// joint law, so the rule licenses them only on an aligned joint law (one shared
+    /// joint law, so the rule supports them only on an aligned joint law (one shared
     /// simulation): independently drawn candidates are refused, never paired by index.
     ///
     /// # Errors
     /// The propagation rule's refusal, as a [`ReliabilityError`].
-    pub(crate) fn license_index_pairing(&self) -> Result<(), ReliabilityError> {
+    pub(crate) fn support_index_pairing(&self) -> Result<(), ReliabilityError> {
         if self.candidates.len() < 2 {
             return Ok(());
         }
-        self.license_comparison(PropagationOperation::NonlinearFunctional).map(|_| ())
+        self.support_comparison(PropagationOperation::NonlinearFunctional).map(|_| ())
     }
 
     /// Run the propagation rule over the candidates as the inputs of `operation`.
@@ -461,7 +461,7 @@ impl DecisionDraws {
     /// shared segment's digest). A declared-independent set is independent marginals
     /// resting on distinct streams or disjoint ranges (the evidence identity of each
     /// candidate is its segment's digest).
-    fn license_comparison(
+    fn support_comparison(
         &self,
         operation: PropagationOperation,
     ) -> Result<antecedent_contract::PropagationPlan, ReliabilityError> {
@@ -507,7 +507,7 @@ impl DecisionDraws {
 }
 
 /// The propagation rule's refusal as the carrier's typed error: undeclared dependence
-/// stays undeclared, and a pairing the rule does not license is a joint-law refusal.
+/// stays undeclared, and a pairing the rule does not support is a joint-law refusal.
 fn rule_refusal(refusal: &ExternalRefusal) -> ReliabilityError {
     if refusal.code == antecedent_core::reason_code!("sampling_dependence_unknown") {
         return ReliabilityError::DependenceUnknown { what: "candidate_coupling" };

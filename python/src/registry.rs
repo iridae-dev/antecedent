@@ -9,7 +9,7 @@ use super::array_fit_api;
 use super::sequential_evaluation_api;
 use super::staleness_api;
 use super::temporal_design_api;
-use super::unlicensed_design_api;
+use super::unsupported_design_api;
 use super::{
     AnalysisResult, ArrowLoadInfo, AteAnalysisResult, BayesianConfig, CandidateSelectionSection,
     CausalAttributionError, CausalCancelledError, CausalCompileError, CausalCounterfactualError,
@@ -54,7 +54,7 @@ use super::{
     set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
     set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
     stability, state_api, study_planning_api, survival_api, temporal_api,
-    temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
+    temporal_counterfactual_api, temporal_extension_api, temporal_support, temporal_transport_api,
     transport_admg_conditional_api, transport_counterfactual_api,
     transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
     transport_interference_api, transport_joint_sensitivity_api, transport_mixed_api,
@@ -90,7 +90,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     prior_bank::register(m)?;
     prior_signal_api::register(m)?;
     response_api::register(m)?;
-    temporal_license::register(m)?;
+    temporal_support::register(m)?;
     transport_interference_api::register(m)?;
     transport_exact_api::register(m)?;
     transport_grid_api::register(m)?;
@@ -265,7 +265,7 @@ pub(crate) mod transport_defaults {
 ///
 /// `bootstrap` applies on resampling routes (the builder omits it on static and
 /// Bayesian response surfaces and counterfactuals); `refute` is downgraded to
-/// `none` on a cell that does not license it; `latency` is never injected.
+/// `none` on a cell that does not support it; `latency` is never injected.
 #[pyfunction]
 fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
@@ -395,7 +395,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     fallback_stage_api::register(m)?;
     super::planning_api::register(m)?;
     regimes_api::register(m)?;
-    unlicensed_design_api::register(m)?;
+    unsupported_design_api::register(m)?;
     temporal_design_api::register(m)?;
     super::pooled_measurement_api::register(m)?;
     quasi_api::register(m)?;

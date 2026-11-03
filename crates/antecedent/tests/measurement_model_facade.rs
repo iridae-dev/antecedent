@@ -218,10 +218,10 @@ fn classical_error_recovers_the_coefficient_and_carries_its_labels() {
     assert_eq!(estimate.inference().as_str(), "uncalibrated_standard_error");
     assert_eq!(estimate.parameter_uncertainty(), ParameterUncertainty::DeclaredExact);
     let refusal = estimate.interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "measurement_model.interval_closed");
     let refusal = prepared.interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
 }
 
 #[test]
@@ -427,7 +427,7 @@ fn a_declared_structure_is_never_pooled_with_the_other() {
 }
 
 #[test]
-fn the_route_licenses_only_its_own_operations() {
+fn the_route_supports_only_its_own_operations() {
     let sim = simulate(60, 3);
     let prepared = prepare_classical(&classical_model(0.6, 0.0), &sim);
     assert!(prepared.check_operation(MeasurementOperation::LinearFunctionalOfCoefficients).is_ok());
@@ -438,8 +438,8 @@ fn the_route_licenses_only_its_own_operations() {
         MeasurementOperation::Interval,
     ] {
         let refusal = prepared.check_operation(refused).unwrap_err();
-        assert_eq!(refusal.code, "cell_not_licensed", "{refused:?}");
-        assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
+        assert_eq!(refusal.code, "not_supported", "{refused:?}");
+        assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
         assert!(refusal.remedy.is_some());
     }
     // A binary input sent at a classical model is not an operation of its route.
@@ -451,7 +451,7 @@ fn the_route_licenses_only_its_own_operations() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(prepared.route_card().route, MeasurementRoute::ClassicalContinuousError);
 }
 
@@ -489,7 +489,7 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
         StudyBuilder::measurement_model(m.clone(), b, classical_input(&sim), None, &ctx())
             .unwrap_err();
     assert_eq!(refusal.detail, "measurement_model.mapping_endpoints");
-    // Declared evidence of intervention preservation licenses the meaning.
+    // Declared evidence of intervention preservation supports the meaning.
     let preserving = RepresentationMapping {
         semantics: MappingSemantics::InterventionPreserving { evidence_id: "ev:trial-9".into() },
         ..relabel.clone()
@@ -500,8 +500,8 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     // The mapping now carries the meaning; the route itself still refuses an
     // intervention on the recorded indicator (it is declared on the construct).
     let refusal = ok.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
 }
 
 // ---------------------------------------------------------------------------
@@ -612,8 +612,8 @@ fn binary_prevalence_inverts_the_misclassification_algebra() {
     assert_eq!(estimate.operation(), MeasurementOperation::LatentPrevalence);
     // No coefficient vector to take a functional of.
     let refusal = estimate.downstream_linear_functional(&[1.0]).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
     assert!(refusal.message.contains("not an operation this route enters"), "{}", refusal.message);
 }
 
@@ -852,7 +852,7 @@ fn a_posterior_route_needs_the_exact_attested_provider_object() {
         m.clone(),
         binding(),
         input(),
-        Some((&good, &ExternalTrustState::NativeLicensed)),
+        Some((&good, &ExternalTrustState::NativeSupported)),
         &ctx(),
     )
     .unwrap_err();

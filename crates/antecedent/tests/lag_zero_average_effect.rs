@@ -4,7 +4,7 @@
 //! The build compiles it as the pulse at offset 0 read at horizon 1, so it runs the temporal
 //! class envelope (frequentist and Bayesian) on a `TemporalCpdag` or `TemporalPag` and the
 //! temporal backdoor on a `TemporalDag`. These tests pin that the answer is exactly the
-//! explicit lag-0 pulse's, that the support status is `licensed` (the `AverageEffect` cell has known-truth
+//! explicit lag-0 pulse's, that the support status is `supported` (the `AverageEffect` cell has known-truth
 //! evidence in `lag_zero_average_effect_truth`) on the direct and prepared paths, that the result discloses the
 //! reading, and that modifiers and another functional are refused. Over a graph posterior the
 //! same pulse is compiled, so the alias equals the explicit pulse over the posterior in both
@@ -160,20 +160,20 @@ fn graphs() -> [(&'static str, AcceptedGraph); 3] {
 }
 
 #[test]
-fn the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed() {
+fn the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unsupported() {
     let ctx = ExecutionContext::for_tests(11);
     for (name, graph) in graphs() {
         for inference in [InferenceMode::Frequentist, bayesian()] {
             let label = format!("{name} {inference:?}");
             let alias =
                 build(graph.clone(), CausalQuery::AverageEffect(average()), inference.clone());
-            assert_eq!(alias.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(alias.support_status(), Some(CellStatus::Supported), "{label}");
             let explicit =
                 build(graph.clone(), CausalQuery::TemporalEffect(lag_zero_pulse()), inference);
             let aliased = alias.run(&ctx).unwrap();
             let direct = explicit.run(&ctx).unwrap();
             assert_eq!(summary(&aliased), summary(&direct), "{label}");
-            assert_eq!(aliased.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(aliased.support_status(), Some(CellStatus::Supported), "{label}");
             assert!(discloses(&aliased), "{label}");
             assert!(!discloses(&direct), "{label}");
         }
@@ -218,7 +218,7 @@ fn the_prepared_path_keeps_the_refused_status_and_the_disclosure() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate_series(&series(), &ctx).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(discloses(&result));
 }
 
@@ -264,7 +264,7 @@ fn over_a_graph_posterior_the_alias_is_the_explicit_pulse_over_the_posterior() {
         // The compiled program is the pulse's, so the answer and the mixture over the
         // posterior's atoms are identical; only the support status and the disclosure differ.
         assert_eq!(summary(&aliased), summary(&direct), "{label}");
-        assert_eq!(aliased.support_status(), Some(CellStatus::Licensed), "{label}");
+        assert_eq!(aliased.support_status(), Some(CellStatus::Supported), "{label}");
         assert!(discloses(&aliased), "{label}");
         assert!(!discloses(&direct), "{label}");
         assert_eq!(
@@ -285,7 +285,7 @@ fn every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads() {
                 .prepare(&ctx)
                 .unwrap();
             let result = prepared.estimate_series(&series(), &ctx).unwrap();
-            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             let artifact = prepared
                 .encode_contracted_result(&result, "lag-zero-average-effect", &ctx)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));

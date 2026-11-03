@@ -473,7 +473,7 @@ fn quantile_estimate(
     }
     if weights.is_some() {
         return Err(ReliabilityError::RouteNotSupported {
-            message: "weighted quantile: no weighted order-statistic standard error is licensed"
+            message: "weighted quantile: no weighted order-statistic standard error is supported"
                 .into(),
         });
     }
@@ -560,7 +560,7 @@ fn mean_like(
         Functional::Cvar { alpha, tail } => {
             if weights.is_some() {
                 return Err(ReliabilityError::RouteNotSupported {
-                    message: "weighted cvar: no weighted influence-function error is licensed"
+                    message: "weighted cvar: no weighted influence-function error is supported"
                         .into(),
                 });
             }
@@ -596,7 +596,7 @@ fn influence_method(functional: &Functional, method: StandardErrorMethod) -> Sta
 ///
 /// # Errors
 /// An invalid functional, too few draws, undeclared dependence, or a weighted
-/// quantile/`CVaR` request (no weighted standard error is licensed).
+/// quantile/`CVaR` request (no weighted standard error is supported).
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,

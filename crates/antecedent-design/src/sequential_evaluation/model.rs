@@ -313,7 +313,7 @@ fn matrix_ok(values: &[f64], states: usize) -> bool {
 }
 
 impl FiniteSequentialModel {
-    /// Check the model is well formed and its channels are licensed.
+    /// Check the model is well formed and its channels are supported.
     ///
     /// # Errors
     /// The first malformed declaration, as a typed refusal naming the field

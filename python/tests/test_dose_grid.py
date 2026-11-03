@@ -157,7 +157,7 @@ def test_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> None:
         "dose_grid.simultaneous_band_closed",
         "route_not_supported",
     )
-    # A level claim does not license a derivative, nor a derivative claim a level.
+    # A level claim does not support a derivative, nor a derivative claim a level.
     refused(
         lambda: run("derivative", noise=0.1, claims=DoseClaims(pointwise_level=True)),
         "dose_grid.derivative_without_claim",
@@ -184,12 +184,12 @@ def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
     refused(
         lambda: run("level", grid=[*GRID, 10.0]),
         "dose_grid.unsupported_dose",
-        "cell_not_licensed",
+        "not_supported",
     )
     refused(
         lambda: run("level", minimum_local_ess=1000.0),
         "dose_grid.insufficient_local_weight",
-        "cell_not_licensed",
+        "not_supported",
     )
 
 
@@ -308,7 +308,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
             dose, outcome, grid=[10.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
         ),
         "dose_grid.unsupported_dose",
-        "cell_not_licensed",
+        "not_supported",
     )
     refused(
         lambda: quadratic_dose_functional(

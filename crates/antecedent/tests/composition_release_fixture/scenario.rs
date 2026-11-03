@@ -2,7 +2,7 @@
 //!
 //! One uncertain measured exposure (a binary indicator with a declared confusion
 //! model) enters a finite causal model; two study summaries are pooled through
-//! the evidence ledger; the licensed mean of the resulting attributable excess
+//! the evidence ledger; the supported mean of the resulting attributable excess
 //! risk feeds an affine decision through a caller-declared mean source; a claim
 //! graph revalidates what a revision of the evidence touches.
 //!
@@ -458,7 +458,7 @@ pub fn decision_contract(d: &DecisionDeclaration) -> DecisionContract {
     }
 }
 
-/// A mean the caller declares from a licensed mean, bound to the evidence state
+/// A mean the caller declares from a supported mean, bound to the evidence state
 /// (`snapshot`) and to the composition it was computed from (`plan`).
 pub fn mean_source(units: &str, mean: f64, snapshot: &str, plan: &str) -> MeanSource {
     MeanSource {

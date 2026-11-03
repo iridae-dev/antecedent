@@ -98,7 +98,7 @@ def identify_admg_conditional_transport(
     level). A proven stage offers ``export_obstruction()``, re-verified by
     :func:`consume_admg_conditional_obstruction_artifact`. An identified stage
     offers ``prepare_exact``;
-    counted laws (``prepare_empirical``) are refused as ``cell_not_licensed``.
+    counted laws (``prepare_empirical``) are refused as ``not_supported``.
     Limits above 4096 operations / depth 24, more than 6 observed variables, 3
     treatments or 3 conditioned variables refuse as ``route_not_supported``.
     """

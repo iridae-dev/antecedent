@@ -134,7 +134,7 @@ fn a_sealed_result_round_trips_with_stable_identities() {
     assert_eq!(meta.contract.produces[0].name, "output");
     assert_eq!(meta.protocol.operations, ["cdf", "mean", "quantile", "sample"]);
     assert_eq!(meta.stage.status, "computed");
-    assert_eq!(meta.standing, "licensed_external");
+    assert_eq!(meta.standing, "supported_external");
     // Different values are a different artifact.
     let other = computed(
         declaration(),
@@ -216,7 +216,7 @@ fn resealed_semantic_edits_are_refused_by_recomputed_identities() {
     unverified.declaration.trust = CallbackTrust::Unverified;
     let unverified_meta = sealed_meta(&unverified);
     assert_eq!(unverified_meta.standing, "diagnostic");
-    let error = resealed(unverified_meta, &vals, |m| m.standing = "licensed_external".into())
+    let error = resealed(unverified_meta, &vals, |m| m.standing = "supported_external".into())
         .expect_err("standing edited");
     assert_eq!(field(error), "standing");
     // An unequal retained identity.
@@ -230,7 +230,7 @@ fn metadata_cannot_mint_native_trust() {
     let record = cdf_record();
     let vals = values(&record);
     let error = resealed(sealed_meta(&record), &vals, |m| {
-        m.protocol.trust.level = "native_licensed".into();
+        m.protocol.trust.level = "native_supported".into();
         m.protocol.trust.attestor = None;
     })
     .expect_err("native trust is refused, not downgraded");
@@ -239,7 +239,7 @@ fn metadata_cannot_mint_native_trust() {
     assert_eq!(detail, "callback_protocol.native_trust_claimed");
     // An unknown level is unsupported semantics, never silently accepted.
     let error =
-        resealed(sealed_meta(&record), &vals, |m| m.protocol.trust.level = "licensed".into())
+        resealed(sealed_meta(&record), &vals, |m| m.protocol.trust.level = "supported".into())
             .expect_err("unknown level");
     assert!(matches!(error, CallbackResultArtifactError::UnsupportedSemantics(_)));
 }

@@ -83,7 +83,7 @@ def original_law(p):
 def test_nested_fisher_normal_route_remains_frozen(level):
     with pytest.raises(CausalUnsupportedError) as caught:
         produce(level)
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     assert "nested_markov.route_frozen" in str(caught.value)
 
 

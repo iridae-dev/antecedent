@@ -6,7 +6,7 @@
 //! identity and a digest of the contract that was checked, never the contract
 //! itself, so it can leave the process and come back byte-for-byte equal. It
 //! covers only those exact requests and certifies no scientific truth beyond
-//! the probes, and holding one never licenses native behavior.
+//! the probes, and holding one never supports native behavior.
 
 use std::collections::HashSet;
 
@@ -641,7 +641,7 @@ mod tests {
         assert!(!receipt.covers_execution(&tampered), "an artifact change is another contract");
         let state = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
         assert!(state.verifies(&typed) && state.verifies_execution(&first));
-        assert!(!state.is_native_licensed());
+        assert!(!state.is_native_supported());
     }
 
     #[test]

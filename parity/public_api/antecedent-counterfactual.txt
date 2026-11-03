@@ -1559,8 +1559,8 @@ pub field antecedent_counterfactual::temporal_cross_world::general::GeneralUnitC
 pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::regime: alloc::string::String
 pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::role: antecedent_counterfactual::transported_gate::PopulationRole
 pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::cross_population_assumptions: bool
-pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::fixed_population_license: bool
-pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::transport_license: bool
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::fixed_population_support: bool
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::transport_support: bool
 pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::missing_factors: alloc::vec::Vec<antecedent_counterfactual::transported_gate::RegimeFactorKey>
 pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::missing_gates: alloc::vec::Vec<antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>
 pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
@@ -1997,5 +1997,5 @@ pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Outco
 pub variant antecedent_counterfactual::transported_gate::PopulationRole::Source
 pub variant antecedent_counterfactual::transported_gate::PopulationRole::Target
 pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::CrossPopulationAssumptionsMissing
-pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::FixedPopulationTemporalLicenseMissing
-pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::TransportLicenseMissing
+pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing
+pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::TransportSupportMissing

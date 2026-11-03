@@ -16685,7 +16685,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16699,7 +16699,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16713,7 +16713,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16727,7 +16727,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16741,7 +16741,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16755,7 +16755,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16769,7 +16769,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16783,7 +16783,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16797,7 +16797,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16811,7 +16811,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16825,7 +16825,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16839,7 +16839,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16853,7 +16853,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16867,7 +16867,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16881,7 +16881,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16895,7 +16895,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16909,7 +16909,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16923,7 +16923,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16937,7 +16937,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16951,7 +16951,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16965,7 +16965,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16979,7 +16979,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -16993,7 +16993,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17007,7 +17007,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17021,7 +17021,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17035,7 +17035,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17049,7 +17049,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17063,7 +17063,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17077,7 +17077,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17091,7 +17091,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17105,7 +17105,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17119,7 +17119,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17133,7 +17133,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17147,7 +17147,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17161,7 +17161,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17175,7 +17175,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17189,7 +17189,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17203,7 +17203,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17217,7 +17217,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17231,7 +17231,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17245,7 +17245,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17259,7 +17259,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17273,7 +17273,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17287,7 +17287,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17301,7 +17301,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17315,7 +17315,7 @@ test_source_blob = "c8aeaa216094d2fc33e41820bbfdb2abaf3da021"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17329,7 +17329,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17343,7 +17343,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17357,7 +17357,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17371,7 +17371,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17385,7 +17385,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17399,7 +17399,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=licensed, none=licensed; the executed mode is full."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=supported, none=supported; the executed mode is full."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17413,7 +17413,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17427,7 +17427,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17441,7 +17441,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17455,7 +17455,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17469,7 +17469,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17483,7 +17483,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17497,7 +17497,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17511,7 +17511,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17525,7 +17525,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17539,7 +17539,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=refused, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17553,7 +17553,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17567,7 +17567,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17581,7 +17581,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17595,7 +17595,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17609,7 +17609,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17623,7 +17623,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17637,7 +17637,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17651,7 +17651,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17665,7 +17665,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]
@@ -17679,7 +17679,7 @@ test_source_blob = "15e1fd2cbb524c8e67fd00c9f18eef3396983ece"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 evidence = "crates/antecedent/tests/calibration_response.rs:613"
-review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=licensed; the executed mode is none."
+review_basis = "Historical scored graph-posterior Study omits refute; its default is PlaceboAndRcc (full), and the same-commit builder settles against the shipped support snapshot: full=na, none=supported; the executed mode is none."
 source_blobs = ["crates/antecedent/src/analysis/builder.rs@730ad4e765fcb676a3b3252e54ade8628f115e97", "crates/antecedent/src/analysis/builder/finish.rs@1f988c1f2913bb85a91017a3c3abdb19d7b9b105", "crates/antecedent/src/support/matrix.rs@20c531ba818fe74f5fb49aef0deee668416d0ae1", "crates/antecedent/src/support/matrix_data.rs@6b6868daddcbe9b1eecf67af800a424903a1405d", "crates/antecedent/data/support_matrix.json@787dda8d330ed6a0a88cf29105271d546c990944"]
 
 [[binding]]

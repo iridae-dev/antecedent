@@ -37,7 +37,7 @@ record_sha256 = "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs"
-sha256 = "8804442cc95efd045dab16127a69907a7ce853faa60a3730c7328f96576ae0cd"
+sha256 = "b29386a9d5fb22c6f2676a803d2662eac9524dc5f73240336e5b50258c6d1d42"
 
 [[method_review.artifacts]]
 role = "assertion"

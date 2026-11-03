@@ -56,8 +56,8 @@ def test_native_synthetic_control_recovers_known_effect_and_reports_diagnostics(
     assert result.effective_donors == pytest.approx(1 / (0.2**2 + 0.3**2 + 0.5**2), abs=1e-3)
     assert len(result.placebo_effects) == 3
     assert 0.0 <= result.placebo_rank_p_value <= 1.0
-    assert result.uncertainty == "point_only_with_unlicensed_placebo_rank"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.uncertainty == "point_only_with_unsupported_placebo_rank"
+    assert result.support_status == "unsupported_point_utility"
     assert "convex_donor_combination_is_a_valid_counterfactual" in result.assumptions
     assert "placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated" in result.diagnostics
 
@@ -168,8 +168,8 @@ def test_retained_analyze_and_prepare_match_direct_point_result():
     assert dict(fit.donor_weights) == pytest.approx(dict(direct.donor_weights))
     assert fit.placebo_effects == pytest.approx(direct.placebo_effects)
     assert fit.estimate == pytest.approx(5.0, abs=1e-5)  # the constructed treatment effect
-    assert fit.support_status == "unlicensed_point_utility"
-    assert fit.uncertainty == "point_only_with_unlicensed_placebo_rank"
+    assert fit.support_status == "unsupported_point_utility"
+    assert fit.uncertainty == "point_only_with_unsupported_placebo_rank"
     assert math.isnan(result.estimate.se_analytic)
     prepared = antecedent.prepare(rows, query=query)
     executed = require_success(antecedent.estimate(prepared))
@@ -262,7 +262,7 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert fit.outcome_model_correction == pytest.approx(4.0, abs=1e-4)
     assert fit.estimate == pytest.approx(5.0, abs=1e-4)
     assert fit.uncertainty == "point_only_augmented_no_interval"
-    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.support_status == "unsupported_point_utility"
     assert "donor_ridge_outcome_model_transports" in fit.assumptions
     assert math.isnan(result.estimate.se_analytic)
     assert _analyzed(rows, query).synthetic_control == fit

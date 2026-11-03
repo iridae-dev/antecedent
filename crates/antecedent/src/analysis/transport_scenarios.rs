@@ -4,7 +4,7 @@
 //! estimation evaluates the retained plans and never re-identifies. The report
 //! keeps every scenario whatever its status, a structural envelope over the
 //! identified ones, and, only for declared weights, a report that never
-//! renormalizes. No inferential statement across scenarios is licensed.
+//! renormalizes. No inferential statement across scenarios is supported.
 //!
 //! The question is the classical `P*(y | do(x))` or, through
 //! [`StudyBuilder::conditional_transport_scenarios`], the conditional
@@ -108,7 +108,7 @@ impl StudyBuilder {
     /// obstruction candidate, and `structurally_unidentified` only when the
     /// route's witness stage proves it with an exactly verified two-model
     /// witness. Exact laws only: counted laws are refused
-    /// (`cell_not_licensed`).
+    /// (`not_supported`).
     ///
     /// # Errors
     /// As [`Self::transport_scenarios`], plus `route_not_supported` /
@@ -203,15 +203,15 @@ impl PreparedTransportScenarios {
         Ok(Self { inner, ..self.clone() })
     }
 
-    /// Inference across scenarios that share data is not licensed; this always
-    /// refuses with `scenario_aggregate_not_licensed`.
+    /// Inference across scenarios that share data is not supported; this always
+    /// refuses with `scenario_aggregate_not_supported`.
     ///
     /// # Errors
     /// Always.
     pub fn aggregate_interval(&self) -> Result<(), IoError> {
         Err(IoError::Refused {
-            code: antecedent_core::reason_code!("scenario_aggregate_not_licensed"),
-            message: "scenarios.shared_data_aggregate: only per-scenario results are licensed"
+            code: antecedent_core::reason_code!("scenario_aggregate_not_supported"),
+            message: "scenarios.shared_data_aggregate: only per-scenario results are supported"
                 .into(),
         })
     }

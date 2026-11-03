@@ -637,7 +637,7 @@ class PreparedCyclicSystem:
         ``cyclic.solution.v1`` tag as lowercase hex, the identification kind (always
         ``specified_model_conditional`` here) and the typed layer payloads a family export
         writes. Deriving it compiles schedules and does not fit. The contract grants no
-        scientific license.
+        scientific support.
         """
         result: dict[str, Any] = json.loads(self._handle.contract())
         return result
@@ -799,7 +799,7 @@ class PreparedCyclicFamily:
 
     @property
     def refusal(self) -> Refusal | None:
-        """The native scientific preparation refusal, if no program was licensed."""
+        """The native scientific preparation refusal, if no program was supported."""
         return self._scientific_refusal
 
     @classmethod
@@ -1039,7 +1039,7 @@ class PreparedCyclicFamily:
         the identification kind (``specified_model_conditional``, ``experimental_recovery``
         or ``cyclic_ioscm``, never a graphical product); and the typed layer payloads the
         family export writes in its contract section. The contract grants no scientific
-        license.
+        support.
         """
         assert execution is not None
         if self._scientific_refusal is not None:
@@ -1246,7 +1246,7 @@ def prepare_recovered_linear(
     and inadmissible draws. ``worlds`` are hard clamps ``{"clamp_nodes": [...],
     "clamp_values": [...]}`` indexed into ``nodes``. Preparation does not fit.
     The law stays conditional on the clamp-experiment recovery that produced it;
-    compilation grants no scientific license.
+    compilation grants no scientific support.
     """
     assert execution is not None
     return PreparedCyclicFamily(
@@ -1701,7 +1701,7 @@ class CyclicGraph:
         continuous: bool = True,
         execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
-        """Derive the executable cyclic backdoor adjustment functional when licensed."""
+        """Derive the executable cyclic backdoor adjustment functional when supported."""
         assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(

@@ -182,7 +182,7 @@ gaps = "target = 2, validation = 2"
 id = "P07.derivative.temporal.frequentist"
 method = "P07.derivative"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the slope reports the shared circular-block band, withheld when the block replicates carry no spread; the ATE refuters do not denote for a slope, so the slope is refuted as a response derivative through refute_prepared_target (placebo timing, contiguous-window subset stability and block stability refit the prepared derivative program on the whole target vector, as multiplicities where the route reads row weights and as gathered windows otherwise); the finite-difference and local-linearity checks refit a mean curve on the check grid under the derivative's own temporal specification, for a point derivative and for an average derivative under the observed law, with one coordinate per horizon merged on the horizon-indexed target (the merge is tested on known slopes per horizon; the route itself publishes the local slope at one horizon); the coverage of the band is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -190,7 +190,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P07.derivative.temporal.bayesian"
 method = "P07.derivative"
 side = "temporal.bayesian"
-status = "licensed"
+status = "supported"
 reason = "no derivative-native Bayesian calibration; no_interval_reported; prior sensitivity refits the temporal study under alternative prior scales, while the posterior-predictive check replicates independent rows and refuses series and panels; next attempt: replicate the lag-aligned outcome model with an autoregressive reference and compare through blocks of lag windows"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -198,7 +198,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P07.dose_grid.static.frequentist"
 method = "P07.dose_grid"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is unmeasured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -206,7 +206,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P10.temporal.frequentist"
 method = "P10"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "coverage of the whole-procedure interval is not measured here"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -214,87 +214,87 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P11.augmented_panel_did.temporal.frequentist"
 method = "P11.augmented_panel_did"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "whole-cluster resample interval (supplied predictions held fixed) is unlicensed with calibration unmeasured; 2x2 graphless row does not cover it"
+status = "not_supported"
+reason = "whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration unmeasured; 2x2 graphless row does not cover it"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P11.synthetic_control.temporal.frequentist"
 method = "P11.synthetic_control"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "conformal and placebo-variance intervals execute unlicensed (routes quasi.synthetic_control_conformal, quasi.multi_unit_synthetic_placebo); no support_graphless interval license or coverage record"
+status = "not_supported"
+reason = "conformal and placebo-variance intervals execute unsupported (routes quasi.synthetic_control_conformal, quasi.multi_unit_synthetic_placebo); no support_graphless interval support or coverage record"
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
 id = "P13.attribution.static.frequentist"
 method = "P13.attribution"
 side = "static.frequentist"
-status = "licensed"
-reason = "executing and unlicensed: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
+status = "supported"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
 id = "P13.attribution.static.bayesian"
 method = "P13.attribution"
 side = "static.bayesian"
-status = "licensed"
-reason = "executing and unlicensed: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
+status = "supported"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.attribution.temporal.frequentist"
 method = "P13.attribution"
 side = "temporal.frequentist"
-status = "licensed"
-reason = "executing and unlicensed: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
+status = "supported"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.attribution.temporal.bayesian"
 method = "P13.attribution"
 side = "temporal.bayesian"
-status = "licensed"
-reason = "executing and unlicensed: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
+status = "supported"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.refuter.static.frequentist"
 method = "P13.refuter"
 side = "static.frequentist"
-status = "executing_unlicensed"
-reason = "executing and unlicensed: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds unmeasured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared"
+status = "not_supported"
+reason = "executing and unsupported: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds unmeasured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.refuter.static.bayesian"
 method = "P13.refuter"
 side = "static.bayesian"
-status = "executing_unlicensed"
-reason = "executing and unlicensed: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are unmeasured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws"
+status = "not_supported"
+reason = "executing and unsupported: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are unmeasured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.refuter.temporal.frequentist"
 method = "P13.refuter"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "executing and unlicensed: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds unmeasured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not"
+status = "not_supported"
+reason = "executing and unsupported: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds unmeasured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.refuter.temporal.bayesian"
 method = "P13.refuter"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
-reason = "executing and unlicensed: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are unmeasured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own"
+status = "not_supported"
+reason = "executing and unsupported: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are unmeasured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P14.temporal.frequentist"
 method = "P14"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the Newey-West interval is reported and asserted wider than the independent-row error by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -302,7 +302,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P14.temporal.bayesian"
 method = "P14"
 side = "temporal.bayesian"
-status = "licensed"
+status = "supported"
 reason = "the circular-block Dirichlet interval is reported and asserted wider than the independent-row posterior by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -310,55 +310,55 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P15.conditional.temporal.frequentist"
 method = "P15.conditional"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P15.conditional.temporal.bayesian"
 method = "P15.conditional"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P15.pulse.temporal.frequentist"
 method = "P15.pulse"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P15.pulse.temporal.bayesian"
 method = "P15.pulse"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P15.sustained.temporal.frequentist"
 method = "P15.sustained"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P15.sustained.temporal.bayesian"
 method = "P15.sustained"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unlicensed"
+status = "not_supported"
+reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P16.static.frequentist"
 method = "P16"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "no coverage record; composition rows are composition.static.frequentist"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -366,7 +366,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P16.static.bayesian"
 method = "P16"
 side = "static.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "posterior composition is not validated as a route; rows measurement.static.bayesian and composition.static.bayesian"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -374,7 +374,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P16.temporal.frequentist"
 method = "P16"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "temporal composition executes over the joint block-bootstrap replicates the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.frequentist, a horizon-indexed composed coordinate, linear and nonlinear); the composed interval is closed until a coverage record is measured at the coordinate"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -382,7 +382,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "P16.temporal.bayesian"
 method = "P16"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "temporal Bayesian composition executes over the joint block-weight draws the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.bayesian); the composed posterior statement is closed until calibrated at the coordinate"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -390,7 +390,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.static.frequentist"
 method = "X02"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance; arbitrary observational temporal support is not established by fitting."
 next_attempt = "build the missing route through the compiler with the same uncertainty ports"
 
@@ -398,7 +398,7 @@ next_attempt = "build the missing route through the compiler with the same uncer
 id = "X02.static.bayesian"
 method = "X02"
 side = "static.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance; arbitrary observational temporal support is not established by fitting."
 next_attempt = "build the missing route through the compiler with the same uncertainty ports"
 
@@ -406,7 +406,7 @@ next_attempt = "build the missing route through the compiler with the same uncer
 id = "X02.temporal.frequentist"
 method = "X02"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. Identification is design-based: the declared whole-program randomized assignment earns each world, a per-period randomization and a confounded panel are refused, and the fitted mechanism only carries parameter uncertainty inside the worlds."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -414,7 +414,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.temporal.bayesian"
 method = "X02"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. Identification is design-based: the declared whole-program randomized assignment earns each world, a per-period randomization and a confounded panel are refused, and the fitted mechanism only carries parameter uncertainty inside the worlds."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -422,7 +422,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.broader.static.frequentist"
 method = "X02.broader"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -430,7 +430,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.broader.static.bayesian"
 method = "X02.broader"
 side = "static.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -438,7 +438,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.broader.temporal.frequentist"
 method = "X02.broader"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -446,7 +446,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X02.broader.temporal.bayesian"
 method = "X02.broader"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration and release acceptance. The family changes the fitted mechanism only; causal support of a world comes from the declared whole-program randomized assignment, never from the family or its fit."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -454,7 +454,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X03.temporal.frequentist"
 method = "X03"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -462,7 +462,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X03.temporal.bayesian"
 method = "X03"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -470,7 +470,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X04.1.static.frequentist"
 method = "X04.1"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -478,7 +478,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.1.static.bayesian"
 method = "X04.1"
 side = "static.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -486,7 +486,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.1.temporal.frequentist"
 method = "X04.1"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -494,7 +494,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.1.temporal.bayesian"
 method = "X04.1"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -502,7 +502,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.2.static.frequentist"
 method = "X04.2"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -510,7 +510,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.2.static.bayesian"
 method = "X04.2"
 side = "static.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -518,7 +518,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.2.temporal.frequentist"
 method = "X04.2"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -526,7 +526,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X04.2.temporal.bayesian"
 method = "X04.2"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
@@ -534,7 +534,7 @@ next_attempt = "derive the dependence-aware interval or posterior for this count
 id = "X05.temporal.bayesian"
 method = "X05"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is unmeasured as a whole procedure."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -542,127 +542,127 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "X06.temporal.frequentist"
 method = "X06"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
-reason = "Q09/E14 whole-procedure calibration and uncertainty validation remain unmeasured; no nominal interval license or arbitrary observational causal identification."
+status = "not_supported"
+reason = "Q09/E14 whole-procedure calibration and uncertainty validation remain unmeasured; no nominal interval support or arbitrary observational causal identification."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "X06.temporal.bayesian"
 method = "X06"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "Q09/E14 whole-procedure calibration and posterior uncertainty validation remain unmeasured."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.Admg#static.frequentist"
+id = "supported.AnomalyAttribution.Admg#static.frequentist"
 method = "AnomalyAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.Cpdag#static.frequentist"
+id = "supported.AnomalyAttribution.Cpdag#static.frequentist"
 method = "AnomalyAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.Dag#static.frequentist"
+id = "supported.AnomalyAttribution.Dag#static.frequentist"
 method = "AnomalyAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.Pag#static.frequentist"
+id = "supported.AnomalyAttribution.Pag#static.frequentist"
 method = "AnomalyAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.TemporalAdmg#temporal.frequentist"
-method = "AnomalyAttribution"
-side = "temporal.frequentist"
-status = "licensed"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "licensed.AnomalyAttribution.TemporalCpdag#temporal.frequentist"
+id = "supported.AnomalyAttribution.TemporalAdmg#temporal.frequentist"
 method = "AnomalyAttribution"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.AnomalyAttribution.TemporalPag#temporal.frequentist"
+id = "supported.AnomalyAttribution.TemporalCpdag#temporal.frequentist"
 method = "AnomalyAttribution"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.Admg#static.frequentist"
+id = "supported.AnomalyAttribution.TemporalPag#temporal.frequentist"
+method = "AnomalyAttribution"
+side = "temporal.frequentist"
+status = "supported"
+reason = "the route publishes a point value and no interval (point_only_cell)"
+next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
+
+[[adjusted_claim]]
+id = "supported.ChangeAttribution.Admg#static.frequentist"
 method = "ChangeAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.Cpdag#static.frequentist"
+id = "supported.ChangeAttribution.Cpdag#static.frequentist"
 method = "ChangeAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.Dag#static.frequentist"
+id = "supported.ChangeAttribution.Dag#static.frequentist"
 method = "ChangeAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.Pag#static.frequentist"
+id = "supported.ChangeAttribution.Pag#static.frequentist"
 method = "ChangeAttribution"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.TemporalAdmg#temporal.frequentist"
+id = "supported.ChangeAttribution.TemporalAdmg#temporal.frequentist"
 method = "ChangeAttribution"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.TemporalCpdag#temporal.frequentist"
+id = "supported.ChangeAttribution.TemporalCpdag#temporal.frequentist"
 method = "ChangeAttribution"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ChangeAttribution.TemporalPag#temporal.frequentist"
+id = "supported.ChangeAttribution.TemporalPag#temporal.frequentist"
 method = "ChangeAttribution"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -670,7 +670,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "composition.static.frequentist#static.frequentist"
 method = "ComposedQuantity"
 side = "static.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "the route publishes a point value and no interval (declared_and_corroborated)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -678,7 +678,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "composition.temporal.frequentist#temporal.frequentist"
 method = "ComposedQuantity"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "the composition is a linear combination (compose_horizons) or an arbitrary nonlinear map (compose_horizons_with) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); it is a labelled uncalibrated spread, and no coverage record measures an interval at a horizon-indexed coordinate (the interval reading stays closed); gapped series, intervention responses and derivative responses retain no joint replicates"
 next_attempt = "measure the coverage of the composed interval at its horizon-indexed coordinate, and extend the joint replicates to intervention-level responses and series with gaps"
 
@@ -686,63 +686,63 @@ next_attempt = "measure the coverage of the composed interval at its horizon-ind
 id = "composition.temporal.bayesian#temporal.bayesian"
 method = "ComposedQuantity"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "the composition is a linear combination (compose_horizons) or an arbitrary nonlinear map (compose_horizons_with) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); it is a labelled uncalibrated spread, and no coverage record measures an interval at a horizon-indexed coordinate (the interval reading stays closed); gapped series, intervention responses and derivative responses retain no joint replicates"
 next_attempt = "measure the coverage of the composed interval at its horizon-indexed coordinate, and extend the joint replicates to intervention-level responses and series with gaps"
 
 [[adjusted_claim]]
-id = "licensed.ConditionalEffect.TemporalAdmg#temporal.frequentist"
+id = "supported.ConditionalEffect.TemporalAdmg#temporal.frequentist"
 method = "ConditionalEffect"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.Counterfactual.Admg#static.frequentist"
+id = "supported.Counterfactual.Admg#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.Counterfactual.Cpdag#static.frequentist"
+id = "supported.Counterfactual.Cpdag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.Counterfactual.Dag#static.frequentist"
+id = "supported.Counterfactual.Dag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.Counterfactual.Pag#static.frequentist"
+id = "supported.Counterfactual.Pag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.Counterfactual.TemporalAdmg#temporal.frequentist"
+id = "supported.Counterfactual.TemporalAdmg#temporal.frequentist"
 method = "Counterfactual"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.DirectionalDerivative.Dag#static.frequentist"
+id = "supported.DirectionalDerivative.Dag#static.frequentist"
 method = "DirectionalDerivative"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (declared_unmeasured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
@@ -750,7 +750,7 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "temporal_design.excursion.interference#temporal.frequentist>InterferenceQuery"
 method = "InterferenceQuery"
 side = "temporal.frequentist"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
 next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
 
@@ -758,62 +758,57 @@ next_attempt = "identify an observational temporal exposure contrast by a declar
 id = "bayesian.temporal_design.excursion.interference#temporal.bayesian>InterferenceQuery"
 method = "InterferenceQuery"
 side = "temporal.bayesian"
-status = "executing_unlicensed"
+status = "not_supported"
 reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
 next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
 
 [[adjusted_claim]]
-id = "licensed.NestedCounterfactualEffect.Admg#static.frequentist"
+id = "supported.NestedCounterfactualEffect.Admg#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.NestedCounterfactualEffect.Cpdag#static.frequentist"
+id = "supported.NestedCounterfactualEffect.Cpdag#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.NestedCounterfactualEffect.Dag#static.frequentist"
+id = "supported.NestedCounterfactualEffect.Dag#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.NestedCounterfactualEffect.Pag#static.frequentist"
+id = "supported.NestedCounterfactualEffect.Pag#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.NestedCounterfactualEffect.TemporalAdmg#temporal.frequentist"
+id = "supported.NestedCounterfactualEffect.TemporalAdmg#temporal.frequentist"
 method = "NestedCounterfactualEffect"
 side = "temporal.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "licensed.ResponseJacobian.Dag#static.frequentist"
+id = "supported.ResponseJacobian.Dag#static.frequentist"
 method = "ResponseJacobian"
 side = "static.frequentist"
-status = "licensed"
+status = "supported"
 reason = "the route publishes a point value and no interval (declared_unmeasured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[audited_attempt]]
-id = "X01.licensed_contrast"
-status = "reconciled"
-list = "mandatory"
 
 [[audited_attempt]]
 id = "X01.static.bayesian"
@@ -822,6 +817,11 @@ list = "mandatory"
 
 [[audited_attempt]]
 id = "X01.static.frequentist"
+status = "reconciled"
+list = "mandatory"
+
+[[audited_attempt]]
+id = "X01.supported_contrast"
 status = "reconciled"
 list = "mandatory"
 

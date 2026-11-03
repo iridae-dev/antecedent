@@ -34,14 +34,14 @@ record_sha256 = "f42e37337c9913ba5f5598d184cc095daa23a3be493d36b2afe90cf4bdcff44
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/cohort_decision.rs"
-sha256 = "f03b21b476fd4800d9d1347e8a57f5388dc63deec053d55ad9ed8609dbe5d3ab"
+sha256 = "14220549ab8a3db0f9e20989260d366e2062a74a24346ac9bd6331860c62388b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
-sha256 = "fcdd8cee64c5ac74454d3dcf98436498a423aa0b496e3fcd35fcbd00e4ab049b"
+sha256 = "a5ff3a70a645483ceb5d0cae6e5c98eeffb450230995e0f71b41110adf7b535f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/cohort_decision.rs"
-sha256 = "15ec7be325c0be8dc76268055ebdaa04c6577650c36d33256f33ba16ddcc4ea8"
+sha256 = "c1b5e24666107eed3ae415d0c31726acc0cb664153dde3637f8f4bab70f8453d"

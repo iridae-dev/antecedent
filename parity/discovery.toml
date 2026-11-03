@@ -476,7 +476,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-validate/src/stability/null_calibration.rs"
 evidence_assertion = "synthetic_null_fpr_near_alpha_gate"
-known_truth_reference = { kind = "closed_form", source = "crates/antecedent-validate/src/stability/null_calibration.rs::synthetic_null_fpr_near_alpha_gate", proposition = "The synthetic independent null has nominal edge rejection probability alpha=0.05.", tolerance = "40 trials, 200 observations, 3 variables; empirical FPR within four reported Monte Carlo SE of alpha", limitations = "Ordinary stochastic smoke, not a whole-procedure branch measurement or a release calibration license." }
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-validate/src/stability/null_calibration.rs::synthetic_null_fpr_near_alpha_gate", proposition = "The synthetic independent null has nominal edge rejection probability alpha=0.05.", tolerance = "40 trials, 200 observations, 3 variables; empirical FPR within four reported Monte Carlo SE of alpha", limitations = "Ordinary stochastic smoke, not a whole-procedure branch measurement or a release calibration support." }
 evidence_activity = "statistical_smoke"
 limitations = "Seed-fixed check of 40 simulations x 200 rows x 3 variables with a widened band (band_tol 4.0); it detects gross miscalibration, not tight nominal coverage."
 owner = "discovery"

@@ -613,7 +613,7 @@ mod tests {
         // Fixed finite-population potential outcomes; only the two randomization
         // stages vary. Two units per cluster expose the (own, neighbor) cells
         // exactly and preserve within-cluster assignment dependence. Twenty-four
-        // clusters per saturation arm is the licensed support boundary; the
+        // clusters per saturation arm is the supported support boundary; the
         // total (0,0) -> (1,1) contrast has known truth 2.4.
         const REPLICATES: usize = 2_000;
         const CLUSTERS: usize = 48;

@@ -15,26 +15,27 @@ use crate::transform::SemanticLayer;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum SemanticApplicability {
-    /// Listed in the licensed matrix.
-    Licensed,
-    /// Meaningful on the axes, but not licensed.
-    Unlicensed,
+    /// Listed in the supported matrix.
+    Supported,
+    /// Meaningful on the axes, but not supported.
+    Unsupported,
     /// Typed-impossible (`not_applicable`).
     Impossible,
-    /// Off-axis or unclassified. Not failed support and not a license.
+    /// Off-axis or unclassified. Not failed support and not support.
     Unknown,
 }
 
 impl SemanticApplicability {
     /// Every variant, in declaration order.
-    pub const ALL: [Self; 4] = [Self::Licensed, Self::Unlicensed, Self::Impossible, Self::Unknown];
+    pub const ALL: [Self; 4] =
+        [Self::Supported, Self::Unsupported, Self::Impossible, Self::Unknown];
 
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Licensed => "licensed",
-            Self::Unlicensed => "unlicensed",
+            Self::Supported => "supported",
+            Self::Unsupported => "unsupported",
             Self::Impossible => "impossible",
             Self::Unknown => "unknown",
         }
@@ -43,12 +44,12 @@ impl SemanticApplicability {
 
 /// Snapshot readiness for the inspected operation.
 ///
-/// `Executable` requires a licensed cell and met bindings. Unknown support is
+/// `Executable` requires a supported cell and met bindings. Unknown support is
 /// not failed support and is not an executable guarantee.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum OperationReadiness {
-    /// Licensed cell with met bindings for this snapshot.
+    /// Supported cell with met bindings for this snapshot.
     Executable,
     /// Graph / class review is still required.
     ReviewRequired,
@@ -101,7 +102,7 @@ impl OperationReadiness {
 pub enum OperationKind {
     /// Cheap structural inspect / classify.
     Inspect,
-    /// Prepare a licensed handle.
+    /// Prepare a supported handle.
     Prepare,
     /// Estimate / execute against the bound snapshot.
     Execute,
@@ -187,10 +188,10 @@ impl BlockedOperation {
         Self::new(format!("binding.{field}"), format!("missing required binding: {field}"), true)
     }
 
-    /// Scoped operation (retarget / rank / export) without a license.
+    /// Scoped operation (retarget / rank / export) without support.
     #[must_use]
-    pub fn operation_unlicensed(reason: impl Into<Arc<str>>) -> Self {
-        Self::new("operation.unlicensed", reason, true)
+    pub fn operation_unsupported(reason: impl Into<Arc<str>>) -> Self {
+        Self::new("operation.unsupported", reason, true)
     }
 
     /// Cooperative cancellation. Not scientific impossibility.
@@ -224,7 +225,7 @@ impl NextAction {
     }
 }
 
-/// One changed support-matrix premise on a licensed neighbor.
+/// One changed support-matrix premise on a supported neighbor.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct PremiseChange {
@@ -248,10 +249,10 @@ impl PremiseChange {
     }
 }
 
-/// Licensed alternative with explicit changed premises. Never a fallback.
+/// Supported alternative with explicit changed premises. Never a fallback.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub struct LicensedNeighbor {
+pub struct SupportedNeighbor {
     /// `query:graph_class:structure:inference:validation`.
     pub coordinate: Arc<str>,
     /// Axes that differ from the requested cell.
@@ -260,7 +261,7 @@ pub struct LicensedNeighbor {
     pub required_action: Arc<str>,
 }
 
-impl LicensedNeighbor {
+impl SupportedNeighbor {
     /// Construct a neighbor suggestion.
     #[must_use]
     pub fn new(
@@ -298,8 +299,8 @@ pub struct OperationReport {
     pub invalidated_layers: Arc<[SemanticLayer]>,
     /// Possible next actions. Never executed automatically.
     pub next_actions: Arc<[NextAction]>,
-    /// Licensed neighbors. Empty when already licensed, no graph, or none exist.
-    pub neighbors: Arc<[LicensedNeighbor]>,
+    /// Supported neighbors. Empty when already supported, no graph, or none exist.
+    pub neighbors: Arc<[SupportedNeighbor]>,
 }
 
 impl OperationReport {
@@ -319,7 +320,7 @@ impl OperationReport {
         preserved_layers: impl Into<Arc<[SemanticLayer]>>,
         invalidated_layers: impl Into<Arc<[SemanticLayer]>>,
         next_actions: impl Into<Arc<[NextAction]>>,
-        neighbors: impl Into<Arc<[LicensedNeighbor]>>,
+        neighbors: impl Into<Arc<[SupportedNeighbor]>>,
     ) -> Self {
         Self {
             operation,
@@ -349,16 +350,16 @@ impl OperationReport {
             [SemanticLayer::Program, SemanticLayer::Support],
             [NextAction::new(
                 format!("supply_{field}"),
-                format!("supply {field} before requesting licensed neighbors"),
+                format!("supply {field} before requesting supported neighbors"),
             )],
             [],
         )
     }
 
-    /// Whether this report licenses execution of `operation`.
+    /// Whether this report supports execution of `operation`.
     #[must_use]
     pub fn is_executable(&self) -> bool {
-        self.applicability == SemanticApplicability::Licensed
+        self.applicability == SemanticApplicability::Supported
             && self.readiness == Some(OperationReadiness::Executable)
             && self.blockers.is_empty()
     }
@@ -377,7 +378,7 @@ mod tests {
     #[test]
     fn cancel_is_not_scientific_impossibility() {
         let cancel = BlockedOperation::cancelled("estimate");
-        let refused = BlockedOperation::refused("cell is not licensed");
+        let refused = BlockedOperation::refused("cell is not supported");
         assert!(!cancel.scientific);
         assert!(refused.scientific);
         assert_ne!(cancel.id.as_ref(), refused.id.as_ref());

@@ -92,15 +92,15 @@ it observes cancellation, the wall-clock bound and the checked output.
 
 ## Standing
 
-A result is **diagnostic** or a **licensed external** claim
-(`standing_of`). Licensed external needs a replayable contract
+A result is **diagnostic** or a **supported external** claim
+(`standing_of`). Supported external needs a replayable contract
 (deterministic or seeded), complete dependencies and an attested provider, or a
 verified one confirmed against its receipt. A stateful or side-effecting result,
 an opaque one or an unverified one stays diagnostic: it is inspectable and no
 claim is built on it. Neither is native. Metadata cannot mint native trust, a
-joint law or an identification licence; those refuse (`cell_not_licensed`,
+joint law or an identification evidence; those refuse (`not_supported`,
 `joint_law_required`) through `refuse_native_trust`,
-`refuse_identification_licence` and `refuse_joint_law`. Independently produced
+`refuse_identification_evidence` and `refuse_joint_law`. Independently produced
 callback draws are never paired by index.
 
 Attestation is rechecked where a result is used. A loaded artifact's trust is
@@ -114,7 +114,7 @@ restamping its identities.
 ## Interval and posterior guarantees stay closed
 
 A callback supplies values, not coverage. An interval from a callback law and a
-posterior or probability guarantee refuse with `cell_not_licensed`
+posterior or probability guarantee refuse with `not_supported`
 (`refuse_interval`, `refuse_posterior_guarantee`). Calibration is a recorded
 design only: the whole method (the callback and everything composed with it),
 a data-generating process that includes the provider's own estimation, a

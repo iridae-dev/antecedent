@@ -110,7 +110,7 @@ def _wald_ratio(outcome, assigned, received):
     return itt / (got[arm].mean() - got[~arm].mean())
 
 
-def test_retained_complier_route_licenses_interval_matching_direct_utility():
+def test_retained_complier_route_supports_interval_matching_direct_utility():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=False)
     result = require_success(
         ant.analyze(
@@ -123,11 +123,11 @@ def test_retained_complier_route_licenses_interval_matching_direct_utility():
     assert fit.interval_95 is not None
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
     assert fit.effect == pytest.approx(_wald_ratio(outcome, assigned, received), rel=1e-9)
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
-def test_retained_treatment_on_treated_route_licenses_interval():
+def test_retained_treatment_on_treated_route_supports_interval():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=True)
     result = require_success(
         ant.analyze(
@@ -142,4 +142,4 @@ def test_retained_treatment_on_treated_route_licenses_interval():
     assert fit.interval_95 is not None
     # One-sided noncompliance: the Wald ratio is the effect on the treated.
     assert fit.effect == pytest.approx(_wald_ratio(outcome, assigned, received), rel=1e-9)
-    assert fit.support_status == "licensed"
+    assert fit.support_status == "supported"

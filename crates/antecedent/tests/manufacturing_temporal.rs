@@ -343,7 +343,7 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
         2,
         "prepared estimate and refresh clicks must reuse the frozen atom identification"
     );
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert!(
         (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
@@ -413,7 +413,7 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
     let seed = pin["seed"].as_u64().unwrap();
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    // Pulse and single-step Sustained are the two licensed Frequentist none cells.
+    // Pulse and single-step Sustained are the two supported Frequentist none cells.
     for policy in [TemporalPolicy::pulse(-1), TemporalPolicy::sustained(-1, -1)] {
         let (series, _, query) = white_noise_pulse_series(n, seed);
         let query = query.with_policy(policy.clone());
@@ -497,7 +497,7 @@ fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters() {
     let seed = pin["seed"].as_u64().unwrap();
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    // Every licensed Frequentist cheap / full cell: Pulse and single-step Sustained
+    // Every supported Frequentist cheap / full cell: Pulse and single-step Sustained
     // under each suite.
     for (policy, suite) in [
         (TemporalPolicy::pulse(-1), RefuteSuite::Cheap),
@@ -733,7 +733,7 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2);
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert!(
         (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
@@ -826,7 +826,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(identify_computations(&sink), 2);
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2);
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert!(
         (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
@@ -985,7 +985,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_ref
             .unwrap()
             .run(&ExecutionContext::for_tests(43))
             .unwrap();
-        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert!(!result.refutations.is_empty(), "{suite:?} must emit mixed atom refuters");
         assert!(
             result
@@ -1378,7 +1378,7 @@ fn dbn_posterior_response_curve_matches_identified_atom() {
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2);
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
     assert!(has_structural_aggregation_policy(
         &fresh,
@@ -1417,7 +1417,7 @@ fn dbn_posterior_response_curve_matches_identified_atom() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert_eq!(bayes.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(bayes.support_status().unwrap().as_str(), "supported");
     assert!(
         (bayes.structural_response.as_ref().unwrap().unidentified_mass - unidentified_truth).abs()
             < 1e-12
@@ -1461,7 +1461,7 @@ fn dbn_posterior_intervention_response_matches_identified_atom() {
             .unwrap()
             .run(&ExecutionContext::for_tests(11))
             .unwrap();
-        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert!(has_structural_aggregation_policy(
             &result,
             StructuralAggregationPolicy::SameEstimandWeightedMean,
@@ -1524,7 +1524,7 @@ fn dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(11))
                 .unwrap();
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert!(
                 !result.refutations.is_empty(),
                 "{inference:?} {suite:?} must mix Pulse-native atom reports"
@@ -1600,7 +1600,7 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(mixed.support_status().unwrap().as_str(), "supported");
     // Both atoms share the same horizon estimand identity even though the DAGs
     // differ; the functional mix is still a frozen-weight mean.
     assert!(has_structural_aggregation_policy(
@@ -1660,7 +1660,7 @@ fn manufacturing_dbn_posterior_discovered_prepare_reuses_identification() {
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2, "clicks must not re-identify discovered atoms");
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     // The one-shot facade seals the discovered atoms, then estimates from them.
     assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
@@ -1900,7 +1900,7 @@ fn discovered_temporal_pag_records_its_algorithm() {
 // PulseEffect / SustainedEffect × TemporalDag × Frequentist × {cheap, full}
 // refuter coverage.
 //
-// `parity/support_licensed.toml` licenses these 8 cells with
+// `parity/support_cells.toml` supports these 8 cells with
 // `staged = true`, but before this addition no test anywhere ever passed
 // `RefuteSuite::Cheap` or `RefuteSuite::Full` through the temporal Frequentist
 // path — every existing test used `RefuteSuite::None`. `execute_temporal`
@@ -1918,7 +1918,7 @@ fn discovered_temporal_pag_records_its_algorithm() {
 // (`y_i = 1 + 2*t_(i-1) + 3*t_(i-2)`, n chosen so both lag-aligned OLS
 // windows are exactly orthogonal): a `Pulse` at treatment lag 1 recovers the
 // structural coefficient 2.0 exactly, and the single-step `Sustained` window
-// at the same offset matches it (`parity/support_licensed.toml`'s own
+// at the same offset matches it (`parity/support_cells.toml`'s own
 // "Projection matches Pulse at the same offset" language for the Sustained
 // cells).
 // ---------------------------------------------------------------------------
@@ -1998,7 +1998,7 @@ fn dose_horizon_pulse_query() -> TemporalEffectQuery {
 }
 
 /// Single-step Sustained window at `-treatment_lag`. Multi-step windows are a
-/// licensed form on validation=none (`temporal.sequential.gcomp`); this helper
+/// supported form on validation=none (`temporal.sequential.gcomp`); this helper
 /// keeps the single-step coordinate used by the dose-horizon pins.
 fn dose_horizon_sustained_query() -> TemporalEffectQuery {
     let mut q =
@@ -2040,7 +2040,7 @@ fn run_temporal_frequentist_case(
 }
 
 fn assert_dose_horizon_ate(result: &antecedent::result::StudyResult) {
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert!(
         (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-6,
         "structural contrast is exactly 2.0 on the orthogonal-design fixture; got ate={}",
@@ -2052,7 +2052,7 @@ fn assert_dose_horizon_ate(result: &antecedent::result::StudyResult) {
 /// refuter: `OverlapRefuter` is `NotApplicable` here (`ValidatorId::Overlap` in
 /// `crates/antecedent-validate/src/suite.rs` refuses when `problem.temporal.is_some()`),
 /// so only E-value is left in `result.refutations`. Pulse/Sustained cheap limitations
-/// in `parity/support_licensed.toml` record that executed set, not the static ATE
+/// in `parity/support_cells.toml` record that executed set, not the static ATE
 /// cheap-suite configuration. The Overlap skip itself is not lost: `result.diagnostics`
 /// carries a `refute.validator.not_applicable` entry for it (see
 /// `assert_cheap_temporal_overlap_skip_diagnostic`) — a per-run skip, not the support
@@ -2085,8 +2085,8 @@ fn assert_cheap_temporal_refuters(result: &antecedent::result::StudyResult) {
 /// to a caller who only reads `result.diagnostics`, and must say plainly that it is a
 /// per-run skip rather than the support matrix's permanent `SupportRefusal::NotApplicable`
 /// / wire `not_applicable` (`crates/antecedent/tests/manufacturing_temporal.rs` and
-/// `parity/support_licensed.toml`'s `staged = true` on this exact cell prove the two are
-/// not the same claim: this cell is licensed and runs, it just skips one validator).
+/// `parity/support_cells.toml`'s `staged = true` on this exact cell prove the two are
+/// not the same claim: this cell is supported and runs, it just skips one validator).
 fn assert_cheap_temporal_overlap_skip_diagnostic(result: &antecedent::result::StudyResult) {
     let skip = result
         .diagnostics

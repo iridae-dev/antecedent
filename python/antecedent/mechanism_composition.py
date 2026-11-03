@@ -53,7 +53,7 @@ What this is, and is not:
   pair), or independence by design with its justification. Otherwise the refusal is
   ``joint_law_required``. The variance is a first-order parameter-covariance variance only; it
   omits second-order terms, holds residual scales fixed and carries no coverage claim. The interval
-  route is closed: :meth:`PreparedMechanismComposition.interval` raises ``cell_not_licensed``.
+  route is closed: :meth:`PreparedMechanismComposition.interval` raises ``not_supported``.
 * **Refresh** (:meth:`PreparedMechanismComposition.refresh_mechanisms`) takes mechanisms refitted on
   new outcome-only data, keeps the plan, recomputes the numbers and the provenance, and refuses a
   refit that changes a mechanism's parents or family. A dependence declared for the earlier fit is
@@ -965,7 +965,7 @@ class PreparedMechanismComposition(ScientificResult):
     _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: the variance carries no measured coverage."""
+        """Always raises ``not_supported``: the variance carries no measured coverage."""
         raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
 
     @outcome_operation
@@ -1269,7 +1269,7 @@ def compose_mechanisms(
 
     Raises:
         MechanismCompositionRefusal: every defect found, each with a registered code, a namespaced
-            detail and the declaration that would license the composition.
+            detail and the declaration that would support the composition.
     """
     execution = resolve_execution(execution)
     listed = list(mechanisms)
@@ -1602,7 +1602,7 @@ class TransportedMechanismComposition(ScientificResult):
         )
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
+        """Always raises ``not_supported``: no coverage includes the transport assumption."""
         raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
 
     @artifact_export

@@ -268,12 +268,12 @@ fn a_posterior_stopping_decision_follows_the_declared_expected_loss_rule() {
 }
 
 #[test]
-fn decision_theoretic_stopping_is_not_licensed_for_a_probability_best_rule() {
+fn decision_theoretic_stopping_is_not_supported_for_a_probability_best_rule() {
     let session = session(thompson_trial([0.2, 0.8], 100, &[50, 100], 4));
     let request = AdaptiveRequest::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
 }
 
 // -- the paradigm gate ----------------------------------------------------------------------
@@ -286,9 +286,9 @@ fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs()
     assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     assert!(session.analyse(&request, &ctx()).is_ok());
-    // No interval is licensed for the whole procedure.
+    // No interval is supported for the whole procedure.
     let interval = session.interval().unwrap_err();
-    assert_eq!(interval.code, "cell_not_licensed");
+    assert_eq!(interval.code, "not_supported");
     assert_eq!(interval.detail, "adaptive_inference.interval_closed");
 }
 
@@ -299,9 +299,9 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
     let other_prior =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 2.0, prior_beta: 3.0 };
     let refusal = session.measured_interval(&other_prior, "other-prior", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "measured_interval.protocol_not_measured");
-    // A weighting request is not licensed for this cell at all.
+    // A weighting request is not supported for this cell at all.
     let weighting = AdaptiveRequest::AdaptiveWeighting {
         look: 1,
         plus_arm: 1,
@@ -312,13 +312,13 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
         size_weighted: false,
     };
     let refusal = session.measured_interval(&weighting, "weighting", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     // The measured construction at a horizon below the measured range is outside its record.
     let measured =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.measured_interval(&measured, "short", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "measured_inference.record_not_attesting");
     assert!(refusal.message.contains("sample_size_outside_measured_range"), "{refusal:?}");
 }
@@ -389,7 +389,7 @@ fn a_group_sequential_repeated_interval_is_bound_to_its_record() {
     // A stagewise-adjusted reading and another arm pair are not the measured design.
     let reversed = AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 };
     let refusal = session.measured_interval(&reversed, "gs-reversed", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
 }
 
 #[test]
@@ -556,7 +556,7 @@ fn the_hierarchical_cluster_cell_is_carried_forward_not_analysed_as_repeated_mea
     declaration.cell.outcome = OutcomeStructure::HierarchicalClustered;
     let session = session(declaration);
     let refusal = session.analyse(&contrast_request(false), &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
 }
 
@@ -634,7 +634,7 @@ fn group_sequential_decisions_use_the_independent_boundaries_and_statistics() {
 }
 
 #[test]
-fn a_group_sequential_rule_is_not_licensed_for_a_thompson_assignment() {
+fn a_group_sequential_rule_is_not_supported_for_a_thompson_assignment() {
     let mut declaration = thompson_trial([0.3, 0.6], 60, &[30, 60], 8);
     declaration.cell.monitoring = MonitoringStrategy::GroupSequential;
     declaration.stopping_rule = Some(StoppingRuleDeclaration {
@@ -649,8 +649,8 @@ fn a_group_sequential_rule_is_not_licensed_for_a_thompson_assignment() {
     let session = session(declaration);
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.pairing_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "adaptive_inference.pairing_not_supported");
 }
 
 // -- artifacts -------------------------------------------------------------------------------

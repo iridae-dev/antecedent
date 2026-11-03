@@ -27,7 +27,7 @@ class NestedFisherCandidate(ScientificResult):
 
     Coordinates are the two intervention means and their difference. The full
     covariance retains the shared fitted mechanisms. Nominal 90%/95% intervals
-    remain unmeasured candidates; neither this object nor artifact replay licenses
+    remain unmeasured candidates; neither this object nor artifact replay supports
     repeated-sampling coverage. The graph and IID sampling model are declarations.
     """
 
@@ -90,7 +90,7 @@ class NestedFisherCandidate(ScientificResult):
         identity=("expected_identity",),
     )
     def load(cls, artifact: bytes, *, expected_identity: str) -> NestedFisherCandidate:
-        """Fresh consumer rechecks licensed ID and refits every original output."""
+        """Fresh consumer rechecks supported ID and refits every original output."""
         artifact = container_bytes(artifact)
         from .. import _native
 
@@ -100,6 +100,6 @@ class NestedFisherCandidate(ScientificResult):
         if consumer is None:
             raise CausalUnsupportedError(
                 "nested_markov.route_frozen: the interval consumer remains closed pending calibration",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         return cls._from_native(consumer(artifact, expected_identity))

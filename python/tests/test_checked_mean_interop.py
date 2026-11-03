@@ -126,7 +126,7 @@ def test_observation_probability_preserves_its_functional_semantics():
     assert bytes(consumed.export()) == artifact.data
 
 
-def test_mean_adapter_does_not_license_nonlinear_expected_utilities():
+def test_mean_adapter_does_not_support_nonlinear_expected_utilities():
     from test_mechanism_composition import chain, compose
 
     q = quantity()
@@ -277,7 +277,7 @@ def test_adapter_bindings_are_checked_before_decision_and_keep_lineage():
     with pytest.raises(ant.errors.CausalValueError, match="retained producer"):
         require_success(contract.evaluate(replace(source, means=(999.0,))))
     with pytest.raises(ant.errors.CausalValueError, match="cannot issue"):
-        require_success(contract.evaluate(replace(source, trust="native_licensed")))
+        require_success(contract.evaluate(replace(source, trust="native_supported")))
 
 
 def test_outcome_mean_adapter_composes_directly_with_affine_decision():
@@ -379,7 +379,7 @@ def test_existing_json_families_export_typed_artifacts_and_bind_independently(pr
     with pytest.raises(ant.errors.CausalSerializationError, match="retained expected_identity"):
         require_success(ant.load(envelope, expected="0" * 64))
     damaged = json.loads(envelope.data)
-    damaged["claim"] = "licensed_interval"
+    damaged["claim"] = "supported_interval"
     with pytest.raises(ant.errors.CausalSerializationError, match="digest"):
         ant.artifacts.inspect(json.dumps(damaged).encode())
 
@@ -532,7 +532,7 @@ def test_legacy_transport_load_checks_explicit_native_execution_bindings():
         require_success(ant.load(bytes(exact.export()), context=LoadContext()))
 
 
-@pytest.mark.parametrize("trust", ["native_licensed", "verified_extension"])
+@pytest.mark.parametrize("trust", ["native_supported", "verified_extension"])
 def test_mean_declarations_cannot_issue_native_or_verified_trust(trust):
     with pytest.raises(ant.errors.CausalValueError, match="cannot issue"):
         MeanSource(

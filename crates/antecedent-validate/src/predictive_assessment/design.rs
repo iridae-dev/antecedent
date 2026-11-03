@@ -195,7 +195,7 @@ pub(crate) fn resolve_design(
     {
         return Err(refuse(
             reason_code!("sampling_dependence_unknown"),
-            detail::IID_NOT_LICENSED,
+            detail::IID_NOT_SUPPORTED,
             format!(
                 "an iid dependence was declared for a {} design, whose cases are temporal or \
                  clustered; independence is never assumed. Declare serial dependence with its \

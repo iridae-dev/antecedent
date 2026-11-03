@@ -389,7 +389,7 @@ fn inference_across_scenarios_is_refused() {
         IoError::Refused { code, message } => (code, message),
         other => panic!("expected a coded refusal, got {other:?}"),
     };
-    assert_eq!(code, "scenario_aggregate_not_licensed");
+    assert_eq!(code, "scenario_aggregate_not_supported");
     assert!(message.starts_with("scenarios.shared_data_aggregate"), "{message}");
 }
 

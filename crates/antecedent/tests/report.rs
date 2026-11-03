@@ -1,7 +1,7 @@
 //! The readable report rendered from a contract, a claim and a plan view.
 //!
-//! Each scenario is a real compiled study: a licensed static effect, a route that
-//! executes without a licence, a cell the support matrix refuses, a Bayesian
+//! Each scenario is a real compiled study: a supported static effect, a route that
+//! executes without support, a cell the support matrix refuses, a Bayesian
 //! effect and a temporal effect. The Markdown and HTML of each are compared with
 //! the committed golden files; regenerate them deliberately with
 //! `ANTECEDENT_REGENERATE_REPORTS=1 cargo test -p antecedent --test report` and
@@ -79,7 +79,7 @@ fn executed(
     }
 }
 
-fn licensed_static_effect() -> Scenario {
+fn supported_static_effect() -> Scenario {
     let (data, dag, query) = confounded_scm(128, 41);
     let study = Study::tabular(data.clone())
         .graph(dag)
@@ -90,7 +90,7 @@ fn licensed_static_effect() -> Scenario {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    executed("licensed_static_effect", &prepared, &result)
+    executed("supported_static_effect", &prepared, &result)
 }
 
 const SUBJECTS: usize = 80;
@@ -130,7 +130,7 @@ fn sequential_panel() -> TabularData {
     .unwrap()
 }
 
-fn unlicensed_executing_route() -> Scenario {
+fn unsupported_executing_route() -> Scenario {
     let data = sequential_panel();
     let query = SequentialContrastQuery {
         outcome: VariableId::from_raw(4),
@@ -148,7 +148,7 @@ fn unlicensed_executing_route() -> Scenario {
         Study::tabular(data.clone()).query(CausalQuery::SequentialContrast(query)).build().unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    executed("unlicensed_executing_route", &prepared, &result)
+    executed("unsupported_executing_route", &prepared, &result)
 }
 
 /// A change attribution on an explicit mixed graph under full validation is a
@@ -262,8 +262,8 @@ fn temporal_effect() -> Scenario {
 
 fn scenarios() -> Vec<Scenario> {
     vec![
-        licensed_static_effect(),
-        unlicensed_executing_route(),
+        supported_static_effect(),
+        unsupported_executing_route(),
         refused_cell(),
         bayesian_effect(),
         temporal_effect(),
@@ -337,7 +337,7 @@ fn the_prepared_handle_reports_what_the_inputs_render() {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    let scenario = executed("licensed_static_effect", &prepared, &result);
+    let scenario = executed("supported_static_effect", &prepared, &result);
     for format in [ReportFormat::Markdown, ReportFormat::Html] {
         assert!(
             prepared.report(Some(&result), &ctx(), format).unwrap() == scenario.render(format),
@@ -358,7 +358,8 @@ fn fact(markdown: &str, key: &str) -> String {
         .lines()
         .find_map(|line| line.strip_prefix(prefix.as_str()))
         .unwrap_or_else(|| panic!("no fact {key:?} in\n{markdown}"))
-        .to_owned()
+        // Fact values are Markdown-escaped; a token such as `not_supported` reads back unescaped.
+        .replace('\\', "")
 }
 
 #[test]
@@ -408,13 +409,13 @@ fn a_refusal_names_its_blockers_next_actions_and_no_value() {
     assert!(markdown.contains("## Refusals and limits"), "{markdown}");
     assert!(!markdown.contains("- **Value:** "), "{markdown}");
     assert!(!markdown.contains("## Claim"), "{markdown}");
-    assert_eq!(fact(&markdown, "Support status"), "refused");
+    assert_eq!(fact(&markdown, "Support status"), "not_supported");
 }
 
 #[test]
 fn a_noncausal_claim_says_so_and_never_reads_as_an_effect() {
     use antecedent_contract::{ClaimDomains, ClaimKind, DomainStatus, IDENTIFICATION_NOT_CLAIMED};
-    let mut scenario = licensed_static_effect();
+    let mut scenario = supported_static_effect();
     scenario.plan = None;
     let claim = scenario.claim.as_mut().unwrap();
     claim.kind = ClaimKind::Associational;
@@ -447,13 +448,13 @@ fn status_and_inference_are_stated_for_each_scenario() {
         let markdown = scenario.render(ReportFormat::Markdown);
         let status = fact(&markdown, "Support status");
         match scenario.name {
-            "licensed_static_effect" | "bayesian_effect" | "temporal_effect" => {
-                assert_eq!(status, "licensed", "{}", scenario.name);
+            "supported_static_effect" | "bayesian_effect" | "temporal_effect" => {
+                assert_eq!(status, "supported", "{}", scenario.name);
             }
-            "unlicensed_executing_route" => {
-                assert_ne!(status, "licensed", "{}: it executes without a licence", scenario.name);
+            "unsupported_executing_route" => {
+                assert_ne!(status, "supported", "{}: it executes without support", scenario.name);
             }
-            _ => assert_eq!(status, "refused", "{}", scenario.name),
+            _ => assert_eq!(status, "not_supported", "{}", scenario.name),
         }
         let inference = fact(&markdown, "Inference").to_lowercase();
         let want = if scenario.name == "bayesian_effect" { "bayesian" } else { "frequentist" };
@@ -464,7 +465,7 @@ fn status_and_inference_are_stated_for_each_scenario() {
 #[test]
 fn hostile_names_are_escaped_in_html_and_markdown() {
     let scenarios = scenarios();
-    let scenario = scenarios.iter().find(|s| s.name == "licensed_static_effect").unwrap();
+    let scenario = scenarios.iter().find(|s| s.name == "supported_static_effect").unwrap();
     let hostile: Vec<Arc<str>> = vec![
         Arc::from("a\"onload=\"x"),
         Arc::from("&amp;'<img src=x>"),
@@ -524,8 +525,8 @@ fn format_names_round_trip() {
 #[test]
 fn the_sections_are_the_ones_the_python_report_pins() {
     let scenarios = scenarios();
-    let licensed = scenarios.iter().find(|s| s.name == "licensed_static_effect").unwrap();
-    let markdown = licensed.render(ReportFormat::Markdown);
+    let supported = scenarios.iter().find(|s| s.name == "supported_static_effect").unwrap();
+    let markdown = supported.render(ReportFormat::Markdown);
     let headings: Vec<&str> =
         markdown.lines().filter_map(|line| line.strip_prefix("## ")).collect();
     assert_eq!(
@@ -537,7 +538,7 @@ fn the_sections_are_the_ones_the_python_report_pins() {
             "Assumptions",
             "Diagnostics and evidence",
             "Uncertainty",
-            "Support and licence",
+            "Support",
             "Refusals and limits",
             "Program plan",
             "Identities",

@@ -2,7 +2,7 @@
 
 Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
 
-`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
+`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. Every route here executes and is **unsupported**: no coverage record exists,
 every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
 is implied.
 
@@ -24,7 +24,7 @@ result.value.temporal_design  # TemporalDesignEstimate
 `InterferenceExcursion`, `DoseExcursion` (target `SmoothedDoseCurve`, `SmoothedDoseContrast` or
 `LocalQuadraticDoseGrid`) and `RegimeSurvivalContrast` take `quantile_level=` and
 `misclassification=OutcomeMisclassification(...)` where the design reads them. The answer is
-structured (`unlicensed_temporal_design_<uncertainty>`), and `load(result.export())`
+structured (`unsupported_temporal_design_<uncertainty>`), and `load(result.export())`
 reads back an equal `temporal_design`. `TemporalDesignEstimate.bootstrap_standard_error` is the
 whole-procedure bootstrap standard deviation (frequentist regime survival and the quantile
 functional); `posterior_standard_deviation` is set for a Bayesian result. A rebound table must
@@ -154,7 +154,7 @@ the positivity floor.
 
 ## Check whether a mechanism changed, and roll fitted dynamics forward
 
-Two standalone queries read the fitted dynamics of a series with lagged edges, without a typed design. Both are unlicensed and report no calibrated coverage; read them as model-conditional diagnostics and projections. They live in `antecedent.temporal_model` and take column names, the columns, and the lagged edges `(cause, lag, effect, 0)`.
+Two standalone queries read the fitted dynamics of a series with lagged edges, without a typed design. Both are unsupported and report no calibrated coverage; read them as model-conditional diagnostics and projections. They live in `antecedent.temporal_model` and take column names, the columns, and the lagged edges `(cause, lag, effect, 0)`.
 
 `detect_mechanism_change` asks whether the mechanism of a target changed between two row ranges of one series. The simulated series below shifts the intercept of `y` by 5.0 halfway through, so the answer is known.
 
@@ -205,7 +205,7 @@ uncertain.uncertainty.names, uncertain.uncertainty.sd
 | A regime contrast with identical paths, paths of different length or of a length other than the number of periods, a nonzero lag, a repeated column, or subjects observed in different periods | `invalid_argument` | Name two different paths with one action per period, keep `lag=0`, and give every subject the same periods |
 | A regime whose actions the fitted history does not support (a fitted probability under `min_probability`, or no subject following a path) | `positivity_violated` / `arm_not_populated` | A path the data support, fewer or better-scaled confounders, or a lower floor |
 | A local-quadratic grid without `curvature_bound` | `required_option_missing` | Declare the bound, or use `smoothed_curve` |
-| A dose outside the observed range, or with local effective sample size below 10 | `cell_not_licensed` | A wider bandwidth or a dose inside the supported range |
+| A dose outside the observed range, or with local effective sample size below 10 | `not_supported` | A wider bandwidth or a dose inside the supported range |
 | An interference decision with no other cluster member that period | `invalid_argument` | Record every member of the cluster each period |
 | A Youden index below 0.1 | `route_not_supported` | A more accurate measurement or a larger validation sample |
 | An observational excursion with no history column, a treatment not coded 0/1, or a history column equal to the outcome or treatment | `invalid_argument` | Name the decision-time covariates, code the treatment 0/1, and keep the columns distinct |

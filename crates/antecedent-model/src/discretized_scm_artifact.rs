@@ -81,7 +81,7 @@ pub struct ArtifactRefusal {
     pub detail: &'static str,
     /// What the refusal is about (a section, a variable, a detail of the inner refusal).
     pub subject: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
 }
 

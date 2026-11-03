@@ -156,7 +156,7 @@ pub fn encode(
 }
 
 /// Decode original source rows, rebuild the native program and check both independently
-/// retained identities. A successful result carries no measured or licensed authority.
+/// retained identities. A successful result carries no measured or supported authority.
 ///
 /// # Errors
 /// Invalid/corrupt source, identity mismatch, admission refusal, or cancellation.

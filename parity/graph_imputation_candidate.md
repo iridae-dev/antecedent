@@ -26,7 +26,7 @@ producer. Existing generic contract classification rejects the reserved composit
 before coordinate lookup or legacy normalization, so old artifacts are not
 reinterpreted and cannot borrow a Frequentist record. Coverage matching compares the versioned key
 exactly; an independent matching test rejects historical inference labels.
-A future license must use this producer-specific path, never the generic
+Future support must use this producer-specific path, never the generic
 unknown-label classifier.
 
 The Python facade holds the same native compiled object through execution and
@@ -76,7 +76,7 @@ program identity itself is carried, not recomputed, by the consumer: it is const
 separately retained expectation and by the contract it commits to. The point, the replayed
 artifact and the measured interval share that one implementation.
 
-Licensing: the measured route is `graph_imputation_interval`. It reports the
+Support: the measured route is `graph_imputation_interval`. It reports the
 `GraphImputationCompositeV3` prior-predictive coordinate, whose functional names the support,
 variable count, graph count, declared domains, imputation count, sweeps, draws and prior scale,
 with the row count in the scope. Seeds are not part of it, since they do not change the
@@ -93,4 +93,4 @@ confounded treatment, and the standard sample-size grid. The exact prior family 
 declaration enter the producer-derived basis. Every failed original-data replicate refuses the
 candidate rather than conditioning the coverage calculation on success. Any resulting coverage
 describes this prior-predictive distribution, not pointwise or uniform coverage. These
-candidates are registered but have not been run, reviewed, attested, or licensed.
+candidates are registered but have not been run, reviewed, attested, or supported.

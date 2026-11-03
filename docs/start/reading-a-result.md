@@ -2,7 +2,7 @@
 
 A result is a claim: an answer together with what it was asked, what it assumed, what evidence supported it and where it stops. This page shows where each part lives on the `Outcome` that `ant.estimate` and `ant.analyze` return. The examples continue [your first analysis](first-analysis.md), whose data are simulated with a known effect of 2.
 
-Read in this order: the kind of answer, identification, uncertainty, calibration status, support and licence status, diagnostics, then the limits. The condition under which each is true is a property of that part, not of the whole result.
+Read in this order: the kind of answer, identification, uncertainty, calibration status, support status, diagnostics, then the limits. The condition under which each is true is a property of that part, not of the whole result.
 
 ## The answer
 
@@ -60,9 +60,9 @@ for binding in result.value.interval_bindings:
 
 An implemented interval, an identified effect or a passing diagnostic does not establish calibration. Calibration is recorded per method and scope, so when the status is not `calibrated`, read the reason code. [Assurance](../concepts/assurance.md) describes what a coverage record holds.
 
-## Support and licence status
+## Support status
 
-`result.support` records the empirical support for the answer, for example overlap or sample size for the target population. The licence status records whether the route used has executing support evidence. "Licensed" is unrelated to the software license: it means a named combination of question, structure, evidence, inference and estimator is backed by executing tests. A route can execute without a licence and then keeps that status. Successful execution does not upgrade the scientific claim. Look a combination up in [support lookup](../support-lookup.md).
+`result.support` records the empirical support for the answer, for example overlap or sample size for the target population. A route is supported when a named combination of question, structure, evidence, inference and estimator has provenance and independent scientific checks. A route that is not supported refuses in release builds; a development build runs it and reports `would_refuse` beside the result. The calibration status of an interval (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`) is an annotation, not a condition for running. Successful execution does not upgrade the scientific claim. Look a combination up in [support lookup](../support-lookup.md).
 
 ## Diagnostics
 

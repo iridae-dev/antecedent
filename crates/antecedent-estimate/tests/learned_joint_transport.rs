@@ -947,7 +947,7 @@ fn learned_joint_declaration_and_input_refusals_carry_typed_details() {
         assert_eq!(refusal.detail, DETAIL_UNSUPPORTED_GRAPH);
     }
     let frozen = route_frozen_refusal();
-    assert_eq!(frozen.code, "cell_not_licensed");
+    assert_eq!(frozen.code, "not_supported");
     assert_eq!(frozen.detail, DETAIL_ROUTE_FROZEN);
     let mut m = model();
     m.features = vec![FEATURE + 1];

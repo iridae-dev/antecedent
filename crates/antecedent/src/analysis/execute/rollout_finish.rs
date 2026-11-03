@@ -2,7 +2,7 @@
 //! difference in differences, conformal and multi-unit synthetic control, and the local ratio
 //! with a selected bandwidth or a calendar-time running variable.
 //!
-//! Every rollout result is unlicensed: its scalar summary carries no published interval, the
+//! Every rollout result is unsupported: its scalar summary carries no published interval, the
 //! design's own whole-procedure intervals ride on the [`crate::QuasiRolloutEstimate`] payload,
 //! and their calibration is `unmeasured` until a coverage record measures them.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -54,7 +54,7 @@ pub(super) struct RolloutPayloadParts {
     pub(super) diagnostics: Vec<(String, f64)>,
 }
 
-/// The unlicensed rollout payload of `parts`; calibration is always `unmeasured`.
+/// The unsupported rollout payload of `parts`; calibration is always `unmeasured`.
 pub(super) fn rollout_payload(parts: RolloutPayloadParts) -> crate::result::ResultPayload {
     crate::result::ResultPayload::QuasiRollout(Box::new(crate::QuasiRolloutEstimate {
         design: Arc::from(parts.design),
@@ -71,7 +71,7 @@ pub(super) fn rollout_payload(parts: RolloutPayloadParts) -> crate::result::Resu
             .into_iter()
             .map(|(name, value)| (Arc::<str>::from(name.as_str()), value))
             .collect(),
-        licensed: false,
+        supported: false,
     }))
 }
 
@@ -101,7 +101,7 @@ pub(super) fn split_report(report: RolloutReport) -> (RolloutPayloadParts, Vec<D
     )
 }
 
-/// The unlicensed result of a rollout execution under `operation`.
+/// The unsupported result of a rollout execution under `operation`.
 pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
     operation: &RandomizedTrialOperation<Q, E>,
     data: &TabularData,
@@ -137,11 +137,11 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
         diagnostics,
     };
     notes.push(Diagnostic::new(
-        "estimate.quasi.rollout.unlicensed",
+        "estimate.quasi.rollout.unsupported",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "unlicensed route: the {design} intervals come from the design's whole-procedure \
+            "unsupported route: the {design} intervals come from the design's whole-procedure \
              path ({uncertainty}); their repeated-sampling coverage is unmeasured and no scalar \
              interval is published on the effect"
         ),

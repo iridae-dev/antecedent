@@ -270,8 +270,8 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
         FiniteExecutionRequest { exogenous: ExogenousInference::PosteriorSampling, ..req.clone() };
     let (code, detail) =
         refusal(derive_whole_path_uncertainty(&sampled, &result, UnitSampling::FixedUnits, &ctx()));
-    assert_eq!(code, "cell_not_licensed");
-    assert_eq!(detail, "cross_world_uncertainty.sampled_path_not_licensed");
+    assert_eq!(code, "not_supported");
+    assert_eq!(detail, "cross_world_uncertainty.sampled_path_not_supported");
 
     let transported =
         FiniteExecutionRequest { target_population: Some("pop-b".to_owned()), ..req.clone() };
@@ -281,7 +281,7 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
         UnitSampling::FixedUnits,
         &ctx(),
     ));
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert_eq!(detail, "cross_world_uncertainty.transported_path_closed");
 }
 

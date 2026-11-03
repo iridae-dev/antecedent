@@ -25,7 +25,7 @@
 //!    the obstruction's witness by exact enumeration.
 //!
 //! The route is point-only: exact finite laws carry no sampling uncertainty and
-//! a counted, empirical or posterior law is refused with `cell_not_licensed`;
+//! a counted, empirical or posterior law is refused with `not_supported`;
 //! sampled counterfactual transport is a separate route.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -353,7 +353,7 @@ fn refusal_of(decision: &CounterfactualTransportDecision) -> IoError {
 /// # Errors
 /// A coded refusal: `route_not_supported` for a request outside the frozen
 /// contract, `invalid_argument` for a malformed query or catalog,
-/// `transport_missing_evidence` naming the regimes that would license a
+/// `transport_missing_evidence` naming the regimes that would support a
 /// derivation, `transport_not_certified` when the bounded search neither
 /// derives nor verifies a witness, `transport_budget_cancel` with the search
 /// receipt, and the evaluation refusals of [`PreparedCounterfactualTransport::evaluate`]
@@ -440,7 +440,7 @@ impl PreparedCounterfactualTransport {
     /// without changing this value.
     ///
     /// # Errors
-    /// `cell_not_licensed` (`counterfactual_transport.sampled_inference_closed`)
+    /// `not_supported` (`counterfactual_transport.sampled_inference_closed`)
     /// for a counted, empirical or posterior law; `invalid_argument`
     /// (`counterfactual_transport.invalid_evidence`) for a law whose population,
     /// regime, axes or levels do not match the catalog and declared levels;

@@ -351,9 +351,9 @@ def build() -> dict[str, object]:
             "properties": {"id": {"type": "string"}, "description": {"type": "string"}},
             "additionalProperties": False,
         },
-        "licensed_neighbor": {
+        "supported_neighbor": {
             "type": "object",
-            "description": "A licensed alternative that changes named premises. An explicit "
+            "description": "A supported alternative that changes named premises. An explicit "
             "choice for the caller, never an automatic fallback.",
             "required": ["coordinate", "changed", "required_action"],
             "properties": {
@@ -401,7 +401,7 @@ def build() -> dict[str, object]:
                 "coordinate": {"type": ["string", "null"]},
                 "blockers": {"type": "array", "items": {"$ref": "#/$defs/blocker"}},
                 "next_actions": {"type": "array", "items": {"$ref": "#/$defs/next_action"}},
-                "neighbors": {"type": "array", "items": {"$ref": "#/$defs/licensed_neighbor"}},
+                "neighbors": {"type": "array", "items": {"$ref": "#/$defs/supported_neighbor"}},
                 "unmet_obligations": {
                     "type": "array",
                     "items": {"$ref": "#/$defs/unmet_obligation"},
@@ -632,9 +632,9 @@ def build() -> dict[str, object]:
                 "otherwise: partial",
             ],
             "operation": [
-                "applicability impossible or unlicensed: unsupported",
+                "applicability impossible or unsupported: unsupported",
                 "readiness empirical_support_failed: unsupported",
-                "applicability licensed and readiness executable: supported",
+                "applicability supported and readiness executable: supported",
                 "otherwise: partial",
             ],
         },

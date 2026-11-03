@@ -602,7 +602,7 @@ fn dr_receipt_independent_reader_preserves_executed_counts_and_identity() {
     let artifact = RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap();
@@ -643,7 +643,7 @@ fn bundle_receipt_bytes(
     RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap()

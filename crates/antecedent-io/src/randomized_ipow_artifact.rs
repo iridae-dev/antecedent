@@ -1,4 +1,4 @@
-//! Numerical replay of licensed randomized-arm IPW pseudo-posteriors.
+//! Numerical replay of supported randomized-arm IPW pseudo-posteriors.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::randomized_posterior::{
@@ -57,7 +57,7 @@ pub fn posterior_row(
             posterior.contrasts.iter().map(|c| c.mean).collect(),
             &posterior.contrasts.iter().map(|c| c.interval).collect::<Vec<_>>(),
         );
-    row.licensed = source.licensed(row.coordinates.len());
+    row.supported = source.supported(row.coordinates.len());
     row.randomized_ipow = Some(source);
     row
 }
@@ -114,7 +114,7 @@ fn verify(body: &AnalysisResultWire, limits: &ReplayLimits) -> Result<(), IoErro
         || !meta.converged
         || meta.unidentified_mass != 0.0
         || meta.subsampled_out_mass != 0.0
-        || !row.licensed
+        || !row.supported
         || row.covariance != expected.covariance
         || row.exact_mean != expected.exact_mean
         || row.exact_covariance != expected.exact_covariance
@@ -136,7 +136,7 @@ fn verify(body: &AnalysisResultWire, limits: &ReplayLimits) -> Result<(), IoErro
     Ok(())
 }
 
-/// Decode a composite result and replay any licensed IPW pseudo-posterior from source rows.
+/// Decode a composite result and replay any supported IPW pseudo-posterior from source rows.
 ///
 /// # Errors
 /// Invalid container, unsupported source, or a posterior that disagrees with re-execution.
@@ -155,7 +155,7 @@ pub fn decode_analysis_result_artifact(
     Ok(decoded)
 }
 
-/// Consume a contracted result, including numerical replay of its licensed IPW construction.
+/// Consume a contracted result, including numerical replay of its supported IPW construction.
 ///
 /// # Errors
 /// Invalid artifact, contract, or a pseudo-posterior that fails replay.

@@ -545,7 +545,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                    "contrast-shaped refuters are not supported for a plugin intervention level; \
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      identified intervention mean",
                 ));
@@ -653,7 +653,7 @@ fn estimate_admg_posterior_atom_response(
             estimate_admg_mean_curve(study, data, query, adjacency, identification, estimand, ctx)
         }
         _ => Err(CausalError::Unsupported {
-            message: "ADMG graph-posterior response is licensed for InterventionResponse and \
+            message: "ADMG graph-posterior response is supported for InterventionResponse and \
                       ResponseCurve",
         }),
     }
@@ -677,7 +677,7 @@ fn estimate_admg_mean_curve(
     let bayesian = study.settings.inference.is_bayesian();
     let ResponseFunctional::MeanCurve { outcome, treatment: tx } = &query.functional else {
         return Err(CausalError::Unsupported {
-            message: "ADMG graph-posterior response is licensed for InterventionResponse and \
+            message: "ADMG graph-posterior response is supported for InterventionResponse and \
                       ResponseCurve",
         });
     };

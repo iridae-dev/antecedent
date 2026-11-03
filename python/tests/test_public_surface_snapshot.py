@@ -339,7 +339,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "TemporalConditionalPulse",
         "TemporalConditionalSustained",
         "TemporalMediationEffect",
-        # Design queries: licensed cells run on analyze and retain a study
+        # Design queries: supported cells run on analyze and retain a study
         "InterferenceQuery",
         # Stage modules
         "accepted_graph",
@@ -523,8 +523,6 @@ SNAPSHOT: dict[str, set[str]] = {
         "diagnostics",
         "estimate",
         "evidence_status",
-        "allowlist_parent",
-        "allowlist_reason",
         "identification",
         "mediation",
         "mediation_grid",
@@ -574,15 +572,13 @@ SNAPSHOT: dict[str, set[str]] = {
         "randomized_effect",
         "transport",
         "transport_overlap",
-        # Licensed GCM attribution cells
+        # Supported GCM attribution cells
         "anomaly",
         "change_attribution",
         "missing_data",
     },
     "PreparedAnalysis": {
         # The immutable prepared branch: compile once, then estimate, branch and inspect
-        "allowlist_parent",
-        "allowlist_reason",
         "assumption_obligations",
         "data_diagnostics",
         "diagnose",

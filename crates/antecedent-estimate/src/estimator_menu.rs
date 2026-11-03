@@ -14,7 +14,7 @@
 //! `v<coordinate>` because names live with the caller.
 //!
 //! Selection stays manual. The menu never ranks or labels an entry "recommended":
-//! no licensed comparison criterion exists between these estimators.
+//! no supported comparison criterion exists between these estimators.
 use crate::learned_continuous::{LearnedContinuousOptions, LearnedContinuousUncertainty};
 use crate::learned_trial::TrialSampling;
 use antecedent_core::TransportQuery;
@@ -50,7 +50,7 @@ pub struct EstimatorMenuEntry {
     pub nuisance_tasks: Vec<String>,
     /// Support (overlap) the estimator requires.
     pub support_requirements: Vec<String>,
-    /// Sampling designs it is licensed for.
+    /// Sampling designs it is supported for.
     pub sampling_design: Vec<String>,
     /// Uncertainty status of its interval.
     pub uncertainty_status: String,
@@ -69,7 +69,7 @@ pub struct MenuContext {
     pub options: Option<LearnedContinuousOptions>,
     /// `(outcome, membership)` learners when no full options are supplied.
     pub learners: Option<(LearnerSpec, LearnerSpec)>,
-    /// The declared sampling design; `None` lists both licensed designs.
+    /// The declared sampling design; `None` lists both supported designs.
     pub sampling: Option<TrialSampling>,
 }
 
@@ -294,7 +294,7 @@ pub fn transport_estimator_menu_with(
     let detail = uncertainty.detail.as_deref().map_or_else(String::new, |d| format!(" ({d})"));
     let learned_uncertainty = format!(
         "{}: {}{detail}; {} bootstrap replicates requested; the joint outer bootstrap interval \
-         is uncalibrated and its route is closed (cell_not_licensed)",
+         is uncalibrated and its route is closed (not_supported)",
         uncertainty.status, uncertainty.reason, options.bootstrap
     );
     let floor = options.min_treatment_probability;
@@ -375,7 +375,7 @@ pub fn transport_estimator_menu_with(
             refusal: Some(refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 Some("learned_transport.cate_requested"),
-                "heterogeneous and simultaneous targets are not licensed in this cell",
+                "heterogeneous and simultaneous targets are not supported in this cell",
             )),
         },
         EstimatorMenuEntry {
@@ -413,7 +413,7 @@ pub fn transport_estimator_menu_with(
                 "every kernel window inside the declared dose support",
             ]),
             sampling_design: strings(&["nested_cohort", "independent_samples"]),
-            uncertainty_status: "withheld: cell_not_licensed (joint outer bootstrap route closed)"
+            uncertainty_status: "withheld: not_supported (joint outer bootstrap route closed)"
                 .into(),
             static_fields: all_requirements.map(String::from).to_vec(),
             refusal: Some(refusal(

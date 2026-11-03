@@ -10,7 +10,7 @@ Truth is computed here in pure Python, never by native code:
 * the martingale property of the adaptively weighted score (unbiased under epsilon-greedy
   assignment), with its Monte Carlo standard error.
 
-Every result is ``derived_unmeasured``; every refusal is ``cell_not_licensed`` (premise) or
+Every result is ``derived_unmeasured``; every refusal is ``not_supported`` (premise) or
 ``adaptive_contract_incomplete`` / ``invalid_argument`` (declaration) with its own detail.
 """
 
@@ -58,7 +58,7 @@ EVEN = ai.UnitAssignment.fixed((0.5, 0.5))
 GREEDY = ai.UnitAssignment.epsilon_greedy(0.4)
 
 
-def refused(call, detail: str, code: str = "cell_not_licensed") -> AdaptiveInferenceRefusal:
+def refused(call, detail: str, code: str = "not_supported") -> AdaptiveInferenceRefusal:
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)
@@ -348,7 +348,7 @@ def _hand_posterior():
     return out
 
 
-def test_the_posterior_matches_the_hand_calculation_and_is_unlicensed():
+def test_the_posterior_matches_the_hand_calculation_and_is_unsupported():
     from statistics import NormalDist
 
     procedure = declare(
@@ -377,7 +377,7 @@ def test_the_posterior_matches_the_hand_calculation_and_is_unlicensed():
         NormalDist().cdf((m1 - m0) / sd), abs=1e-9
     )
     assert posterior.estimator_id == "bayesian.repeated_measures_arm_contrast"
-    assert posterior.licensed is False
+    assert posterior.supported is False
     assert posterior.calibration == "unmeasured"
 
 
@@ -462,7 +462,7 @@ def test_the_posterior_artifact_round_trips_and_refuses_a_forgery():
         analysis=ai.FinalAnalysis.cluster_robust(),
     ).load_posterior(text)
     assert again.contrast == posterior.contrast
-    edited = text.replace('"licensed":false', '"licensed":true')
+    edited = text.replace('"supported":false', '"supported":true')
     assert edited != text
     with pytest.raises(AdaptiveInferenceRefusal):
         procedure.load_posterior(edited)
@@ -515,7 +515,7 @@ def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact
     assert restored.arms == posterior.arms
     assert restored.acceptance.status == "verified"
     assert restored.acceptance.replayable
-    assert not restored.licensed
+    assert not restored.supported
     assert restored.calibration == "unmeasured"
     assert bytes(restored.export()) == bytes(artifact)
     generic = load_scientific(artifact, expected=artifact.expectation)

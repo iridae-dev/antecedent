@@ -306,7 +306,7 @@ class _TemporalObservationKwargs(TypedDict, total=False):
 
 
 def _temporal_observation_kwargs(query: Any) -> _TemporalObservationKwargs:
-    """Native kwargs for a licensed temporal observation pair, or empty."""
+    """Native kwargs for a supported temporal observation pair, or empty."""
 
     mechanism = getattr(query, "observation", None)
     if mechanism is None or isinstance(mechanism, Complete):

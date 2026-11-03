@@ -121,7 +121,7 @@ sha256 = "d0973a6f3bdd0764b55ed87616434c72fb7ba498efe545f5e7cc6906dc08c4f8"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/mod.rs"
-sha256 = "7ba3d56ecf6323bca2506c9da170774ae03dca41db6a89e36b7d87e1d38db73f"
+sha256 = "2df4b2779d9b452e8a8ee3a0ee23bc7d57f772658ada6f3d6b5c3cd8e97047aa"
 
 [[method_review.artifacts]]
 role = "implementation"

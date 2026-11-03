@@ -1,4 +1,4 @@
-"""Numeric evidence for licensed CPDAG ATE cells."""
+"""Numeric evidence for supported CPDAG ATE cells."""
 
 from __future__ import annotations
 
@@ -72,8 +72,8 @@ def _assert_common_cell_contract(
 ) -> None:
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     assert fresh.plan.identifier == click.plan.identifier == identifier
     assert fresh.plan.estimator == click.plan.estimator == estimator

@@ -31,4 +31,4 @@ sha256 = "433b2d018cae338390c36eb32fe99efcf8f97badd5c0045fafdf5576b4eb6318"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/predictive_assessment.rs"
-sha256 = "334da56666efc33b708d5f3b2744823e03c62e2e72298076eba407d7f5c0292c"
+sha256 = "5bb61f86af47153337d7cbcf6057c59b55e7369c5e3ac34a71d6e42d52fda8f7"

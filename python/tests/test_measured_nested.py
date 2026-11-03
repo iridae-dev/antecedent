@@ -1,4 +1,4 @@
-"""Normal nested scalar licensing retains original unmeasured model artifacts."""
+"""Normal nested scalar support retains original unmeasured model artifacts."""
 
 import json
 import subprocess
@@ -102,19 +102,19 @@ def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(
     for kwargs in ({"max_iterations": 49999}, {"tolerance": 2e-11}):
         with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
             produce(bayesian, **kwargs)
-        assert caught.value.reason_code == "cell_not_licensed"
+        assert caught.value.reason_code == "not_supported"
         assert "only the measured default constrained-likelihood fitting protocol" in str(
             caught.value
         )
     if bayesian:
         with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
             produce(True, shape=3)
-        assert caught.value.reason_code == "cell_not_licensed"
+        assert caught.value.reason_code == "not_supported"
         assert "only uniform eleven-coordinate Beta(1,1) or Beta(2,2) priors" in str(caught.value)
     else:
         with pytest.raises(CausalUnsupportedError, match="only nominal level 0.95") as caught:
             produce(False, nominal_level=0.90)
-        assert caught.value.reason_code == "cell_not_licensed"
+        assert caught.value.reason_code == "not_supported"
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):

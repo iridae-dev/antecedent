@@ -12,7 +12,7 @@ named world is evaluated under that same posterior state. The pipeline keeps its
 * independently drawn world noise is never paired as a counterfactual joint law: a cross-world
   event with ``coupling="independent_world_noise"`` or an undeclared coupling raises
   ``joint_law_required``; another population or an incompatible history are scientific refusals
-  naming what would license them (:func:`capability_matrix`, :func:`decide`);
+  naming what would support them (:func:`capability_matrix`, :func:`decide`);
 * an exogenous term may feed several mechanisms (latent confounding in a model whose every
   mechanism and exogenous law is declared): it takes one value that every mechanism reading it
   sees in every world, so the counterfactual is enumerated with no identification question.
@@ -23,7 +23,7 @@ named world is evaluated under that same posterior state. The pipeline keeps its
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
 adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:
 :meth:`CrossWorldExecution.interval` and :meth:`CrossWorldExecution.posterior` always raise
-``cell_not_licensed``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
+``not_supported``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
 :func:`consume_cross_world_execution_artifact` replays everything with a fresh executor and
 refuses any edit. Every number, identity and refusal is computed in Rust.
 
@@ -103,9 +103,9 @@ class CrossWorldExecutionRefusal(StructuredRefusal):
     """A typed scientific refusal of a cross-world request.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``cross_world_not_identified``, ``joint_law_required``, ``cell_not_licensed``,
+    (``cross_world_not_identified``, ``joint_law_required``, ``not_supported``,
     ``route_not_supported``, ``invalid_argument``) and a ``cross_world_execution.*`` or
-    ``joint_law_propagation.*`` ``detail``; ``remedy`` names the declaration that would license
+    ``joint_law_propagation.*`` ``detail``; ``remedy`` names the declaration that would support
     the request and ``missing`` the unmet prerequisites.
     """
 
@@ -372,7 +372,7 @@ def decide(
 ) -> dict[str, str]:
     """Decide a matrix cell.
 
-    Returns ``{"id", "status", "route", "coupling"}`` of the licensed row.
+    Returns ``{"id", "status", "route", "coupling"}`` of the supported row.
 
     Raises:
         CrossWorldExecutionRefusal: the request is outside every executed row; the refusal names
@@ -473,7 +473,7 @@ class CrossWorldExecutor:
         expected_identity: Mapping[str, str] | None = None,
         execution: Execution | None = None,
     ) -> CrossWorldExecutor:
-        """An executor warmed by an artifact's verified abductions (a licensed resume)."""
+        """An executor warmed by an artifact's verified abductions (a supported resume)."""
         data = container_bytes(data)
         if not isinstance(data, (bytes, bytearray, memoryview)):
             raise CausalTypeError("data must be bytes")
@@ -557,11 +557,11 @@ class CrossWorldExecution(ScientificResult):
         return self._data
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no whole-path coverage record exists."""
+        """Always raises ``not_supported``: no whole-path coverage record exists."""
         _refuse(_native.cross_world_closed_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``cell_not_licensed``: no whole-path calibration record exists."""
+        """Always raises ``not_supported``: no whole-path calibration record exists."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
     @outcome_operation
@@ -583,7 +583,7 @@ class CrossWorldExecution(ScientificResult):
         Raises:
             CrossWorldExecutionRefusal: undeclared unit sampling
                 (``sampling_dependence_unknown``), a sampled or transported request
-                (``cell_not_licensed``), a coupling the joint-law rule does not license, units
+                (``not_supported``), a coupling the joint-law rule does not support, units
                 with shared evidence declared independent, an exceeded bound, or cancellation.
         """
         return _whole_path(self, unit_sampling, execution)
@@ -597,7 +597,7 @@ class CrossWorldExecution(ScientificResult):
     ) -> MeasuredCrossWorldInterval:
         """The interval of the executed quantity under a declared unit sampling.
 
-        Licensed only by a currently attesting whole-path coverage record for this model class,
+        Supported only by a currently attesting whole-path coverage record for this model class,
         quantity, unit sampling and unit count. The interval is a statement conditional on the
         declared mechanisms being the truth: ``independent_sample`` covers the population mean of
         the unit counterfactual probabilities; ``fixed_units`` covers the mean of the realized
@@ -605,7 +605,7 @@ class CrossWorldExecution(ScientificResult):
         closed: with declared mechanisms the exogenous posterior is exact.
 
         Raises:
-            CrossWorldExecutionRefusal: ``cell_not_licensed`` without an attesting record or for
+            CrossWorldExecutionRefusal: ``not_supported`` without an attesting record or for
                 a request outside the measured model class, or any refusal of
                 :meth:`whole_path_uncertainty`.
         """
@@ -659,7 +659,7 @@ def seal(
     """Execute with a fresh executor and seal the answer, declarations and shared states.
 
     Raises:
-        CrossWorldExecutionRefusal: the request is outside the matrix or lacks a licensed
+        CrossWorldExecutionRefusal: the request is outside the matrix or lacks a supported
             coupling (see :func:`decide`).
     """
     if not isinstance(request, CrossWorldRequest):
@@ -692,7 +692,7 @@ def consume_cross_world_execution_artifact(
     Raises:
         CrossWorldExecutionRefusal: an edited, truncated or foreign artifact, a retained
             identity that differs, or a declaration the matrix or the joint-law rule no longer
-            licenses.
+            supports.
     """
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
@@ -786,11 +786,11 @@ class WholePathAccount(ScientificResult):
         )
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: a spread is not an interval."""
+        """Always raises ``not_supported``: a spread is not an interval."""
         _refuse(_native.cross_world_closed_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``cell_not_licensed``: a spread is not a posterior."""
+        """Always raises ``not_supported``: a spread is not a posterior."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
 

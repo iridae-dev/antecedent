@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the licensed transport and interference cells that read a Dag, an accepted
+"""Generate the supported transport and interference cells that read a Dag, an accepted
 structure, a Cpdag, a Pag or a graph posterior, and their cheap and full validation states.
 
 The rows are a table, not hand-written text: every row shares one shape (query, graph class,
 structure, inference, validation) and is evidenced by the executing known-truth tests in
 `crates/antecedent/tests/transport_interference_cell_evidence.rs`, against the fixtures named
 below. The generated block sits between two marker comments at the end of
-`parity/support_licensed.toml` and nothing else in the file is touched.
+`parity/support_cells.toml` and nothing else in the file is touched.
 
     python3 scripts/generate_transport_interference_cells.py            # rewrite the block
     python3 scripts/generate_transport_interference_cells.py --check    # fail when it drifts
@@ -23,7 +23,7 @@ from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# generated:transport-interference-cells:begin (scripts/generate_transport_interference_cells.py)"
 END = "# generated:transport-interference-cells:end"
 
@@ -284,7 +284,7 @@ def interference_limitations(graph: str, structure: str, inference: str, validat
         )
     if inference == "Frequentist":
         parts.append(
-            "Evidence: the licensed estimator is the Young-bound Horvitz-Thompson / Hajek "
+            "Evidence: the supported estimator is the Young-bound Horvitz-Thompson / Hajek "
             "contrast under Bernoulli assignment with the NeighborCount exposure mapping on a "
             "caller-supplied fixed network, checked against the full enumeration of the pinned "
             "two-unit design (Horvitz-Thompson -6, Hajek -3, conservative variance 204). Other "
@@ -293,7 +293,7 @@ def interference_limitations(graph: str, structure: str, inference: str, validat
         )
     else:
         parts.append(
-            "Evidence: the licensed estimator is the conjugate Gaussian exposure posterior with "
+            "Evidence: the supported estimator is the conjugate Gaussian exposure posterior with "
             "variance fixed to one and independent Normal priors, checked against the stated "
             "model y = 2 + 3 own + 4 treated neighbors (contrast -1 within 0.08) on the pinned "
             "four-unit network."
@@ -357,7 +357,7 @@ def render_block() -> str:
 
 
 def current_text() -> str:
-    return LICENSED.read_text(encoding="utf-8")
+    return SUPPORTED.read_text(encoding="utf-8")
 
 
 def splice(text: str, block: str) -> str:
@@ -382,12 +382,12 @@ def main() -> int:
     expected = splice(text, block)
     if args.check:
         if expected != text:
-            print("parity/support_licensed.toml: the generated transport/interference block drifted")
+            print("parity/support_cells.toml: the generated transport/interference block drifted")
             return 1
         print(f"transport/interference cells OK ({len(coordinates())} generated)")
         return 0
     if expected != text:
-        LICENSED.write_text(expected, encoding="utf-8", newline="\n")
+        SUPPORTED.write_text(expected, encoding="utf-8", newline="\n")
     print(f"wrote {len(coordinates())} cells")
     return 0
 

@@ -836,7 +836,7 @@ fn native_local_iv_preserves_complier_target_and_refuses_missing_monotonicity() 
     );
 }
 
-/// Registered Q08/E14 procedure. This reports measurements; execution grants no release license.
+/// Registered Q08/E14 procedure. This reports measurements; execution grants no release support.
 #[test]
 #[ignore = "400 independent original-data repetitions per design; run only on the stable candidate"]
 #[allow(
@@ -1138,7 +1138,7 @@ fn compiled_native_design_full_procedure_calibration() {
             }
         }
         println!(
-            "{{\"cell\":\"{}\",\"repetitions\":400,\"frequentist_success\":{},\"frequentist_covered\":{},\"frequentist_failed\":{},\"bayesian_success\":{},\"bayesian_covered\":{},\"bayesian_failed\":{},\"release_license\":false}}",
+            "{{\"cell\":\"{}\",\"repetitions\":400,\"frequentist_success\":{},\"frequentist_covered\":{},\"frequentist_failed\":{},\"bayesian_success\":{},\"bayesian_covered\":{},\"bayesian_failed\":{},\"release_support\":false}}",
             labels[cell], counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]
         );
         assert_eq!(counts[0] + counts[2], 400);

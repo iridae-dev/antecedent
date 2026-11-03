@@ -4,7 +4,7 @@
 //! nuisance regressions, the Kennedy-style doubly robust pseudo-outcome, and a
 //! Gaussian local-polynomial smoother. Least-squares nuisances require finite
 //! outcome moments; a heavy-tailed outcome is reported on the support diagnostic
-//! axis rather than by demoting overlap or matrix-cell licensing. Average
+//! axis rather than by demoting overlap or matrix-cell support. Average
 //! derivatives use the corresponding Gaussian treatment-score Riesz representer.
 //! Multivariate derivatives are deliberately low-dimensional, model-dependent
 //! plug-in functionals.
@@ -254,7 +254,7 @@ pub struct ResponseInfluence {
 /// Continuous-response estimator with a caller-supplied valid adjustment set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseEstimator {
-    /// Adjustment variables licensed by identification.
+    /// Adjustment variables supported by identification.
     pub adjustment_set: Arc<[VariableId]>,
     /// Numerical and diagnostic options.
     pub options: ContinuousResponseOptions,
@@ -270,7 +270,7 @@ impl ContinuousResponseEstimator {
         }
     }
 
-    /// Estimate a response already licensed by the identification layer.
+    /// Estimate a response already supported by the identification layer.
     ///
     /// Only complete observations and the all-observed target are supported here.
     /// Missing rows in any used column are dropped jointly. The estimator never

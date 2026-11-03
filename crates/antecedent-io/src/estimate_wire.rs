@@ -183,7 +183,7 @@ pub struct EffectEstimateWire {
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
-    /// Licensed pointwise CATE standard errors, when computed.
+    /// Supported pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.
@@ -455,7 +455,7 @@ pub struct FirstStageDiagnosticsWire {
     /// Homoskedastic Anderson–Rubin set `(lower, upper, level)`; endpoints may be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anderson_rubin: Option<(f64, f64, f64)>,
-    /// Why AR / licensed IV uncertainty was withheld.
+    /// Why AR / supported IV uncertainty was withheld.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uncertainty_withheld: Option<UncertaintyWithheldWire>,
 }

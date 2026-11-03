@@ -142,7 +142,7 @@ def _invalid(message: str, offending: str | None = None) -> DoseGridRefusal:
 class DoseClaims:
     """Which inference claims the caller declares. Each is separate; none implies another.
 
-    ``pointwise_level`` licenses a level or contrast, ``derivative`` licenses a derivative, and
+    ``pointwise_level`` supports a level or contrast, ``derivative`` supports a derivative, and
     ``simultaneous_band`` asks for a band over the grid; it refuses unless a curvature bound is
     declared.
     """
@@ -865,7 +865,7 @@ def consume_dose_grid_artifact(
     return _result(report, data)
 
 
-# --- the unlicensed Bayesian counterpart of the same randomized-dose row -------------------------
+# --- the unsupported Bayesian counterpart of the same randomized-dose row -------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -877,7 +877,7 @@ class DoseGridPosteriorResult:
     :func:`dose_functional`. ``posterior`` carries the posterior mean and equal-tailed 95%
     credible interval of every evaluation dose and the covariance across them, from the joint
     draws; the exact Gaussian moments are added when the residual variance is known. The row is
-    unlicensed and its calibration is ``"unmeasured"``.
+    unsupported and its calibration is ``"unmeasured"``.
     """
 
     functional: str

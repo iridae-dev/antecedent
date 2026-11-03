@@ -268,7 +268,7 @@ class MeasuredInference:
         if consume is None:
             raise CausalUnsupportedError(
                 "measured inference native authority unavailable",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
         native = execution._call(
             consume,

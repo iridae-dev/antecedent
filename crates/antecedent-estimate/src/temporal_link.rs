@@ -11,7 +11,7 @@
 //! object is a Laplace posterior under an explicit Gaussian prior on the coefficients; the
 //! published summary is the mean of the contrast over those draws.
 //!
-//! A single dependent series is refused. Nothing here registers a licensed route.
+//! A single dependent series is refused. Nothing here registers a supported route.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

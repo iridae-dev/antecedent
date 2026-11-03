@@ -19,7 +19,7 @@ def publication_exclusions():
 
 @lru_cache(maxsize=1)
 def bound_values():
-    records = tomllib.loads((ROOT / "parity/promotion.toml").read_text(encoding="utf-8"))["record"]
+    records = tomllib.loads((ROOT / "parity/capability_records.toml").read_text(encoding="utf-8"))["record"]
     return {
         f"{record['id']}.{key}": value
         for record in records

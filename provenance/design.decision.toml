@@ -59,7 +59,7 @@ sha256 = "e9b1a0bd25db9861a3486bd1e76cf6fcc658b888fab43c4557fd613d9d2e84a5"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/preposterior.rs"
-sha256 = "1e2d78331322c847ec419b4a69e487ca518657b232f4b6956f7804e993d3be1a"
+sha256 = "f7af3a81df1ff33379d6b0bb4e00e84aefdc44c7e55b1bf50737086a5bd371c9"
 
 [[method_review.artifacts]]
 role = "assertion"

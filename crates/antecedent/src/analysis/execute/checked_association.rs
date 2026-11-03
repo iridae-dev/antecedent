@@ -67,7 +67,7 @@ impl Study {
             DataInput::Temporal(_) | DataInput::Event(_) => Modality::Series,
             DataInput::Panel(_) | DataInput::MultiEnv(_) => {
                 return Err(crate::compile_reason!(
-                    "data_modality_not_licensed",
+                    "data_modality_not_supported",
                     "an association reads the rows of one table or the points of one series. Next \
                      attempt: pass a table, or one unit's series"
                 ));
@@ -287,7 +287,7 @@ fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Di
         format!(
             "a noncausal description of the observed law: the {} picked by the {} for a {} \
              outcome on {} ({}) is not the effect of changing any variable and ranks no action{follows}; \
-             its standard errors, spreads and posteriors are unlicensed and uncalibrated, and no \
+             its standard errors, spreads and posteriors are unsupported and uncalibrated, and no \
              coverage record names them",
             estimate.selection.analysis.as_str(),
             estimate.selection.rule,

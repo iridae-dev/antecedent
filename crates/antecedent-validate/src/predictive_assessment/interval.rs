@@ -99,9 +99,9 @@ pub struct ScoreInterval {
     pub dependence: &'static str,
     /// Interval construction label.
     pub construction: &'static str,
-    /// Governing coverage record (empty on an unlicensed construction).
+    /// Governing coverage record (empty on an unsupported construction).
     pub coverage_record: String,
-    /// Commit the governing record was measured at (empty on an unlicensed construction).
+    /// Commit the governing record was measured at (empty on an unsupported construction).
     pub calibration_sha: String,
     /// Stated assumptions, [`SCORE_INTERVAL_ASSUMPTIONS`].
     pub assumptions: &'static str,
@@ -129,7 +129,7 @@ pub struct IntervalFacts<'a> {
 }
 
 /// An interval built from the declared design, with the calibration basis a coverage
-/// record would have to match. Unlicensed: `coverage_record` is empty, and the value is
+/// record would have to match. Unsupported: `coverage_record` is empty, and the value is
 /// not a published claim. It exists so that a measurement can score the construction
 /// itself; [`expected_score_interval`] is the only route that publishes.
 #[derive(Clone, Debug, PartialEq)]
@@ -141,7 +141,7 @@ pub struct ConstructedInterval {
 }
 
 fn interval_scope_refusal(message: String) -> PredictiveAssessmentError {
-    refuse(reason_code!("cell_not_licensed"), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED, message)
+    refuse(reason_code!("not_supported"), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED, message)
 }
 
 fn interval_overlap_label(
@@ -398,7 +398,7 @@ pub fn construct_expected_score_interval(
 /// when a current attesting non-boundary record measured exactly this construction.
 ///
 /// # Errors
-/// As [`construct_expected_score_interval`], and `cell_not_licensed` with
+/// As [`construct_expected_score_interval`], and `not_supported` with
 /// `predictive_assessment.interval_scope_outside_measured` when no current attesting
 /// coverage record measured this construction at this design, score, law family, level
 /// and number of cases.

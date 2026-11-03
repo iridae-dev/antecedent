@@ -39,7 +39,7 @@
       "status": "refused",
       "identified_weight": 0,
       "unidentified_weight": 1,
-      "reason": "the inducing path T <- L -> Y appears in the MAG as an invisible T -> Y; the MAG also represents DAGs with a confounded direct effect, so the front-door functional is not licensed from the MAG"
+      "reason": "the inducing path T <- L -> Y appears in the MAG as an invisible T -> Y; the MAG also represents DAGs with a confounded direct effect, so the front-door functional is not supported from the MAG"
     },
     {
       "id": "front_door_admg_is_not_ancestral",

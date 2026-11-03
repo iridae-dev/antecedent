@@ -1,4 +1,4 @@
-//! Numeric pins for licensed `TemporalCpdag` / `TemporalPag` Pulse cells.
+//! Numeric pins for supported `TemporalCpdag` / `TemporalPag` Pulse cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -270,7 +270,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-        assert!(!cheap.refutations.is_empty(), "{class} licensed cheap must execute a refuter");
+        assert!(!cheap.refutations.is_empty(), "{class} supported cheap must execute a refuter");
         assert!(
             cheap.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
             "{class} cheap must mix refuters across temporal completions"
@@ -734,7 +734,7 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                 );
                 for result in [&fresh, &click] {
                     let tag = format!("{label} accepted={accepted} {suite:?} boot={boot}");
-                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{tag}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{tag}");
                     assert_eq!(
                         format!("{:?}", result.identification.status),
                         id["status"].as_str().unwrap(),
@@ -889,7 +889,7 @@ fn temporal_class_pag_completion_weighting_and_identified_set_bounds_are_exact()
     assert!(set.lower < lo && set.upper > hi, "the interval must cover the exact bounds");
 }
 
-/// Every licensed Frequentist `TemporalCpdag` Pulse and single-step Sustained
+/// Every supported Frequentist `TemporalCpdag` Pulse and single-step Sustained
 /// coordinate (explicit and accepted structure × none / cheap / full) runs on the
 /// pinned two-completion law and returns the pinned mixture. Cheap and full run
 /// the refuters on each completion and mix them (`refute.envelope.effect_mixture`);
@@ -919,7 +919,7 @@ fn temporal_cpdag_frequentist_pulse_and_sustained_all_structures_and_suites() {
                     .run(&ExecutionContext::for_tests(1))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{case}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{case}");
                 assert!(
                     (result.estimate().as_effect().unwrap().ate - expected).abs() < tol,
                     "{case}: ate {} vs {expected}",

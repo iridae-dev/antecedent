@@ -1,8 +1,8 @@
-//! Retained posterior of an unlicensed Bayesian randomized-design row.
+//! Retained posterior of an unsupported Bayesian randomized-design row.
 //!
 //! Python sees the Rust result as is: coordinates, means, equal-tailed 95% credible intervals,
 //! the covariance of the joint draws (row-major), the exact Gaussian moments when the residual
-//! variance is known, and the named scalar and vector summaries. The row is never licensed and
+//! variance is known, and the named scalar and vector summaries. The row is never supported and
 //! its calibration is `unmeasured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use pyo3::prelude::*;
 
-/// Posterior of an unlicensed Bayesian randomized-design row from Study execution.
+/// Posterior of an unsupported Bayesian randomized-design row from Study execution.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct PosteriorRowSection {
@@ -18,7 +18,7 @@ pub struct PosteriorRowSection {
     pub target: String,
     pub uncertainty: String,
     pub calibration: String,
-    pub licensed: bool,
+    pub supported: bool,
     pub coordinates: Vec<String>,
     pub mean: Vec<f64>,
     pub lower: Vec<f64>,
@@ -38,7 +38,7 @@ impl From<&antecedent::PosteriorRowEstimate> for PosteriorRowSection {
             target: value.target.clone(),
             uncertainty: value.uncertainty.clone(),
             calibration: value.calibration.clone(),
-            licensed: value.licensed,
+            supported: value.supported,
             coordinates: value.coordinates.clone(),
             mean: value.mean.clone(),
             lower: value.lower.clone(),

@@ -17,7 +17,7 @@ NSW also assigned people at random, so a randomised estimate of the same effect 
 
 ## Where the data come from
 
-The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/main/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no licence, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/main/examples/data/README.md) describes the cache and the offline path.
+The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/main/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/main/examples/data/README.md) describes the cache and the offline path.
 
 Without verified files the example runs on a synthetic stand-in with the same columns, sizes and overlap problem. Its effect on the treated is a fixture truth of the generator and says nothing about the real programme. The numbers quoted below are from the verified real files.
 
@@ -29,7 +29,7 @@ Ask for the effect on the treated with propensity weighting and no overlap polic
 
 This is a statement about the data, not a numerical failure. The effect on the treated compares each participant with comparison rows like them. For 139 PSID rows the model finds no participant like them, so the data say nothing about what treatment would have done there, and weighting would divide by numbers indistinguishable from zero. Weighting clips ordinary scores to [0.01, 0.99] by default, but a default does not decide a positivity question: that choice is yours to declare.
 
-The refusal's remedy lists what would license an answer:
+The refusal's remedy lists what would support an answer:
 
 - declare an overlap trim, which estimates on the population with common support (the target changes, and the excluded fraction is reported);
 - declare a clip that bounds the weights;
@@ -62,6 +62,6 @@ Read that comparison carefully. That the trimmed weighting estimate lands near i
 
 ## What this established
 
-Antecedent refused a request whose answer would have rested on rows with no comparable counterpart. It named how many rows and why, and listed what would license an answer. A declared clip produced a number whose claim says it rests on the clip. Following the trim remedy produced an estimate for a stated, smaller population, with the exclusion reported and the claim marked partial. Comparing overlap choices showed how much the answer depends on them. The randomised benchmark showed what a design with real overlap provides.
+Antecedent refused a request whose answer would have rested on rows with no comparable counterpart. It named how many rows and why, and listed what would support an answer. A declared clip produced a number whose claim says it rests on the clip. Following the trim remedy produced an estimate for a stated, smaller population, with the exclusion reported and the claim marked partial. Comparing overlap choices showed how much the answer depends on them. The randomised benchmark showed what a design with real overlap provides.
 
 For an observational analysis where overlap holds and the workflow runs end to end, see [estimate an effect from observational data](observational-study.md). For the overlap options themselves, see [overlap and E-value diagnostics](../guides/tier-diagnostics.md) and [refusals](../concepts/refusals.md).

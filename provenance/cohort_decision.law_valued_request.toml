@@ -26,9 +26,9 @@ record_sha256 = "38ae4a5063f27d52614459631529bb3088cd0125d70ecaae23fe743a27a5b59
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/cohort_decision_input.rs"
-sha256 = "fc0bfd0e8f4dd46d2972b0290b1e8d388bbe80ddf0fcb89f9eb713e55f616331"
+sha256 = "46eceee15af4f533a70e84af4cf42a361d3929e4e9ac61db4a90c0afb08a9cc5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/cohort_decision_input.rs"
-sha256 = "d7e1efa7affcd4c3713f37c95d18b46c52eae768e8660f6c4c5cc6c445cb6a60"
+sha256 = "1cf529af845eb7ee114523b729c753e9a7684acc1535673ba74adfb1108cf390"

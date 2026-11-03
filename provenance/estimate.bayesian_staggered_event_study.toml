@@ -39,12 +39,12 @@ record_sha256 = "ad2fac59ba73f0fd1850330aedbf2f997328bd20069f7bd510670626f4f2889
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"
-sha256 = "588cbf574b63339c0decf45c6870d797319b681a9ec9aaa2aaec0304eeef660f"
+sha256 = "b618e24b62b38f8fdf42fc86519f99fe244db2e6ae6c228941b52749c1098c9a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
-sha256 = "7aa16ef1efbce3cf222813b0f4909b99457bb96a775a73c15aeaa87f06318d41"
+sha256 = "f408cf86927cbf5a8a151a44e9b91d97ac8a851fd48fd4c1ef35e2c58f1daec8"
 
 [[method_review.artifacts]]
 role = "assertion"

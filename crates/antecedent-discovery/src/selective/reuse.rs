@@ -16,16 +16,16 @@
 //!
 //! ```text
 //! P(θ ∉ [L, U] | Ĝ = g) = α_n(g)                    if g ∈ 𝒢*(θ)
-//!                        = m(g)                      otherwise (bias of an unlicensed g)
+//!                        = m(g)                      otherwise (bias of an unsupported g)
 //! P(θ ∉ [L, U])        ≤ α_n + P(Ĝ ∉ 𝒢*(θ))         (union bound over the selection event)
 //! ```
 //!
 //! where `α_n` is the analysis procedure's own finite-sample miscoverage at the analysis row
 //! count `n_ana`. The first term is what an interval states. The second is the probability that
-//! discovery did not return a graph that licenses the question: it is not controlled by `α`,
+//! discovery did not return a graph that supports the question: it is not controlled by `α`,
 //! it depends on the sample size, the faithfulness of the data-generating process and the CI
-//! test, and no interval procedure reports it. A split therefore licenses exactly one
-//! statement: an interval for the effect *given the selected graph*. It does not license "the
+//! test, and no interval procedure reports it. A split therefore supports exactly one
+//! statement: an interval for the effect *given the selected graph*. It does not support "the
 //! interval covers the true effect with probability `1 - α`" without a measured bound on
 //! `P(Ĝ ∉ 𝒢*(θ))` for this method at this coordinate.
 //!

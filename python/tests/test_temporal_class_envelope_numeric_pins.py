@@ -1,4 +1,4 @@
-"""Numeric evidence for licensed TemporalCpdag/Pag Pulse cells."""
+"""Numeric evidence for supported TemporalCpdag/Pag Pulse cells."""
 
 from __future__ import annotations
 

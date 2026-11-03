@@ -2,9 +2,9 @@
 """Method-level records of the public route manifest.
 
 `parity/capabilities/route_manifest.toml` keeps one `[[route]]` per query and graph class.
-A licensed route groups many estimators, structures and validations, so it cannot say which
+A supported route groups many estimators, structures and validations, so it cannot say which
 target, inference, uncertainty procedure and artifact consumer belongs to which method. This
-script appends one `[[method]]` per method: a licensed (query, graph class, estimator,
+script appends one `[[method]]` per method: a supported (query, graph class, estimator,
 inference) and each graphless, execution-only or fitting-gap route (already one method). Every
 record is derived from the implementation and its evidence, then re-verified:
 
@@ -49,8 +49,8 @@ from method_evidence import (  # noqa: E402
 )
 
 MANIFEST = "parity/capabilities/route_manifest.toml"
-SUPPORT_LICENSED = "parity/support_licensed.toml"
-LICENSED_ROUTES = "parity/licensed_routes.toml"
+SUPPORT_CELLS = "parity/support_cells.toml"
+SUPPORTED_ROUTES = "parity/supported_routes.toml"
 SUPPORT_GRAPHLESS = "parity/support_graphless.toml"
 SUPPORT_AXES = "parity/support_axes.toml"
 CHILDREN = "parity/method_children/children.toml"
@@ -388,7 +388,7 @@ EVIDENCE_OVERRIDE = {
 for _class in ("TemporalDag", "TemporalCpdag", "TemporalPag"):
     EVIDENCE_OVERRIDE[f"closed.AverageEffect.{_class}"] = [
         T
-        + "lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed",
+        + "lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unsupported",
         T
         + "lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads",
     ]
@@ -502,11 +502,6 @@ CONSUMER_OVERRIDE = {
 }
 
 
-# Executing-unlicensed coordinates that name a method but no support cell: the manifest route
-# records them in its notes and the test below runs them.
-EXECUTING_UNLICENSED: tuple[dict, ...] = ()
-
-
 def quote(value: object) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -567,11 +562,11 @@ class Sources:
         load = lambda rel: tomllib.loads(ev.text(rel))  # noqa: E731
         self.manifest = load(MANIFEST)
         self.routes = {r["id"]: r for r in self.manifest["route"]}
-        self.cells = load(SUPPORT_LICENSED)["cell"]
-        self.lowered = load(LICENSED_ROUTES)["route"]
+        self.cells = load(SUPPORT_CELLS)["cell"]
+        self.lowered = load(SUPPORTED_ROUTES)["route"]
         self.graphless = {
             (lic["family"], lic["design"], lic["method"]): lic
-            for lic in load(SUPPORT_GRAPHLESS)["license"]
+            for lic in load(SUPPORT_GRAPHLESS)["support"]
         }
         self.queries = set(load(SUPPORT_AXES)["queries"])
         self.children = load(CHILDREN)["child"]
@@ -688,7 +683,7 @@ def _consumer(src: Sources, tests: list[str]) -> list[str]:
     return []
 
 
-def licensed_methods(src: Sources) -> list[dict]:
+def supported_methods(src: Sources) -> list[dict]:
     ev = src.ev
     groups: dict[tuple[str, str, str, str], list[dict]] = defaultdict(list)
     for cell in src.cells:
@@ -723,7 +718,7 @@ def licensed_methods(src: Sources) -> list[dict]:
 
     methods = []
     for (query, graph, estimator, inference), cells in sorted(groups.items()):
-        route_id = f"licensed.{query}.{graph}"
+        route_id = f"supported.{query}.{graph}"
         route = src.routes.get(route_id)
         structures = sorted({c["structure"] for c in cells}, key=STRUCTURE_ORDER.index)
         by_structure: dict[str, tuple[str, str]] = {}
@@ -798,7 +793,7 @@ def licensed_methods(src: Sources) -> list[dict]:
         methods.append(
             {
                 "id": f"method.{query}.{graph}.{estimator}.{inference.lower()}",
-                "kind": "licensed_estimator",
+                "kind": "supported_estimator",
                 "route": route_id,
                 "child": "",
                 "target": query,
@@ -809,7 +804,7 @@ def licensed_methods(src: Sources) -> list[dict]:
                 "lowering": sorted(lowerings),
                 "inference": inference.lower(),
                 "design_time_model": route["design_time_model"] if route else "unlisted",
-                "status": "licensed",
+                "status": "supported",
                 "structures": structures,
                 "validations": sorted({c["validation"] for c in cells}),
                 "coordinates": len(cells),
@@ -820,56 +815,6 @@ def licensed_methods(src: Sources) -> list[dict]:
                 "decision_ports": route["decision_ports"] if route else "unlisted",
                 "owning_module": route["owning_module"].split(" ")[0] if route else "unlisted",
                 "implementation": implementation,
-                "provenance": list(info["provenance"]) if info else [],
-                "evidence": evidence,
-                "artifact_consumer": consumer_for(
-                    src,
-                    evidence,
-                    [[wire_literals(estimator, info), [graph]], [wire_literals(estimator, info)]],
-                ),
-            }
-        )
-    for extra in EXECUTING_UNLICENSED:
-        query, graph, estimator, inference = (
-            extra["query"],
-            extra["graph"],
-            extra["estimator"],
-            extra["inference"],
-        )
-        route_id = f"licensed.{query}.{graph}"
-        route = src.routes[route_id]
-        info = src.estimators.get(estimator)
-        inherited = sibling[(estimator, inference, design_of(graph), "explicit")]
-        kinds = ",".join(sorted(inherited, key=KINDS.index))
-        evidence = list(extra["evidence"])
-        methods.append(
-            {
-                "id": f"method.{query}.{graph}.{estimator}.{inference.lower()}",
-                "kind": "licensed_estimator",
-                "route": route_id,
-                "child": "",
-                "target": query,
-                "graph_class": graph,
-                "design": design_of(graph),
-                "estimator": estimator,
-                "identifier": [],
-                "lowering": [],
-                "inference": inference.lower(),
-                "design_time_model": route["design_time_model"],
-                "status": "execution_only",
-                "structures": ["explicit"],
-                "validations": ["none"],
-                "coordinates": 1,
-                "uncertainty": kinds.split(",")[0] if kinds else "unresolved",
-                "uncertainty_structure": "explicit",
-                "uncertainty_basis": "estimator_records|"
-                + f"estimator:{estimator}:{inference}:{design_of(graph)}:explicit",
-                "uncertainty_by_structure": [f"explicit={kinds}|estimator_records"],
-                "decision_ports": route["decision_ports"],
-                "owning_module": route["owning_module"].split(" ")[0],
-                "implementation": implementation_files(
-                    src, estimator, info["variant"] if info else ""
-                ),
                 "provenance": list(info["provenance"]) if info else [],
                 "evidence": evidence,
                 "artifact_consumer": consumer_for(
@@ -1111,7 +1056,7 @@ FIELDS = (
 def render(methods: list[dict]) -> str:
     out = [
         MARK,
-        "# One record per method: a licensed (query, graph class, estimator, inference), or a",
+        "# One record per method: a supported (query, graph class, estimator, inference), or a",
         "# graphless, execution-only or fitting-gap route. Derived from the support records, the",
         "# estimator table, the coverage records and the evidence tests, then verified by",
         "# `python3 scripts/route_methods.py --check`.",
@@ -1131,7 +1076,7 @@ def render(methods: list[dict]) -> str:
 
 
 def build(src: Sources) -> list[dict]:
-    methods = licensed_methods(src) + route_methods(src)
+    methods = supported_methods(src) + route_methods(src)
     return methods + facade_methods(src, methods)
 
 
@@ -1151,7 +1096,7 @@ def verify(src: Sources, methods: list[dict]) -> list[str]:
                 out.append(f"{mid}: child {m['child']} is not a method child")
         elif m["route"] not in src.routes:
             out.append(f"{mid}: route {m['route']} is not in the manifest")
-        if m["kind"] == "licensed_estimator":
+        if m["kind"] == "supported_estimator":
             if m["target"] not in src.queries:
                 out.append(f"{mid}: target {m['target']} is not on the support axes")
             if m["estimator"] not in names:
@@ -1203,7 +1148,7 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
             f"{mid}: uncertainty is not derived ({kind!r}); no coverage record, asserted interval, point-only cell, sibling record or declared procedure supports it"
         ]
     label, _, detail = basis.partition("|")
-    if m["kind"] == "licensed_estimator":
+    if m["kind"] == "supported_estimator":
         if label not in (
             "measured_record",
             "point_only_cell",
@@ -1419,7 +1364,7 @@ CLOSED_EVIDENCE = {
         MV + "a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"
     ],
     ("PulseEffect", "TemporalAdmg"): [
-        TA + "a_pulse_is_the_counted_contrast_and_stays_unlicensed",
+        TA + "a_pulse_is_the_counted_contrast_and_stays_unsupported",
         TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row",
         TA + "the_bayesian_form_shares_one_dirichlet_weight_per_block",
     ],

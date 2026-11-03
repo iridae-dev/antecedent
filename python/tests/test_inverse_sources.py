@@ -95,7 +95,7 @@ def test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action() ->
     assert origin.kind == "composed_mechanism"
     assert origin.representation == "point_only"
     assert not origin.transported
-    assert origin.interval_region == "not_licensed"
+    assert origin.interval_region == "not_supported"
     # Every mechanism of the chain was written down, not estimated.
     assert set(origin.assumed_mechanisms) == {"X", "M", "Y"}
 
@@ -145,8 +145,8 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
             source.evaluate(query(arms, [iq.target_mean(5.0)]), interval_region=True)
         )
     )
-    assert interval.reason_code == "cell_not_licensed"
-    assert interval.detail == "inverse_forward_source.interval_not_licensed"
+    assert interval.reason_code == "not_supported"
+    assert interval.detail == "inverse_forward_source.interval_not_supported"
 
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.
     wrong = [contrast_action("0")]
@@ -367,7 +367,7 @@ def test_a_composition_with_admitted_mechanisms_is_a_transported_claim() -> None
             )
         )
     )
-    assert native.reason_code == "cell_not_licensed"
+    assert native.reason_code == "not_supported"
     assert native.detail == "inverse_forward_source.transported_not_accepted"
 
     source = require_success(
@@ -434,7 +434,7 @@ def test_a_transported_response_is_read_only_when_accepted_and_carries_its_recei
     interval = refusal_of(
         lambda: require_success(source.evaluate(contract_query, interval_region=True))
     )
-    assert interval.detail == "inverse_forward_source.interval_not_licensed"
+    assert interval.detail == "inverse_forward_source.interval_not_supported"
 
     # The sealed artifact binds the whole receipt: another transport at the same values is
     # another artifact.
@@ -623,7 +623,7 @@ def test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal() -> None:
 def test_a_shifted_cohort_is_a_transported_source_only_when_accepted() -> None:
     cohort = cohort_source(shifted=True)
     unaccepted = refusal_of(lambda: src.cohort_forward_source(cohort))
-    assert unaccepted.reason_code == "cell_not_licensed"
+    assert unaccepted.reason_code == "not_supported"
     assert unaccepted.detail == "inverse_forward_source.transported_not_accepted"
     source = src.cohort_forward_source(cohort, accepts_transported=True)
     assert source.origin.transported

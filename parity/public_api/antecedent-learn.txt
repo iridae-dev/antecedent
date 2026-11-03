@@ -48,6 +48,11 @@ impl core::clone::Clone for antecedent_learn::PredictionTask
 impl core::clone::Clone for antecedent_learn::RidgeLogisticLearner
 impl core::clone::Clone for antecedent_learn::RidgeSpec
 impl core::clone::Clone for antecedent_learn::SupportReport
+impl core::clone::Clone for antecedent_learn::aipw_crossfit::AipwLearners
+impl core::clone::Clone for antecedent_learn::crossfit_plan::CrossfitPlan
+impl core::clone::Clone for antecedent_learn::dr_replay::DrOverlap
+impl core::clone::Clone for antecedent_learn::dr_replay::DrReplay
+impl core::clone::Clone for antecedent_learn::dr_replay::DrReplaySpec
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
@@ -132,6 +137,8 @@ impl core::cmp::PartialEq for antecedent_learn::PredictionNode
 impl core::cmp::PartialEq for antecedent_learn::PredictionTask
 impl core::cmp::PartialEq for antecedent_learn::RidgeSpec
 impl core::cmp::PartialEq for antecedent_learn::SupportReport
+impl core::cmp::PartialEq for antecedent_learn::dr_replay::DrOverlap
+impl core::cmp::PartialEq for antecedent_learn::dr_replay::DrReplaySpec
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
@@ -159,6 +166,7 @@ impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportRef
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedCohortEffect
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedInference
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedRequest
+impl core::convert::From<antecedent_learn::LearnError> for antecedent_learn::aipw_crossfit::AipwCrossFitError
 impl core::convert::From<antecedent_learn::recipes::RecipeError> for antecedent_learn::recipes::execution::ExecutionError
 impl core::convert::From<antecedent_learn::recipes::execution::ProviderCallError> for antecedent_learn::recipes::execution::ExecutionError
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_learn::LearnError
@@ -182,6 +190,8 @@ impl core::default::Default for antecedent_learn::recipes::PredictionOnlyBoundar
 impl core::default::Default for antecedent_learn::recipes::execution::SolveOptions
 impl core::error::Error for antecedent_learn::FittedEffectError
 impl core::error::Error for antecedent_learn::LearnError
+impl core::error::Error for antecedent_learn::aipw_crossfit::AipwCrossFitError
+impl core::error::Error for antecedent_learn::dr_replay::DrReplayError
 impl core::error::Error for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::error::Error for antecedent_learn::recipes::RecipeError
 impl core::error::Error for antecedent_learn::recipes::execution::ExecutionError
@@ -225,6 +235,13 @@ impl core::fmt::Debug for antecedent_learn::PredictionTask
 impl core::fmt::Debug for antecedent_learn::RidgeLogisticLearner
 impl core::fmt::Debug for antecedent_learn::RidgeSpec
 impl core::fmt::Debug for antecedent_learn::SupportReport
+impl core::fmt::Debug for antecedent_learn::aipw_crossfit::AipwCrossFitError
+impl core::fmt::Debug for antecedent_learn::aipw_crossfit::AipwLearners
+impl core::fmt::Debug for antecedent_learn::crossfit_plan::CrossfitPlan
+impl core::fmt::Debug for antecedent_learn::dr_replay::DrOverlap
+impl core::fmt::Debug for antecedent_learn::dr_replay::DrReplay
+impl core::fmt::Debug for antecedent_learn::dr_replay::DrReplayError
+impl core::fmt::Debug for antecedent_learn::dr_replay::DrReplaySpec
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
@@ -255,6 +272,8 @@ impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedInfer
 impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedRequest
 impl core::fmt::Display for antecedent_learn::FittedEffectError
 impl core::fmt::Display for antecedent_learn::LearnError
+impl core::fmt::Display for antecedent_learn::aipw_crossfit::AipwCrossFitError
+impl core::fmt::Display for antecedent_learn::dr_replay::DrReplayError
 impl core::fmt::Display for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::fmt::Display for antecedent_learn::recipes::InferenceSite
 impl core::fmt::Display for antecedent_learn::recipes::RecipeError
@@ -293,6 +312,9 @@ impl core::marker::Copy for antecedent_learn::PredictionTask
 impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
 impl core::marker::Copy for antecedent_learn::RidgeSpec
 impl core::marker::Copy for antecedent_learn::SupportReport
+impl core::marker::Copy for antecedent_learn::aipw_crossfit::AipwLearners
+impl core::marker::Copy for antecedent_learn::dr_replay::DrOverlap
+impl core::marker::Copy for antecedent_learn::dr_replay::DrReplaySpec
 impl core::marker::Copy for antecedent_learn::recipes::AcceptedProvider
 impl core::marker::Copy for antecedent_learn::recipes::BoundaryUse
 impl core::marker::Copy for antecedent_learn::recipes::InferenceSite
@@ -344,6 +366,13 @@ impl core::marker::Freeze for antecedent_learn::PredictionTask [auto]
 impl core::marker::Freeze for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Freeze for antecedent_learn::RidgeSpec [auto]
 impl core::marker::Freeze for antecedent_learn::SupportReport [auto]
+impl core::marker::Freeze for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::marker::Freeze for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::marker::Freeze for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::marker::Freeze for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::marker::Freeze for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::marker::Freeze for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::marker::Freeze for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -411,6 +440,13 @@ impl core::marker::Send for antecedent_learn::PredictionTask [auto]
 impl core::marker::Send for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Send for antecedent_learn::RidgeSpec [auto]
 impl core::marker::Send for antecedent_learn::SupportReport [auto]
+impl core::marker::Send for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::marker::Send for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::marker::Send for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::marker::Send for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::marker::Send for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::marker::Send for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::marker::Send for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -470,6 +506,8 @@ impl core::marker::StructuralPartialEq for antecedent_learn::PredictionNode
 impl core::marker::StructuralPartialEq for antecedent_learn::PredictionTask
 impl core::marker::StructuralPartialEq for antecedent_learn::RidgeSpec
 impl core::marker::StructuralPartialEq for antecedent_learn::SupportReport
+impl core::marker::StructuralPartialEq for antecedent_learn::dr_replay::DrOverlap
+impl core::marker::StructuralPartialEq for antecedent_learn::dr_replay::DrReplaySpec
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
@@ -536,6 +574,13 @@ impl core::marker::Sync for antecedent_learn::PredictionTask [auto]
 impl core::marker::Sync for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Sync for antecedent_learn::RidgeSpec [auto]
 impl core::marker::Sync for antecedent_learn::SupportReport [auto]
+impl core::marker::Sync for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::marker::Sync for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::marker::Sync for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::marker::Sync for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::marker::Sync for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::marker::Sync for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::marker::Sync for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -603,6 +648,13 @@ impl core::marker::Unpin for antecedent_learn::PredictionTask [auto]
 impl core::marker::Unpin for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Unpin for antecedent_learn::RidgeSpec [auto]
 impl core::marker::Unpin for antecedent_learn::SupportReport [auto]
+impl core::marker::Unpin for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::marker::Unpin for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::marker::Unpin for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::marker::Unpin for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::marker::Unpin for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::marker::Unpin for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::marker::Unpin for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -669,6 +721,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionTas
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::SupportReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -735,6 +794,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionTask [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::SupportReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::aipw_crossfit::AipwCrossFitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::aipw_crossfit::AipwLearners [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::crossfit_plan::CrossfitPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::dr_replay::DrOverlap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::dr_replay::DrReplay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::dr_replay::DrReplayError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::dr_replay::DrReplaySpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -790,6 +856,9 @@ impl<'a> core::clone::Clone for antecedent_learn::DesignView<'a>
 impl<'a> core::clone::Clone for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::clone::Clone for antecedent_learn::RowSelection<'a>
 impl<'a> core::clone::Clone for antecedent_learn::TargetView<'a>
+impl<'a> core::clone::Clone for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a>
+impl<'a> core::clone::Clone for antecedent_learn::crossfit_plan::FoldRows<'a>
+impl<'a> core::clone::Clone for antecedent_learn::dr_replay::DrReplayInput<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -807,6 +876,9 @@ impl<'a> core::fmt::Debug for antecedent_learn::DesignView<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::RowSelection<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::TargetView<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::crossfit_plan::FoldRows<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::dr_replay::DrReplayInput<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -821,6 +893,9 @@ impl<'a> core::marker::Copy for antecedent_learn::DesignView<'a>
 impl<'a> core::marker::Copy for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::marker::Copy for antecedent_learn::RowSelection<'a>
 impl<'a> core::marker::Copy for antecedent_learn::TargetView<'a>
+impl<'a> core::marker::Copy for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a>
+impl<'a> core::marker::Copy for antecedent_learn::crossfit_plan::FoldRows<'a>
+impl<'a> core::marker::Copy for antecedent_learn::dr_replay::DrReplayInput<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -832,6 +907,9 @@ impl<'a> core::marker::Freeze for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -843,6 +921,9 @@ impl<'a> core::marker::Send for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -857,6 +938,9 @@ impl<'a> core::marker::Sync for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -868,6 +952,9 @@ impl<'a> core::marker::Unpin for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -879,6 +966,9 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DesignVie
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -890,6 +980,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DesignView<'
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::crossfit_plan::FoldRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::dr_replay::DrReplayInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -917,6 +1010,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_b
 pub const <antecedent_learn::EffectSupport>::VERSION: u32
 pub const <antecedent_learn::recipes::RecipeKind>::ALL: [Self; 5]
 pub const antecedent_learn::BASIS_MAX_DEGREE: usize
+pub const antecedent_learn::dr_replay::MAX_REPLAY_COVARIATES: usize
+pub const antecedent_learn::dr_replay::MAX_REPLAY_FOLDS: usize
+pub const antecedent_learn::dr_replay::MAX_REPLAY_ROWS: usize
+pub const antecedent_learn::dr_replay::TRIM_REMOVED_EVERY_ROW: &str
 pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
 pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
@@ -940,6 +1037,8 @@ pub enum antecedent_learn::LearnerSpec
 pub enum antecedent_learn::PredictionMap
 pub enum antecedent_learn::PredictionNode
 pub enum antecedent_learn::PredictionTask
+pub enum antecedent_learn::aipw_crossfit::AipwCrossFitError
+pub enum antecedent_learn::dr_replay::DrReplayError
 pub enum antecedent_learn::nested_markov_bayesian::BayesianRefusal
 pub enum antecedent_learn::recipes::BoundaryUse
 pub enum antecedent_learn::recipes::InferenceSite
@@ -1043,6 +1142,46 @@ pub field antecedent_learn::RidgeSpec::lambda: f64
 pub field antecedent_learn::SupportReport::first_feature: core::option::Option<usize>
 pub field antecedent_learn::SupportReport::first_row: core::option::Option<usize>
 pub field antecedent_learn::SupportReport::rows_outside: usize
+pub field antecedent_learn::aipw_crossfit::AipwLearners::outcome: antecedent_learn::LearnerSpec
+pub field antecedent_learn::aipw_crossfit::AipwLearners::treatment: antecedent_learn::LearnerSpec
+pub field antecedent_learn::aipw_crossfit::ColumnMajorDesign::ncols: usize
+pub field antecedent_learn::aipw_crossfit::ColumnMajorDesign::nrows: usize
+pub field antecedent_learn::aipw_crossfit::ColumnMajorDesign::values: &'a [f64]
+pub field antecedent_learn::crossfit_plan::FoldRows::fold: usize
+pub field antecedent_learn::crossfit_plan::FoldRows::train: &'a [usize]
+pub field antecedent_learn::crossfit_plan::FoldRows::valid: &'a [usize]
+pub field antecedent_learn::dr_replay::DrOverlap::clip: core::option::Option<f64>
+pub field antecedent_learn::dr_replay::DrOverlap::declared: bool
+pub field antecedent_learn::dr_replay::DrOverlap::trim: core::option::Option<f64>
+pub field antecedent_learn::dr_replay::DrReplay::ate: f64
+pub field antecedent_learn::dr_replay::DrReplay::cate: alloc::vec::Vec<f64>
+pub field antecedent_learn::dr_replay::DrReplay::cate_se: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_learn::dr_replay::DrReplay::features: usize
+pub field antecedent_learn::dr_replay::DrReplay::final_provenance: antecedent_learn::LearnerProvenance
+pub field antecedent_learn::dr_replay::DrReplay::fold_ids: alloc::vec::Vec<u16>
+pub field antecedent_learn::dr_replay::DrReplay::intercept: bool
+pub field antecedent_learn::dr_replay::DrReplay::nuisance_provenance: alloc::vec::Vec<antecedent_learn::LearnerProvenance>
+pub field antecedent_learn::dr_replay::DrReplay::outcome_oof_r2: core::option::Option<f64>
+pub field antecedent_learn::dr_replay::DrReplay::phi: alloc::vec::Vec<f64>
+pub field antecedent_learn::dr_replay::DrReplay::predictor: core::option::Option<antecedent_learn::PortablePredictor>
+pub field antecedent_learn::dr_replay::DrReplay::propensity: alloc::vec::Vec<f64>
+pub field antecedent_learn::dr_replay::DrReplay::raw_propensity: alloc::vec::Vec<f64>
+pub field antecedent_learn::dr_replay::DrReplay::retained: core::option::Option<alloc::vec::Vec<usize>>
+pub field antecedent_learn::dr_replay::DrReplay::standard_error: f64
+pub field antecedent_learn::dr_replay::DrReplay::support: core::option::Option<antecedent_learn::EffectSupport>
+pub field antecedent_learn::dr_replay::DrReplay::treatment_oof_logloss: core::option::Option<f64>
+pub field antecedent_learn::dr_replay::DrReplayInput::covariates: &'a [&'a [f64]]
+pub field antecedent_learn::dr_replay::DrReplayInput::intercept: bool
+pub field antecedent_learn::dr_replay::DrReplayInput::outcome: &'a [f64]
+pub field antecedent_learn::dr_replay::DrReplayInput::row_ids: &'a [u64]
+pub field antecedent_learn::dr_replay::DrReplayInput::treatment: &'a [f64]
+pub field antecedent_learn::dr_replay::DrReplaySpec::active_level_above_control: bool
+pub field antecedent_learn::dr_replay::DrReplaySpec::final_learner: antecedent_learn::LearnerSpec
+pub field antecedent_learn::dr_replay::DrReplaySpec::folds: usize
+pub field antecedent_learn::dr_replay::DrReplaySpec::outcome: antecedent_learn::LearnerSpec
+pub field antecedent_learn::dr_replay::DrReplaySpec::overlap: antecedent_learn::dr_replay::DrOverlap
+pub field antecedent_learn::dr_replay::DrReplaySpec::seed: u64
+pub field antecedent_learn::dr_replay::DrReplaySpec::treatment: antecedent_learn::LearnerSpec
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::bulk_ess: f64
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::folded_rhat: f64
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::rank_rhat: f64
@@ -1157,6 +1296,18 @@ pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
 pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self
 pub fn <antecedent_learn::TargetView<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn fold_ids(&self) -> &[u32]
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn folds(&self) -> usize
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn from_fold_ids(folds: usize, fold_ids: alloc::vec::Vec<u32>) -> Self
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn into_fold_ids(self) -> alloc::vec::Vec<u32>
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn pipeline_folds<T: core::marker::Send, E: core::marker::Send>(&self, ctx: &antecedent_core::execution::context::ExecutionContext, window: usize, produce: impl core::ops::function::Fn(antecedent_learn::crossfit_plan::FoldRows<'_>, &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<T, E> + core::marker::Sync, consume: impl core::ops::function::FnMut(usize, T) -> core::result::Result<(), E>) -> core::result::Result<antecedent_core::execution::pipeline::PipelineReceipt, antecedent_core::execution::pipeline::MapExecutionError<E>>
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn rows(&self, fold: usize) -> antecedent_learn::crossfit_plan::FoldRows<'_>
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn run<N, E>(&self, empty: core::option::Option<impl core::ops::function::Fn() -> E>, poll: impl core::ops::function::FnMut(usize) -> core::result::Result<(), E>, fit_nuisance: impl core::ops::function::FnMut(antecedent_learn::crossfit_plan::FoldRows<'_>) -> core::result::Result<N, E>, score: impl core::ops::function::FnMut(antecedent_learn::crossfit_plan::FoldRows<'_>, N) -> core::result::Result<(), E>) -> core::result::Result<(), E>
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn train(&self, fold: usize) -> &[usize]
+pub fn <antecedent_learn::crossfit_plan::CrossfitPlan>::fn valid(&self, fold: usize) -> &[usize]
+pub fn <antecedent_learn::dr_replay::DrOverlap>::const fn admits_boundary_saturation(self) -> bool
+pub fn <antecedent_learn::dr_replay::DrOverlap>::fn validate(self) -> core::result::Result<(), antecedent_learn::dr_replay::DrReplayError>
+pub fn <antecedent_learn::dr_replay::DrReplay>::fn fitted_effect(&self, features: alloc::vec::Vec<u32>) -> core::result::Result<core::option::Option<antecedent_learn::FittedEffect>, antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn component(self) -> &'a str
@@ -1231,6 +1382,13 @@ pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn infer
 pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn interval_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
 pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn law_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
 pub fn <antecedent_learn::transported_effect::TransportedRequest>::fn refusal(self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn antecedent_learn::aipw_crossfit::aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f64]) -> alloc::vec::Vec<f64>
+pub fn antecedent_learn::aipw_crossfit::clip_propensities(scores: &mut [f64], clip: core::option::Option<f64>)
+pub fn antecedent_learn::aipw_crossfit::clip_propensity(score: f64, clip: f64) -> f64
+pub fn antecedent_learn::aipw_crossfit::cross_fit_aipw_nuisances(learners: antecedent_learn::aipw_crossfit::AipwLearners, design: antecedent_learn::aipw_crossfit::ColumnMajorDesign<'_>, y: &[f64], t: &[f64], (folds, fold_ids): (usize, alloc::vec::Vec<u16>), ctx: &antecedent_core::execution::context::ExecutionContext, weights: core::option::Option<&[f64]>, admit_boundary_saturation: bool) -> core::result::Result<antecedent_learn::aipw_crossfit::AipwPredictions, antecedent_learn::aipw_crossfit::AipwCrossFitError>
+pub fn antecedent_learn::aipw_crossfit::design_for_spec(spec: antecedent_learn::LearnerSpec, design: antecedent_learn::aipw_crossfit::ColumnMajorDesign<'_>) -> core::result::Result<antecedent_learn::DesignView<'_>, antecedent_learn::LearnError>
+pub fn antecedent_learn::aipw_crossfit::intercept_is_constant(design: &[f64], nrows: usize) -> bool
+pub fn antecedent_learn::aipw_crossfit::require_weight_capable(factory: &dyn antecedent_learn::LearnerFactory, spec: antecedent_learn::LearnerSpec) -> core::result::Result<(), antecedent_learn::aipw_crossfit::AipwCrossFitError>
 pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut antecedent_core::execution::rng::CausalRng, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<u16>, antecedent_learn::LearnError>
 pub fn antecedent_learn::bayesian_basis_regression::information_rank(design: &antecedent_learn::BasisDesign<'_>) -> core::result::Result<antecedent_learn::InformationRank, antecedent_learn::LearnError>
 pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
@@ -1238,6 +1396,16 @@ pub fn antecedent_learn::cross_fit_with_folds(factory: &dyn antecedent_learn::Le
 pub fn antecedent_learn::cross_fit_with_folds_weighted(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::context::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
 pub fn antecedent_learn::crossfit::diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> antecedent_learn::NuisanceDiagnostics
 pub fn antecedent_learn::crossfit::try_diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> core::result::Result<antecedent_learn::NuisanceDiagnostics, antecedent_learn::LearnError>
+pub fn antecedent_learn::crossfit_plan::crossfit_fold_plan<U>(strata: &[u32], units: &[U], folds: usize, seed: u64) -> core::result::Result<alloc::vec::Vec<u32>, antecedent_learn::LearnError> where U: core::marker::Copy + core::cmp::Ord + core::hash::Hash
+pub fn antecedent_learn::crossfit_plan::row_fold_ids_u16(strata: &[u32], folds: usize, seed: u64) -> alloc::vec::Vec<u16>
+pub fn antecedent_learn::dr_replay::both_arms_populated(treatment: &[f64]) -> bool
+pub fn antecedent_learn::dr_replay::linear_cate_pointwise_se(spec: antecedent_learn::LearnerSpec, x: antecedent_learn::DesignView<'_>, phi: &[f64], cate: &[f64], rows: core::option::Option<&[usize]>, weights: core::option::Option<&[f64]>) -> core::option::Option<alloc::vec::Vec<f64>>
+pub fn antecedent_learn::dr_replay::propensities_are_interior(scores: &[f64]) -> bool
+pub fn antecedent_learn::dr_replay::replay_dr_ate(input: antecedent_learn::dr_replay::DrReplayInput<'_>, spec: antecedent_learn::dr_replay::DrReplaySpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::dr_replay::DrReplay, antecedent_learn::dr_replay::DrReplayError>
+pub fn antecedent_learn::dr_replay::retained_influence(phi: &[f64], rows: &[usize], ate: f64) -> alloc::vec::Vec<f64>
+pub fn antecedent_learn::dr_replay::retained_mean(phi: &[f64], rows: &[usize]) -> f64
+pub fn antecedent_learn::dr_replay::retained_standard_error(phi: &[f64], rows: &[usize], ate: f64) -> f64
+pub fn antecedent_learn::dr_replay::trim_retained_rows(raw_scores: &[f64], trim: core::option::Option<f64>) -> core::result::Result<core::option::Option<alloc::vec::Vec<usize>>, &'static str>
 pub fn antecedent_learn::fit_counts::count_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
 pub fn antecedent_learn::fit_counts::observe_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
 pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: &antecedent_learn::nested_markov_bayesian::Prior, options: &antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::nested_markov_bayesian::Posterior, antecedent_learn::nested_markov_bayesian::BayesianRefusal>
@@ -1247,12 +1415,15 @@ pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: 
 pub fn antecedent_learn::resolve_propensity_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask, admit_boundary_saturation: bool) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
 pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
+pub mod antecedent_learn::aipw_crossfit
 pub mod antecedent_learn::auto
 pub mod antecedent_learn::bayesian_basis
 pub mod antecedent_learn::bayesian_basis_regression
 pub mod antecedent_learn::categorical
 pub mod antecedent_learn::crossfit
+pub mod antecedent_learn::crossfit_plan
 pub mod antecedent_learn::design
+pub mod antecedent_learn::dr_replay
 pub mod antecedent_learn::elastic_net
 pub mod antecedent_learn::error
 pub mod antecedent_learn::fit_counts
@@ -1314,6 +1485,15 @@ pub struct antecedent_learn::RowSelection<'a>
 pub struct antecedent_learn::SupportReport
 pub struct antecedent_learn::TargetView has private fields
 pub struct antecedent_learn::TargetView<'a>
+pub struct antecedent_learn::aipw_crossfit::AipwLearners
+pub struct antecedent_learn::aipw_crossfit::ColumnMajorDesign<'a>
+pub struct antecedent_learn::crossfit_plan::CrossfitPlan
+pub struct antecedent_learn::crossfit_plan::CrossfitPlan has private fields
+pub struct antecedent_learn::crossfit_plan::FoldRows<'a>
+pub struct antecedent_learn::dr_replay::DrOverlap
+pub struct antecedent_learn::dr_replay::DrReplay
+pub struct antecedent_learn::dr_replay::DrReplayInput<'a>
+pub struct antecedent_learn::dr_replay::DrReplaySpec
 pub struct antecedent_learn::nested_markov_bayesian::Diagnostics
 pub struct antecedent_learn::nested_markov_bayesian::Options
 pub struct antecedent_learn::nested_markov_bayesian::Posterior
@@ -1382,6 +1562,7 @@ pub trait fn fn antecedent_learn::recipes::execution::PredictiveModel::parameter
 pub trait fn fn antecedent_learn::recipes::execution::PredictiveModel::predict(&self, parameter: &[f64], row: u64) -> core::result::Result<f64, antecedent_learn::recipes::execution::ProviderCallError>
 pub trait fn fn antecedent_learn::recipes::execution::RecipeProvider::declaration(&self) -> &antecedent_core::provider_capability::ProviderDeclaration
 pub trait fn fn antecedent_learn::recipes::execution::UpdatingModel::log_prior(&self, parameter: &[f64]) -> core::result::Result<f64, antecedent_learn::recipes::execution::ProviderCallError>
+pub type antecedent_learn::aipw_crossfit::AipwPredictions = (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, antecedent_learn::CrossFittedPrediction)
 pub use antecedent_learn::bayesian_basis::BasisData = antecedent_learn::BasisData
 pub use antecedent_learn::bayesian_basis::BasisTargetPopulation = antecedent_learn::BasisTargetPopulation
 pub use antecedent_learn::bayesian_basis::BayesianBasisEffect = antecedent_learn::BayesianBasisEffect
@@ -1447,6 +1628,7 @@ pub variant antecedent_learn::FittedEffectError::InvalidArgument(&'static str)
 pub variant antecedent_learn::FittedEffectError::Predictor(alloc::string::String)
 pub variant antecedent_learn::Layout::ColumnMajor
 pub variant antecedent_learn::Layout::RowMajor
+pub variant antecedent_learn::LearnError::Admission(antecedent_core::execution::admission::AdmissionError)
 pub variant antecedent_learn::LearnError::Backend(alloc::string::String)
 pub variant antecedent_learn::LearnError::Cancelled
 pub variant antecedent_learn::LearnError::NonFinite { message: &'static str }
@@ -1471,6 +1653,17 @@ pub variant antecedent_learn::PredictionNode::Leaf { value: core::option::Option
 pub variant antecedent_learn::PredictionNode::Split { feature: usize, threshold: f64, inclusive: bool, left: usize, right: usize, missing: usize }
 pub variant antecedent_learn::PredictionTask::BinaryProbability
 pub variant antecedent_learn::PredictionTask::Regression
+pub variant antecedent_learn::aipw_crossfit::AipwCrossFitError::Admission(antecedent_core::execution::admission::AdmissionError)
+pub variant antecedent_learn::aipw_crossfit::AipwCrossFitError::Cancelled
+pub variant antecedent_learn::aipw_crossfit::AipwCrossFitError::Learner(antecedent_learn::LearnError)
+pub variant antecedent_learn::aipw_crossfit::AipwCrossFitError::WeightsUnsupported { message: alloc::string::String }
+pub variant antecedent_learn::dr_replay::DrReplayError::Admission(antecedent_core::execution::admission::AdmissionError)
+pub variant antecedent_learn::dr_replay::DrReplayError::ArmNotPopulated
+pub variant antecedent_learn::dr_replay::DrReplayError::Cancelled
+pub variant antecedent_learn::dr_replay::DrReplayError::Learner(antecedent_learn::LearnError)
+pub variant antecedent_learn::dr_replay::DrReplayError::Overlap(&'static str)
+pub variant antecedent_learn::dr_replay::DrReplayError::Shape(&'static str)
+pub variant antecedent_learn::dr_replay::DrReplayError::Unsupported(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Budget(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Invalid(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Nonconvergence

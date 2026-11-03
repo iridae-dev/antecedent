@@ -6,7 +6,7 @@
 //! reuses it together with the shared exogenous states; a request that changes
 //! the factual evidence, a mechanism table or exogenous law, the structure, the
 //! population or the history has a different identity and abduces again.
-//! Reuse is never a license: the matrix, the closed readings and the joint-law
+//! Reuse is never support: the matrix, the closed readings and the joint-law
 //! rule are applied to every request before any work, reused or not.
 //!
 //! The row is exact: nothing is sampled, so `shared_draws` is always zero and no
@@ -143,7 +143,7 @@ pub struct FiniteExecutionRequest {
     pub exogenous: ExogenousInference,
     /// Target population, when different from the mechanisms' population.
     pub target_population: Option<String>,
-    /// The reading asked for; only a point is licensed.
+    /// The reading asked for; only a point is supported.
     pub reading: RequestedReading,
 }
 
@@ -199,7 +199,7 @@ pub struct ExecutionReceipt {
 /// The answer of one execution.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FiniteExecutionResult {
-    /// The matrix row that licensed the request.
+    /// The matrix row that supported the request.
     pub matrix_row: &'static str,
     /// Mean of the unit values (units in id order).
     pub value: f64,
@@ -460,8 +460,8 @@ impl FiniteScmExecutor {
     fn static_checks(request: &FiniteExecutionRequest) -> Result<(), CrossWorldExecutionError> {
         if request.exogenous == ExogenousInference::PosteriorSampling {
             return Err(refuse(
-                antecedent_core::reason_code!("cell_not_licensed"),
-                "cross_world_execution.sampled_abduction_not_licensed",
+                antecedent_core::reason_code!("not_supported"),
+                "cross_world_execution.sampled_abduction_not_supported",
                 Some("posterior_sampling".to_owned()),
                 "this row enumerates the exogenous posterior exactly; a sampled posterior has \
                  no measured coverage record for the whole abduction-action-prediction path, \
@@ -470,7 +470,7 @@ impl FiniteScmExecutor {
         }
         if request.reading == RequestedReading::Envelope {
             return Err(refuse(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "cross_world_execution.envelope_needs_parameter_set",
                 Some("envelope".to_owned()),
                 "an envelope is the range over a declared set of parameterisations; declare the \
@@ -799,7 +799,7 @@ impl FiniteScmExecutor {
         let spread_requested = request.reading == RequestedReading::Spread;
         if spread_requested && matches!(request.quantity, FiniteQuantity::MeanContrast { .. }) {
             return Err(refuse(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "cross_world_execution.spread_needs_enumeration",
                 Some("variable_elimination".to_owned()),
                 "elimination computes the first moment of the quantity only; the spread of a \

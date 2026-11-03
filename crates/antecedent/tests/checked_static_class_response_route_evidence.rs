@@ -248,7 +248,7 @@ fn static_class_responses_body() {
                     for result in [&one_shot, &click] {
                         assert_eq!(
                             result.support_status().unwrap().as_str(),
-                            "licensed",
+                            "supported",
                             "{label}"
                         );
                         assert_eq!(

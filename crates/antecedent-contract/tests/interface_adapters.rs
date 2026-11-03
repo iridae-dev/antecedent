@@ -221,7 +221,7 @@ fn matching_names_units_and_support_but_another_population_is_refused() {
     // Same variable, units, regime, support and operations: only the
     // population the mechanism was fitted in differs from the one the bridge
     // consumes. The mechanism's own admission of another population is not a
-    // license for a connection.
+    // support for a connection.
     let mut ledger = EvidenceLedger::new();
     let evidence = observed(&mut ledger, "fit-y", &[1, 2, 3]);
     let components = [

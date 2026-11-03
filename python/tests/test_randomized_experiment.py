@@ -46,8 +46,8 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
         2 * 1.959964 * fit.standard_error, rel=1e-4
     )
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
     prepared = ant.prepare(data, query=query, refute="none")
     assert require_success(ant.estimate(prepared)).randomized_effect.interval_95 == fit.interval_95
 
@@ -57,7 +57,7 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     [0.5, Fraction(1, 2), np.float64(0.5), [0.5] * 400, np.full(400, 0.5)],
     ids=["float", "fraction", "numpy-scalar", "list", "numpy-array"],
 )
-def test_bernoulli_interval_has_exact_graphless_license(probabilities):
+def test_bernoulli_interval_has_exact_graphless_support(probabilities):
     n = 400
     assignment = [i % 2 == 0 for i in range(n)]
     outcomes = np.asarray(
@@ -79,11 +79,11 @@ def test_bernoulli_interval_has_exact_graphless_license(probabilities):
     assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
         2 * 1.959964 * fit.standard_error, rel=1e-4
     )
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
-def test_blocked_interval_has_exact_graphless_license():
+def test_blocked_interval_has_exact_graphless_support():
     n = 120
     assignment = [i % 30 < 15 for i in range(n)]
     blocks = [f"block-{i // 30}" for i in range(n)]
@@ -113,11 +113,11 @@ def test_blocked_interval_has_exact_graphless_license():
     assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
         2 * 1.959964 * fit.standard_error, rel=1e-4
     )
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
-def test_factorial_three_intervals_have_exact_graphless_license():
+def test_factorial_three_intervals_have_exact_graphless_support():
     n = 120
     primary = [False] * 30 + [True] * 30 + [False] * 30 + [True] * 30
     second = [False] * 60 + [True] * 60
@@ -162,8 +162,8 @@ def test_factorial_three_intervals_have_exact_graphless_license():
     )
     for interval, standard_error in ((fit.interval_95, fit.standard_error),):
         assert interval[1] - interval[0] == pytest.approx(2 * 1.959964 * standard_error, rel=1e-4)
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
 def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
@@ -199,7 +199,7 @@ def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
     for (label, value, *_), name in zip(fit.multi_arm_values, labels, strict=True):
         assert label == name
         assert value == pytest.approx(outcomes[arm_of == name].mean(), abs=1e-9)
-    assert fit.support_status == "licensed"
+    assert fit.support_status == "supported"
 
 
 def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():
@@ -433,7 +433,7 @@ def test_cluster_assignment_runs_through_retained_analyze_with_cluster_variance(
     assert result.evidence_status == "off_axis"
 
 
-def test_cluster_interval_has_exact_graphless_license():
+def test_cluster_interval_has_exact_graphless_support():
     n = 60
     assignment = [i < 30 for i in range(n)]
     design = ant.experiment.ExperimentDesign(
@@ -455,8 +455,8 @@ def test_cluster_interval_has_exact_graphless_license():
     assert fit.interval_95[1] - fit.interval_95[0] == pytest.approx(
         2 * 1.959964 * fit.standard_error, rel=1e-4
     )
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
 def test_cluster_assignment_with_block_metadata_is_refused_on_retained_route():
@@ -510,7 +510,7 @@ def test_direct_native_randomized_effect_runs_design_kernel_and_retains_units(de
         if design_kind == "complete"
         else "cluster_conservative_variance_bound_no_interval"
     )
-    assert estimate.support_status == "unlicensed_direct_estimator_utility"
+    assert estimate.support_status == "unsupported_direct_estimator_utility"
 
 
 def test_cluster_randomization_validates_unit_map_and_realized_assignment():
@@ -625,7 +625,7 @@ def test_multi_arm_randomized_effect_uses_retained_analyze_and_prepare():
         [2.0, 5.0]
     )
     assert fit.uncertainty == "multi_arm_covariance_free_variance_bound_no_interval"
-    assert fit.support_status == "unlicensed_off_matrix"
+    assert fit.support_status == "unsupported_off_matrix"
     assert result.evidence_status == "off_axis"
     prepared = ant.prepare(data, query=query, refute="none")
     refreshed = require_success(ant.estimate(prepared))
@@ -665,7 +665,7 @@ def test_switchback_itt_uses_sequence_clustered_native_variance():
     assert (
         estimate.uncertainty == "independent_sequence_cluster_sandwich_standard_error_no_interval"
     )
-    assert estimate.support_status == "unlicensed_direct_estimator_utility"
+    assert estimate.support_status == "unsupported_direct_estimator_utility"
     assert "arbitrary within-sequence dependence" in estimate.assumptions[1]
 
 
@@ -733,7 +733,7 @@ def test_switchback_supported_interval_uses_same_native_point_as_direct_utility(
         2 * 2.045230 * fit.standard_error, rel=1e-4
     )
     assert fit.uncertainty == "switchback_independent_sequence_student_interval"
-    assert retained.evidence_status == "licensed"
+    assert retained.evidence_status == "supported"
 
 
 def test_switchback_one_arm_within_sequence_is_valid_when_global_arms_observed():
@@ -900,7 +900,7 @@ def test_multi_covariate_ancova_recovers_known_treatment_and_adjustment_effects(
     assert result.treated_support == result.control_support == 6
     assert result.standard_error == pytest.approx(0.0, abs=1e-12)
     assert result.uncertainty == "hc0_independent_unit_standard_error_no_interval"
-    assert result.support_status == "unlicensed_direct_estimator_utility"
+    assert result.support_status == "unsupported_direct_estimator_utility"
 
 
 def test_multi_covariate_ancova_refuses_collinear_and_missing_covariates():
@@ -930,7 +930,7 @@ def test_multi_covariate_ancova_refuses_collinear_and_missing_covariates():
 
 # ------------------------------------------------------------------ Bayesian arm contrasts
 #
-# The Bayesian routes are explicitly unlicensed and uncalibrated. References are computed here,
+# The Bayesian routes are explicitly unsupported and uncalibrated. References are computed here,
 # independently of the library: the exact finite-population law by enumeration of the two
 # Beta-Binomial missing-count laws, and the closed-form Beta moments of the superpopulation arms.
 
@@ -1009,7 +1009,7 @@ def test_bayesian_finite_population_is_the_default_and_matches_enumeration():
     )
     assert result.estimate.estimator_id == "bayesian.randomized_finite_population"
     assert result.randomized_effect is None
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status != "supported"
     assert result.posterior.effect_mean == pytest.approx(mean, abs=5e-3)
     assert result.posterior.effect_sd == pytest.approx(sd, abs=6e-3)
     assert any("estimand=finite_population" in d for d in result.diagnostics)
@@ -1137,7 +1137,7 @@ def test_bayesian_switchback_matches_the_whitened_least_squares_reference():
         )
     )
     assert result.estimate.estimator_id == "bayesian.switchback_effect"
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status != "supported"
     # Student-t, 20 degrees of freedom: location and scale from the stacked whitened system.
     assert result.posterior.effect_mean == pytest.approx(1.547248493, abs=5e-3)
     assert result.posterior.effect_sd == pytest.approx(0.2040153784, abs=1e-2)
@@ -1153,5 +1153,5 @@ def test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_depe
     ):
         with pytest.raises(CausalError) as caught:
             require_success(ant.analyze(data, query=query, inference=_bayes(model), refute="none"))
-        assert caught.value.reason_code == "cell_not_licensed"
+        assert caught.value.reason_code == "not_supported"
         assert detail in str(caught.value) and next_attempt in str(caught.value)

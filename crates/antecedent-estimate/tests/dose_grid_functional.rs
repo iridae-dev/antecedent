@@ -259,7 +259,7 @@ fn claims_are_separate_typed_fields_and_band_stays_closed() {
 #[test]
 fn derivative_without_derivative_claim_is_refused() {
     let (dose, outcome) = design(0.1);
-    // A pointwise level claim does not license a derivative.
+    // A pointwise level claim does not support a derivative.
     let refused = estimate_dose_grid_functional(&request(
         &dose,
         &outcome,
@@ -269,7 +269,7 @@ fn derivative_without_derivative_claim_is_refused() {
     ));
     assert!(refused.is_err());
     assert_eq!(reason(&refused.unwrap_err()), "dose_grid.derivative_without_claim");
-    // A derivative claim does not license a level.
+    // A derivative claim does not support a level.
     let refused = estimate_dose_grid_functional(&request(
         &dose,
         &outcome,

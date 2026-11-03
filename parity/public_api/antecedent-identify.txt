@@ -3949,7 +3949,9 @@ pub const antecedent_identify::cross_world::CROSS_WORLD_MAX_NODES: usize
 pub const antecedent_identify::discovered_transport::DEFAULT_ENVELOPE_MEMBER_BOUND: usize
 pub const antecedent_identify::discovered_transport::DISCOVERED_TRANSPORT_REASON: &str
 pub const antecedent_identify::discovered_transport::ENVELOPE_ASSUMPTIONS: [&str; 4]
+pub const antecedent_identify::path_specific::PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::recovery::MISSING_LEVEL: &str
+pub const antecedent_identify::response_intervention::RESPONSE_INTERVENTION_RULE: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_EVIDENCE_MISMATCH_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES: usize
@@ -5090,7 +5092,7 @@ pub fn <antecedent_identify::CounterfactualTransportDecision>::fn detail_code(&s
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn replay_checked(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn try_canonical_text<E>(&self, check: impl core::ops::function::FnMut(usize) -> core::result::Result<(), E>) -> core::result::Result<alloc::string::String, E>
-pub fn <antecedent_identify::CounterfactualTransportObstruction>::fn verify(&self) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportObstruction>::fn verify(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn bidirected(&self) -> &[(usize, usize)]
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn directed(&self) -> &[(usize, usize)]
@@ -5298,7 +5300,8 @@ pub fn <antecedent_identify::SourceIdentity>::const fn raw(self) -> u64
 pub fn <antecedent_identify::StudyPlan>::const fn receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
 pub fn <antecedent_identify::StudyPlan>::fn status(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_identify::StudyPlanLimits>::const fn for_route(route: &antecedent_identify::StudyPlanRoute) -> Self
-pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, route: &antecedent_identify::StudyPlanRoute, _regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
+pub fn <antecedent_identify::StudyPlanLimits>::const fn max_candidates(&self) -> usize
+pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, route: &antecedent_identify::StudyPlanRoute, regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
 pub fn <antecedent_identify::StudyPlanRefusal>::fn bounds_exceeded(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRefusal>::fn invalid_candidate(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRoute>::const fn decision_operations(&self) -> usize
@@ -5501,7 +5504,7 @@ pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn initial_
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn position(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<usize>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn slice(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<u8>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub fn <antecedent_identify::sid::temporal_sequence::UnrolledSequence>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: usize) -> antecedent_core::ids::VariableId
+pub fn <antecedent_identify::sid::temporal_sequence::UnrolledSequence>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: usize) -> core::option::Option<antecedent_core::ids::VariableId>
 pub fn antecedent_identify::admg_adjustment::identify_admg_front_door_derivative(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<core::option::Option<antecedent_identify::IdentificationResult>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_admg_response_adjustment(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs(cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
@@ -5541,6 +5544,7 @@ pub fn antecedent_identify::discovered_transport::transport_across_class_with_co
 pub fn antecedent_identify::discovered_transport::transport_across_pag(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport::transport_across_pag_with_context(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class_with_context(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_identify::experiment_moments::assemble_experiment_constraints(contract: &antecedent_identify::AcceptedRegimeContract, samples: &[antecedent_identify::experiment_moments::RegimeSample<'_>], max_bytes: u64) -> core::result::Result<antecedent_identify::experiment_moments::AssembledExperimentConstraints, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
@@ -5552,6 +5556,7 @@ pub fn antecedent_identify::experimental_recovery::as_recovered_mechanism(draw: 
 pub fn antecedent_identify::experimental_recovery::joint_draw_from_blocks(nodes: &[antecedent_core::ids::VariableId], blocks: &[antecedent_identify::experimental_recovery::AssembledCoefficientRecovery], intercept: alloc::vec::Vec<f64>, noise_mean: alloc::vec::Vec<f64>, noise_covariance: alloc::vec::Vec<f64>, weight: f64) -> core::result::Result<antecedent_identify::experimental_recovery::JointRecoveryDraw, antecedent_identify::experimental_recovery::UncertaintyFault>
 pub fn antecedent_identify::experimental_recovery::recover_assembled_coefficients(block: &antecedent_identify::experiment_moments::TargetConstraintBlock, asserted_rank: core::option::Option<&antecedent_identify::DeclaredEquationRank>, weak_stability: antecedent_identify::WeakStability) -> antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 pub fn antecedent_identify::experimental_recovery::regime_is_identified(decision: &antecedent_identify::ExperimentalRecoveryDecision, design: &[antecedent_identify::DeclaredClampExperiment], regime: &antecedent_identify::DeclaredClampExperiment) -> bool
+pub fn antecedent_identify::frontdoor::check_frontdoor_set(graph: &antecedent_graph::dag::Dag, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, mediators: &[antecedent_core::ids::VariableId]) -> core::result::Result<bool, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::generalized::invisible_directed_edges(mag: &antecedent_graph::pag::Pag) -> alloc::vec::Vec<(antecedent_graph::types::DenseNodeId, antecedent_graph::types::DenseNodeId)>
 pub fn antecedent_identify::generalized::mag_to_confounded_admg(mag: &antecedent_graph::pag::Pag) -> core::option::Option<antecedent_graph::admg::Admg>
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -5572,6 +5577,7 @@ pub fn antecedent_identify::identify_z_transport_reporting(diagram: &antecedent_
 pub fn antecedent_identify::intervention_ancestral_treatments(graph: &antecedent_graph::admg::Admg, mutilated: &antecedent_graph::admg::Admg, treatments: &[antecedent_core::ids::VariableId], outcomes: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<antecedent_core::ids::VariableId>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::intervention_levels_conflict(earlier: &[alloc::vec::Vec<antecedent_core::query::transport_catalog::InterventionAssignment>], current: &[antecedent_core::query::transport_catalog::InterventionAssignment]) -> bool
 pub fn antecedent_identify::intervention_mutilated_admg(graph: &antecedent_graph::admg::Admg, treatments: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::iv::check_instrument(graph: &antecedent_graph::dag::Dag, instrument: antecedent_core::ids::VariableId, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<bool, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::lower_transport_formula(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula) -> antecedent_expr::ExprId
 pub fn antecedent_identify::lower_transport_mean(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula, outcome: antecedent_core::ids::VariableId) -> antecedent_expr::ExprId
 pub fn antecedent_identify::panel_unrolled::identify_joint_panel_intervention(graph: &antecedent_identify::panel_unrolled::UnrolledPanelGraph, outcome_periods: &[usize]) -> core::result::Result<antecedent_identify::panel_unrolled::UnrolledPanelIdentification, antecedent_identify::IdentificationError>
@@ -5597,7 +5603,7 @@ pub fn antecedent_identify::sid::validate_z_transport_query(diagram: &antecedent
 pub fn antecedent_identify::sid::verify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, derivation: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_conditional_witness_within(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, operations: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_counterfactual_transport_witness(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, witness: &antecedent_identify::CounterfactualTransportWitness) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_counterfactual_transport_witness(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, witness: &antecedent_identify::CounterfactualTransportWitness, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_meta_s_hedge(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, proof: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_mixed_source_derivation(graph: &antecedent_graph::admg::Admg, derivation: &antecedent_identify::MixedSourceDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<(), antecedent_identify::IdentificationError>
@@ -5644,6 +5650,7 @@ pub mod antecedent_identify::rd
 pub mod antecedent_identify::recovery
 pub mod antecedent_identify::recovery_chain
 pub mod antecedent_identify::response
+pub mod antecedent_identify::response_intervention
 pub mod antecedent_identify::result
 pub mod antecedent_identify::sid
 pub mod antecedent_identify::sid::cpdag_completion
@@ -5810,6 +5817,7 @@ pub struct antecedent_identify::RecoveryLimits
 pub struct antecedent_identify::RecoveryMarginRecord
 pub struct antecedent_identify::RecoveryReceiptRecord
 pub struct antecedent_identify::RecoveryWitness
+pub struct antecedent_identify::RecoveryWitness has private fields
 pub struct antecedent_identify::RegimeContract
 pub struct antecedent_identify::RegimeIntervention
 pub struct antecedent_identify::RegimeRefusal
@@ -6510,7 +6518,7 @@ pub variant antecedent_identify::RecoveryDecision::NonRecoverable(alloc::boxed::
 pub variant antecedent_identify::RecoveryDecision::Recovered(alloc::boxed::Box<antecedent_identify::RecoveryDerivation>)
 pub variant antecedent_identify::RecoveryDetail::BoundsExceeded
 pub variant antecedent_identify::RecoveryDetail::Budget
-pub variant antecedent_identify::RecoveryDetail::EmpiricalNotLicensed
+pub variant antecedent_identify::RecoveryDetail::EmpiricalNotSupported
 pub variant antecedent_identify::RecoveryDetail::HandoffMismatch
 pub variant antecedent_identify::RecoveryDetail::InvalidDerivation
 pub variant antecedent_identify::RecoveryDetail::InvalidObservedLaw
@@ -6614,7 +6622,7 @@ pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Action
 pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Exchange
 pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Observation
 pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::BudgetExhausted
-pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::NotLicensedByCriterion
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::NotSupportedByCriterion
 pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::Verified
 pub variant antecedent_identify::cyclic_id::CyclicIdError::Invalid(alloc::string::String)
 pub variant antecedent_identify::cyclic_id::CyclicIdError::Resource(alloc::string::String)

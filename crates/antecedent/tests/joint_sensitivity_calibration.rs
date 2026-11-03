@@ -19,7 +19,7 @@
 //!
 //! Both are registered in `scripts/gate_calibration.sh` (`run_js`, measured over
 //! the sample-size grid); coverage is unmeasured, so the interval route stays
-//! closed (`cell_not_licensed`). The estimator is
+//! closed (`not_supported`). The estimator is
 //! compiled only under `calibration-internal`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

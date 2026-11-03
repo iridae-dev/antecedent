@@ -476,11 +476,11 @@ impl TransportedMechanismComposition {
     /// An interval for a transported contrast.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no measured coverage stands behind the variance, and
+    /// Always `not_supported`: no measured coverage stands behind the variance, and
     /// none includes the transport assumption.
     pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
         Err(refit_refusal(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "mechanism_transport.interval_route_closed",
             "interval".to_owned(),
             "the first-order parameter variance omits the transport assumption and has no \

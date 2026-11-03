@@ -30,11 +30,11 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Inference</dt><dd>frequentist</dd>
 <dt>Identifier</dt><dd>none</dd>
 <dt>Estimator</dt><dd>none</dd>
-<dt>Support status</dt><dd>refused</dd>
+<dt>Support status</dt><dd>not_supported</dd>
 </dl>
 <ul>
 <li>No claim is attached: this report reads the contract before any execution, and no estimate is stated.</li>
-<li>The cell is in the product but is not licensed, and the matrix refuses it.</li>
+<li>The cell is in the product but is not supported, and the matrix refuses it.</li>
 </ul>
 </section>
 <section id="identification">
@@ -63,10 +63,10 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <h3>Calibration</h3>
 <p>Calibration is read from a claim; none is attached.</p>
 </section>
-<section id="support-and-licence">
-<h2>Support and licence</h2>
+<section id="support">
+<h2>Support</h2>
 <dl class="facts">
-<dt>Support status</dt><dd>refused</dd>
+<dt>Support status</dt><dd>not_supported</dd>
 <dt>Modality</dt><dd>tabular</dd>
 <dt>Inference</dt><dd>frequentist</dd>
 <dt>Query kind</dt><dd>ChangeAttribution</dd>
@@ -75,7 +75,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 </dl>
 <h3>Support slot</h3>
 <dl class="facts">
-<dt>Matrix status</dt><dd>refused</dd>
+<dt>Matrix status</dt><dd>not_supported</dd>
 <dt>Matrix coordinate</dt><dd>ChangeAttribution:Admg:explicit:Frequentist:full</dd>
 <dt>Empirical support</dt><dd>unavailable:not_evaluated</dd>
 </dl>
@@ -84,7 +84,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <h2>Refusals and limits</h2>
 <dl class="facts">
 <dt>Operation</dt><dd>inspect</dd>
-<dt>Applicability</dt><dd>unlicensed</dd>
+<dt>Applicability</dt><dd>unsupported</dd>
 <dt>Readiness</dt><dd>none</dd>
 <dt>Coordinate</dt><dd>ChangeAttribution:Admg:explicit:Frequentist:full</dd>
 </dl>
@@ -101,10 +101,10 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <table>
 <thead><tr><th>Action</th><th>Description</th></tr></thead>
 <tbody>
-<tr><td>consider_licensed_neighbor</td><td>choose an explicit licensed neighbor; never an automatic fallback</td></tr>
+<tr><td>consider_supported_neighbor</td><td>choose an explicit supported neighbor; never an automatic fallback</td></tr>
 </tbody>
 </table>
-<h3>Licensed neighbours</h3>
+<h3>Supported neighbours</h3>
 <p>A neighbour changes the stated premises; it is not a fallback.</p>
 <table>
 <thead><tr><th>Coordinate</th><th>Changed premises</th><th>Required action</th></tr></thead>
@@ -437,7 +437,7 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>Layers the premises preserve</dt><dd>target</dd>
 <dt>Layers the premises invalidate</dt><dd>support, identification, results</dd>
 </dl>
-<p>This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.</p>
+<p>This report restates the contract. It computes no estimate, grants no support, and a status recorded here is the status the records carry.</p>
 </section>
 <section id="identities">
 <h2>Identities</h2>

@@ -28,7 +28,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that licenses a correction, or the externally supplied latent posterior."
+scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that supports a correction, or the externally supplied latent posterior."
 assumptions = ["Misclassification depends on the true category only (non-differential given the true category); the observed class summaries and the validation columns are independent samples.", "The confusion matrix is known or estimated from validation counts with one multinomial per true category.", "Corrected proportions are not projected onto the simplex."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
@@ -40,7 +40,7 @@ record_sha256 = "f69110eddaa54a38af2920d74c850870fa1433a760b75fcaa4a663b427a98e1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-sha256 = "b216391f4ca4a3f501ff1eba73545525eb516f7f8cc2c732ac2b408729e08066"
+sha256 = "d8a7bfc6b04d7fc4e30754aed03b368ad30842bb0d8213f5a2cf46d5bc53da20"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -107,7 +107,7 @@ impl Topology {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Variant {
     /// The published family: coefficients redrawn until the margin holds.
-    Licensed,
+    Supported,
     /// Coefficients of magnitude 0.1 to 0.25, with no margin rule: signal below the published
     /// strength.
     WeakSignal,
@@ -257,7 +257,7 @@ impl Scm {
     /// # Panics
     /// Fewer than ten or more than twenty variables, or no admitted draw in 100,000 attempts.
     pub fn new(topology: Topology, variables: usize, seed: u64) -> Self {
-        Self::with_variant(topology, variables, seed, Variant::Licensed)
+        Self::with_variant(topology, variables, seed, Variant::Supported)
     }
 
     /// As [`Self::new`], for a family member that departs from the published conditions.
@@ -280,7 +280,7 @@ impl Scm {
         let mut stream = Stream::new(seed);
         for _ in 0..100_000 {
             let admitted = Self::draw(&shape, topology, variant, &mut stream).filter(|scm| {
-                variant != Variant::Licensed
+                variant != Variant::Supported
                     || (scm.total_effect().abs() >= MIN_TOTAL_EFFECT
                         && scm.margin_with_cutoff(MIN_MARGIN, false) >= MIN_MARGIN)
             });

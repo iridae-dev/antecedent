@@ -181,13 +181,13 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     assert other.claim_id != independent.claim_id
 
 
-def test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them():
+def test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them():
     draws = table(2_000)
     bridge = sb.prepare_distribution_bridge(contract())
     # An associational claim is never a bridge source.
     refused(
         lambda: require_success(bridge.derive(draws, seed=1, source_kind="associational")),
-        "cell_not_licensed",
+        "not_supported",
         "scientific_bridge.source_not_draws",
     )
     # A bootstrap is neither a posterior nor a predictive law.
@@ -220,13 +220,13 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them():
     result.require_value_kind("posterior")
     refused(
         lambda: require_success(result.interval()),
-        "cell_not_licensed",
-        "scientific_bridge.interval_not_licensed",
+        "not_supported",
+        "scientific_bridge.interval_not_supported",
     )
     # An interval needs a measured record; an uncertain map has none.
     refused(
         lambda: require_success(result.interval(0.95)),
-        "cell_not_licensed",
+        "not_supported",
         "scientific_bridge.interval_scope_outside_measured",
     )
     with pytest.raises(CausalTypeError):
@@ -240,7 +240,7 @@ def test_an_exact_map_publishes_its_interval_as_an_exact_transform():
     )
     interval = require_success(exact.interval(0.95))
     sd = np.asarray(draws)[:, 0].std()
-    assert interval.licensed_by == "exact_transform_of_declared_source_interval"
+    assert interval.supported_by == "exact_transform_of_declared_source_interval"
     assert interval.source_standard_error == pytest.approx(sd, rel=1e-9)
     z = _NORMAL.inv_cdf(0.975)
     assert interval.upper - interval.lower == pytest.approx(2 * z * 2.0 * sd, rel=1e-9)
@@ -541,7 +541,7 @@ def test_a_guarded_division_refuses_a_denominator_that_reaches_zero_and_replays(
             )
         )
     assert caught.value.detail == "propagation_chain.denominator_not_bounded"
-    # A declared bound refuses a denominator that comes closer to zero than the model licenses.
+    # A declared bound refuses a denominator that comes closer to zero than the model supports.
     near_zero = pc.draws("b", grid(0.5, 0.05), meaning="posterior", alignment=alignment)
     with pytest.raises(R):
         require_success(

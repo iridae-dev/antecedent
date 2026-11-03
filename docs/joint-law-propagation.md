@@ -2,7 +2,7 @@
 
 Unrelated posterior or bootstrap draws are never paired by index. A row pairing
 is the statement that the rows are realizations of one joint law, and one rule
-decides whether that statement is licensed:
+decides whether that statement is supported:
 `antecedent_contract::check_propagation`. Everything that composes uncertain
 inputs goes through it.
 
@@ -14,13 +14,13 @@ inputs goes through it.
 | product, nonlinear functional, chained Monte Carlo transformation | an **aligned joint law**: draws that all carry one alignment identity. A covariance is not enough | `joint_law_required` (`nonlinear_needs_aligned_joint_law`, `covariance_insufficient_for_nonlinear`, `index_pairing_refused`, `alignment_mismatch`) |
 | mixture | known weights; the components need no joint law | `invalid_argument` (`mixture_weights_unknown`) |
 | transported interval, or its source-sampling, target-sampling and transport-functional pieces, composed with another claim | an aligned joint law or a supplied covariance; independence is never assumed for these pieces | `joint_law_required` (`transported_dependence_required`) |
-| functional of unpaired marginals | nothing, but the result is a labelled envelope | `cell_not_licensed` if read as a point (`envelope_is_not_a_point`) |
-| interval of a composed quantity | a currently attesting coverage record in the registry for the composed coordinate, construction and declared evidence size; the caller supplies none | `cell_not_licensed` (`interval_route_closed`, `coverage_record_unmeasured`) |
-| posterior of any composed quantity | a measured calibration; none exists | `cell_not_licensed` (`posterior_route_closed`) |
+| functional of unpaired marginals | nothing, but the result is a labelled envelope | `not_supported` if read as a point (`envelope_is_not_a_point`) |
+| interval of a composed quantity | a currently attesting coverage record in the registry for the composed coordinate, construction and declared evidence size; the caller supplies none | `not_supported` (`interval_route_closed`, `coverage_record_unmeasured`) |
+| posterior of any composed quantity | a measured calibration; none exists | `not_supported` (`posterior_route_closed`) |
 
 Each refusal carries a registered reason code, a namespaced
 `joint_law_propagation.*` detail, the offending input and a remedy that names
-the dependence information that would license the request.
+the dependence information that would support the request.
 
 ### Alignment identity
 
@@ -91,7 +91,7 @@ records. The caller supplies no record; without a currently attesting one the
 reading is closed.
 
 The measured design (`joint_law_composed_interval_calibration.rs`): the whole
-method is the component estimators, their sampling covariance and the licensed
+method is the component estimators, their sampling covariance and the supported
 route, and the normal-approximation interval built on the composed value at
 0.95. DGPs are correlated and independent Gaussian pairs and a skewed pair with
 shared evidence; the covariance is estimated from the same rows or draws.

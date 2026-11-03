@@ -141,8 +141,8 @@ fn derived_uncertainty_is_never_published_or_combined() {
     let derived = prepared.derive_uncertainty(&IntervalRequest::marginal(0.9), &ctx()).unwrap();
     for route in PublishedRoute::ALL {
         let refusal = publish_derived_route(&derived, route).unwrap_err();
-        assert_eq!(refusal.code, "cell_not_licensed");
-        assert_eq!(refusal.detail, "decision_reliability.cell_not_licensed");
+        assert_eq!(refusal.code, "not_supported");
+        assert_eq!(refusal.detail, "decision_reliability.not_supported");
     }
     assert_eq!(
         derived.combined_uncertainty().unwrap_err().reason_code(),
@@ -346,7 +346,7 @@ fn point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons() {
 }
 
 #[test]
-fn rollout_noise_decides_whether_ranking_statements_are_licensed() {
+fn rollout_noise_decides_whether_ranking_statements_are_supported() {
     let rollout = |noise: RolloutNoise| RolloutUtilityDraws {
         model_identity: "model".into(),
         stream_scheme: "keyed".into(),
@@ -389,7 +389,7 @@ fn rollout_noise_decides_whether_ranking_statements_are_licensed() {
     let refusal =
         PreparedDecisionReliability::assess_producer(&keyed, None, request(), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "joint_law_required");
-    // Structural exogenous noise is one shared law and licenses ranking statements.
+    // Structural exogenous noise is one shared law and supports ranking statements.
     let structural =
         reach_decision_carrier(ProducerOutput::Rollout(rollout(RolloutNoise::StructuralExogenous)))
             .unwrap();

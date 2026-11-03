@@ -22,7 +22,7 @@ An ADAPTER or DIRECT cell never upgrades a label. A point stays a point, an
 uncalibrated standard error stays labelled uncalibrated, an assumption range
 stays an assumption range, and no interval, posterior or coverage statement
 exists for any row below: each interval route is closed with
-`cell_not_licensed` until whole-method coverage is measured.
+`not_supported` until whole-method coverage is measured.
 
 Inference modes used below: **point-only** (one value, no law), **exact finite**
 (exact given a declared finite model, no sampling uncertainty),
@@ -71,7 +71,7 @@ assumptions. A bridged claim has no law, no posterior and no draws.
 | predictive quantity and causal quantity | point-only | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `scientific_bridge.transport_premise_missing` | REFUSED `scientific_bridge.horizon_mismatch` | REFUSED | REFUSED `scientific_bridge.value_kind_substitution` |
 | model parameter and intervention response | point-only (declared affine contrast) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `scientific_bridge.transport_premise_missing` | REFUSED `scientific_bridge.horizon_mismatch` | REFUSED | REFUSED `scientific_bridge.value_kind_substitution` |
 | scientific endpoint and decision utility | point-only (declared affine utility) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `scientific_bridge.transport_premise_missing` | REFUSED `scientific_bridge.horizon_mismatch` | REFUSED | REFUSED `scientific_bridge.value_kind_substitution` |
-| interval or posterior of a bridged value | closed interval | REFUSED `scientific_bridge.interval_not_licensed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or posterior of a bridged value | closed interval | REFUSED `scientific_bridge.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Two pairs are closed whatever is declared: a model score as a probability
 (`scientific_bridge.model_score_as_probability`) and a predictive importance as
@@ -89,13 +89,13 @@ snapshot.
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition bundle | Decision reliability carrier |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | weighted cohort mean contrast, cohort of the model's own population | point-only, no standard error carried | DIRECT (`Contract.evaluate(source)`, affine utility only) | ADAPTER (`source.forward_claim()` as a `MeanClaim`) | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`, a cohort mean is neither prior nor signal) | NO ROUTE (a conditional contrast mean is not a nested counterfactual) | REFUSED `cohort_decision.shift_declaration_required` for a cohort of another population | NO ROUTE (a fitted CATE carries no time coordinate) | REFUSED (`cohort_decision_source_v1` has no node kind) | REFUSED `cohort_decision.joint_law_required` (draws of the contrast are not supplied; remedy: supply per-draw utilities from an aligned law) |
-| cohort of another population under a declared covariate shift | point-only, labelled extrapolative; every row inside the retained support contract | DIRECT | a native-only policy REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`; an accepting policy ADAPTER (`cohort_forward_source`) | REFUSED | REFUSED | NO ROUTE | ADAPTER (the declared `CovariateShiftDeclaration`: a declaration with a support check, not a selection-diagram derivation) | NO ROUTE | REFUSED | REFUSED `cohort_decision.joint_law_required` |
+| cohort of another population under a declared covariate shift | point-only, labelled extrapolative; every row inside the retained support contract | DIRECT | a native-only policy REFUSED `not_supported` `inverse_forward_source.transported_not_accepted`; an accepting policy ADAPTER (`cohort_forward_source`) | REFUSED | REFUSED | NO ROUTE | ADAPTER (the declared `CovariateShiftDeclaration`: a declaration with a support check, not a selection-diagram derivation) | NO ROUTE | REFUSED | REFUSED `cohort_decision.joint_law_required` |
 | probability, quantile, nonlinear utility | closed | REFUSED `cohort_decision.law_not_supplied` (`decision_contract_unsatisfied`) | REFUSED `decision_evaluation.mean_source_insufficient` | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
-| interval of the cohort mean | measured interval (native fit) | MEASURED for a native fit, REFUSED `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_licensed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval of the cohort mean | measured interval (native fit) | MEASURED for a native fit, REFUSED `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Rows outside the retained support contract refuse `cohort_decision.outside_support`
 and a model with no support contract `cohort_decision.support_contract_absent`
-(both `cell_not_licensed`).
+(both `not_supported`).
 
 **Reliability of a cohort decision.** A cohort decision output is a point-only
 mean contrast: it has no law and no draws, so the reliability carrier has
@@ -124,7 +124,7 @@ observing-versus-intervening comparison is DIRECT inside it.
 | threshold crossing | exact finite | ADAPTER (a declared probability) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | NO ROUTE | REFUSED | NO ROUTE |
 | posterior update (finite space, Beta-Bernoulli) | exact finite | ADAPTER (posterior or predictive mean) | ADAPTER | REFUSED | REFUSED (a posterior of this route is not a `StatePrior`) | NO ROUTE | NO ROUTE (no population coordinate beyond the declaration) | NO ROUTE | REFUSED | NO ROUTE (closed form: no draws) |
 | evidence required (Bayes factor, observations) | exact finite | NO ROUTE (a count or a factor is not a decision source) | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
-| interval or calibrated probability | closed interval | REFUSED `observation_query.declared_model_has_no_sampling_interval`, `observation_query.calibrated_probability_closed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or calibrated probability | closed interval | REFUSED `observation_query.declared_model_has_no_sampling_interval`, `observation_query.calibrated_probability_closed` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 An assigned or hypothetical value in a conditioning slot is
 `observation_query.intervention_in_conditioning_slot`; a recorded indicator
@@ -141,7 +141,7 @@ never searched for.
 | off-policy from logged trajectories | point-only, uncalibrated standard error and effective sample size | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
 | rollouts on common random streams | diagnostic: Monte Carlo estimate of the enumerated value, uncalibrated standard error | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
 | comparison of named policies, value of collecting evidence | point-only (ordering of supplied policies; EVSI cross-check) | ADAPTER (per policy) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | REFUSED | REFUSED | SCHEDULED for rollout comparisons (owner below) |
-| interval or posterior of a policy value | closed interval | REFUSED `sequential_evaluation.interval_not_licensed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or posterior of a policy value | closed interval | REFUSED `sequential_evaluation.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 A policy learned from the data under evaluation is
 `sequential_evaluation.policy_change_refused`; a static reweighted score table
@@ -189,7 +189,7 @@ as a fixed sample. Every route is point-only or a labelled diagnostic.
 | frequentist adaptive weighting | point-only, martingale plug-in variance, uncalibrated | ADAPTER (executed: arm mean 51/112 of a four-unit epsilon-greedy history) | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE (decision recorded below) | NO ROUTE | REFUSED | NO ROUTE (analytic variance: no draws) |
 | frequentist group sequential | diagnostic (boundaries and first crossing, fixed randomization) | NO ROUTE (no estimand value) | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
 | anytime-valid confidence sequence | diagnostic (time-uniform sequence for bounded outcomes, uncalibrated as a whole procedure) | NO ROUTE | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
-| interval or guarantee of an adaptive procedure | closed interval | REFUSED `adaptive_inference.interval_closed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or guarantee of an adaptive procedure | closed interval | REFUSED `adaptive_inference.interval_closed` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 The monitoring contract (`adaptive_monitoring_contract_v1`) is a design record,
 not a value: it reaches `decision` and `inverse query` as REFUSED
@@ -198,8 +198,8 @@ not a value: it reaches `decision` and `inverse query` as REFUSED
 and a recalculation plan only by a caller-declared digest. A cell of the
 procedure matrix that is closed or carried forward refuses
 `adaptive_inference.cell_closed` or `adaptive_inference.cell_carried_forward`;
-a paradigm with no route for a licensed cell is
-`adaptive_inference.paradigm_not_licensed_for_cell`.
+a paradigm with no route for a supported cell is
+`adaptive_inference.paradigm_not_supported_for_cell`.
 
 ## Predictive assessment
 
@@ -212,12 +212,12 @@ probability that a claim holds.
 | proper scores (log, CRPS, Brier, energy) | point-only | REFUSED (`CausalTypeError`: a score is neither a response, an outcome law under an action nor a utility) | REFUSED (`CausalTypeError`) | REFUSED | REFUSED (`CausalTypeError`: a score is neither prior nor signal) | REFUSED `predictive_assessment.not_a_causal_claim` (`route_not_supported`) | REFUSED `predictive_assessment.target_mismatch` (`quantity_semantics_mismatch`) when law and observations differ in population or units | NO ROUTE (the rolling-origin design is the route's own; a horizon that differs is `predictive_assessment.horizon_mismatch`) | REFUSED (`predictive_assessment_v1` has no node kind) | NO ROUTE (a loss of a law on observations is not a decision utility) |
 | score differences of paired predictors | point-only, labelled statistic | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED `predictive_assessment.not_a_causal_claim` | REFUSED `predictive_assessment.target_mismatch` | NO ROUTE | REFUSED | NO ROUTE |
 | calibration diagnostics (PIT, reliability, coverage, sharpness) | diagnostic, unmeasured | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | NO ROUTE | REFUSED | NO ROUTE |
-| interval or significance level of a score | closed interval | REFUSED `predictive_assessment.interval_not_licensed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or significance level of a score | closed interval | REFUSED `predictive_assessment.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Overlap with fitting data is checked through the evidence ledger:
 `predictive_assessment.in_sample` and `predictive_assessment.overlap_unknown`.
 An iid assumption on a rolling-origin or blocked design is
-`predictive_assessment.iid_not_licensed_for_dependent_design`
+`predictive_assessment.iid_not_supported_for_dependent_design`
 (`sampling_dependence_unknown`).
 
 ## Decision reliability
@@ -230,7 +230,7 @@ point diagnostics labelled uncalibrated.
 | Monte Carlo error of utility, difference, threshold probability, `CVaR`, quantile | diagnostic (standard error and effective sample size, uncalibrated) | ADAPTER (the decided candidate's expected utility as a declared mean; error and ranking are not carried) | ADAPTER | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`) | NO ROUTE (a diagnostic of draws forms no structural query) | NO ROUTE (the carrier records the producer label; it carries no selection diagram) | NO ROUTE (a stream identity is not a time coordinate) | REFUSED (`decision_reliability_v1` has no node kind) | DIRECT (this route: `DecisionDraws` in, report out) |
 | ranking statements (best, top-k, better than baseline) | diagnostic (Monte Carlo probability under the supplied law, uncalibrated) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | DIRECT; REFUSED `candidate_search_record_required` for adaptively generated candidates without a search record |
 | selection-aware evaluation (bound, held-out, split) | diagnostic (expectation bound under Gaussian error; held-out point estimate) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | DIRECT; REFUSED `validation_stream_not_independent` for a validation stream that is not independent |
-| ranking probability, confidence set or interval for a selected decision | closed interval | REFUSED `decision_reliability.cell_not_licensed` (`cell_not_licensed`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| ranking probability, confidence set or interval for a selected decision | closed interval | REFUSED `decision_reliability.not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 | one combined uncertainty number | closed | REFUSED `decision_reliability.combined_uncertainty` (`uncertainty_components_not_combined`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 The carrier declares dependence and does not infer it. Undeclared candidate
@@ -251,7 +251,7 @@ declaration of the source paradigm is the caller's.
 | Fitted effect model for a cohort of another population | bounded route delivered: declared covariate shift, every row inside the support contract, point-only, labelled extrapolative; a native-only inverse query policy refuses | `cohort_decision.shift_declaration_required`, `cohort_decision.shift_support_failure`, `inverse_forward_source.transported_not_accepted` | `antecedent-io-core` `cohort_decision` and `antecedent-design` `cohort_decision_input` |
 | Bridge used in another population | bounded route delivered as a declaration: a stated transportability premise, labelled transported, unresolved obligation; no selection-diagram derivation | `scientific_bridge.transport_premise_missing`, `scientific_bridge.transport_premise_mismatch` | `antecedent-contract` `bridge` |
 | Adaptive trial data as a transport source | refused: assignment depends on history, so selection is policy-driven and no selection-diagram contract states it; a fixed-design analysis of such data is refused | `adaptive_inference.fixed_sample_on_adaptive_data` (`adaptive_design_ignored`); a transport entry takes no adaptive result (`CausalTypeError`) | none; a route would need the adaptive-design contract expressed as a selection node in the transport catalog |
-| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | stays closed, permanently in this release: it is not an action and no interval or ranking of scenarios is licensed | `inverse.observational_scenarios` (`cell_not_licensed`) | none |
+| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | stays closed, permanently in this release: it is not an action and no interval or ranking of scenarios is supported | `inverse.observational_scenarios` (`not_supported`) | none |
 
 ## Scheduled cells and owners
 
@@ -265,7 +265,7 @@ declaration of the source paradigm is the caller's.
 
 - A SCHEDULED cell is not a promise of a date. It records that the consumer
   has no way to accept this output today and which module owns the adapter.
-- Frequentist and Bayesian guarantees are not licensed for any row: each would
+- Frequentist and Bayesian guarantees are not supported for any row: each would
   need a measured whole-method coverage record, and every such route is closed
   with a typed refusal until then.
 - The refusals named above, and their remedies, are listed in

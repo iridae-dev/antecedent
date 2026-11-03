@@ -1,6 +1,6 @@
 //! Retained off-axis interference exposure-contrast intervals: the cluster
 //! total effect, the exact two-stage saturation contrast, and the known-exposure
-//! observational contrast each carry an exact graphless license that survives the
+//! observational contrast each carry an exact graphless support that survives the
 //! artifact round trip and cannot be forged onto a withheld interval.
 #![allow(
     clippy::float_cmp,
@@ -61,10 +61,10 @@ fn run(
     (prepared, result)
 }
 
-/// Encode a licensed result, decode it, assert the wire carries the license, then
-/// strip the interval while keeping the licensed status and prove the re-encode
-/// (which revalidates) rejects the forged license.
-fn assert_license_round_trips_and_refuses_forgery(
+/// Encode a supported result, decode it, assert the wire carries the support, then
+/// strip the interval while keeping the supported status and prove the re-encode
+/// (which revalidates) rejects the forged support.
+fn assert_support_round_trips_and_refuses_forgery(
     prepared: &antecedent::PreparedStudy,
     result: &antecedent::StudyResult,
     label: &str,
@@ -72,15 +72,15 @@ fn assert_license_round_trips_and_refuses_forgery(
 ) {
     assert_eq!(
         result.interference_inference().unwrap().graphless_support_status,
-        Some(CellStatus::Licensed),
-        "{label}: a supported interval must be licensed",
+        Some(CellStatus::Supported),
+        "{label}: a supported interval must be supported",
     );
     let bytes = prepared.encode_contracted_result(result, label, ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let inference = body.interference_inference.as_ref().unwrap();
-    assert_eq!(inference.graphless_support_status.as_deref(), Some("licensed"), "{label}");
+    assert_eq!(inference.graphless_support_status.as_deref(), Some("supported"), "{label}");
     assert!(inference.interval.is_some(), "{label}");
-    // A licensed status with the interval withheld is not evidenced: revalidation
+    // A supported status with the interval withheld is not evidenced: revalidation
     // on re-encode must refuse it.
     let mut forged = body.clone();
     let forged_inference = forged.interference_inference.as_mut().unwrap();
@@ -89,18 +89,18 @@ fn assert_license_round_trips_and_refuses_forgery(
     let error = antecedent_io::encode_analysis_result_artifact(
         &forged,
         header.variable_names.clone(),
-        "forged-interference-license",
+        "forged-interference-support",
     )
     .unwrap_err();
     assert!(
         format!("{error:?}")
-            .contains("graphless license does not match the published interval support"),
-        "{label}: forged license on a withheld interval must be refused for that reason: {error:?}",
+            .contains("graphless support does not match the published interval support"),
+        "{label}: forged support on a withheld interval must be refused for that reason: {error:?}",
     );
 }
 
 #[test]
-fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
+fn supported_cluster_total_interval_round_trips_and_refuses_forgery() {
     const K: usize = 16;
     const TREATED: usize = 8;
     let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
@@ -137,7 +137,7 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
     let ctx = ExecutionContext::for_tests(611);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
     retained_graphless::assert_retained_graphless_program(
-        "licensed_cluster_total_interval_round_tr",
+        "supported_cluster_total_interval_round_tr",
         &prepared,
         &result,
         &ctx,
@@ -150,13 +150,13 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "cluster_total_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [8, 8]);
-    assert_license_round_trips_and_refuses_forgery(&prepared, &result, "cluster-total", &ctx);
+    assert_support_round_trips_and_refuses_forgery(&prepared, &result, "cluster-total", &ctx);
 }
 
 #[test]
-fn thin_cluster_total_cannot_forge_a_license() {
+fn thin_cluster_total_cannot_forge_a_support() {
     // Four clusters (two per arm) is below the eight-cluster interval floor, so no
-    // interval and no license exist; a forged licensed status must be refused.
+    // interval and no support exist; a forged supported status must be refused.
     const K: usize = 4;
     let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
     let assignment = (0..K).flat_map(|cluster| [cluster < 2; 2]).collect::<Vec<_>>();
@@ -193,7 +193,7 @@ fn thin_cluster_total_cannot_forge_a_license() {
     let bytes = prepared.encode_contracted_result(&result, "thin-cluster", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.interference_inference.as_mut().unwrap().graphless_support_status =
-        Some("licensed".into());
+        Some("supported".into());
     let error = antecedent_io::encode_analysis_result_artifact(
         &body,
         header.variable_names,
@@ -202,14 +202,14 @@ fn thin_cluster_total_cannot_forge_a_license() {
     .unwrap_err();
     assert!(
         format!("{error:?}").contains(
-            "interference graphless license does not match the published interval support"
+            "interference graphless support does not match the published interval support"
         ),
         "{error:?}"
     );
 }
 
 #[test]
-fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
+fn supported_saturation_interval_round_trips_and_refuses_forgery() {
     let clusters = (0..48).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
     let patterns =
         [[false, false, false], [true, false, false], [true, true, false], [true, true, true]];
@@ -261,7 +261,7 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
     let ctx = ExecutionContext::for_tests(613);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
     retained_graphless::assert_retained_graphless_program(
-        "licensed_saturation_interval_round_trips",
+        "supported_saturation_interval_round_trips",
         &prepared,
         &result,
         &ctx,
@@ -285,11 +285,11 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "saturation_cluster_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [24, 24]);
-    assert_license_round_trips_and_refuses_forgery(&prepared, &result, "saturation", &ctx);
+    assert_support_round_trips_and_refuses_forgery(&prepared, &result, "saturation", &ctx);
 }
 
 #[test]
-fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
+fn supported_observational_known_interval_round_trips_and_refuses_forgery() {
     let mut outcomes = Vec::new();
     let mut assignment = Vec::new();
     let mut clusters = Vec::new();
@@ -327,7 +327,7 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
     let ctx = ExecutionContext::for_tests(614);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
     retained_graphless::assert_retained_graphless_program(
-        "licensed_observational_known_interval_ro",
+        "supported_observational_known_interval_ro",
         &prepared,
         &result,
         &ctx,
@@ -339,13 +339,13 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "observational_known_exposure_cluster_t");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [30, 30]);
-    assert_license_round_trips_and_refuses_forgery(&prepared, &result, "observational-known", &ctx);
+    assert_support_round_trips_and_refuses_forgery(&prepared, &result, "observational-known", &ctx);
 }
 
 #[test]
 fn externally_estimated_observational_stays_point_only() {
     // Externally fitted exposure probabilities carry a declared, unverifiable
-    // network-confounding assumption, so no interval and no license are issued.
+    // network-confounding assumption, so no interval and no support are issued.
     let mut outcomes = Vec::new();
     let mut assignment = Vec::new();
     let mut clusters = Vec::new();
@@ -385,11 +385,11 @@ fn externally_estimated_observational_stays_point_only() {
     assert!(inference.interval.is_none());
     assert_eq!(inference.graphless_support_status, None);
     assert!(inference.interval_unavailable_reason.unwrap().contains("known, fixed"));
-    // A forged license on the externally-fitted point result is refused.
+    // A forged support on the externally-fitted point result is refused.
     let bytes = prepared.encode_contracted_result(&result, "external-obs", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.interference_inference.as_mut().unwrap().graphless_support_status =
-        Some("licensed".into());
+        Some("supported".into());
     let error = antecedent_io::encode_analysis_result_artifact(
         &body,
         header.variable_names,
@@ -398,7 +398,7 @@ fn externally_estimated_observational_stays_point_only() {
     .unwrap_err();
     assert!(
         format!("{error:?}").contains(
-            "interference graphless license does not match the published interval support"
+            "interference graphless support does not match the published interval support"
         ),
         "{error:?}"
     );
@@ -469,7 +469,7 @@ fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spr
         result.logical_plan.estimator.as_deref(),
         Some("interference.cluster_bayesian_bootstrap")
     );
-    assert_eq!(result.support_status(), None, "the Bayesian bootstrap route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian bootstrap route is unsupported");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
     let design_effect = frequentist.effect();

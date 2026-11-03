@@ -288,8 +288,8 @@ fn counterfactual_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms
                     let label = format!("{} bayesian={bayesian} {suite:?}", p.kind);
                     let (study, result) =
                         run(&p, bayesian, suite).unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{label}");
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(study.support_status(), Some(CellStatus::Supported), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     let tolerance = if bayesian { p.tolerance.max(0.03) } else { p.tolerance };
                     assert!(
                         (result.effect() - p.expected).abs() <= tolerance,
@@ -372,7 +372,7 @@ fn counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_bu
                         "{label}: {}",
                         result.effect()
                     );
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 }
             }
         }
@@ -399,7 +399,7 @@ fn a_validated_pag_counterfactual_posterior_is_refused_with_its_reason() {
                     .build()
                     .unwrap_err()
                     .to_string();
-                assert!(error.starts_with("refused:"), "{kind} {suite:?}: {error}");
+                assert!(error.starts_with("not_supported:"), "{kind} {suite:?}: {error}");
                 assert!(error.contains(needle), "{kind} {suite:?}: {error}");
             }
         }

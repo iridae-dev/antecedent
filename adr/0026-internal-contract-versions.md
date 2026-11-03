@@ -94,7 +94,7 @@ Extends ADR 0022 and ADR 0005. Contract `cyclic.solution.v1`.
   orders directed strongly connected components, sources before sinks, with
   minimum dense-id tie breaks. `CyclicMixedGraph::condensation` reads the
   same directed edges. A bidirected edge is latent confounding and does not
-  join a component. An acyclic condensation does not license ordinary DAG
+  join a component. An acyclic condensation does not support ordinary DAG
   adjustment inside a feedback block. The schedule is a construction-time
   dense index. ADR 0005 still holds: serialized artifacts carry variable
   schemas and lag metadata, and `(VariableId, Lag)` identities are unchanged.
@@ -107,7 +107,7 @@ identity of ADR 0022 and does not add an identity domain.
 
 - Semantic caches obey `CachePolicy` and `CacheBudget` on
   `ExecutionContext`. A cache hit preserves the scientific identity of the
-  retained product and does not grant a new license.
+  retained product and does not grant a new support.
 - Score tables, folds, posterior draws, and credible-draw vectors stay on
   the layer that produced them. They are not identification products.
 - Published endpoints are the values already computed. Dropping an

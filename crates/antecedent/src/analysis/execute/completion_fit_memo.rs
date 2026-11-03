@@ -77,7 +77,7 @@ impl ResponseFitKey {
 /// What distinguishes the mediation fits of one horizon of one execution.
 ///
 /// The temporal mediation fits read the estimand only through its method
-/// (which licenses the route and is recorded on the Bayesian problem) and its
+/// (which supports the route and is recorded on the Bayesian problem) and its
 /// mediators, and the adjustment only through the lag-aligned columns derived
 /// from its adjustment set and the completion's indexer. The data, the
 /// horizon query, the inference mode and the seed are fixed per horizon. The

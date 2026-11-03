@@ -59,7 +59,7 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
-        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
         assert!(lower < fit.effect && fit.effect < upper);
         // The generated treatment effect is exactly 1.4; the covariates and the sinusoid
         // average out (observed deviation <= 0.002), and the interval covers it.
@@ -78,7 +78,7 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
         assert_eq!(
             artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-            Some("licensed")
+            Some("supported")
         );
         let mut forged = artifact.clone();
         forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
@@ -240,7 +240,7 @@ fn three_hundred_row_trials_publish_intervals_from_their_own_arm_support() {
             assert!(lower < 1.4 && 1.4 < upper, "{name} {label}: [{lower}, {upper}]");
             assert_eq!(
                 result.support_status(),
-                Some(antecedent::support::CellStatus::Licensed),
+                Some(antecedent::support::CellStatus::Supported),
                 "{name} {label}"
             );
         }
@@ -264,7 +264,7 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
             let fit = result.randomized_effect().unwrap();
             assert!(result.support_status().is_none(), "{name} {label}");
             if label == "ancova" {
-                // The ANCOVA has a small-arm construction of its own, never licensed.
+                // The ANCOVA has a small-arm construction of its own, never supported.
                 assert!(fit.interval_95.is_some(), "{name} {label}");
                 assert_eq!(
                     fit.uncertainty.as_ref(),
@@ -323,7 +323,7 @@ fn cluster_trial(treated_clusters: usize) -> (RandomizedEffectQuery, TabularData
 }
 
 #[test]
-fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license() {
+fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support() {
     let (query, data) = cluster_trial(30);
     let ctx = ExecutionContext::for_tests(0xC1_0573);
     let run = |query: RandomizedEffectQuery| {
@@ -358,14 +358,14 @@ fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license() {
         upper - lower,
         plain_upper - plain_lower
     );
-    // The adjusted route holds its own graphless license, never the unadjusted cluster row.
-    assert_eq!(adjusted.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    // The adjusted route holds its own graphless support, never the unadjusted cluster row.
+    assert_eq!(adjusted.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes = prepared.encode_contracted_result(&adjusted, "cluster-cuped", &ctx).unwrap();
     let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let randomized = artifact.randomized_effect.as_ref().unwrap();
     assert_eq!(randomized.uncertainty, "cluster_fixed_cuped_neyman_normal_interval");
-    assert_eq!(randomized.graphless_support_status.as_deref(), Some("licensed"));
-    // Relabelling the adjusted result as the unadjusted one must not keep the license.
+    assert_eq!(randomized.graphless_support_status.as_deref(), Some("supported"));
+    // Relabelling the adjusted result as the unadjusted one must not keep the support.
     let mut relabelled = artifact.clone();
     relabelled.randomized_effect.as_mut().unwrap().uncertainty =
         "cluster_neyman_normal_interval".into();

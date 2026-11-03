@@ -146,7 +146,7 @@ pub use result::{
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
     SupportQuery, SupportRefusal, SupportStructure, SupportValidation, cell_coordinate, classify,
-    licensed_neighbors, licensed_support_cells, refused_message, support_cell_from_coordinate,
+    refused_message, support_cell_from_coordinate, supported_cells, supported_neighbors,
 };
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,

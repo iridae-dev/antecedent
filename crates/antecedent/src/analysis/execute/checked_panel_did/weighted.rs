@@ -129,7 +129,7 @@ impl super::CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             super::panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -142,7 +142,7 @@ impl super::CheckedPanelDidOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);

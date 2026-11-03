@@ -271,7 +271,7 @@ pub fn estimate_static_mediation_bayesian(
 /// Bayesian static mediation with any mapped coefficient prior restricted to
 /// the outcome mechanism. Checked high-level mediation routes use this entry
 /// point because only the outcome treatment slope defines the natural-direct
-/// functional used by the licensed transfer contract.
+/// functional used by the supported transfer contract.
 ///
 /// # Errors
 ///

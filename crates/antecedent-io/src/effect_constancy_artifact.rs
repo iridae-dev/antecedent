@@ -20,7 +20,7 @@
 //!
 //! What this does **not** say: non-rejection does not prove constancy, the test's Type I error
 //! and power are unmeasured (`calibration = "unmeasured"`), and the artifact grants no causal
-//! or interval license (`inference_claim = "point_only"`). Unknown major versions refuse.
+//! or interval support (`inference_claim = "point_only"`). Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

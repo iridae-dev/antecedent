@@ -1,6 +1,6 @@
 """AnomalyAttribution and ChangeAttribution on the golden Python lifecycle.
 
-The two licensed GCM cells run on ``analyze`` and retain a study::
+The two supported GCM cells run on ``analyze`` and retain a study::
 
     result = ant.analyze(data, graph=Dag, query=query)
     study = result.study
@@ -9,7 +9,7 @@ The two licensed GCM cells run on ``analyze`` and retain a study::
     loaded = ant.load(result.export())
 
 The supported anomaly cheap/full cells run the functional refuters. Change attribution
-cheap/full validation is refused; accepted DAG change attribution remains licensed.
+cheap/full validation is refused; accepted DAG change attribution remains supported.
 """
 
 from __future__ import annotations
@@ -223,11 +223,11 @@ def test_second_click_refuter_suite_refuses(query):
 def test_bootstrap_and_validation_follow_each_attribution_cell(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
-    # a bootstrap standard error and the result is unlicensed.
+    # a bootstrap standard error and the result is unsupported.
     bootstrapped = require_success(
         ant.analyze(data, graph=_dag(), query=query, inference=ant.Frequentist(bootstrap=50))
     )
-    assert bootstrapped.evidence_status != "licensed"
+    assert bootstrapped.evidence_status != "supported"
     assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
     # Bayesian contribution uncertainty uses its own posterior declaration;
     # a frequentist replicate budget is not a Bayesian configuration field.
@@ -245,7 +245,7 @@ def test_bootstrap_and_validation_follow_each_attribution_cell(query):
                 require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
         else:
             validated = require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
-            assert validated.evidence_status == "licensed"
+            assert validated.evidence_status == "supported"
             reports = {report.refuter for report in validated.validation.reports}
             assert "target.subset_stability" in reports
             if suite == "full":
@@ -279,7 +279,7 @@ def test_bayesian_anomaly_and_accepted_change_on_analyze():
             query=_change_query(),
         )
     )
-    assert accepted.evidence_status == "licensed"
+    assert accepted.evidence_status == "supported"
     assert accepted.inspect().to_dict()["support"]["payload"]["matrix_coordinate"] == (
         "ChangeAttribution:Dag:accepted:Frequentist:none"
     )

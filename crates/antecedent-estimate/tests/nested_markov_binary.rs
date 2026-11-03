@@ -174,7 +174,7 @@ fn nested_likelihood_truth_exact_counts_recover_scm() {
 
     // The interval route stays closed.
     let (code, message) = coded(&refuse_public_interval_route());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("nested_markov.route_frozen"));
 }
 

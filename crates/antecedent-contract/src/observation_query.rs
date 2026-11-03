@@ -5,7 +5,7 @@
 //! model, and a value read off an instrument is not the construct the
 //! instrument measures. This module decides whether a *request* is of the kind
 //! the numerical layer may execute at all, and says which request it refused
-//! and what declaration would license it. It computes no probability.
+//! and what declaration would support it. It computes no probability.
 //!
 //! Refusals are [`ExternalRefusal`]s under the `observation_query` detail
 //! namespace, each with a registered reason code and an actionable remedy:
@@ -656,7 +656,7 @@ fn categorical_likelihood(
 #[must_use]
 pub fn interval_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         OBSERVATION_QUERY_STAGE,
         "observation_query.declared_model_has_no_sampling_interval",
     )
@@ -669,7 +669,7 @@ pub fn interval_refusal() -> ExternalRefusal {
 #[must_use]
 pub fn calibration_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         OBSERVATION_QUERY_STAGE,
         "observation_query.calibrated_probability_closed",
     )
@@ -1131,7 +1131,7 @@ mod tests {
         assert_eq!(unreachable.code, "evidence_cannot_reach_level");
         assert_eq!(unreachable.expected.as_deref(), Some("0.9"));
         assert_eq!(unreachable.supplied.as_deref(), Some("0.78"));
-        assert_eq!(interval_refusal().code, "cell_not_licensed");
+        assert_eq!(interval_refusal().code, "not_supported");
         assert_eq!(calibration_refusal().detail, "observation_query.calibrated_probability_closed");
     }
 

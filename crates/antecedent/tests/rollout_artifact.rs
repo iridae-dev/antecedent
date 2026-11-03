@@ -67,7 +67,7 @@ fn source(posterior: bool) -> DistributionArtifact {
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
             trust: if posterior {
-                DistributionTrust::NativeLicensed
+                DistributionTrust::NativeSupported
             } else {
                 DistributionTrust::ExternalAttested
             },
@@ -157,7 +157,7 @@ fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
             1 => changed.binding.decision.admissible[0] = false,
             2 => changed.binding.decision.utility_unit = "other-unit".into(),
             3 => changed.binding.state.units = "other-units".into(),
-            4 => changed.binding.source.trust = DistributionTrust::NativeLicensed,
+            4 => changed.binding.source.trust = DistributionTrust::NativeSupported,
             5 => changed.binding.source.calibration = DistributionCalibration::Measured,
             6 => {
                 if let antecedent_design::design_ranking_artifact::PriorWire::Draws { states } =

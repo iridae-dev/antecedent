@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 papers = []
-implementation_deviations = ["Original checked preparation and original conjugate Gaussian/basis engine issue the actual posterior. Retention and summary never create new draws. A changed likelihood/configuration invalidates numerical state while compatible causal proof is retained. Source transfer is admitted only through a bounded capsule embedding source raw data, checked source graph/query/configuration and original posterior artifact: fresh verification reruns the source posterior and compares its complete artifact before the target uses it. Known same-content source/target likelihood is refused before work; absence of partial overlap identifiers cannot establish independence. Selected joint transport remains a separate calibration-internal candidate, not a public calibrated transport license.", "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates."]
+implementation_deviations = ["Original checked preparation and original conjugate Gaussian/basis engine issue the actual posterior. Retention and summary never create new draws. A changed likelihood/configuration invalidates numerical state while compatible causal proof is retained. Source transfer is admitted only through a bounded capsule embedding source raw data, checked source graph/query/configuration and original posterior artifact: fresh verification reruns the source posterior and compares its complete artifact before the target uses it. Known same-content source/target likelihood is refused before work; absence of partial overlap identifiers cannot establish independence. Selected joint transport remains a separate calibration-internal candidate, not a public calibrated transport support.", "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_bayesian.rs", "python/tests/test_recalc_bayesian.py", "conformance/recalculation/bayesian_retention/expected.json", "conformance/recalculation/bayesian_retention/README.md"]
 
@@ -18,12 +18,12 @@ limitations = "Eight draw sets (2 to 1001 draws, ties, a threshold equal to a dr
 assumptions = ["The draws are the aligned rows issued by the native checked execution; this review treats them as given data.", "Quantile probabilities are strictly inside (0,1) with lower below upper; threshold comparisons are strict.", "The mean uses compensated summation in the kernel and the quantile arithmetic is binary64 on the order statistics, so agreement is to a few ulps of the draw scale."]
 sources = ["https://doi.org/10.1080/00031305.1996.10473566", "https://docs.python.org/3/library/fractions.html"]
 findings_resolved = ["The posterior mean, standard deviation, both type-7 quantiles and the strict proportion below equal the exact rational reference on all eight draw sets, including ties, a threshold that equals a draw (counted as not below), the top order statistic and a set offset by 1e9 where cancellation would show.", "Fewer than two draws, a non-finite draw and every invalid probability pair (zero, one, reversed, equal, NaN) are refused.", "No product defect was found in this record."]
-record_sha256 = "f3cd56121403db4a89b249a0b6475a9f055c2fa0d6d49950319bc6fcafb53179"
+record_sha256 = "3e0b8f1009b7c7651e72e337498c1d6430798006a5153a30a4c88672fa128c40"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_bayesian.rs"
-sha256 = "ac736b24d5263782a018893b5617def0e9695d44dd3feb9ed986b1d796e0f63f"
+sha256 = "23bbb9b9ee00961cfa8f1bc40cf711d149781a29a3b95c9ee537ddf4e4afce7d"
 
 [[method_review.artifacts]]
 role = "assertion"

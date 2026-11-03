@@ -4,7 +4,7 @@
 //! polynomial dose curve (mean and covariance of the level, derivative and contrast rows) was
 //! computed with numpy from the normal equations on the rescaled design. A fresh consumer must
 //! reproduce the stored result from the embedded table alone and refuse every change,
-//! including one resealed with recomputed digests. The row is not licensed: its result says so.
+//! including one resealed with recomputed digests. The row is not supported: its result says so.
 #![allow(
     clippy::float_cmp,
     reason = "bit-identical replay and exact stored markers are the properties under test"
@@ -70,11 +70,11 @@ fn refusal_of(request: PosteriorRowRequestWire) -> (&'static str, String, String
     }
 }
 
-fn assert_unlicensed(wire: &PosteriorRowArtifactWire, estimator: &str) {
+fn assert_unsupported(wire: &PosteriorRowArtifactWire, estimator: &str) {
     assert_eq!(wire.result.estimator, estimator);
     assert_eq!(wire.result.uncertainty, POSTERIOR_ROW_UNCERTAINTY);
     assert_eq!(wire.result.calibration, POSTERIOR_ROW_CALIBRATION);
-    assert!(!wire.result.licensed);
+    assert!(!wire.result.supported);
     let width = wire.result.coordinates.len();
     assert_eq!(
         (wire.result.mean.len(), wire.result.lower.len(), wire.result.upper.len()),
@@ -93,7 +93,7 @@ fn dose_grid_level_round_trips_and_keeps_the_joint_covariance() {
     let sealed = seal(dose_grid("level", &[0.5, 2.0, 3.5]));
     let consumed = consume(&sealed.export().unwrap()).unwrap();
     assert_eq!(consumed, sealed);
-    assert_unlicensed(&consumed, DOSE_GRID_POSTERIOR_ESTIMATOR);
+    assert_unsupported(&consumed, DOSE_GRID_POSTERIOR_ESTIMATOR);
     let result = &consumed.result;
     assert_eq!(result.coordinates, ["level(0.5)", "level(2)", "level(3.5)"]);
     assert_eq!(result.vectors["points"], [0.5, 2.0, 3.5]);
@@ -133,7 +133,7 @@ fn dose_grid_level_round_trips_and_keeps_the_joint_covariance() {
 fn dose_grid_derivative_and_contrast_replay_to_the_conjugate_reference() {
     let derivative =
         consume(&seal(dose_grid("derivative", &[0.5, 2.0, 3.5])).export().unwrap()).unwrap();
-    assert_unlicensed(&derivative, DOSE_GRID_POSTERIOR_ESTIMATOR);
+    assert_unsupported(&derivative, DOSE_GRID_POSTERIOR_ESTIMATOR);
     let want = [0.827_613_84, 0.100_147_42, -0.627_319_00];
     for (got, want) in derivative.result.exact_mean.as_ref().unwrap().iter().zip(want) {
         close(*got, want, 1e-7);
@@ -189,10 +189,10 @@ fn forged_artifacts_are_refused_even_when_resealed() {
     narrowed.result.covariance.as_mut().unwrap()[1] = 0.0;
     assert_eq!(consume(&reseal(narrowed)), Err(PosteriorRowArtifactError::ResultMismatch));
 
-    // A claimed licence, a foreign estimator id, a changed calibration or feature marker are
+    // A claimed support, a foreign estimator id, a changed calibration or feature marker are
     // refused as unsupported semantics before any replay.
     let tampers: [fn(&mut PosteriorRowArtifactWire); 5] = [
-        |w| w.result.licensed = true,
+        |w| w.result.supported = true,
         |w| w.result.estimator = "bayesian.piecewise_survival".into(),
         |w| w.result.calibration = "measured".into(),
         |w| w.result.uncertainty = "interval".into(),

@@ -1,7 +1,7 @@
 //! Synthetic control with intervals: conformal inference for one treated unit, placebo variance
 //! for a staggered multi-unit rollout, and the Bayesian posterior of the multi-unit average.
 //!
-//! The frequentist intervals are unlicensed and their calibration is unmeasured. The Bayesian
+//! The frequentist intervals are unsupported and their calibration is unmeasured. The Bayesian
 //! multi-unit posterior runs the simplex donor-weight posterior of each adopting unit against
 //! the never-treated donors and averages the per-unit draws with post-period weights; treating
 //! the per-unit posteriors as independent given the shared donors is a declared modelling
@@ -329,7 +329,7 @@ impl super::CheckedSyntheticControlOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "{} adopting units; worst split R-hat {max_rhat:.4}; smallest bulk ESS \
-                     {min_ess:.1}; unlicensed and uncalibrated",
+                     {min_ess:.1}; unsupported and uncalibrated",
                     rollout.adoptions.len()
                 ),
             )],
@@ -453,7 +453,7 @@ impl super::CheckedSyntheticControlOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "posterior predictive intervals for {} post periods; split R-hat {:.4}; \
-                     bulk ESS {:.1}; unlicensed and uncalibrated",
+                     bulk ESS {:.1}; unsupported and uncalibrated",
                     fit.n_post_periods, fit.max_split_rhat, fit.min_bulk_ess
                 ),
             )],

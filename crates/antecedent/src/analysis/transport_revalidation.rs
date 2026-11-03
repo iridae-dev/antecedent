@@ -630,9 +630,9 @@ impl TransportRevalidationReport {
     /// The claim when it is usable as it stands.
     ///
     /// # Errors
-    /// The typed refusal of a claim that must be recomputed or whose license was
+    /// The typed refusal of a claim that must be recomputed or whose support was
     /// withdrawn (a calibration record from another target is refused with
-    /// `cell_not_licensed`), or `invalid_argument` for an unknown key.
+    /// `not_supported`), or `invalid_argument` for an unknown key.
     #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"

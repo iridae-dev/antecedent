@@ -349,7 +349,7 @@ pub enum DecisionFunctional {
 impl DecisionFunctional {
     /// Source representations that can answer this functional for `expr`.
     ///
-    /// A generic functional type does not license every native route: this only
+    /// A generic functional type does not support every native route: this only
     /// states what the source must supply.
     #[must_use]
     pub fn requirement(&self, expr: &UtilityExpr) -> SourceRequirement {
@@ -1196,7 +1196,7 @@ pub struct SupportRule {
     pub action_id: String,
     /// Input position within the action.
     pub input: usize,
-    /// Weakest status that still licenses the action; a weaker one excludes the
+    /// Weakest status that still supports the action; a weaker one excludes the
     /// action in the structure that reports it.
     pub weakest_allowed: SupportStatus,
 }
@@ -1240,7 +1240,7 @@ impl AdmissibilityRules {
             .or(self.default_weakest_support)
     }
 
-    /// Whether `status` licenses the input.
+    /// Whether `status` supports the input.
     #[must_use]
     pub fn support_met(&self, action_id: &str, input: usize, status: SupportStatus) -> bool {
         self.weakest_allowed(action_id, input)

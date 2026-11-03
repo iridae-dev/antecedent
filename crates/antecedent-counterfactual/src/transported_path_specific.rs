@@ -70,8 +70,8 @@
 //! 4. *Identification of `G`.* `G` is a polynomial in the structural coefficients
 //!    (assumption 5), so it is computed from the supplied source fit; the
 //!    coefficient functions of `z` are evidenced only on the source support, so
-//!    `G` is licensed on `supp P_T(Z)` exactly when that lies in `supp P_S(Z)`
-//!    (assumption 6; extrapolation of the affine form is not licensed).
+//!    `G` is supported on `supp P_T(Z)` exactly when that lies in `supp P_S(Z)`
+//!    (assumption 6; extrapolation of the affine form is not supported).
 //! 5. *Composition of the prerequisites.* `G(z)` is the fixed-population,
 //!    unit-level path-specific edge-intervention contrast (Pearl 2001 direct and
 //!    indirect effects; the edge-set generalisation of Avin, Shpitser and Pearl
@@ -96,7 +96,7 @@
 //!   ([`NonRecoverableWitness`]: same source model, two target models that differ in
 //!   that one coefficient, contrasts verified by arithmetic) and the code
 //!   `transport_proven_non_transportable`; otherwise the refusal is
-//!   `cell_not_licensed` with no witness (the class excludes it, no impossibility
+//!   `not_supported` with no witness (the class excludes it, no impossibility
 //!   is claimed).
 //! * The claim is point-only; calibration is unmeasured.
 //!
@@ -653,7 +653,7 @@ fn check_diagram(
     let code = if witness.is_some() {
         antecedent_core::reason_code!("transport_proven_non_transportable")
     } else {
-        antecedent_core::reason_code!("cell_not_licensed")
+        antecedent_core::reason_code!("not_supported")
     };
     let mut refusal = refuse_with(
         code,
@@ -679,7 +679,7 @@ fn check_assumptions(
         return Ok(());
     };
     Err(refuse_with(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         detail,
         Some(premise.to_owned()),
         "declare the additive-noise, shared-noise-law and cross-world independence premises, \
@@ -695,8 +695,8 @@ fn check_factors(
         RegimeFactorKey { role: PopulationRole::Target, regime: "observational".to_owned() },
     ];
     let passed = TransportedCounterfactualPrerequisites {
-        transport_license: true,
-        fixed_population_license: true,
+        transport_support: true,
+        fixed_population_support: true,
         cross_population_assumptions: true,
     };
     let gate = refuse_transported_counterfactual(&passed, &required, supplied);

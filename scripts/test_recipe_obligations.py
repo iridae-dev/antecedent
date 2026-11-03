@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A type-compatible recipe does not open a route, and a license matches the matrix."""
+"""A type-compatible recipe does not open a route, and support matches the matrix."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def route(**extra) -> dict:
     return cell
 
 
-def licensed_row(**extra) -> dict:
+def supported_row(**extra) -> dict:
     row = route(
         estimators=["linear.adjustment.ate"],
         checked_execution=[
@@ -79,7 +79,7 @@ def matrix_cell(**extra) -> dict:
 class RecipeObligationTest(unittest.TestCase):
     def test_a_type_compatible_recipe_does_not_open_a_route(self) -> None:
         compatible = route()
-        self.assertEqual(gate.standing(compatible, [], [], set()), "unlicensed")
+        self.assertEqual(gate.standing(compatible, [], [], set()), "unsupported")
         self.assertNotEqual(gate.standing(compatible, [], [], set()), "not_applicable")
         obligations = gate.emit_obligations(compatible)
         self.assertEqual(obligations["routes"], [])
@@ -93,9 +93,9 @@ class RecipeObligationTest(unittest.TestCase):
         self.assertEqual(gate.standing(cell, CLOSED, NOT_APPLICABLE, set()), "closed")
         self.assertNotEqual(gate.standing(cell, CLOSED, NOT_APPLICABLE, set()), "not_applicable")
         self.assertEqual(gate.cross_check([], [], CLOSED, NOT_APPLICABLE, axes=AXES), [])
-        licensed = licensed_row(query="Counterfactual", graph_class="Admg")
+        supported = supported_row(query="Counterfactual", graph_class="Admg")
         matrix = matrix_cell(query="Counterfactual", graph_class="Admg")
-        problems = gate.cross_check([licensed], [matrix], CLOSED, NOT_APPLICABLE)
+        problems = gate.cross_check([supported], [matrix], CLOSED, NOT_APPLICABLE)
         self.assertTrue(
             any("Counterfactual" in problem and "stays closed" in problem for problem in problems)
         )
@@ -106,16 +106,16 @@ class RecipeObligationTest(unittest.TestCase):
         original = gate.standing
         mutations = [
             (route(query="Counterfactual", graph_class="Admg"), "not_applicable", "closed"),
-            (route(query="PulseEffect", graph_class="Dag"), "licensed", "not_applicable"),
-            # This is not the first unlicensed coordinate in AXES.
-            (route(query="PulseEffect", graph_class="Admg"), "licensed", "unlicensed"),
+            (route(query="PulseEffect", graph_class="Dag"), "supported", "not_applicable"),
+            # This is not the first unsupported coordinate in AXES.
+            (route(query="PulseEffect", graph_class="Admg"), "supported", "unsupported"),
         ]
         for target, wrong, expected in mutations:
             with self.subTest(target=target):
-                def defective(cell, closed, applicable, licensed, target=target, wrong=wrong):
+                def defective(cell, closed, applicable, supported, target=target, wrong=wrong):
                     if cell == target:
                         return wrong
-                    return original(cell, closed, applicable, licensed)
+                    return original(cell, closed, applicable, supported)
                 with patch.object(gate, "standing", side_effect=defective):
                     problems = gate.cross_check([], [], CLOSED, na, axes=AXES)
                 self.assertTrue(any(gate.coordinate(target) in problem and
@@ -126,21 +126,21 @@ class RecipeObligationTest(unittest.TestCase):
             problems = gate.cross_check([], [], CLOSED, NOT_APPLICABLE, axes=AXES)
         self.assertTrue(any("expected closed" in problem for problem in problems))
 
-    def test_a_license_cannot_override_not_applicable(self) -> None:
-        licensed = licensed_row()
+    def test_a_support_cannot_override_not_applicable(self) -> None:
+        supported = supported_row()
         matrix = matrix_cell()
-        rule = {"queries": [licensed["query"]]}
-        self.assertEqual(gate.standing(licensed, [], [rule], {gate.coordinate(licensed)}), "not_applicable")
-        problems = gate.cross_check([licensed], [matrix], [], [rule])
-        self.assertTrue(any("not_applicable and is not a license" in problem for problem in problems))
+        rule = {"queries": [supported["query"]]}
+        self.assertEqual(gate.standing(supported, [], [rule], {gate.coordinate(supported)}), "not_applicable")
+        problems = gate.cross_check([supported], [matrix], [], [rule])
+        self.assertTrue(any("not_applicable and is not support" in problem for problem in problems))
 
-    def test_licensed_obligations_match_the_matrix_and_leave_calibration_on_the_license(
+    def test_supported_obligations_match_the_matrix_and_leave_calibration_on_the_support(
         self,
     ) -> None:
-        licensed = licensed_row()
+        supported = supported_row()
         matrix = matrix_cell(estimators=["linear.adjustment.ate", "cell.aipw"])
-        self.assertEqual(gate.cross_check([licensed], [matrix], [], []), [])
-        obligations = gate.emit_obligations(licensed)
+        self.assertEqual(gate.cross_check([supported], [matrix], [], []), [])
+        obligations = gate.emit_obligations(supported)
         self.assertEqual(
             [item["estimator"] for item in obligations["routes"]],
             ["linear.adjustment.ate"],
@@ -148,10 +148,10 @@ class RecipeObligationTest(unittest.TestCase):
         self.assertNotIn("cell.aipw", [item["estimator"] for item in obligations["routes"]])
         self.assertNotIn("evidence_kind", obligations)
         self.assertNotIn("calibration_reason", obligations)
-        self.assertEqual(licensed["evidence_kind"], "internal_known_truth")
-        self.assertEqual(licensed["calibration_reason"], "no_interval_reported")
+        self.assertEqual(supported["evidence_kind"], "internal_known_truth")
+        self.assertEqual(supported["calibration_reason"], "no_interval_reported")
 
-        invented = licensed_row(estimators=["other.estimator"])
+        invented = supported_row(estimators=["other.estimator"])
         invented["checked_execution"][0]["estimator"] = "other.estimator"
         problems = gate.cross_check([invented], [matrix_cell()], [], [])
         self.assertTrue(any("AverageEffect" in problem for problem in problems))
@@ -161,12 +161,12 @@ class RecipeObligationTest(unittest.TestCase):
         def cite(test: str, assertion: str) -> list[str]:
             return [f"evidence assertion {assertion!r} is not reachable"]
 
-        problems = gate.cross_check([licensed_row()], [matrix_cell()], [], [], cite=cite)
+        problems = gate.cross_check([supported_row()], [matrix_cell()], [], [], cite=cite)
         self.assertTrue(
             any("AverageEffect" in problem and "not reachable" in problem for problem in problems)
         )
 
-    def test_recorded_licenses_match_the_support_matrix(self) -> None:
+    def test_recorded_supports_match_the_support_matrix(self) -> None:
         problems = gate.matrix_alignment_problems(Path(REPO_ROOT), cite=_path_exists)
         self.assertEqual(problems, [])
 

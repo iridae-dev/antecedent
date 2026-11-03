@@ -595,7 +595,7 @@ impl CompiledCausalModel {
     )]
     pub fn compile_shared(graph: Arc<Dag>) -> Result<Self, ModelError> {
         let order = graph.topological_order().ok_or_else(|| ModelError::NotDag {
-            message: crate::scc_compile::dag_license_refusal(),
+            message: crate::scc_compile::dag_support_refusal(),
         })?;
         let n = graph.node_count();
         let mut variables = Vec::with_capacity(n);

@@ -17,7 +17,7 @@ bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
 bash scripts/gate_gcm_conformance.sh --self-test
-bash scripts/gate_promotion.sh --self-test
+bash scripts/gate_capability_records.sh --self-test
 python3 scripts/release_evidence_report.py --self-test
 python3 scripts/decision_exit_report_cli_selftest.py
 python3 scripts/check_prerequisites.py --self-test
@@ -57,7 +57,7 @@ python3 scripts/test_calibration_decision_logs.py
 python3 scripts/test_calibration_key_aliases.py
 python3 scripts/test_collect_coverage_records.py
 python3 scripts/test_coverage_snapshot_attestation.py
-python3 scripts/test_promotion_refusal_helpers.py
+python3 scripts/test_capability_refusal_helpers.py
 python3 scripts/test_interval_attestation_cache.py
 python3 scripts/test_interval_coordinate_emission.py
 python3 scripts/test_publish_crates.py

@@ -25430,7 +25430,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_attribution_known_truth.rs",
-          "sha256": "181508fcb4a5f8ca0856e69760b9ef8c5dd0459b16efef3dc275e5ee7121253d"
+          "sha256": "d53b5a3c1e65e82493f6181214b7fdc73422804a5aad19f98a1d78232d907b76"
         }
       ],
       "fixture_payload_sha256": "1355fda27adc57c66110ab2aa4b3d4417d314969fcfc646de0bb0f3414ff3590"

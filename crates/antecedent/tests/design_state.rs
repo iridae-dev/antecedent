@@ -84,7 +84,7 @@ fn rank_candidates_eig_conformance() {
         identified_under_intervention: None,
         graph_features: None,
     };
-    // Ranking runs through a prepared study's contract: it refuses an unlicensed or
+    // Ranking runs through a prepared study's contract: it refuses an unsupported or
     // unprepared study and reports the candidates the objective cannot score.
     let (data, dag, query) = confounded_scm(96, 11);
     let prepared = Study::tabular(data)

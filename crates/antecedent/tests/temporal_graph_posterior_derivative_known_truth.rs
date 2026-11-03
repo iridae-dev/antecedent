@@ -306,7 +306,7 @@ fn temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                     let builder = study(&data, posterior_of(atoms), &functional, bayesian, suite)
                         .build()
                         .unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
                     let context = ExecutionContext::for_tests(821);
                     let prepared =
                         builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -318,7 +318,7 @@ fn temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                     let result = prepared
                         .estimate_retained(&context)
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert_eq!(
                         result.logical_plan.estimator.as_deref(),
                         Some(if bayesian {
@@ -401,7 +401,7 @@ fn temporal_graph_posterior_lost_mass_is_stated_and_the_identified_mixture_is_th
         let posterior = dbn_posterior(&[valid(0.7), cyclic_clone(&cyclic)]);
         let builder =
             study(&data, posterior, &functional, bayesian, RefuteSuite::None).build().unwrap();
-        assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+        assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
         let result = builder.run(&ExecutionContext::for_tests(822)).unwrap();
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!(

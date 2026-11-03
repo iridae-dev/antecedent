@@ -1,6 +1,6 @@
 //! Fixed-population temporal counterfactual and the closed transported route.
 //!
-//! One cell is licensed: on a fixed, fully observed, Markovian two-slice DAG with
+//! One cell is supported: on a fixed, fully observed, Markovian two-slice DAG with
 //! linear-Gaussian additive-noise mechanisms, each unit's exogenous history is abduced once from
 //! its factual trajectory and **both** named two-step action histories are replayed against that
 //! same history ([`TemporalCounterfactual::evaluate`]). The answer is a point: per-unit final
@@ -10,7 +10,7 @@
 //! The transported path-specific counterfactual stays **closed**:
 //! [`transported_path_specific`] never evaluates, it reports exactly which prerequisite gate is
 //! missing and which regime factors are absent. Neither a transported mean nor a source
-//! counterfactual alone licenses their composition.
+//! counterfactual alone supports their composition.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -212,7 +212,7 @@ impl GeneralTemporalCounterfactual {
 
 /// The closed transported path-specific counterfactual route.
 ///
-/// Always refuses: `transported_counterfactual.route_frozen` (`cell_not_licensed`) while a
+/// Always refuses: `transported_counterfactual.route_frozen` (`not_supported`) while a
 /// prerequisite gate is missing (and also when every gate passes and every required regime
 /// factor is present, because the joint theorem has not passed), and
 /// `transported_counterfactual.factor_missing` (`transport_missing_evidence`) when every gate

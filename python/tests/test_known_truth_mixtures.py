@@ -1,4 +1,4 @@
-"""Numeric evidence for the licensed graph-posterior mixture cells.
+"""Numeric evidence for the supported graph-posterior mixture cells.
 
 Rust owns the known-truth DGP. These tests consume the same fixture so a
 Python run sees E[τ|identified] and unidentified mass, not prepared-vs-fresh
@@ -58,8 +58,8 @@ def _assert_mixture_contract(
     expect_ppc: bool,
     withhold_scalar: bool = False,
 ) -> None:
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     if withhold_scalar:
         assert fresh.ate is None and click.ate is None
@@ -138,8 +138,8 @@ def _assert_frequentist_mixture_contract(
     expected_ate: float,
     unidentified_mass: float,
 ) -> None:
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     assert fresh.ate is None and click.ate is None
     assert fresh.posterior is None and click.posterior is None
@@ -421,7 +421,7 @@ def test_dbn_posterior_response_curve_runs() -> None:
             execution=antecedent.Execution(seed=1),
         )
     )
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert result.response is not None
     # defect_t = 0.9 * pressure_{t-1}: the identified-mixture pulse response at level a is 0.9 * a
     # (a = 0 is the baseline), so the curve over the grid [0, 1] is [0, 0.9] (observed deviation

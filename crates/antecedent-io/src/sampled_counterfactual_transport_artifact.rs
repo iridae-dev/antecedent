@@ -6,7 +6,7 @@
 //! from), the unseen-cell rule and limits, the declared overlap of the units
 //! behind the tables, the uncertainty method, and the estimate with its four
 //! claim labels. It carries no interval: statistical inference is withheld with
-//! `cell_not_licensed`, and a standard error is present only as
+//! `not_supported`, and a standard error is present only as
 //! `uncalibrated_standard_error`.
 //!
 //! A consumer holding only the bytes and an expected identity
@@ -556,7 +556,7 @@ pub struct SampledEstimateWire {
     pub standard_error: Option<SampledStandardErrorWire>,
     /// Why no standard error is reported.
     pub standard_error_withheld_reason: Option<String>,
-    /// Interval route reason code (`cell_not_licensed`).
+    /// Interval route reason code (`not_supported`).
     pub interval_code: String,
     /// Interval route detail.
     pub interval_detail: String,
@@ -810,7 +810,7 @@ impl SampledCounterfactualTransportArtifactWire {
         }
         if self.estimate.statistical_inference
             != antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE_WITHHELD
-            || self.estimate.interval_code != "cell_not_licensed"
+            || self.estimate.interval_code != "not_supported"
         {
             return Err(malformed(
                 "estimate",
@@ -1119,7 +1119,7 @@ pub fn consume_sampled_counterfactual_transport(
 
 fn interval_not_measured(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("measured_interval.protocol_not_measured: {message}"),
     }
 }
@@ -1166,7 +1166,7 @@ impl SampledCounterfactualTransportArtifactWire {
         .map_err(interval_not_measured)?;
         let scope = serde_json::json!({
             "validation_design": "finite_scm_discrete_counterfactual_transport",
-            "evidence_interpretation": "finite validation grid for the checked query and sample sizes; other queries, smoothed tables, unseen cells and sparse conditioning are not licensed",
+            "evidence_interpretation": "finite validation grid for the checked query and sample sizes; other queries, smoothed tables, unseen cells and sparse conditioning are not supported",
             "declared_model_assumptions": ["independent units within each table", "tables of distinct independent datasets", "stored derivation identifies the query"],
             "sampling_assumptions_authenticated_from_rows": false,
             "units_per_table": interval.basis.row_count,

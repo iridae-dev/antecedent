@@ -36,7 +36,7 @@ class Request:
 class AcceptancePolicy:
     """The host's own rule for acting on an answer. Antecedent does not supply one."""
 
-    accepted_support: frozenset = frozenset({"licensed"})
+    accepted_support: frozenset = frozenset({"supported"})
 
 
 def make_data():
@@ -149,7 +149,7 @@ def main():
     plan = read_plan(study)
     print("plan:", json.dumps(plan))
     assert plan["stage"] == "prepared"
-    assert plan["support_status"] == "licensed"
+    assert plan["support_status"] == "supported"
 
     # 2. Execute and read the claim, the support status and the calibration status.
     response, outcome = execute(study)

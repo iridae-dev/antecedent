@@ -16,14 +16,14 @@ use serde::{Deserialize, Serialize};
 use crate::empirical_table::{
     BayesianLawDrawer, BayesianTransportLawProvider, EmpiricalTableOptions,
     StatisticalTransportInput, assemble_point_laws, assemble_statistical_laws, bound_sample_key,
-    dependence_refusal, dirichlet_posterior_probabilities, licensed_iid_dependence,
-    licensed_iid_regimes, validate_dataset_aliases, validate_options,
+    dependence_refusal, dirichlet_posterior_probabilities, supported_iid_dependence,
+    supported_iid_regimes, validate_dataset_aliases, validate_options,
 };
 use crate::error::EstimationError;
 use crate::transport::{is_support_failure, prepare_exact_transport, refuse_budget, refuse_eval};
 use crate::util::ReplicatePolicy;
 
-/// Licensed uncertainty method for the empirical-table path.
+/// Supported uncertainty method for the empirical-table path.
 pub const PERCENTILE_BOOTSTRAP: &str = "percentile_bootstrap";
 /// Posterior interval constructor for finite-discrete structural transport.
 pub const POSTERIOR_EQUAL_TAIL: &str = "posterior_equal_tail";
@@ -52,7 +52,7 @@ pub enum TransportIntervalReason {
     /// Fewer posterior draws than a nominal interval needs.
     #[serde(rename = "insufficient_bootstrap_replicates")]
     InsufficientDraws,
-    /// The evidence's dependence structure licenses no resampling.
+    /// The evidence's dependence structure supports no resampling.
     #[serde(rename = "transport.unsupported_dependence")]
     UnsupportedDependence,
     /// The catalog binds no estimated regime to draw.
@@ -434,7 +434,7 @@ pub struct TransportUncertaintyRow {
     pub method: Arc<str>,
     /// Nominal coverage.
     pub coverage_target: f64,
-    /// `pointwise` unless a simultaneous family is separately licensed.
+    /// `pointwise` unless a simultaneous family is separately supported.
     pub interval_scope: Arc<str>,
     /// Sample size per estimated snapshot.
     pub sample_sizes: Arc<[(Arc<str>, u32)]>,
@@ -457,7 +457,7 @@ pub struct TransportUncertaintyRow {
 pub struct StatisticalTransportEstimate {
     /// Plug-in target law.
     pub distribution: ExactDistribution,
-    /// Licensed interval metadata, when published.
+    /// Supported interval metadata, when published.
     pub uncertainty: Option<TransportUncertaintyRow>,
     /// Pointwise percentile intervals aligned with `distribution.atoms`.
     pub atom_intervals: Option<Arc<[(f64, f64)]>>,
@@ -473,7 +473,7 @@ pub struct StatisticalTransportEstimate {
     pub uncertainty_reason: Option<Arc<str>>,
 }
 
-/// Evaluate the plug-in and, when licensed, the joint outer bootstrap.
+/// Evaluate the plug-in and, when supported, the joint outer bootstrap.
 ///
 /// # Errors
 /// Provider, support, numerical, dependence-as-hard-error, or budget failure.
@@ -615,7 +615,7 @@ fn evaluate_grid(
     );
     let bootstrapping = options.bootstrap_replicates > 0
         && !input.samples.is_empty()
-        && licensed_iid_dependence(functional.catalog(), &input.samples);
+        && supported_iid_dependence(functional.catalog(), &input.samples);
     let evaluations = if bootstrapping { options.bootstrap_replicates as usize + 1 } else { 1 };
     let fits = fit_cost
         .checked_mul(evaluations)
@@ -704,7 +704,7 @@ fn summarize_bootstrap(
         }));
         return Ok(estimate);
     }
-    if !licensed_iid_dependence(functional.catalog(), &input.samples) {
+    if !supported_iid_dependence(functional.catalog(), &input.samples) {
         estimate.uncertainty_reason = Some(Arc::from(
             dependence_refusal(functional.catalog(), &input.samples)
                 .unwrap_or("transport.unsupported_dependence"),
@@ -810,7 +810,7 @@ pub fn check_statistical_resources(
             .ok_or_else(overflow)?;
     }
     let retained_replicates = if !input.samples.is_empty()
-        && licensed_iid_dependence(functional.catalog(), &input.samples)
+        && supported_iid_dependence(functional.catalog(), &input.samples)
     {
         options.bootstrap_replicates as usize
     } else {
@@ -1403,7 +1403,7 @@ pub struct MzRequestInterval {
 }
 
 /// Whether the declared sampling of the studies a multi-source formula cites
-/// licenses a joint bootstrap, or the reason the interval is withheld.
+/// supports a joint bootstrap, or the reason the interval is withheld.
 ///
 /// Every cited regime needs an independent-design binding without weights.
 /// Each pair of cited regimes must be declared independent studies, or the same
@@ -1486,7 +1486,7 @@ fn mz_tables<'a>(
 /// before drawing, or `None` when it would draw.
 ///
 /// Exact laws have no sampling uncertainty; the catalog's declared sampling must
-/// license a joint bootstrap ([`mz_sampling_dependence`]); and laws that name the
+/// support a joint bootstrap ([`mz_sampling_dependence`]); and laws that name the
 /// same forwarded dataset must be the identical table or a recorded margin of
 /// the finest one (its catalog descriptor is that table's marginalization and
 /// its counts are exactly that margin). Any other shared dataset cannot be
@@ -1563,7 +1563,7 @@ pub fn z_transport_bootstrap_law_draws(
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
     let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
+    if !supported_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
     crate::transport::validate_exact_laws(functional.catalog(), data)
@@ -1748,7 +1748,7 @@ fn z_interval_over_draws(
     }
     validate_draw_spec(spec)?;
     let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
+    if !supported_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
     crate::transport::validate_exact_laws(functional.catalog(), data)

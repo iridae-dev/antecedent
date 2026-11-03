@@ -32,7 +32,7 @@
 //!   clusters because exposures within a cluster are dependent; the smallest supplied
 //!   probability is flagged as `interference.exposure_overlap`.
 //!
-//! The state executes under both inference modes and is unlicensed: its verdicts are checks,
+//! The state executes under both inference modes and is unsupported: its verdicts are checks,
 //! not a calibration claim, and no coverage record names it.
 
 use antecedent_core::{

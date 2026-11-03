@@ -227,7 +227,7 @@ pub enum SelectionRule {
 pub enum GridScope {
     /// The declared finite set is the whole question.
     FiniteEnumeration,
-    /// Points sampled from a continuous action space; no global claim is licensed.
+    /// Points sampled from a continuous action space; no global claim is supported.
     ContinuousSample,
 }
 

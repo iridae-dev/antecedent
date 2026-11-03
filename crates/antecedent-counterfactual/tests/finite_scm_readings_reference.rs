@@ -327,6 +327,6 @@ fn interval_and_posterior_readings_stay_closed_beside_the_spread() {
         request.reading = reading;
         let mut exec = FiniteScmExecutor::new();
         let err = exec.execute(&request, &ctx()).expect_err("closed");
-        assert_eq!(err.refusal().unwrap().code, "cell_not_licensed");
+        assert_eq!(err.refusal().unwrap().code, "not_supported");
     }
 }

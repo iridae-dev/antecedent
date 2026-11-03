@@ -244,7 +244,7 @@ fn gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
     assert!(row.integration.converged);
     assert!(near(row.integration.stderr, 0.0, 0.0));
     assert_eq!(row.sample_size, 4);
-    assert_eq!(row.provider_trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(row.provider_trust, SignalTrustLabel::NativeSupported);
     assert_eq!(row.update_mode, SignalUpdateMode::NativeUpdate);
     // Prior value of treating is mu0 = 1/2 > 0, so the Bayes action is "treat" (index 1).
     assert_eq!(report.bayes_action, 1);
@@ -268,7 +268,7 @@ fn binomial_enumeration_matches_native_and_every_external_update_mode() {
             "native",
             Arc::new(NativeBinomialSignal) as Arc<dyn SignalProvider>,
             SignalUpdateMode::NativeUpdate,
-            SignalTrustLabel::NativeLicensed,
+            SignalTrustLabel::NativeSupported,
         ),
         (
             "ext_likelihood",
@@ -301,7 +301,7 @@ fn binomial_enumeration_matches_native_and_every_external_update_mode() {
         assert_eq!(row.signal_receipt.request_fingerprint, req_for(id).fingerprint(), "{id}");
         assert_eq!(
             row.signal_receipt.provider_identity.is_some(),
-            trust != SignalTrustLabel::NativeLicensed,
+            trust != SignalTrustLabel::NativeSupported,
             "{id}"
         );
         assert_eq!(

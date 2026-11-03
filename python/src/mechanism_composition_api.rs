@@ -538,7 +538,7 @@ impl PreparedCompositionHandle {
     }
 
     /// The first-order delta-method variance of a contrast, with its
-    /// gradient and how the dependence was licensed.
+    /// gradient and how the dependence was supported.
     fn mean_contrast_uncertainty(&self, contrast_json: &str) -> PyResult<Refused<String>> {
         let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
         Ok(match self.inner.mean_contrast_uncertainty(&contrast) {

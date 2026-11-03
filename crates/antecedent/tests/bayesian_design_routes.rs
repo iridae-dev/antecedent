@@ -1,5 +1,5 @@
 //! Bayesian panel difference-in-differences, synthetic-control and local-ratio routes through
-//! the public study facade. The routes are explicitly unlicensed and uncalibrated: the checks
+//! the public study facade. The routes are explicitly unsupported and uncalibrated: the checks
 //! below compare each posterior with an independent closed form or known truth, read the
 //! retained artifact with an independent loader, and refuse every boundary with its next attempt.
 //!
@@ -101,7 +101,7 @@ fn panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared() {
     assert!((got_sd - sd).abs() < 0.03 * sd, "{got_sd} vs {sd}");
     assert!(lower < mean && mean < upper);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.panel_did"));
-    assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian design route is unsupported");
     assert!(result.panel_did().is_none());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
@@ -113,7 +113,7 @@ fn panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared() {
             .any(|d| d.code.as_ref() == "identification.quasi.bayesian.parallel_trends_declared")
     );
     assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.quasi.bayesian.unlicensed")
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.quasi.bayesian.unsupported")
     );
 
     // Independent loader: decode the retained artifact and recompute the summaries from its draws.
@@ -252,7 +252,7 @@ fn regression_kink_posterior_recovers_the_slope_ratio_through_the_retained_progr
     );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
     assert!((result.effect() - 2.0).abs() < 0.03, "{}", result.effect());
-    assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian design route is unsupported");
 }
 
 fn synthetic_fixture() -> (TabularData, SyntheticControlQuery) {

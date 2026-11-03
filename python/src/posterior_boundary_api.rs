@@ -2,7 +2,7 @@
 //!
 //! * The temporal response-curve posterior is a tempered generalized posterior; the ordinary
 //!   reading needs the innovation law of the series in the likelihood
-//!   (`temporal_curve.ordinary_posterior_not_licensed`).
+//!   (`temporal_curve.ordinary_posterior_not_supported`).
 //! * A trajectory survival contrast under a prescribed time-varying regime has a conditional
 //!   subject-bootstrap interval, and no credible interval: that needs a joint likelihood for
 //!   the confounders, treatment, censoring and hazard.

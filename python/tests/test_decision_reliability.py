@@ -332,18 +332,18 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
     ):
         with pytest.raises(DR) as refused:
             require_success(result.publish(route))
-        assert refused.value.reason_code == "cell_not_licensed"
-        assert refused.value.detail == "decision_reliability.cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
+        assert refused.value.detail == "decision_reliability.not_supported"
         with pytest.raises(DR) as direct:
             require_success(dr.publish(route, result.report.coordinate))
-        assert direct.value.reason_code == "cell_not_licensed"
-        assert direct.value.detail == "decision_reliability.cell_not_licensed"
+        assert direct.value.reason_code == "not_supported"
+        assert direct.value.detail == "decision_reliability.not_supported"
     with pytest.raises(CausalValueError):
         require_success(dr.publish("not_a_route", result.report.coordinate))
 
 
 @pytest.mark.requires_calibration
-def test_every_published_route_is_licensed_inside_a_measured_coverage_record() -> None:
+def test_every_published_route_is_supported_inside_a_measured_coverage_record() -> None:
     # Two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95:
     # inside the measured records (500 to 2000 draws per candidate).
     result = require_success(dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5))))

@@ -80,7 +80,7 @@ fn run(
 fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_study, prepared, result, data) = run(AverageEffectQuery::binary_ate(v(0), v(1)));
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     assert!(
         (result.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.01,
         "ATE={}",
@@ -150,7 +150,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     assert_eq!(plan.posterior_draws, 192);
     assert_eq!(plan.prior_scale, 20.0);
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     match &prepared.contract().unwrap().reasoning.support {
         SlotAvailability::Available(slot) => assert_eq!(
             slot.matrix_coordinate.as_deref(),
@@ -235,7 +235,7 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         panic!("checked CATE plan survives builder disposal")
     };
     assert_eq!(retained_plan, &query);
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     let result = prepared.estimate(&data, &context).unwrap();
     assert!(
         (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)

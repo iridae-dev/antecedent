@@ -124,7 +124,7 @@ def adam_case(spec):
             for k in ("self", "weight"):
                 if learn[k]:
                     proposed[k] *= factor
-        assert lipschitz_sum(proposed) <= margin, "projection must license the proposal"
+        assert lipschitz_sum(proposed) <= margin, "projection must support the proposal"
         p = proposed
         ll, _ = total(valid)
         per_row = ll / len(valid)

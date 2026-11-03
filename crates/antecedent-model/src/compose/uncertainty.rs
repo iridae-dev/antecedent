@@ -23,7 +23,7 @@ pub struct ParameterCovariance {
     pub parameters: Vec<ParameterId>,
     /// Row-major covariance over `parameters`.
     pub covariance: Vec<f64>,
-    /// How the cross-mechanism dependence was licensed.
+    /// How the cross-mechanism dependence was supported.
     pub dependence_label: &'static str,
 }
 

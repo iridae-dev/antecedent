@@ -105,7 +105,7 @@ def test_carried_rates_correct_the_target_prevalence_with_a_typed_receipt() -> N
     assert receipt.source_model != estimate.model_identity
 
     # There is no interval, whoever asks.
-    refused(result.interval, "cell_not_licensed", "measurement_model.interval_closed")
+    refused(result.interval, "not_supported", "measurement_model.interval_closed")
 
 
 def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:
@@ -205,7 +205,7 @@ def test_every_unmet_premise_is_named() -> None:
         "measurement_model.invariance_premise_required",
     )
     assert missing.remedy
-    # A premise about specificity alone does not license a sensitivity-and-specificity correction.
+    # A premise about specificity alone does not support a sensitivity-and-specificity correction.
     refused(
         lambda: require_success(
             mm.transport_measurement_model(

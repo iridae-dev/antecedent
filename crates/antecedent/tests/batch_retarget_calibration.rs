@@ -12,7 +12,7 @@
 //!
 //! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/gate_calibration.sh`
 //! (`run_br`, measured over the sample-size grid); its coverage is unmeasured, so the
-//! published interval stays closed (`cell_not_licensed`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
+//! published interval stays closed (`not_supported`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -177,7 +177,7 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
 fn batch_retarget_max_t_simultaneous_band() {
     // The asymptotic max-t band undercovered at 200 and 400 rows (0.930 and
     // 0.939 at 2,000 repetitions). Measure a scope starting at 800 rows;
-    // smaller families remain outside its interval license.
+    // smaller families remain outside its interval support.
     let n = grid_n(1_600);
     let mut tally = CoverageTally::for_record(
         RecordKey {

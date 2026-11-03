@@ -4,7 +4,7 @@
     "kind": "independent_reimplementation",
     "generator": "conformance/validate/bayesian_checks/reference.py",
     "method": "Vehtari 2021 sections 3.1-4.3; full initial positive/monotone pair sums including the final complete pair, without odd/even truncation averaging; 60-digit Decimal covariance arithmetic and public SciPy normal scores.",
-    "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration license.",
+    "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration support.",
     "command": "uv run --frozen --script conformance/validate/bayesian_checks/reference.py --check-ips",
     "environment_lock": "conformance/validate/bayesian_checks/reference.py.lock",
     "reference_review": {
@@ -12,7 +12,7 @@
       "independence_basis": "Public ArviZ APIs reproduce their own outputs. The separate primary reference evaluates the published rank/fold, variance, positive/monotone-pair and CDF-indicator equations using SciPy ranks/normal scores and 60-digit Decimal covariance sums. Product source was inspected during the audit but no product algorithm/helper is imported or executed; no upstream implementation or tests were consulted or copied. reference_compare performs comparison only.",
       "historical_exposure": "Historical chain input authorship and prior exposure cannot be independently reconstructed from the retained metadata. Existing inputs and original oracle metadata are preserved; the new tied-tail and odd-draw inputs are deterministic repository-authored constructions.",
       "redistribution": "Retained reference harness and new deterministic inputs are MIT OR Apache-2.0. Primary papers and API documentation are linked without copying their implementation or text. Numerical outputs are retained; upstream packages stay in the isolated lock environment, outside the product runtime and ordinary CI.",
-      "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration license.",
+      "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration support.",
       "sources": [
         "https://arxiv.org/html/1903.08008v5",
         "https://www2.stat.duke.edu/homeweb/scs/Courses/Stat376/Papers/GeyerStatSci1992.pdf",
@@ -23,7 +23,7 @@
         {
           "role": "generator",
           "path": "conformance/validate/bayesian_checks/reference.py",
-          "sha256": "0e145767c46b57ec45f76f786a461222c952737125ffc79d45396b0b263be584"
+          "sha256": "742f388b1e73f4a72ccf5849d3cbb4e25a70625f8708fbe9796f10dcf0a586f6"
         },
         {
           "role": "comparison_helper",
@@ -41,7 +41,7 @@
           "sha256": "81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7"
         }
       ],
-      "fixture_payload_sha256": "27da8f0030d5b558143d706c04658bc14cd0a7cd490e48cb839c6fdf08b66fd6"
+      "fixture_payload_sha256": "4703e0bf91c11a4d0f0ef8bcb36918de7ef79cbd73b7b7b69e7b5753308af9c9"
     }
   },
   "tolerance": {

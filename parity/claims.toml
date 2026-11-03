@@ -4,35 +4,35 @@
 
 [[claim]]
 id = "reusable_headline"
-text = "Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
-licensed_by = "parity/python_products.toml"
+text = "Every supported analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
+supported_by = "parity/python_products.toml"
 
 [[claim]]
 id = "transport_not_certified_is_not_impossibility"
 text = "A not-certified transport outcome is a conservative refusal, not a proof of impossibility."
-licensed_by = "parity/transport_stages.toml"
+supported_by = "parity/transport_stages.toml"
 
 [[claim]]
 id = "transport_classical_completeness_is_paper_family"
 text = "Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent."
-licensed_by = "parity/transport_stages.toml"
+supported_by = "parity/transport_stages.toml"
 
 [[claim]]
 id = "transport_stage_support_is_not_analyze_cartesian"
-text = "Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`."
-licensed_by = "parity/transport_stages.toml"
+text = "Stage transport routes are supported in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`."
+supported_by = "parity/transport_stages.toml"
 
 [[claim]]
 id = "calibrated_slot_means_a_current_matching_record"
 text = "the record still attests the current code."
-licensed_by = "parity/coverage_records.toml"
+supported_by = "parity/coverage_records.toml"
 
 [[claim]]
 id = "exact_dag_posterior_is_enumeration"
 text = "* exact DAG posterior;"
-licensed_by = "parity/bayesian.toml"
+supported_by = "parity/bayesian.toml"
 
 [[claim]]
 id = "kennedy_dr_is_a_least_squares_construction"
 text = "a local-quadratic of the doubly robust pseudo-outcome) and needs finite"
-licensed_by = "parity/estimate.toml"
+supported_by = "parity/estimate.toml"

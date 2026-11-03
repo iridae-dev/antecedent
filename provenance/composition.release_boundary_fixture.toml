@@ -38,9 +38,9 @@ record_sha256 = "0f4a1d5bd9059a2a7622274c050cc97aa13044de05871b498b47c2c1d7aebea
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/tests/composition_release_fixture/scenario.rs"
-sha256 = "9a1b3a8c4c0d55acaaae726c6c07f7a1cab4f1fa7fed8c220c8d609aa85476a0"
+sha256 = "e1db742d54f5748aa5587522a11fd4ad5879ce72298820b034a9a6b0f8621d0c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/composition_release_fixture.rs"
-sha256 = "8af7341a8e39d349806c42299380286e26d6c7ef920dad854788e0ce1e314dd4"
+sha256 = "373730e9bca14ed310d65dc0bf26a099a8e8db4d275189c9ff9da644f4263040"

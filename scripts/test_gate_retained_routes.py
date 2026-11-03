@@ -16,7 +16,7 @@ from gate_retained_routes import ANALYSIS, ROOT, SRC, retained_route_problems
 
 COPIED_FILES = (
     "parity/capabilities/route_manifest.toml",
-    "parity/licensed_routes.toml",
+    "parity/supported_routes.toml",
     "parity/reason_codes.toml",
     "parity/estimator_route_residual.toml",
     "parity/support_graphless.toml",
@@ -153,8 +153,8 @@ CASES = {
         "    sealer(ExecutionKind::Survival, design::survival),\n"
         "    sealer(ExecutionKind::Randomized, posterior::undeclared_sealer),",
     ),
-    "licensed route lowers an unregistered cell": lambda d: replace(
-        d, "parity/licensed_routes.toml", 'lowering = "StaticMediationDag"', 'lowering = "Nope"'
+    "supported route lowers an unregistered cell": lambda d: replace(
+        d, "parity/supported_routes.toml", 'lowering = "StaticMediationDag"', 'lowering = "Nope"'
     ),
     "retained operation names no sealed operation": lambda d: replace(
         d,
@@ -169,13 +169,13 @@ CASES = {
         d,
         MANIFEST,
         'retained_route_test = "crates/antecedent/tests/survival_route.rs::'
-        'licensed_survival_scalar_intervals_round_trip_and_refuse_forgery"\n',
+        'supported_survival_scalar_intervals_round_trip_and_refuse_forgery"\n',
         "",
     ),
     "retained test names no function": lambda d: replace(
         d,
         MANIFEST,
-        "licensed_survival_scalar_intervals_round_trip_and_refuse_forgery",
+        "supported_survival_scalar_intervals_round_trip_and_refuse_forgery",
         "no_such_test_function",
     ),
     "temporal mixed family regresses to a program-only payload": lambda d: replace(
@@ -228,11 +228,11 @@ CASES = {
         'family = "survival"\naxis = "temporal"',
         'family = "survival"\naxis = "temporal_gone"',
     ),
-    "license cites a test no graphless route records": lambda d: replace(
+    "support cites a test no graphless route records": lambda d: replace(
         d,
         "parity/support_graphless.toml",
         'retained_route_test = "crates/antecedent/tests/survival_route.rs::'
-        'licensed_survival_scalar_intervals_round_trip_and_refuse_forgery"',
+        'supported_survival_scalar_intervals_round_trip_and_refuse_forgery"',
         'retained_route_test = "crates/antecedent/tests/survival_route.rs::unrecorded_test"',
     ),
     "graphless route owned by a module its operation never reaches": lambda d: replace(
@@ -241,11 +241,11 @@ CASES = {
         'owning_module = "crates/antecedent-estimate/src/interference.rs"',
         'owning_module = "crates/antecedent-estimate/src/ols_gone_module.rs"',
     ),
-    "licensed route lost its manifest record": lambda d: replace(
+    "supported route lost its manifest record": lambda d: replace(
         d,
         MANIFEST,
-        'id = "licensed.TransportQuery.Admg"\ntarget = "TransportQuery"',
-        'id = "licensed.TransportQuery.Admg"\ntarget = "TransportQueryGone"',
+        'id = "supported.TransportQuery.Admg"\ntarget = "TransportQuery"',
+        'id = "supported.TransportQuery.Admg"\ntarget = "TransportQueryGone"',
     ),
 }
 

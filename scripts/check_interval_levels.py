@@ -71,7 +71,7 @@ RESPONSE_DEFAULT = (
     "crates/antecedent-estimate/src/response/mod.rs",
     r"confidence_level: ([0-9.]+),",
 )
-CITING_FILES = ("parity/support_licensed.toml", "parity/estimate.toml")
+CITING_FILES = ("parity/support_cells.toml", "parity/estimate.toml")
 
 # `cov.<query>.<graph>.<inference>.<method>.l<NN>.<test>[.<label>]`
 ID_RE = re.compile(r"^(cov\.[^.]+\.[^.]+\.[^.]+\.[^.]+)\.l(\d+)\.(.+)$")
@@ -358,7 +358,7 @@ def audit(
 
 def run() -> dict:
     records = load("parity/coverage_records.toml").get("record", [])
-    cells = load("parity/support_licensed.toml").get("cell", [])
+    cells = load("parity/support_cells.toml").get("cell", [])
     estimator_rows = load("parity/estimate.toml").get("capabilities", [])
     exceptions = load("parity/interval_level_exceptions.toml").get("exception", [])
     return audit(records, cells, estimator_rows, exceptions, runtime_levels(), Designs())

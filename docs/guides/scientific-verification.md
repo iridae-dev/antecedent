@@ -14,8 +14,8 @@ An estimand is the quantity a scientific question asks for: an average effect in
 | --- | --- | --- |
 | Method provenance | Which method is implemented, under which assumptions and deviations? | [Algorithm provenance](https://github.com/iridae-dev/antecedent/blob/main/provenance/README.md) |
 | Independent numerical checks | Does a named calculation agree with a reference derived separately? | [Evidence and oracle rules](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
-| Executing support evidence | Which combination of question, structure, inference and estimator has been exercised? | [Support matrix](../support-matrix.md) |
-| Calibration | How did the uncertainty procedure behave across repeated simulated datasets in a measured setting? | [Coverage records](../development.md#coverage-records) |
+| Supported | Which combination of question, structure, inference and estimator has provenance and independent scientific checks, so it runs? | [Support matrix](../support-matrix.md) |
+| Calibration status (annotation) | How did the uncertainty procedure behave across repeated simulated datasets in a measured setting? | [Coverage records](../development.md#coverage-records) |
 
 These checks have different scopes. Agreement on a coefficient does not establish an entire workflow's interval coverage. A supported average effect does not automatically support a derivative or a decision built from it. The evidence needs to follow the operation that produces the claim.
 
@@ -114,7 +114,7 @@ Antecedent retains measurement records with their settings and source revision. 
 
 A result reports identification, support, uncertainty, assumptions and calibration separately. [Results are claims](../concepts/results-are-claims.md) explains those fields, and [reading a result](../start/reading-a-result.md) shows how to inspect them.
 
-“Licensed” names a combination with executing support evidence; it is unrelated to the software license. An interval can be implemented without a matching calibration measurement. A model-conditional response can be useful without a design that identifies the real-world effect. Where unlicensed execution is available, successful execution preserves that status.
+A route is **supported** when it has provenance and independent scientific checks; a supported route runs. A route that is not supported refuses in release builds with a scientific refusal, and a **development build** runs it and reports `would_refuse` so the result is never mistaken for a supported one. **Calibration status** (`calibrated`, `outside_measured_scope`, `measured_below_nominal`, `not_measured`) is an annotation on an interval and never decides whether a route runs. An interval can be supported without a matching calibration measurement, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect. Successful execution preserves that status.
 
 Export and replay checks preserve specified identities, calculations and interpretation for supported consumers. Artifact acceptance establishes the checks reported by that consumer. Scientific assumptions about the real system remain the researcher's responsibility.
 

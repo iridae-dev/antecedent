@@ -97,10 +97,10 @@ fn error(error: &TemporalRunError) -> String {
             if matches!(cause.peeled(), antecedent::CausalError::Estimate(
                 antecedent_estimate::EstimationError::Refused {code,..}
                 | antecedent_estimate::EstimationError::RefusedWithFields {code,..}
-            ) if *code == "cell_not_licensed") =>
+            ) if *code == "not_supported") =>
         {
             refusal_json(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "inference",
                 "temporal_interval.route_frozen",
                 None,
@@ -110,10 +110,10 @@ fn error(error: &TemporalRunError) -> String {
             )
         }
         TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
-            if *code == "cell_not_licensed" =>
+            if *code == "not_supported" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "inference",
                 "temporal_interval.route_frozen",
                 None,
@@ -278,8 +278,8 @@ fn error(error: &TemporalRunError) -> String {
         TemporalRunError::Estimation(
             antecedent_estimate::EstimationError::Refused { code, .. }
             | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
-        ) if *code == "cell_not_licensed" => refusal_json(
-            antecedent_core::reason_code!("cell_not_licensed"),
+        ) if *code == "not_supported" => refusal_json(
+            antecedent_core::reason_code!("not_supported"),
             "inference",
             "temporal_interval.route_frozen",
             None,
@@ -499,7 +499,7 @@ impl PyTemporalSession {
             ));
         }
         error(&TemporalRunError::Io(antecedent_io::IoError::Refused {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             message:
                 "temporal_interval.route_frozen: use the measured original-source interval entry"
                     .into(),

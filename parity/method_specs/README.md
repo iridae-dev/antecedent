@@ -8,7 +8,7 @@
 
 | Field | Meaning |
 | --- | --- |
-| `admission` | `licensed`, `executing_unlicensed`, `refused` or `not_admitted`. Derived from the counterpart inventory (`parity/counterparts.toml`), which is derived from the route manifest's method records and the verified fixtures. |
+| `admission` | `supported`, `not_supported`, `refused` or `not_admitted`. Derived from the counterpart inventory (`parity/counterparts.toml`), which is derived from the route manifest's method records and the verified fixtures. |
 | `review_status` | `admitted` (advertised at the admission it names and no further), `specification_only` (a settled axis boundary), `blocked_research` (an unproved identification or posterior question) or `not_admitted`. An explicit `not_admitted` review, for example the reviewed Gaussian-panel slice, is kept and never overwritten. |
 | `decision_basis` | The evidence behind the decision: the counterpart status, the executing fixture, the artifact consumer and the uncertainty procedure with its basis. |
 | `provenance`, `api_review` | The clean-room provenance records that cover the implementing module (or the reason the module implements no algorithm) and whether its public surface is in the reviewed API snapshot. `scripts/gate_provenance_schema.py` fails an admitted method without them. |
@@ -28,7 +28,7 @@ A scientific field that a hand-written record leaves `unlisted` is filled from t
 
 | admission | Specs |
 | --- | --- |
-| executing_unlicensed | 116 |
-| licensed | 62 |
+| not_supported | 116 |
+| supported | 62 |
 | not_admitted | 8 |
 | refused | 22 |

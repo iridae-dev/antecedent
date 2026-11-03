@@ -4,7 +4,7 @@
 //! and digests are unchanged. An `Association` query requires it. The result describes the
 //! observed law of the columns: the body carries no scalar effect estimate, standard error or
 //! interval beside it, the section states that it is not an intervention effect and ranks no
-//! action, and it claims no licence and an unmeasured calibration. A loader checks that every
+//! action, and it claims no support and an unmeasured calibration. A loader checks that every
 //! reported number is finite, that the selected analysis is one the declared selection rule can
 //! name, and that the uncertainty label names only what the section holds.
 //!
@@ -133,7 +133,7 @@ pub struct AssociationPredictionWire {
     pub calibration: String,
 }
 
-/// Noncausal association of the observed data (unlicensed, unmeasured).
+/// Noncausal association of the observed data (unsupported, unmeasured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssociationWire {
@@ -172,7 +172,7 @@ pub struct AssociationWire {
     /// Always `unmeasured`.
     pub calibration: String,
     /// Always `false`.
-    pub licensed: bool,
+    pub supported: bool,
     /// Always `false`: an association ranks no action.
     pub ranks_actions: bool,
     /// Always `false`: an association is not the effect of an intervention.
@@ -191,7 +191,7 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         (false, Some(_)) => return fail("the section is attached to another query"),
         (true, Some(section)) => section,
     };
-    if section.licensed
+    if section.supported
         || section.calibration != "unmeasured"
         || section.ranks_actions
         || section.is_intervention_effect
@@ -201,7 +201,7 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         || result.interval_upper.is_some()
     {
         return fail(
-            "an association describes the observed law: it claims no licence, no calibration, \
+            "an association describes the observed law: it claims no support, no calibration, \
              no intervention effect, no ranking of actions, and no scalar estimate or interval",
         );
     }

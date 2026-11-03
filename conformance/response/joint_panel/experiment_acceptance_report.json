@@ -2,7 +2,7 @@
   "version": 1,
   "source_identity": "0035d40c7f89da8ec9f827fd88ec7436d28bf5f2e2c403697767d155282159b3",
   "update_semantics": "frozen_joint_importance; not a joint refit",
-  "release_calibration_license": false,
+  "release_calibration_support": false,
   "commands": [
     {
       "argv": [
@@ -85,7 +85,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -156,7 +156,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -227,7 +227,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -298,7 +298,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -369,7 +369,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -440,7 +440,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -511,7 +511,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -582,7 +582,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -653,7 +653,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -724,7 +724,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -795,7 +795,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -866,7 +866,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -937,7 +937,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1008,7 +1008,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1079,7 +1079,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1150,7 +1150,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1221,7 +1221,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1292,7 +1292,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1363,7 +1363,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1434,7 +1434,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1505,7 +1505,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1576,7 +1576,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1647,7 +1647,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1718,7 +1718,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1789,7 +1789,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1860,7 +1860,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -1931,7 +1931,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2002,7 +2002,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2073,7 +2073,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2144,7 +2144,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2215,7 +2215,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2324,7 +2324,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2441,7 +2441,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2550,7 +2550,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2659,7 +2659,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2776,7 +2776,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2885,7 +2885,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -2994,7 +2994,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3111,7 +3111,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3220,7 +3220,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3329,7 +3329,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3446,7 +3446,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3555,7 +3555,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3664,7 +3664,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3781,7 +3781,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3890,7 +3890,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -3999,7 +3999,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4116,7 +4116,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4225,7 +4225,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4334,7 +4334,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4451,7 +4451,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4560,7 +4560,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4669,7 +4669,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4786,7 +4786,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -4895,7 +4895,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5004,7 +5004,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5121,7 +5121,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5230,7 +5230,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5339,7 +5339,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5456,7 +5456,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5565,7 +5565,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5647,7 +5647,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5729,7 +5729,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5811,7 +5811,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5893,7 +5893,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -5975,7 +5975,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6057,7 +6057,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6139,7 +6139,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6221,7 +6221,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6303,7 +6303,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6385,7 +6385,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6467,7 +6467,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6549,7 +6549,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6631,7 +6631,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6713,7 +6713,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6795,7 +6795,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6877,7 +6877,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -6959,7 +6959,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7041,7 +7041,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7123,7 +7123,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7205,7 +7205,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7287,7 +7287,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7369,7 +7369,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7451,7 +7451,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7533,7 +7533,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7615,7 +7615,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7697,7 +7697,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7779,7 +7779,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7861,7 +7861,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -7943,7 +7943,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8025,7 +8025,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8131,7 +8131,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8241,7 +8241,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8347,7 +8347,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8453,7 +8453,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8563,7 +8563,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8669,7 +8669,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8775,7 +8775,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8885,7 +8885,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -8991,7 +8991,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9097,7 +9097,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9207,7 +9207,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9313,7 +9313,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9419,7 +9419,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9529,7 +9529,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9635,7 +9635,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9741,7 +9741,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9851,7 +9851,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -9957,7 +9957,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10063,7 +10063,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10173,7 +10173,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10279,7 +10279,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10385,7 +10385,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10495,7 +10495,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10601,7 +10601,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10707,7 +10707,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10817,7 +10817,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -10923,7 +10923,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11029,7 +11029,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11139,7 +11139,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11245,7 +11245,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11333,7 +11333,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11421,7 +11421,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11509,7 +11509,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11597,7 +11597,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11685,7 +11685,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11773,7 +11773,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11861,7 +11861,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -11949,7 +11949,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12037,7 +12037,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12125,7 +12125,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12213,7 +12213,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12301,7 +12301,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12389,7 +12389,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12477,7 +12477,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12565,7 +12565,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12653,7 +12653,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12741,7 +12741,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12829,7 +12829,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -12917,7 +12917,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13005,7 +13005,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13093,7 +13093,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13181,7 +13181,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13269,7 +13269,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13357,7 +13357,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13445,7 +13445,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13533,7 +13533,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13621,7 +13621,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13709,7 +13709,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13797,7 +13797,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -13885,7 +13885,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14016,7 +14016,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14155,7 +14155,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14286,7 +14286,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14417,7 +14417,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14556,7 +14556,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14687,7 +14687,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14818,7 +14818,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -14957,7 +14957,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15088,7 +15088,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15219,7 +15219,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15358,7 +15358,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15489,7 +15489,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15620,7 +15620,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15759,7 +15759,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -15890,7 +15890,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16021,7 +16021,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16160,7 +16160,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16291,7 +16291,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16422,7 +16422,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16561,7 +16561,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16692,7 +16692,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16823,7 +16823,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -16962,7 +16962,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17093,7 +17093,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17224,7 +17224,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17363,7 +17363,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17494,7 +17494,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17625,7 +17625,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17764,7 +17764,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17895,7 +17895,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -17986,7 +17986,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18077,7 +18077,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18168,7 +18168,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18259,7 +18259,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18350,7 +18350,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18441,7 +18441,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18532,7 +18532,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18623,7 +18623,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18714,7 +18714,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18805,7 +18805,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18896,7 +18896,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -18987,7 +18987,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19078,7 +19078,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19169,7 +19169,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19260,7 +19260,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19351,7 +19351,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19442,7 +19442,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19533,7 +19533,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19624,7 +19624,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19715,7 +19715,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19806,7 +19806,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19897,7 +19897,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -19988,7 +19988,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20079,7 +20079,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20170,7 +20170,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20261,7 +20261,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20352,7 +20352,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20443,7 +20443,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20534,7 +20534,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20625,7 +20625,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20759,7 +20759,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -20901,7 +20901,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21035,7 +21035,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21169,7 +21169,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21311,7 +21311,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21445,7 +21445,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21579,7 +21579,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21721,7 +21721,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21855,7 +21855,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -21989,7 +21989,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22131,7 +22131,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22265,7 +22265,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22399,7 +22399,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22541,7 +22541,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22675,7 +22675,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22809,7 +22809,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -22951,7 +22951,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23085,7 +23085,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23219,7 +23219,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23361,7 +23361,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23495,7 +23495,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23629,7 +23629,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23771,7 +23771,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -23905,7 +23905,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -24039,7 +24039,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -24181,7 +24181,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -24315,7 +24315,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -24449,7 +24449,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -24591,7 +24591,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -32875,7 +32875,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -32944,7 +32944,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33013,7 +33013,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33082,7 +33082,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33151,7 +33151,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33220,7 +33220,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33289,7 +33289,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33358,7 +33358,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33427,7 +33427,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33496,7 +33496,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33565,7 +33565,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33634,7 +33634,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33703,7 +33703,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33772,7 +33772,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33841,7 +33841,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33910,7 +33910,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -33979,7 +33979,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34048,7 +34048,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34117,7 +34117,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34186,7 +34186,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34255,7 +34255,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34324,7 +34324,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34393,7 +34393,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34462,7 +34462,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34531,7 +34531,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34600,7 +34600,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34669,7 +34669,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34738,7 +34738,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34807,7 +34807,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34876,7 +34876,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -34945,7 +34945,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35038,7 +35038,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35135,7 +35135,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35228,7 +35228,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35321,7 +35321,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35418,7 +35418,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35511,7 +35511,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35604,7 +35604,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35701,7 +35701,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35794,7 +35794,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35887,7 +35887,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -35984,7 +35984,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36077,7 +36077,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36170,7 +36170,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36267,7 +36267,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36360,7 +36360,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36453,7 +36453,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36550,7 +36550,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36643,7 +36643,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36736,7 +36736,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36833,7 +36833,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -36926,7 +36926,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37019,7 +37019,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37116,7 +37116,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37209,7 +37209,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37302,7 +37302,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37399,7 +37399,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37492,7 +37492,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37585,7 +37585,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37682,7 +37682,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37775,7 +37775,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37842,7 +37842,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37909,7 +37909,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -37976,7 +37976,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38043,7 +38043,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38110,7 +38110,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38177,7 +38177,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38244,7 +38244,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38311,7 +38311,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38378,7 +38378,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38445,7 +38445,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38512,7 +38512,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38579,7 +38579,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38646,7 +38646,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38713,7 +38713,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38780,7 +38780,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38847,7 +38847,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38914,7 +38914,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -38981,7 +38981,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39048,7 +39048,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39115,7 +39115,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39182,7 +39182,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39249,7 +39249,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39316,7 +39316,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39383,7 +39383,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39450,7 +39450,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39517,7 +39517,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39584,7 +39584,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39651,7 +39651,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39718,7 +39718,7 @@
       "required_outcome": "scoped_refusal_sampling_distribution_is_not_a_bayesian_prior",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39785,7 +39785,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39876,7 +39876,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -39971,7 +39971,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40062,7 +40062,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40153,7 +40153,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40248,7 +40248,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40339,7 +40339,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40430,7 +40430,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40525,7 +40525,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40616,7 +40616,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40707,7 +40707,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40802,7 +40802,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40893,7 +40893,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -40984,7 +40984,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41079,7 +41079,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41170,7 +41170,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41261,7 +41261,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41356,7 +41356,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41447,7 +41447,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41538,7 +41538,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41633,7 +41633,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41724,7 +41724,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41815,7 +41815,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -41910,7 +41910,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42001,7 +42001,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42092,7 +42092,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42187,7 +42187,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42278,7 +42278,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42369,7 +42369,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [
@@ -42464,7 +42464,7 @@
       "required_outcome": "conditional_full_chain_execution_and_independent_stage_references",
       "implementation_gaps": [],
       "statistical_limitations": [
-        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration license"
+        "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
       "calibration": "registered_unmeasured_candidate_bound",
       "stages": [

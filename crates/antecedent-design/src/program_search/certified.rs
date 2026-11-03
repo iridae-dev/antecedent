@@ -131,7 +131,7 @@ pub struct CertifiedRegion {
     /// Maximum objective bound over this region, irrespective of feasibility.
     pub upper: f64,
 }
-/// A numerical global certificate for the compiled objective, not a statistical license.
+/// A numerical global certificate for the compiled objective, not a statistical support.
 #[derive(Clone, Debug)]
 pub struct GlobalProgramCertificate {
     /// Objective/domain/restriction identity.

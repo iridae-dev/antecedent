@@ -303,13 +303,13 @@ pub struct ResumeWire {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilitiesWire {
-    /// `licensed`, `not_declared` or `incompatible`.
+    /// `supported`, `not_declared` or `incompatible`.
     pub retarget: String,
     /// `on_grid`, `off_grid` or `unsupported`.
     pub request: String,
-    /// A separately licensed route that serves an off-grid or unsupported request.
+    /// A separately supported route that serves an off-grid or unsupported request.
     #[serde(default)]
-    pub licensed_route: Option<String>,
+    pub supported_route: Option<String>,
     /// `in_process` or `fresh_process`.
     pub boundary: String,
     /// What the fresh process holds; present exactly under `fresh_process`.
@@ -403,7 +403,7 @@ pub fn stage_from_label(label: &str) -> Option<Stage> {
 fn owned_route(route: &str) -> Result<Arc<str>, RecalcReceiptArtifactError> {
     let allowed = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-');
     if route.is_empty() || route.len() > MAX_ROUTE_BYTES || !route.bytes().all(allowed) {
-        return Err(malformed("invalid licensed route name"));
+        return Err(malformed("invalid supported route name"));
     }
     Ok(Arc::from(route))
 }
@@ -413,15 +413,15 @@ impl CapabilitiesWire {
     #[must_use]
     pub fn from_capabilities(capabilities: &RecalcCapabilities) -> Self {
         let retarget = match capabilities.retarget {
-            RetargetSupport::Licensed => "licensed",
+            RetargetSupport::Supported => "supported",
             RetargetSupport::NotDeclared => "not_declared",
             RetargetSupport::Incompatible => "incompatible",
         };
-        let (request, licensed_route) = match &capabilities.request {
+        let (request, supported_route) = match &capabilities.request {
             RequestSupport::OnGrid => ("on_grid", None),
-            RequestSupport::OffGrid { licensed_route } => ("off_grid", licensed_route.as_deref()),
-            RequestSupport::Unsupported { licensed_route } => {
-                ("unsupported", licensed_route.as_deref())
+            RequestSupport::OffGrid { supported_route } => ("off_grid", supported_route.as_deref()),
+            RequestSupport::Unsupported { supported_route } => {
+                ("unsupported", supported_route.as_deref())
             }
         };
         let (boundary, resume) = match capabilities.boundary {
@@ -440,7 +440,7 @@ impl CapabilitiesWire {
         Self {
             retarget: retarget.to_owned(),
             request: request.to_owned(),
-            licensed_route: licensed_route.map(str::to_owned),
+            supported_route: supported_route.map(str::to_owned),
             boundary: boundary.to_owned(),
             resume,
         }
@@ -453,19 +453,19 @@ impl CapabilitiesWire {
     /// fresh-process boundary, or an invalid route name.
     pub fn to_capabilities(&self) -> Result<RecalcCapabilities, RecalcReceiptArtifactError> {
         let retarget = match self.retarget.as_str() {
-            "licensed" => RetargetSupport::Licensed,
+            "supported" => RetargetSupport::Supported,
             "not_declared" => RetargetSupport::NotDeclared,
             "incompatible" => RetargetSupport::Incompatible,
             other => return Err(malformed(format!("unknown retarget support `{other}`"))),
         };
-        let route = self.licensed_route.as_deref().map(owned_route).transpose()?;
+        let route = self.supported_route.as_deref().map(owned_route).transpose()?;
         let request = match (self.request.as_str(), route) {
             ("on_grid", None) => RequestSupport::OnGrid,
             ("on_grid", Some(_)) => {
-                return Err(malformed("an on-grid request names no licensed route"));
+                return Err(malformed("an on-grid request names no supported route"));
             }
-            ("off_grid", licensed_route) => RequestSupport::OffGrid { licensed_route },
-            ("unsupported", licensed_route) => RequestSupport::Unsupported { licensed_route },
+            ("off_grid", supported_route) => RequestSupport::OffGrid { supported_route },
+            ("unsupported", supported_route) => RequestSupport::Unsupported { supported_route },
             (other, _) => return Err(malformed(format!("unknown request support `{other}`"))),
         };
         let boundary = match (self.boundary.as_str(), self.resume) {

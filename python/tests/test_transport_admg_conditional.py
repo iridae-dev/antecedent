@@ -312,11 +312,11 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
         transport.consume_admg_conditional_transport_artifact(bytes(tampered))
 
 
-def test_counted_laws_are_not_licensed_on_the_conditional_route():
+def test_counted_laws_are_not_supported_on_the_conditional_route():
     stage = decide()
     with pytest.raises(CausalUnsupportedError, match="admg_transport.interval_withheld") as info:
         stage.prepare_empirical(laws(), REQUESTS)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
 
 
 def witness_holds(witness, names):

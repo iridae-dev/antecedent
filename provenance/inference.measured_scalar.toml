@@ -9,7 +9,7 @@ implementation_deviations = [
   "Semantic factory/replay authority contract, not a new numerical inference theorem. The six prerequisite method records own all interval calibration claims.",
   "Historical source artifacts remain unchanged and unmeasured. A separate native envelope independently replays the original source and resolves each exact scalar basis against currently attesting records.",
   "Readable caller basis/report metadata and serialized calibrated flags cannot mint native authority. No implicit joint distribution, simultaneous guarantee or Contract.evaluate source is created.",
-  "The categorical and MNAR candidate dispatches invoke their source-replaying adapters; independent scientific-promotion gates remain closed and these dispatches grant no new interval license.",
+  "The categorical and MNAR candidate dispatches invoke their source-replaying adapters; independent scientific-capability gates remain closed and these dispatches grant no new interval support.",
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/src/measured_inference.rs", "crates/antecedent-io/src/measured_inference/transport.rs", "crates/antecedent-io/src/measured_inference/nested.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "python/tests/test_measured_inference.py", "python/tests/test_measured_joint_transport.py", "python/tests/test_measured_nested.py", "python/tests/test_measured_recovery.py", "python/tests/test_measured_temporal_public.py"]
@@ -19,14 +19,14 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Native measured interval authority: only crate-owned producer and consumer adapters that derive each basis from a real execution can construct a measured scalar."
 no_independent_algorithm = "Authority bookkeeping and replay comparison of intervals computed by other records."
-record_sha256 = "733ef87f1c8cd83d9f9925a7c82fea1ee3984051595f32ff1bedd535dc68abde"
+record_sha256 = "d1891c1c95938c0e9ac7ec5b64353de9d3acd7ae8b2116a8fd59e8a670bb9e7e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference.rs"
-sha256 = "78544d1c55d26bfd88940074126b8dc3022f460bad81ec2238f7bb0997925947"
+sha256 = "9bce0c996861aaf4485b375b6ba105c5ba1d3f195d6aed73facb4a4e4129e735"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_measured_inference.py"
-sha256 = "4eb52f35bb6897982631330da44ff0bbff9111a30181140d15a291d6170d9ae8"
+sha256 = "9f8862148cc8762a44f752a112d65540366f52a2938ef47502f5af98eb25dfe8"

@@ -43,7 +43,7 @@ def _refuse_environment_pooling() -> None:
         "environments makes any two variables whose means or scales shift dependent (a "
         "mixture), so a single-table algorithm would report spurious edges. Discover across "
         "environments with JPCMCIPlus (space dummies), or pass one environment's table",
-        reason_code="data_modality_not_licensed",
+        reason_code="data_modality_not_supported",
     )
 
 
@@ -55,7 +55,7 @@ def _refuse_lagged_pooling() -> None:
         "lagged design of its own (its regime labels run over one series' observations). "
         "PCMCI, PCMCIPlus, LPCMCI and DbnPosterior build every unit's lagged windows inside "
         "that unit; JPCMCIPlus does too, across environments. Or pass one unit's series",
-        reason_code="data_modality_not_licensed",
+        reason_code="data_modality_not_supported",
     )
 
 

@@ -82,7 +82,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         envs.append({"x": x, "y": y})
     envs = antecedent.data.multi_env(envs)
     # J-PCMCI+ discovery on this 2-env system returns a temporal equivalence class,
-    # and the prepared study licenses multi-environment temporal effects only on a
+    # and the prepared study supports multi-environment temporal effects only on a
     # TemporalDag, so the support matrix refuses the combination (fail closed with
     # a registered reason code, never a silent number).
     with pytest.raises(
@@ -110,7 +110,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
                 refute=False,
             )
         )
-    assert caught.value.reason_code == "data_modality_not_licensed"
+    assert caught.value.reason_code == "data_modality_not_supported"
 
 
 def test_analyze_discovery_rpcmci_regimes():

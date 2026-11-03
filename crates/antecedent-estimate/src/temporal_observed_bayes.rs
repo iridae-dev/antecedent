@@ -132,7 +132,7 @@ fn observations(
     query: &ResponseQuery,
     outcome: VariableId,
 ) -> Result<Vec<Observation>, EstimationError> {
-    query.require_licensed_temporal_observation()?;
+    query.require_supported_temporal_observation()?;
     let (latent, observed, indicator, censor) = match query.observation {
         ObservationSpec::Selected { latent, observed, indicator } => {
             (latent, observed, indicator, None)

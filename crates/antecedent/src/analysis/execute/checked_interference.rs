@@ -120,7 +120,7 @@ impl CheckedInterferenceOperation {
                     || query.exposure != antecedent_core::ExposureMapping::NeighborCount
                 {
                     return Err(CausalError::Unsupported {
-                        message: "the licensed Bayesian interference route requires Bernoulli assignment, NeighborCount exposure and the conjugate Gaussian model with its declared isotropic prior",
+                        message: "the supported Bayesian interference route requires Bernoulli assignment, NeighborCount exposure and the conjugate Gaussian model with its declared isotropic prior",
                     });
                 }
                 if config.n_draws < 2
@@ -410,7 +410,7 @@ impl CheckedInterferenceOperation {
                 first_stage_arm_clusters: [interval.low_clusters, interval.high_clusters],
             });
         let graphless_support_status = interval.as_ref().and_then(|interval| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "two_stage_saturation",
                 "saturation_cluster_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
@@ -473,7 +473,7 @@ impl CheckedInterferenceOperation {
         let interval_available = interval.is_some();
         let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();
         let graphless_support_status = interval.as_ref().and_then(|_| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "cluster_randomization_total",
                 "cluster_total_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
@@ -534,7 +534,7 @@ impl CheckedInterferenceOperation {
             }
         });
         let graphless_support_status = interval.as_ref().and_then(|_| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "observational_known_exposure",
                 "observational_known_exposure_cluster_t",
                 crate::support::GraphlessAssignmentSupport {
@@ -735,7 +735,7 @@ impl CheckedInterferenceOperation {
                 "estimate.interference.cluster_bayesian_bootstrap",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unlicensed and uncalibrated Bayesian-bootstrap posterior of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+                "unsupported and uncalibrated Bayesian-bootstrap posterior of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
             ),
         ))
     }
@@ -1129,16 +1129,16 @@ fn estimate_observed_exposure(
     .map_err(CausalError::from)
 }
 
-/// License one interference exposure-contrast interval against the exact
+/// Support one interference exposure-contrast interval against the exact
 /// graphless support table. The interval must already be published; a withheld
 /// interval or too little independent-cluster support classifies as refused and
-/// yields no license.
-fn interference_graphless_license(
+/// yields no support.
+fn interference_graphless_support(
     design: &'static str,
     method: &'static str,
     support: crate::support::GraphlessAssignmentSupport,
 ) -> Option<crate::support::CellStatus> {
-    crate::support::license_if_graphless(
+    crate::support::support_if_graphless(
         crate::support::GraphlessSupportKey {
             family: "interference",
             design,

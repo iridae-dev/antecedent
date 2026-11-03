@@ -180,7 +180,7 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
-    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(analysis.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn supplied_dag_is_explicit_structure_source() {
     let (data, dag, query) = confounded_scm(80, 11);
     let analysis = build_analysis(data, dag, query);
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Explicit);
-    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(analysis.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -1031,9 +1031,9 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     assert!(rejected.is_err(), "rehashed factor-law tampering must be refused");
 }
 
-/// The mixed-graph conditional and path-specific routes have separate licensed cells.
+/// The mixed-graph conditional and path-specific routes have separate supported cells.
 #[test]
-fn prepare_licenses_path_specific_and_conditional_on_admg() {
+fn prepare_supports_path_specific_and_conditional_on_admg() {
     let (data, _dag, cq) = conditional_effect_fixture();
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1043,7 +1043,7 @@ fn prepare_licenses_path_specific_and_conditional_on_admg() {
         .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
         .build()
-        .expect("the mixed-graph conditional effect is a licensed cell");
+        .expect("the mixed-graph conditional effect is a supported cell");
 
     let mut admg2 = Admg::with_variables(3);
     admg2.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1056,11 +1056,11 @@ fn prepare_licenses_path_specific_and_conditional_on_admg() {
         .estimator(EstimatorId::FunctionalEffect)
         .refute(RefuteSuite::None)
         .build()
-        .expect("the path-specific effect on this mixed graph is licensed");
-    assert_eq!(study.support_status().unwrap().as_str(), "licensed");
+        .expect("the path-specific effect on this mixed graph is supported");
+    assert_eq!(study.support_status().unwrap().as_str(), "supported");
 }
 
-/// `PreparedStudy::refute` is licensed for `AverageEffect` only; a prepared
+/// `PreparedStudy::refute` is supported for `AverageEffect` only; a prepared
 /// `ConditionalEffect` handle must refuse cleanly (stable `Support` id), not panic.
 #[test]
 fn refute_on_prepared_conditional_effect_refuses_cleanly() {
@@ -1078,7 +1078,7 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
     let err = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     match err {
         antecedent::CausalError::Support { id, message } => {
-            assert_eq!(id, antecedent::SupportRefusal::Refused);
+            assert_eq!(id, antecedent::SupportRefusal::NotSupported);
             assert!(message.contains("AverageEffect"), "{message}");
         }
         other => panic!("expected Support::Refused, got {other:?}"),
@@ -1371,7 +1371,7 @@ fn prepared_pag_ate_reuses_identification_envelope() {
                 .abs()
                 < 1e-12
         );
-        assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(click.support_status().unwrap().as_str(), "supported");
     }
 
     // The Bayesian/accepted coordinate takes the same cached envelope through
@@ -1531,7 +1531,7 @@ fn prepared_admg_ate_reuses_general_id_result() {
                 .abs()
                 < 1e-12
         );
-        assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(click.support_status().unwrap().as_str(), "supported");
     }
     let frontdoor_ate = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0)
         - frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 0.0);
@@ -1809,7 +1809,7 @@ fn prepared_admg_distribution_reuses_identification() {
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
     let truth = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0);
     assert!((fresh_dist.mean - truth).abs() < 1e-9, "mean={} counts={truth}", fresh_dist.mean);
-    assert_eq!(first.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(first.support_status().unwrap().as_str(), "supported");
     assert!(fresh.refutations.is_empty());
 
     for accepted_structure in [false, true] {
@@ -2028,7 +2028,7 @@ fn admg_frontdoor_distribution_known_truth() {
                 let fresh = study.clone().run(&ctx).unwrap();
                 let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
                 for (stage, result) in [("fresh", &fresh), ("prepared", &click)] {
-                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert_eq!(
                         result.identification.status,
                         antecedent_core::IdentificationStatus::NonparametricallyIdentified,

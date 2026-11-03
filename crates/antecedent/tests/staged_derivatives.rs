@@ -1,4 +1,4 @@
-//! Known-truth licensing evidence for staged derivatives.
+//! Known-truth support evidence for staged derivatives.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{

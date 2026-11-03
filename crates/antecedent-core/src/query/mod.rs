@@ -111,8 +111,8 @@ pub use randomized::{
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, FeedbackDeclaration, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, ObservationAssumption,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TEMPORAL_OBSERVATION_UNLICENSED,
-    TemporalResponseLicense, TemporalResponseSpec,
+    ObservationSpec, ResponseFunctional, ResponseQuery, TEMPORAL_OBSERVATION_UNSUPPORTED,
+    TemporalResponseSpec, TemporalResponseSupport,
 };
 pub use sequential_contrast::SequentialContrastQuery;
 pub use simulate::{SimulateQuery, SimulationTarget};
@@ -131,8 +131,8 @@ pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
     EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,
-    LicensedWeights, MAX_CATEGORICAL_CARDINALITY, RegimeBinding, RegimeKind, SamplingDesign,
-    SamplingSelection, TargetSampling, UnmetDependency, VariableCoordinate, VariableDomain,
+    MAX_CATEGORICAL_CARDINALITY, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection,
+    SupportedWeights, TargetSampling, UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use transport_contract::{
     ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,

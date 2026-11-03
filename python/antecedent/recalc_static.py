@@ -1,7 +1,7 @@
 """Selective finite ADMG response and multi-source exact-law transport.
 
 The native shared planner checks every graph, query, data, regime and catalog
-identity. Retained numerical work does not license a new population or proof.
+identity. Retained numerical work does not support a new population or proof.
 Results expose point means and contrasts; no uncertainty or calibration claim is
 created. Existing independent consumers verify the original engine artifacts.
 """
@@ -219,7 +219,7 @@ class _Session:
         """Export the retained original engine artifact, independently consumable.
 
         This result artifact supplies no general executable-state resume and no
-        calibrated interval license. The shared work receipt exports separately.
+        calibrated interval support. The shared work receipt exports separately.
         """
         run = _execution(execution)
         artifact, error = run._call(

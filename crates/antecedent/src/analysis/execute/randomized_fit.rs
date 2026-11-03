@@ -1064,7 +1064,7 @@ pub(super) fn assignment_probability_floor(query: &RandomizedEffectQuery, two_si
 }
 
 /// Smaller of the expected treated and expected control rows of an independent Bernoulli design:
-/// the arm's summed known assignment probabilities. Zero for every other design, whose licenses
+/// the arm's summed known assignment probabilities. Zero for every other design, whose supports
 /// state their own arm counts.
 pub(super) fn expected_arm_units(query: &RandomizedEffectQuery) -> f64 {
     if !matches!(query.design, RandomizationDesign::Bernoulli) {

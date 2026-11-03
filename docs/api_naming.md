@@ -20,7 +20,7 @@ The root namespace (`import antecedent`) has an explicit `__all__` contract. Spe
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
-them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
+them — the supported cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
 and the design query `InterferenceQuery`. The `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
 modules add point-only randomized experiment, factorial, held-out policy,
 DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
@@ -31,7 +31,7 @@ error; it requires at least two sequences and both arms observed across the
 full schedule, and assumes no carryover from earlier assignments.
 `SwitchbackEffect` also uses retained `analyze`, preserving sequence and
 period identity. Its supported sequence-level Student interval has an exact
-graphless license; sparse schedules remain point-only.
+graphless support; sparse schedules remain point-only.
 `experiment.ComplierEffect` adds the retained Bernoulli encouragement
 CACE/LATE query with observed receipt, a positive first stage, and no interval;
 its result is also off the support-matrix axis.
@@ -43,7 +43,7 @@ it remains off the support-matrix axis and reports no interval.
 row-level assignment probabilities through retained `RandomizedEffect`
 analysis. The result reports all action contrasts to the reference arm with
 covariance-free variance bounds, observed arm support, and no interval or
-support-matrix license.
+support-matrix support.
 `estimate_ancova_effect` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
@@ -51,7 +51,7 @@ coefficients, support counts, and an HC0 standard error without an interval.
 The same native fit is available through retained `prepare` / `analyze` via
 `RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
 artifact retain the covariate identities and report point-only HC0 uncertainty.
-The licensed trial-IPW cell is
+The supported trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](start/first-analysis.md) for lifetime and report semantics.
@@ -133,7 +133,7 @@ directly:
   `.stages_behind()`, or refuses as `ExternalRefusal` (a `CausalUnsupportedError`
   with registered `reason_code`, `remedy`, `stage`, `offending`, `expected`,
   `supplied`). Trust uses the shared `ProviderTrust` vocabulary and never
-  `native_licensed`; the claim is never native estimation.
+  `native_supported`; the claim is never native estimation.
 - ``antecedent.handoff`` — adjustment-set export for a caller-owned learner.
   ``handoff.adjustment`` returns an ``AdjustmentHandoff``; ``handoff.econml``,
   ``EconMLSpec``, and ``EconMLProviderAdapter`` are aliases. Antecedent identifies;
@@ -215,7 +215,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Adjustment handoff | — | `antecedent.handoff.adjustment(result, modifiers=…, target_weights=…, outcome_functional=…, tool=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets. `columns(layout="econml"\|"named")` defaults to EconML `Y`/`T`/`W`/`X`. `spec.attach(learner=…, learner_config=…, effect=…)` returns an `ExternalEstimate` receipt (attested, not re-verifiable); with `label="ate"` the scalar is bound through `external.bind` and `.claim` carries provider version, support labels and lineage (`learner_version=`, `outcome_units=`, `support=`). `handoff.econml` is an alias |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
 | Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `population.replay_retarget(completed, artifact)` — typed outcome using the completed immutable study and independently consumed artifact |
-| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on=names)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
+| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on=names)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a supported score-table estimator |
 | Retarget a batch family | `PreparedBatch::retarget(&scores, &request, ctx)` with `estimate_scored` / `prepared_scores` — points, joint plug-in score covariance and named contrasts over one row snapshot; `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` is the family max-t band of a complete family | `estimation.prepare_many(...)` → immutable `PreparedBatch`; `ant.estimate(study)` → `Outcome[BatchResult]`; joint-cell `family=estimation.CellFamily(...)`; completed `batch.retarget(claims, contrasts)` → `Outcome[BatchRetarget]` (`RetargetClaim`, `RetargetContrast`; `to_rows()` tidy export; `BatchRetarget.simultaneous_interval()`) |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
@@ -237,14 +237,14 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Value objects and refusals of the transported routes | `ComposedActionQuery`, `ScenarioCondition`, `ObservationalScenarioQuery`, `ForwardOrigin`, `TransportIdentity`, `TransportedClaimOffer`, `DiscreteContrast`; refusals `TransportedRefusal`, `TransportRevalidationRefusal` | `inverse_sources.ComposedAction`, `ScenarioCondition`, `ObservationalScenario`, `ForwardOrigin`, `SourcedInverseResult`; `transport_handoff.TransportIdentity`, `TransportedClaimOffer`; `transport.revalidation.Calibration`, `ObservedEffect`; `discretized_composition.DiscreteContrast.ate` / `.mean_at`; refusals `transported_response.TransportedResponseRefusal`, `discretized_composition.DiscretizedCompositionRefusal` (both `StructuredRefusal`) |
 | Study ranking | `antecedent-design` decision-value and native model objectives; checked prior-to-signal adapter | `design.rank_designs` returns one `DesignRankingResult` with an explicit basis: identification, EVSI/net value, structural sufficiency/cost, graph entropy, effect width, model distinction or callable-utility regret. `design.adapt_prior_to_signal` preserves native posterior lineage and overlap checks. See [design ranking](design-ranking.md). |
 | Measured scalar adapters | Source-bound `MeasuredInference` / checked method-specific producers and independent consumers (`antecedent-io`) | `transport.advanced` joint Bayesian, learned joint, binary nested-Markov Bayesian/Fisher, dependent temporal and sampled-recovery methods return `inference.MeasuredInference` at their [exact measured scopes](population-time-uncertainty.md); `MeasuredInference.load` requires the retained source identity. |
-| Provider trust (shared) | `ExternalTrustState` (`NativeLicensed` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_licensed` / `externally_attested` / `verified_extension`); a bound external claim is never `native_licensed` |
+| Provider trust (shared) | `ExternalTrustState` (`NativeSupported` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_supported` / `externally_attested` / `verified_extension`); a bound external claim is never `native_supported` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
 | Structural transport (compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
-| Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the compiler |
+| Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — supported cell, not the compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
 | Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
-| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
+| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::support`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
@@ -256,7 +256,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.from_discovery(...)` / `.from_graph(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
 | Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
-| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` license validation `none`. Scalar Dag `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
+| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's supported default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` support validation `none`. Scalar Dag `InterventionResponse` supports cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
 | Tabular data | `TabularData::from_f64_columns` | `dict[str, array]` / pandas / Arrow |
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
@@ -305,7 +305,7 @@ Rust stage APIs are **not** re-exported at the crate root — use `antecedent::i
 
 ## A sharp edge worth knowing
 
-**Pulse / Sustained vs temporal `ResponseCurve`.** On licensed `TemporalDag`
+**Pulse / Sustained vs temporal `ResponseCurve`.** On supported `TemporalDag`
 cells, `PulseEffect` and single-step `SustainedEffect` agree numerically with
 the dose × horizon surface on the shared known-truth fixture, but standard
 errors can differ: the surface uses analytic delta-method bands while the
@@ -318,7 +318,7 @@ worst-over-points.
 
 **Temporal response refuters.** Scalar ATE refuters are not applicable to a
 function-valued temporal surface; explicitly requesting one is not applicable.
-Licensed no-refutation runs surface the informational skip on
+Supported no-refutation runs surface the informational skip on
 `CausalResponseView.validation` as check id
 `refute.temporal_response.skipped`. Rust `Study` diagnostics carry the same
 code. `PreparedAnalysis.refute` remains AverageEffect-only.

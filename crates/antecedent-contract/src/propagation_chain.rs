@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! The rule for a chain of transformations: which uncertainty each stage can
-//! carry, and nothing computed until the chain is licensed.
+//! carry, and nothing computed until the chain is supported.
 //!
 //! A chain starts from declared sources and runs stages: a measurement
 //! mapping, a transport, a pool, a derived quantity, a nonlinear decision
@@ -354,7 +354,7 @@ pub enum TableConstruction {
     /// sources have.
     JointDraws,
     /// The product of independent source draws. It carries no dependence, so
-    /// it is licensed only for sources that share no factor.
+    /// it is supported only for sources that share no factor.
     IndependentProduct,
 }
 
@@ -626,7 +626,7 @@ pub struct StagePlan {
     pub dependence: Option<StageDependence>,
 }
 
-/// A chain the rule licensed.
+/// A chain the rule supported.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChainPlan {
     /// One plan per stage, in declaration order.
@@ -922,7 +922,7 @@ fn check_draw_alignment<'a>(
             return Err(refuse(
                 OVERLAP_UNKNOWN_CODE,
                 "propagation_chain.overlap_unknown_in_independent_product",
-                "a source left its overlap undeclared, so an independent product table is not licensed",
+                "a source left its overlap undeclared, so an independent product table is not supported",
                 None,
                 DECLARE_SHARED_FACTORS,
             ));
@@ -1010,7 +1010,7 @@ fn charge_stage_tables(
     Ok(())
 }
 
-/// A stage's own declaration: a fresh id, at least one input, an operator its kind licenses,
+/// A stage's own declaration: a fresh id, at least one input, an operator its kind supports,
 /// and the input arity its operator class needs.
 fn check_stage_shape(stage: &ChainStageDecl, state: &ChainState<'_>) -> Result<(), ChainRefusal> {
     check_text(&stage.id, "a stage id")?;
@@ -1023,7 +1023,7 @@ fn check_stage_shape(stage: &ChainStageDecl, state: &ChainState<'_>) -> Result<(
     if !class_fits(stage.kind, stage.class) {
         return Err(refuse(
             NOT_SUPPORTED_CODE,
-            "propagation_chain.operator_not_licensed_for_stage",
+            "propagation_chain.operator_not_supported_for_stage",
             format!(
                 "a {} stage does not apply a {} operator",
                 stage.kind.as_str(),
@@ -1188,7 +1188,7 @@ fn check_stage_dependence(
     }))
 }
 
-/// Phase 5: the output stage exists, its reading is licensed, and the point sources a draw
+/// Phase 5: the output stage exists, its reading is supported, and the point sources a draw
 /// answer depends on are listed.
 fn finish_plan(
     decl: &ChainDecl,

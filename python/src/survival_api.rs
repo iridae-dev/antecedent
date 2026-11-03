@@ -7,8 +7,8 @@ use pyo3::prelude::*;
 use crate::detach_catch;
 
 /// Simultaneous difference band: times, difference, lower, upper, ok replicates,
-/// and the exact graphless band license (`Some("licensed")`) when the published
-/// band and arm support match a licensed band row.
+/// and the exact graphless band support (`Some("supported")`) when the published
+/// band and arm support match a supported band row.
 type DifferenceBand = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32, Option<String>);
 /// IPCW survival curves: times, control, treated, RMSTs, per-arm minimum event
 /// risk sets, and the realized censoring-survival floor.

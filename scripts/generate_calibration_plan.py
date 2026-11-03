@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory inherited calibration debt and the current inference contracts.
 
-This renders declarations, not measurement or a license. Per-output calibration
+This renders declarations, not measurement or support. Per-output calibration
 designs must still cover diagnostics inside point-only records.
 """
 
@@ -15,9 +15,9 @@ from copy import deepcopy
 from _repo import REPO_ROOT as ROOT
 from generate_calibration_backlog import READY_COORDINATES, ready_coordinate_problems
 
-SOURCE = ROOT / "parity/support_licensed.toml"
+SOURCE = ROOT / "parity/support_cells.toml"
 OUTPUT = ROOT / "parity/calibration_plan.md"
-PROMOTION = ROOT / "parity/promotion.toml"
+CAPABILITY = ROOT / "parity/capability_records.toml"
 LEDGER = ROOT / "parity/evidence_ledger.toml"
 # Hand-maintained tail of the plan: the generator carries it over unchanged.
 CAPACITY_HEADING = "## Capacity plan for the uncertainty, transport and decision coordinates"
@@ -66,13 +66,13 @@ def table_text(value: str) -> str:
 
 
 def ledger_scope() -> tuple[list[dict], list[dict]]:
-    """Return the promotion records the evidence ledger declares, and its cells.
+    """Return the capability records the evidence ledger declares, and its cells.
 
-    The ledger owns a subset of the merged promotion registry; the records it
+    The ledger owns a subset of the merged capability registry; the records it
     names are the ones whose routes, uncertainty methods and output allocations
-    this inventory renders. A ledger cell naming no promotion record is an error.
+    this inventory renders. A ledger cell naming no capability record is an error.
     """
-    registry = tomllib.loads(PROMOTION.read_text(encoding="utf-8"))["record"]
+    registry = tomllib.loads(CAPABILITY.read_text(encoding="utf-8"))["record"]
     cells = tomllib.loads(LEDGER.read_text(encoding="utf-8"))["cell"]
     owned = {cell["id"] for cell in cells}
     missing = owned - {record["id"] for record in registry}
@@ -91,9 +91,9 @@ def registered_inference() -> list[str]:
         "## Current registered inference contracts",
         "",
         (
-            f"The following inventory covers the {len(records)} promotion records owned by the evidence ledger and "
+            f"The following inventory covers the {len(records)} capability records owned by the evidence ledger and "
             f"{len(expected)} registered routes, including closed producers and independent "
-            "consumers. It is generated from the promotion registry and evidence ledger. "
+            "consumers. It is generated from the capability registry and evidence ledger. "
             "A point-only status can still carry unmeasured standard errors, p-values, "
             "posterior summaries or Monte Carlo diagnostics. The historical inherited backlog "
             "does not allocate designs for those outputs. Neither this table nor an "
@@ -102,9 +102,9 @@ def registered_inference() -> list[str]:
         "",
         (
             "Owners, theorem scope, evidence design and inference boundaries remain in "
-            "the linked promotion record. Whole-method truth/design, nominal level, "
+            "the linked capability record. Whole-method truth/design, nominal level, "
             "acceptance thresholds and activation must be allocated separately for each "
-            "diagnostic or interval variant; input calibration never licenses a new "
+            "diagnostic or interval variant; input calibration never supports a new "
             "transformation, retarget, posterior decision or ranking guarantee."
         ),
         "",
@@ -137,7 +137,7 @@ def registered_inference() -> list[str]:
     lines += [
         "",
         (
-            "Source: `promotion.toml` and `evidence_ledger.toml`. "
+            "Source: `capability_records.toml` and `evidence_ledger.toml`. "
             "Regenerate after changing a public route, uncertainty method or consumer."
         ),
         "",
@@ -165,7 +165,7 @@ def disposition(row: dict) -> tuple[str, str]:
         )
     return (
         "graph_mixture_no_whole_method_calibration",
-        f"Freeze {oracle}; then measure {calibration}. Current atom values and supplied graph weights do not license an aggregate interval or posterior probability guarantee.",
+        f"Freeze {oracle}; then measure {calibration}. Current atom values and supplied graph weights do not support an aggregate interval or posterior probability guarantee.",
     )
 
 
@@ -294,11 +294,11 @@ def per_output_inference(records: list[dict]) -> list[str]:
         "",
         (
             "This is explicit method ownership and design allocation, not itself measurement or "
-            "a new license. Allocated candidate records describe future measurements; "
+            "new support. Allocated candidate records describe future measurements; "
             "inherited records describe unchanged original methods. Neither allocation "
             "nor a numerical replay fixture validates a transformed estimator, covariance, "
             "interval, posterior decision or ranking. Public standing remains in the "
-            "promotion routes. Mathematical supplied-law outputs and diagnostic labels "
+            "capability routes. Mathematical supplied-law outputs and diagnostic labels "
             "must not be read as calibrated sampling guarantees."
         ),
         "",
@@ -367,7 +367,7 @@ def render() -> str:
     lines = [
         "# Calibration backlog plan",
         "",
-        f"Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are {len(cells)} cells across {len(counts)} distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
+        f"Generated from `support_cells.toml` without changing its `estimator_grid_not_measured` markers. These are {len(cells)} cells across {len(counts)} distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not support an inferential claim. It is not a waiver or a coverage record.",
         "",
         "| Priority | Query | Graph | Structure | Inference | Validation | Estimator | Typed reason | Required next evidence |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -395,7 +395,7 @@ def render() -> str:
         )
     lines += [
         "",
-        "No row above is relabeled in `support_licensed.toml`. The graph-posterior work starts only after a whole-method oracle and calibration design are frozen at each graph/query/provider coordinate; completion counts are never posterior probabilities, and unidentified or unevaluated mass cannot be renormalized away.",
+        "No row above is relabeled in `support_cells.toml`. The graph-posterior work starts only after a whole-method oracle and calibration design are frozen at each graph/query/provider coordinate; completion counts are never posterior probabilities, and unidentified or unevaluated mass cannot be renormalized away.",
         "",
     ]
     existing = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
@@ -404,7 +404,7 @@ def render() -> str:
             "# Calibration backlog plan",
             "",
             (
-                "Generated from `support_licensed.toml`: 0 cells across 0 coordinates remain "
+                "Generated from `support_cells.toml`: 0 cells across 0 coordinates remain "
                 "marked `estimator_grid_not_measured`. All seventeen reviewed coordinates now "
                 "cite existing measured records without unresolved boundary points. These bindings "
                 "retain their exact method and source scopes; current attestation and execution "
@@ -528,7 +528,7 @@ def main() -> None:
         OUTPUT.write_text(content, encoding="utf-8", newline="\n")
     print(
         "calibration plan: current backlog and historical allocation retained; "
-        "current promotion routes and inference boundaries inventoried"
+        "current capability routes and inference boundaries inventoried"
     )
 
 

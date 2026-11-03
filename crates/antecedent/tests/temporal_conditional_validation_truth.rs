@@ -288,7 +288,7 @@ fn temporal_conditional_cheap_and_full_pass_on_the_clean_law_at_the_marginal_eff
                             suite,
                             &truth,
                             &label,
-                            CellStatus::Licensed,
+                            CellStatus::Supported,
                         );
                     }
                 }
@@ -443,7 +443,7 @@ fn temporal_conditional_graph_posterior_cells_match_the_marginal_effect() {
                         .unwrap_or_else(|error| panic!("{label}: {error}"))
                         .run(&context)
                         .unwrap_or_else(|error| panic!("{label}: {error}"));
-                    assert_cell(&result, &inference, suite, &truth, &label, CellStatus::Licensed);
+                    assert_cell(&result, &inference, suite, &truth, &label, CellStatus::Supported);
                     let mixture = result.structural_response.as_ref().expect("atom mixture");
                     assert!(mixture.unidentified_mass.abs() < 1e-12, "{label}");
                 }

@@ -403,7 +403,7 @@ def test_point_only_native_report_shape_never_acquires_inferred_covariance():
     from antecedent.outcomes import Outcome
 
     refusal = {
-        "reason_code": "cell_not_licensed",
+        "reason_code": "not_supported",
         "detail": "batch_retarget.point_only_member",
         "message": "native provenance withholds covariance",
     }

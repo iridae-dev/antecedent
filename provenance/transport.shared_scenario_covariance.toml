@@ -41,7 +41,7 @@ record_sha256 = "c55e6fb25379631038619ed98c05494fff5d086854a00d4eb8533863c32e9ed
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/scenario_covariance.rs"
-sha256 = "c76181124902882858c2e54fa70f14f13f0390c5e13b6828895fc438fc2ce83e"
+sha256 = "1ceac113326cb2023567e3c4f5d7d49b6663e74d0e6084fa0f967434955a1ca7"
 
 [[method_review.artifacts]]
 role = "assertion"

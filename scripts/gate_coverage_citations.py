@@ -8,7 +8,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from promotion_source import _compact_rust_tokens
+from capability_source import _compact_rust_tokens
 from test_evidence import (
     _attrs_before,
     _disabling_cfg,
@@ -20,7 +20,7 @@ from test_evidence import (
 
 root = Path(".")
 tests_dir = root / "crates/antecedent/tests"
-with open(root / "parity/support_licensed.toml", "rb") as handle:
+with open(root / "parity/support_cells.toml", "rb") as handle:
     lic = tomllib.load(handle)
 
 # Only these reviewed repetition macros have this syntax. A changed template or

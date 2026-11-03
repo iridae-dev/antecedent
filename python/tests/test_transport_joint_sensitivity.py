@@ -110,7 +110,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert joint["inference_claim"] == "assumption_range"
     assert "not a confidence interval" in joint["interpretation"]
     assert joint["uncertainty"]["status"] == "withheld"
-    assert joint["uncertainty"]["reason_code"] == "cell_not_licensed"
+    assert joint["uncertainty"]["reason_code"] == "not_supported"
     assert [f["factor"] for f in joint["factors"]] == ["outcome_kernel", "shared_parent_marginal"]
     assert len(joint["frontier"]) == 9
     assert joint["receipt"]["stop"] is None

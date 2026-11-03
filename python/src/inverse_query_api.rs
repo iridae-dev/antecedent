@@ -184,7 +184,7 @@ pub(crate) struct PyInverseQueryArtifact {
 }
 
 impl PyInverseQueryArtifact {
-    /// An artifact sealed on a licensed forward source; its origin is bound in.
+    /// An artifact sealed on a supported forward source; its origin is bound in.
     pub(crate) fn from_sealed(artifact: InverseQueryArtifact) -> Self {
         Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }
     }

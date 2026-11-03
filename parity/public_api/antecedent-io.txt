@@ -13,7 +13,7 @@
 #[doc(hidden)] pub fn antecedent_io::counterfactual_transport_artifact::counterfactual_transport_result_wire(point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire
 #[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::mz_identification_error(error: antecedent_identify::error::IdentificationError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::mz_point_contrasts(distributions: &[antecedent_expr::exact_plan::ExactDistribution]) -> core::result::Result<alloc::vec::Vec<antecedent_io::mz_transport_artifact::MzContrastWire>, antecedent_io_core::error::IoError>
-#[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::refuse_unlicensed_interval(uncertainty: &antecedent_io::mz_transport_artifact::MzUncertaintyWire) -> core::result::Result<(), antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::refuse_unsupported_interval(uncertainty: &antecedent_io::mz_transport_artifact::MzUncertaintyWire) -> core::result::Result<(), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_io::recovery_artifact::recovery_io_error(error: &antecedent_identify::recovery::RecoveryError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::temporal_transport_artifact::temporal_decision_error(error: antecedent_identify::sid::temporal_sequence::TemporalSequenceError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::temporal_transport_artifact::temporal_refusal(refusal: antecedent_identify::sid::temporal_sequence::TemporalRefusal) -> antecedent_io_core::error::IoError
@@ -42,6 +42,9 @@
 #[non_exhaustive] pub enum antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 #[non_exhaustive] pub enum antecedent_io::stream_artifact::StreamArtifactError
 #[non_exhaustive] pub enum antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
+impl !core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl !core::marker::Freeze for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl !core::marker::Freeze for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ModelBundle [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
@@ -312,6 +315,7 @@ impl core::clone::Clone for antecedent_io::measured_inference::cohort_interval::
 impl core::clone::Clone for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::CandidateBasis
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -338,6 +342,7 @@ impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::Resul
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::clone::Clone for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::clone::Clone for antecedent_io::model_codes::GraphClassCode
 impl core::clone::Clone for antecedent_io::model_codes::SourceDependenceCode
 impl core::clone::Clone for antecedent_io::model_codes::SourceSharingCode
@@ -599,6 +604,8 @@ impl core::cmp::Eq for antecedent_io::learned_continuous_artifact::CertificateRe
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedJointExpectation
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedProviderWire
+impl core::cmp::Eq for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::cmp::Eq for antecedent_io::measured_inference::graph_candidate::RetainedSupport
 impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::Transformation
 impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
@@ -606,6 +613,7 @@ impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effec
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::ParentWire
+impl core::cmp::Eq for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::cmp::Eq for antecedent_io::model_codes::GraphClassCode
 impl core::cmp::Eq for antecedent_io::model_codes::SourceDependenceCode
 impl core::cmp::Eq for antecedent_io::model_codes::SourceSharingCode
@@ -904,6 +912,8 @@ impl core::cmp::PartialEq for antecedent_io::measured_inference::cohort_interval
 impl core::cmp::PartialEq for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::RetainedSupport
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -928,6 +938,7 @@ impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::Pop
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::PopulationWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl core::cmp::PartialEq for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::cmp::PartialEq for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::cmp::PartialEq for antecedent_io::model_codes::GraphClassCode
 impl core::cmp::PartialEq for antecedent_io::model_codes::SourceDependenceCode
 impl core::cmp::PartialEq for antecedent_io::model_codes::SourceSharingCode
@@ -1470,6 +1481,8 @@ impl core::fmt::Debug for antecedent_io::measured_inference::cohort_interval::Co
 impl core::fmt::Debug for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::RetainedSupport
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -1496,6 +1509,7 @@ impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::ResultW
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::fmt::Debug for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::fmt::Debug for antecedent_io::model_codes::GraphClassCode
 impl core::fmt::Debug for antecedent_io::model_codes::SourceDependenceCode
 impl core::fmt::Debug for antecedent_io::model_codes::SourceSharingCode
@@ -1773,8 +1787,10 @@ impl core::marker::Copy for antecedent_io::dose_grid_functional_artifact::DoseGr
 impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
 impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire
 impl core::marker::Copy for antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits
+impl core::marker::Copy for antecedent_io::measured_inference::graph_candidate::CandidateBasis
 impl core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::Transformation
 impl core::marker::Copy for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
+impl core::marker::Copy for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::marker::Copy for antecedent_io::model_codes::GraphClassCode
 impl core::marker::Copy for antecedent_io::model_codes::SourceDependenceCode
 impl core::marker::Copy for antecedent_io::model_codes::SourceSharingCode
@@ -2075,6 +2091,8 @@ impl core::marker::Freeze for antecedent_io::measured_inference::cohort_interval
 impl core::marker::Freeze for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -2102,6 +2120,7 @@ impl core::marker::Freeze for antecedent_io::mixed_source_artifact::ConsumedMixe
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Freeze for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
 impl core::marker::Freeze for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::marker::Freeze for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::marker::Freeze for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -2574,6 +2593,9 @@ impl core::marker::Send for antecedent_io::measured_inference::cohort_interval::
 impl core::marker::Send for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -2601,6 +2623,9 @@ impl core::marker::Send for antecedent_io::mixed_source_artifact::ConsumedMixedS
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Send for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl core::marker::Send for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
+impl core::marker::Send for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl core::marker::Send for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::marker::Send for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::marker::Send for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -3030,6 +3055,8 @@ impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::co
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::RetainedSupport
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -3054,6 +3081,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::PopulationWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::marker::StructuralPartialEq for antecedent_io::mnar_candidate_source::ExpectedMnarSource
 impl core::marker::StructuralPartialEq for antecedent_io::model_codes::GraphClassCode
 impl core::marker::StructuralPartialEq for antecedent_io::model_codes::SourceDependenceCode
 impl core::marker::StructuralPartialEq for antecedent_io::model_codes::SourceSharingCode
@@ -3487,6 +3515,9 @@ impl core::marker::Sync for antecedent_io::measured_inference::cohort_interval::
 impl core::marker::Sync for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -3514,6 +3545,9 @@ impl core::marker::Sync for antecedent_io::mixed_source_artifact::ConsumedMixedS
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Sync for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl core::marker::Sync for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
+impl core::marker::Sync for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl core::marker::Sync for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::marker::Sync for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::marker::Sync for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -3986,6 +4020,9 @@ impl core::marker::Unpin for antecedent_io::measured_inference::cohort_interval:
 impl core::marker::Unpin for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -4013,6 +4050,9 @@ impl core::marker::Unpin for antecedent_io::mixed_source_artifact::ConsumedMixed
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Unpin for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl core::marker::Unpin for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
+impl core::marker::Unpin for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl core::marker::Unpin for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::marker::Unpin for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::marker::Unpin for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -4479,6 +4519,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inferen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -4506,6 +4549,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_art
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -4972,6 +5018,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -4999,6 +5048,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifa
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mnar_candidate_source::ExpectedMnarSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::GraphClassCode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::SourceDependenceCode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::SourceSharingCode [auto]
@@ -6092,7 +6144,7 @@ pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_P
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_VERSION: u32
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION: &str
-pub const antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING: &str
+pub const antecedent_io::array_fit_artifact::ARRAY_FIT_SUPPORT: &str
 pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_PROPENSITY: &str
 pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_TEMPORAL_PROPENSITY: &str
 pub const antecedent_io::array_fit_artifact::ID_TEMPORAL_PROPENSITY: &str
@@ -6202,8 +6254,8 @@ pub const antecedent_io::mixed_source_artifact::MIXED_SOURCE_POINT_ONLY: &str
 pub const antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_ID: &str
 pub const antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_SCALE: &str
 pub const antecedent_io::msm_sensitivity_adapter::MSM_SOURCE_KIND: &str
-pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_LICENSED: &str
-pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_LICENSED_DETAIL: &str
+pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_SUPPORTED: &str
+pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_SUPPORTED_DETAIL: &str
 pub const antecedent_io::mz_transport_artifact::MZ_NOMINAL_INTERVAL: &str
 pub const antecedent_io::mz_transport_artifact::MZ_POINT_ONLY: &str
 pub const antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_FEATURE: &str
@@ -6227,6 +6279,7 @@ pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIF
 pub const antecedent_io::period_refresh_artifact::PERIOD_EXTENDED: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_FEATURE: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_KIND: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_MAX_LAGS: usize
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_VERSION: u32
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_FEATURE: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_KIND: &str
@@ -6253,6 +6306,7 @@ pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUN
 pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::sampled_recovery_artifact::SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE: &str
 pub const antecedent_io::sampled_recovery_artifact::SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION: u32
+pub const antecedent_io::scenario_covariance_artifact::MAX_SCORE_TERMS: usize
 pub const antecedent_io::scenario_covariance_artifact::MAX_TABLE_ROWS: usize
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32
@@ -6343,6 +6397,7 @@ pub enum antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
 pub enum antecedent_io::joint_panel_artifact::PanelArtifactError
 pub enum antecedent_io::joint_response_artifact::JointResponseArtifactError
+pub enum antecedent_io::measured_inference::graph_candidate::CandidateBasis
 pub enum antecedent_io::measured_inference::split_parent_set_effect::Transformation
 pub enum antecedent_io::model_codes::GraphClassCode
 pub enum antecedent_io::model_codes::SourceDependenceCode
@@ -6556,6 +6611,7 @@ pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArt
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::data_digest: alloc::string::String
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::depth_limit: usize
+pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::evidence_digest: alloc::string::String
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::expression: antecedent_io_core::expr_wire::ExprArenaWire
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::graph: antecedent_io_core::wire::AdmgWire
 pub field antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::laws: alloc::vec::Vec<antecedent_io_core::exact_law_wire::ExactLawWire>
@@ -6621,7 +6677,7 @@ pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::calibration: al
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::diagnostics: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::draws: alloc::vec::Vec<f64>
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::estimator_id: alloc::string::String
-pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::licensing: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::support: alloc::string::String
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::target: alloc::string::String
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::uncertainty: alloc::string::String
 pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::values: alloc::vec::Vec<antecedent_io::array_fit_artifact::NamedValueWire>
@@ -6670,12 +6726,12 @@ pub field antecedent_io::bridge_interval::BridgedClaimInterval::construction: &'
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::coverage_record: alloc::string::String
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::degrees_of_freedom: core::option::Option<f64>
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::level: f64
-pub field antecedent_io::bridge_interval::BridgedClaimInterval::licensed_by: &'static str
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::lower: f64
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::mapping: antecedent_contract::bridge::mapping::MappingKind
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::source_standard_error: f64
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::source_value: f64
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::standard_error: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::supported_by: &'static str
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::upper: f64
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::value: f64
 pub field antecedent_io::bridge_interval::ConstructedBridgeInterval::basis: antecedent_io_core::calibration::CalibrationBasisWire
@@ -6695,10 +6751,10 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWir
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::declaration: antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::estimand: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::level_contrasts: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::PosteriorContrastWire>
-pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::licensed: bool
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::likelihood: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::monotonicity: core::option::Option<antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::pairwise: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::PosteriorContrastWire>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::supported: bool
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::variance_scale: f64
 pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::variance_shape: f64
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::calibration: alloc::string::String
@@ -6808,7 +6864,7 @@ pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::to: a
 pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::z: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::degrees_of_freedom: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::from: alloc::string::String
-pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::interval: [f64; 2]
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::interval: core::option::Option<[f64; 2]>
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::location: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::mean: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::probability_positive: f64
@@ -7616,6 +7672,14 @@ pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedN
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::levels: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::name: alloc::string::String
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::parents: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::diagnostic_sd: f64
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::mean: f64
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::program: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::receipt: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::source: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::unidentified_by_table: alloc::vec::Vec<f64>
+pub field antecedent_io::measured_inference::graph_candidate::RetainedSupport::excluded: u32
+pub field antecedent_io::measured_inference::graph_candidate::RetainedSupport::operations: alloc::vec::Vec<antecedent_core::graph_imputation_contract::AtomOperation>
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::adjustment_set: alloc::vec::Vec<u32>
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::degrees_of_freedom: f64
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::level: f64
@@ -7785,6 +7849,7 @@ pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::binding
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::data_digest: alloc::string::String
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::depth_limit: usize
+pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::evidence_digest: alloc::string::String
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::expression: antecedent_io_core::expr_wire::ExprArenaWire
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::graph: antecedent_io_core::wire::AdmgWire
 pub field antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::laws: alloc::vec::Vec<antecedent_io_core::exact_law_wire::ExactLawWire>
@@ -7810,6 +7875,8 @@ pub field antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits::search
 pub field antecedent_io::mixed_source_artifact::MixedSourcePointWire::atoms: alloc::vec::Vec<alloc::vec::Vec<antecedent_io_core::query_wire::ValueWire>>
 pub field antecedent_io::mixed_source_artifact::MixedSourcePointWire::outcomes: alloc::vec::Vec<u32>
 pub field antecedent_io::mixed_source_artifact::MixedSourcePointWire::probabilities: alloc::vec::Vec<f64>
+pub field antecedent_io::mnar_candidate_source::ExpectedMnarSource::program: [u8; 32]
+pub field antecedent_io::mnar_candidate_source::ExpectedMnarSource::source: [u8; 32]
 pub field antecedent_io::mz_transport_artifact::ConsumedMzTransport::contrasts: alloc::vec::Vec<antecedent_io::mz_transport_artifact::MzContrastWire>
 pub field antecedent_io::mz_transport_artifact::ConsumedMzTransport::data: antecedent_expr::exact::ExactTransportData
 pub field antecedent_io::mz_transport_artifact::ConsumedMzTransport::distributions: alloc::vec::Vec<antecedent_expr::exact_plan::ExactDistribution>
@@ -7833,6 +7900,7 @@ pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::catalog
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::contrasts: alloc::vec::Vec<antecedent_io::mz_transport_artifact::MzContrastWire>
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::data_digest: alloc::string::String
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::depth_limit: usize
+pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::evidence_digest: alloc::string::String
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::expression: antecedent_io_core::expr_wire::ExprArenaWire
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::graph: antecedent_io_core::wire::AdmgWire
 pub field antecedent_io::mz_transport_artifact::MzTransportArtifactWire::laws: alloc::vec::Vec<antecedent_io_core::exact_law_wire::ExactLawWire>
@@ -8755,6 +8823,7 @@ pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWi
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::coordinates: alloc::vec::Vec<antecedent_io::transport_scenario_artifact::ScenarioCoordinateWire>
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::data_digest: alloc::string::String
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::depth_limit: usize
+pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::evidence_digest: alloc::string::String
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::graph: antecedent_io_core::wire::AdmgWire
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::horizon: usize
 pub field antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::laws: alloc::vec::Vec<antecedent_io_core::exact_law_wire::ExactLawWire>
@@ -8808,6 +8877,7 @@ pub field antecedent_io::transport_grid_wire::GridWire::samples: alloc::vec::Vec
 pub field antecedent_io::transport_grid_wire::GridWire::seed: u64
 pub field antecedent_io::transport_grid_wire::GridWire::selections: alloc::vec::Vec<u32>
 pub field antecedent_io::transport_grid_wire::GridWire::statistical: bool
+pub field antecedent_io::transport_grid_wire::GridWire::variable_names: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::transport_grid_wire::GridWire::version: u32
 pub field antecedent_io::transport_grid_wire::SampleSummary::content_digest: alloc::string::String
 pub field antecedent_io::transport_grid_wire::SampleSummary::interventions: alloc::vec::Vec<(u32, antecedent_io_core::query_wire::ValueWire)>
@@ -8988,6 +9058,7 @@ pub field antecedent_io::z_transport_artifact::ConsumedZTransport::request: ante
 pub field antecedent_io::z_transport_artifact::ConsumedZTransport::wire: antecedent_io::z_transport_artifact::ZTransportArtifactWire
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::depth_limit: usize
+pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::evidence_digest: alloc::string::String
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::expression: antecedent_io_core::expr_wire::ExprArenaWire
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::graph: antecedent_io_core::wire::AdmgWire
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::interval_status: alloc::string::String
@@ -9002,6 +9073,7 @@ pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::request: 
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::required_features: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::result: antecedent_io::z_transport_artifact::ZTransportPointWire
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::selections: alloc::vec::Vec<u32>
+pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::variable_names: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::z_transport_artifact::ZTransportArtifactWire::version: u32
 pub field antecedent_io::z_transport_artifact::ZTransportPointWire::atoms: alloc::vec::Vec<alloc::vec::Vec<antecedent_io_core::query_wire::ValueWire>>
 pub field antecedent_io::z_transport_artifact::ZTransportPointWire::outcomes: alloc::vec::Vec<u32>
@@ -9026,6 +9098,7 @@ pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtif
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn expected_evidence_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
@@ -9318,10 +9391,15 @@ pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn check
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mixed_source_artifact::ConsumedMixedSource, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn expected_evidence_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::mixed_source_artifact::MixedSourcePointWire>::fn from_distribution(distribution: &antecedent_expr::exact_plan::ExactDistribution) -> Self
+pub fn <antecedent_io::mnar_candidate_source::EncodedMnarSource>::const fn expectation(&self) -> antecedent_io::mnar_candidate_source::ExpectedMnarSource
+pub fn <antecedent_io::mnar_candidate_source::EncodedMnarSource>::fn bytes(&self) -> &[u8]
+pub fn <antecedent_io::mnar_candidate_source::ReconstructedMnarSource>::fn program(&self) -> &antecedent_core::mnar_fixed_shift::FixedShiftProgram
+pub fn <antecedent_io::mnar_candidate_source::ReconstructedMnarSource>::fn source(&self) -> &antecedent_core::mnar_fixed_shift::FixedShiftSource
 pub fn <antecedent_io::model_codes::GraphClassCode>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io::model_codes::GraphClassCode>::const fn from_class(class: antecedent_estimate::joint_bayesian_transport::TransportGraphClass) -> Self
 pub fn <antecedent_io::model_codes::GraphClassCode>::const fn to_class(self) -> antecedent_estimate::joint_bayesian_transport::TransportGraphClass
@@ -9339,11 +9417,12 @@ pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn check
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::mz_transport_artifact::MzTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mz_transport_artifact::ConsumedMzTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn expected_evidence_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn available(&self) -> bool
-pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn not_licensed(dependence_reason: core::option::Option<&str>) -> Self
+pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn not_supported(dependence_reason: core::option::Option<&str>) -> Self
 pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn point_only() -> Self
 pub fn <antecedent_io::nested_markov_artifact::NestedFisherArtifact>::fn build(input: &antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: &antecedent_estimate::nested_markov_binary::FitOptions, nominal_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::nested_markov_artifact::NestedFisherArtifact>::fn build_measured(input: &antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: &antecedent_estimate::nested_markov_binary::FitOptions, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_io::measured_inference::MeasuredInference), antecedent_io_core::error::IoError>
@@ -9557,6 +9636,7 @@ pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire
 pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_estimate::temporal_transport::TemporalSequenceReport), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire>::fn expected_evidence_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::transport_grid_wire::GridWire>::fn export(&self, identity: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::transport_grid_wire::PosteriorIntervalMethodWire>::const fn as_str(self) -> &'static str
@@ -9587,19 +9667,23 @@ pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn t
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn verify_data(&self, request: &antecedent_io::vector_treatment_artifact::VectorTreatmentRequest) -> core::result::Result<(), antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>::fn refused(code: &'static str, detail: impl core::convert::Into<alloc::string::String>, explanation: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn checked(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, result: &antecedent_expr::exact_plan::ExactDistribution, program: &antecedent_expr::program::FunctionalProgram) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn check_variable_names(&self, names: &[alloc::string::String]) -> core::result::Result<(), antecedent_io_core::transport_errors::ZTransportArtifactError>
+pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn checked(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, result: &antecedent_expr::exact_plan::ExactDistribution, program: &antecedent_expr::program::FunctionalProgram, variable_names: &[alloc::string::String]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn consume(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_expr::exact_plan::ExactDistribution), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::z_transport_artifact::ConsumedZTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn expected_evidence_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn reconstruct(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_identify::sid::z_transport::BoundZTransportFunctional, antecedent_expr::exact::ExactTransportData, antecedent_expr::provider::Assignment, antecedent_expr::exact_plan::ExactEvaluationLimits, Self), antecedent_io_core::error::IoError>
 pub fn antecedent_io::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
 pub fn antecedent_io::adaptive_inference_result_artifact::compute_adaptive_result(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResult, antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError>
+pub fn antecedent_io::analysis_wire::descriptive_scope(scope: antecedent_io_core::analysis_wire::RefutationScopeWire, produced_by: [u8; 32]) -> core::result::Result<antecedent_io_core::analysis_wire::RefutationScopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_owned_wire(w: antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_wire(w: &antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_to_wire(e: &antecedent_estimate::effect_estimate::EffectEstimate) -> antecedent_io::EffectEstimateWire
 pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> core::result::Result<antecedent_validate::common::RefutationReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::refutation_to_wire(r: &antecedent_validate::common::RefutationReport) -> antecedent_io_core::analysis_wire::RefutationReportWire
+pub fn antecedent_io::analysis_wire::whole_target_diagnostic_scope(report: &antecedent_validate::target_native::TargetRefutationReport, produced_by: [u8; 32]) -> core::result::Result<antecedent_io_core::analysis_wire::RefutationScopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::array_fit_artifact::inspect_array_fit_header(bytes: &[u8]) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn antecedent_io::bayesian_posterior_row_artifact::dose_grid_row(kind: &str, functional: antecedent_estimate::dose_grid_functional::DoseFunctional, posterior: &antecedent_estimate::dose_grid_posterior::DoseGridPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::bayesian_posterior_row_artifact::policy_row(posterior: &antecedent_estimate::continuous_dose_posterior::DosePolicyPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
@@ -9658,8 +9742,15 @@ pub fn antecedent_io::joint_response_artifact::consume_joint_response(bytes: &[u
 pub fn antecedent_io::joint_response_artifact::encode_joint_response(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>, evaluation: &antecedent_estimate::response::joint_linear::JointLinearEvaluation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::joint_response_artifact::JointResponseArtifactError>
 pub fn antecedent_io::joint_response_artifact::joint_response_identity(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>) -> core::result::Result<[u8; 32], antecedent_io::joint_response_artifact::JointResponseArtifactError>
 pub fn antecedent_io::measured_inference::build_report(route: &str, source: &[u8], premises: &str, data: &str, scope: serde_json::value::Value, executions: alloc::vec::Vec<antecedent_io::measured_inference::ScalarExecution>) -> core::result::Result<antecedent_io::measured_inference::MeasuredInferenceReport, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::categorical_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::decode(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredEnvelopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::encode_report(source: &[u8], report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::derive_support(parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::RetainedSupport, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_point(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::retained_support(n: usize, treatment: u32, outcome: u32, support: antecedent_core::graph_imputation_contract::GraphSupport) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::RetainedSupport, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::route_functional(parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> alloc::string::String
+pub fn antecedent_io::measured_inference::mnar_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::report_seal(report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_effect::adjusted_effect(frame: &antecedent_data::dataset::TabularData, treatment: u32, outcome: u32, adjustment: &[u32], level: f64) -> core::result::Result<antecedent_io::measured_inference::split_effect::AdjustedEffect, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_effect::consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
@@ -9673,6 +9764,9 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &
 pub fn antecedent_io::measured_inference::split_parent_set_effect::run_with_collider_bound(source: &antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource, ctx: &antecedent_core::execution::context::ExecutionContext, max_conflicting_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
+pub fn antecedent_io::mnar_candidate_source::decode_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
+pub fn antecedent_io::mnar_candidate_source::encode(source: &antecedent_core::mnar_fixed_shift::FixedShiftSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::EncodedMnarSource, antecedent_io_core::error::IoError>
+pub fn antecedent_io::mnar_candidate_source::reconstruct(bytes: &[u8], expected: &antecedent_io::mnar_candidate_source::ExpectedMnarSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::randomized_ipow_artifact::posterior_row(source: antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, posterior: &antecedent_estimate::randomized_posterior::RandomizedPosterior, coordinates: alloc::vec::Vec<alloc::string::String>) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::randomized_ipow_artifact::replay(source: &antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, draws: usize) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_io_core::error::IoError>
@@ -9726,12 +9820,16 @@ pub mod antecedent_io::learned_continuous_artifact
 pub mod antecedent_io::learned_joint_transport_artifact
 pub mod antecedent_io::learned_trial_wire
 pub mod antecedent_io::measured_inference
+pub mod antecedent_io::measured_inference::categorical_candidate
 pub mod antecedent_io::measured_inference::cohort_interval
 pub mod antecedent_io::measured_inference::count_fitted_interval
+pub mod antecedent_io::measured_inference::graph_candidate
+pub mod antecedent_io::measured_inference::mnar_candidate
 pub mod antecedent_io::measured_inference::split_effect
 pub mod antecedent_io::measured_inference::split_parent_set_effect
 pub mod antecedent_io::mechanism_discrepancy_artifact
 pub mod antecedent_io::mixed_source_artifact
+pub mod antecedent_io::mnar_candidate_source
 pub mod antecedent_io::model_bundle
 pub mod antecedent_io::model_codes
 pub mod antecedent_io::msm_sensitivity_adapter
@@ -9993,6 +10091,9 @@ pub struct antecedent_io::measured_inference::cohort_interval::CohortIntervalArt
 pub struct antecedent_io::measured_inference::cohort_interval::FitRowsWire
 pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+pub struct antecedent_io::measured_inference::graph_candidate::GraphPointReading
+pub struct antecedent_io::measured_inference::graph_candidate::GraphPointReading has private fields
+pub struct antecedent_io::measured_inference::graph_candidate::RetainedSupport
 pub struct antecedent_io::measured_inference::split_effect::AdjustedEffect
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectRun
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -10021,6 +10122,11 @@ pub struct antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a>
 pub struct antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 pub struct antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 pub struct antecedent_io::mixed_source_artifact::MixedSourcePointWire
+pub struct antecedent_io::mnar_candidate_source::EncodedMnarSource
+pub struct antecedent_io::mnar_candidate_source::EncodedMnarSource has private fields
+pub struct antecedent_io::mnar_candidate_source::ExpectedMnarSource
+pub struct antecedent_io::mnar_candidate_source::ReconstructedMnarSource
+pub struct antecedent_io::mnar_candidate_source::ReconstructedMnarSource has private fields
 pub struct antecedent_io::mz_transport_artifact::ConsumedMzTransport
 pub struct antecedent_io::mz_transport_artifact::MzContrastWire
 pub struct antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a>
@@ -10143,6 +10249,7 @@ pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
 pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a>
 pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire has private fields
 pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 pub struct antecedent_io::stream_artifact::StreamArtifact has private fields
 pub struct antecedent_io::stream_artifact::StreamArtifact<'a>
@@ -10255,6 +10362,7 @@ pub use antecedent_io::CONTENT_BYTES = antecedent_io_core::CONTENT_BYTES
 pub use antecedent_io::CONTENT_CBOR = antecedent_io_core::CONTENT_CBOR
 pub use antecedent_io::CONTRACT_SECTION = antecedent_io_core::CONTRACT_SECTION
 pub use antecedent_io::CONTRACT_SECTION_FORMAT = antecedent_io_core::CONTRACT_SECTION_FORMAT
+pub use antecedent_io::CROSS_PRODUCT_INTERCEPT = antecedent_io_core::CROSS_PRODUCT_INTERCEPT
 pub use antecedent_io::CalibrationSlotWire = antecedent_io_core::CalibrationSlotWire
 pub use antecedent_io::CalibrationStatus = antecedent_io_core::CalibrationStatus
 pub use antecedent_io::CausalPayloadHeader = antecedent_io_core::CausalPayloadHeader
@@ -10288,6 +10396,7 @@ pub use antecedent_io::ContrastBundleWire = antecedent_io_core::ContrastBundleWi
 pub use antecedent_io::CounterfactualContrastsWire = antecedent_io_core::CounterfactualContrastsWire
 pub use antecedent_io::CpdagJson = antecedent_io_core::CpdagJson
 pub use antecedent_io::CpdagWire = antecedent_io_core::CpdagWire
+pub use antecedent_io::CrossProductMomentsWire = antecedent_io_core::CrossProductMomentsWire
 pub use antecedent_io::DagJson = antecedent_io_core::DagJson
 pub use antecedent_io::DagWire = antecedent_io_core::DagWire
 pub use antecedent_io::DataPartitionIdentityWire = antecedent_io_core::DataPartitionIdentityWire
@@ -10632,6 +10741,7 @@ pub use antecedent_io::decode_posterior_meta_from_path = antecedent_io_core::dec
 pub use antecedent_io::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek
 pub use antecedent_io::decode_prior_source_meta = antecedent_io_core::decode_prior_source_meta
 pub use antecedent_io::decode_with_version = antecedent_io_core::decode_with_version
+pub use antecedent_io::descriptive_scope = antecedent_io::analysis_wire::descriptive_scope
 pub use antecedent_io::diagnostic_from_wire = antecedent_io_core::diagnostic_from_wire
 pub use antecedent_io::diagnostic_to_wire = antecedent_io_core::diagnostic_to_wire
 pub use antecedent_io::digest_canonical = antecedent_io_core::digest_canonical
@@ -10824,7 +10934,6 @@ pub use antecedent_io::sensitivity_artifact::JointSensitivityRange = antecedent_
 pub use antecedent_io::sensitivity_artifact::JointSensitivityReceipt = antecedent_validate::JointSensitivityReceipt
 pub use antecedent_io::sensitivity_artifact::JointSensitivityUncertainty = antecedent_validate::JointSensitivityUncertainty
 pub use antecedent_io::sensitivity_artifact::JointSensitivityView = antecedent_io_core::sensitivity_artifact::JointSensitivityView
-pub use antecedent_io::sensitivity_artifact::LICENSED_SAMPLING_COMPOSITIONS = antecedent_io_core::sensitivity_artifact::LICENSED_SAMPLING_COMPOSITIONS
 pub use antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_ACTIONS = antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_ACTIONS
 pub use antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_ARTIFACT_BYTES = antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_ARTIFACT_BYTES
 pub use antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_GRID_POINTS = antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_GRID_POINTS
@@ -10839,6 +10948,7 @@ pub use antecedent_io::sensitivity_artifact::SENSITIVITY_ARTIFACT_FEATURE = ante
 pub use antecedent_io::sensitivity_artifact::SENSITIVITY_ARTIFACT_VERSION = antecedent_io_core::sensitivity_artifact::SENSITIVITY_ARTIFACT_VERSION
 pub use antecedent_io::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID = antecedent_io_core::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID
 pub use antecedent_io::sensitivity_artifact::SENSITIVITY_INFERENCE_CLAIM = antecedent_io_core::sensitivity_artifact::SENSITIVITY_INFERENCE_CLAIM
+pub use antecedent_io::sensitivity_artifact::SUPPORTED_SAMPLING_COMPOSITIONS = antecedent_io_core::sensitivity_artifact::SUPPORTED_SAMPLING_COMPOSITIONS
 pub use antecedent_io::sensitivity_artifact::SamplingInterval = antecedent_io_core::sensitivity_artifact::SamplingInterval
 pub use antecedent_io::sensitivity_artifact::SamplingStatus = antecedent_io_core::sensitivity_artifact::SamplingStatus
 pub use antecedent_io::sensitivity_artifact::SensitivityArtifact = antecedent_io_core::sensitivity_artifact::SensitivityArtifact
@@ -10913,6 +11023,7 @@ pub use antecedent_io::validate_mixture_masses = antecedent_io_core::validate_mi
 pub use antecedent_io::verify_contract_against_body = antecedent_io_core::verify_contract_against_body
 pub use antecedent_io::verify_contract_against_body_within = antecedent_io_core::verify_contract_against_body_within
 pub use antecedent_io::weight_basis_name = antecedent_io_core::weight_basis_name
+pub use antecedent_io::whole_target_diagnostic_scope = antecedent_io::analysis_wire::whole_target_diagnostic_scope
 pub use antecedent_io::wire = antecedent_io_core::wire
 pub use antecedent_io::z_transport_artifact::ZTransportArtifactError = antecedent_io_core::transport_errors::ZTransportArtifactError
 pub use antecedent_io::z_transport_artifact::ZTransportQueryWire = antecedent_io_core::transport_query_wire::ZTransportQueryWire
@@ -11223,6 +11334,8 @@ pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifac
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::PremisesMismatch
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::ResultMismatch
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::measured_inference::graph_candidate::CandidateBasis::FixedEffect
+pub variant antecedent_io::measured_inference::graph_candidate::CandidateBasis::PriorPredictive
 pub variant antecedent_io::measured_inference::split_parent_set_effect::Transformation::Linear
 pub variant antecedent_io::measured_inference::split_parent_set_effect::Transformation::LogLinear
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::Container(antecedent_io_core::error::IoError)
@@ -11297,17 +11410,17 @@ pub variant antecedent_io::release_migration::BreakPath::RecomputeFromSource { e
 pub variant antecedent_io::release_migration::BreakPath::Refused { error: &'static str, next_attempt: &'static str }
 pub variant antecedent_io::release_migration::BreakPath::Unchanged { reason: &'static str }
 pub variant antecedent_io::release_migration::IntentionalBreak::ContentBasedWorldIdentity
-pub variant antecedent_io::release_migration::IntentionalBreak::LicenseNotCarried
 pub variant antecedent_io::release_migration::IntentionalBreak::ReducedRetentionOperation
 pub variant antecedent_io::release_migration::IntentionalBreak::RefusalReason
 pub variant antecedent_io::release_migration::IntentionalBreak::RouteWithoutCurrentMethod
 pub variant antecedent_io::release_migration::IntentionalBreak::ScientificTargetDigest
 pub variant antecedent_io::release_migration::IntentionalBreak::ScoreRowIdWidth
+pub variant antecedent_io::release_migration::IntentionalBreak::SupportNotCarried
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Closed
 pub variant antecedent_io::release_migration::ManifestRouteStatus::ExecutionOnly
 pub variant antecedent_io::release_migration::ManifestRouteStatus::FittingGap
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Graphless
-pub variant antecedent_io::release_migration::ManifestRouteStatus::Licensed
+pub variant antecedent_io::release_migration::ManifestRouteStatus::Supported
 pub variant antecedent_io::release_migration::MigrationError::CarriedTargetDigestNotTranslated
 pub variant antecedent_io::release_migration::MigrationError::ScoreRowDigestNotTranslated
 pub variant antecedent_io::release_migration::PreviousReleaseError::ArtifactNotDecoded
@@ -11318,8 +11431,8 @@ pub variant antecedent_io::release_migration::RouteAxis::StaticBayesian
 pub variant antecedent_io::release_migration::RouteAxis::StaticFrequentist
 pub variant antecedent_io::release_migration::RouteAxis::TemporalBayesian
 pub variant antecedent_io::release_migration::RouteAxis::TemporalFrequentist
-pub variant antecedent_io::release_migration::RouteRecordError::LicenseNotCarried { id: alloc::string::String, methods: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_io::release_migration::RouteRecordError::RouteWithoutCurrentMethod { id: alloc::string::String }
+pub variant antecedent_io::release_migration::RouteRecordError::SupportNotCarried { id: alloc::string::String, methods: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_io::release_migration::RouteRecordError::UnknownStatus { id: alloc::string::String, status: alloc::string::String }
 pub variant antecedent_io::release_migration::RouteRecordOutcome::OneToOne { method: antecedent_io::release_migration::MethodAssignment, unserved_axes: alloc::vec::Vec<antecedent_io::release_migration::RouteAxis> }
 pub variant antecedent_io::release_migration::RouteRecordOutcome::RefusalKept

@@ -417,7 +417,7 @@ def _result_mean_source(
             causal_contract_id=fields["causal_contract_id"],
             rng_id=fields["rng_id"],
             _original_effect=(source, value, outcome_units, population),
-            trust="native_licensed",
+            trust="native_supported",
         )
     from .results.response import CausalResponseView
 

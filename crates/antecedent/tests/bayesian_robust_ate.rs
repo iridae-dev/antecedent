@@ -1,4 +1,4 @@
-//! Staged, licensed Bayesian robust ATE cell.
+//! Staged, supported Bayesian robust ATE cell.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -54,7 +54,7 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(builder.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(builder.support_status(), Some(CellStatus::Supported));
     let ctx = antecedent_core::ExecutionContext::for_tests(22);
     let one_shot = builder.run(&ctx).unwrap();
     let mut prepared = builder.prepare(&ctx).unwrap();

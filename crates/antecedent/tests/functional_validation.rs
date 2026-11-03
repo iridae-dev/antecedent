@@ -150,7 +150,7 @@ fn a_path_specific_effect_on_an_admg_is_refuted_against_the_structural_effect() 
     let ate = |r: &antecedent::StudyResult| r.estimate().as_effect().unwrap().ate;
     assert!((ate(&validated) - ate(&plain)).abs() < 1e-12);
     assert!((ate(&validated) - truth).abs() < 0.02, "{} vs {truth}", ate(&validated));
-    assert_eq!(validated.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(validated.support_status(), Some(CellStatus::Supported));
     // The placebo treatment removes the effect the identified functional reads: the refitted
     // value is centred on zero, far from the structural effect.
     let placebo = report(&validated, "target.placebo_treatment");
@@ -214,7 +214,7 @@ fn an_interventional_distribution_on_an_admg_is_refuted_by_its_atom_vector() {
         (first - expected_first).abs() < 0.02,
         "{first} vs {expected_first} (Y=1: {first_is_one})"
     );
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     for refuter in ["target.subset_stability", "target.bootstrap_stability"] {
         let check = report(&result, refuter);
         assert!((check.original_ate - first).abs() < 1e-12);
@@ -302,7 +302,7 @@ fn an_attribution_is_refitted_whole_and_its_contributions_keep_the_efficiency_id
     assert!(
         (mean_score - mean_baseline - mean_contributions).abs() < 1e-6 * (1.0 + mean_score.abs())
     );
-    assert_eq!(validated.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(validated.support_status(), Some(CellStatus::Supported));
     for refuter in ["target.subset_stability", "target.bootstrap_stability"] {
         let check = report(&validated, refuter);
         assert!((check.original_ate - mean_score).abs() < 1e-9, "{refuter}");
@@ -330,7 +330,7 @@ fn an_attribution_is_refitted_whole_and_its_contributions_keep_the_efficiency_id
     for (a, b) in accepted_scores.scores.iter().zip(reference.scores.iter()) {
         assert!((a - b).abs() < 1e-12);
     }
-    assert_eq!(accepted.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(accepted.support_status(), Some(CellStatus::Supported));
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn a_counterfactual_is_refuted_against_the_structural_slope() {
     let truth = 2.0 * (active - control);
     let mean_ite = result.counterfactual().unwrap().mean_ite;
     assert!((mean_ite - truth).abs() < 0.1, "{mean_ite} vs {truth}");
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     let placebo = report(&result, "target.placebo_treatment");
     assert!((placebo.original_ate - mean_ite).abs() < 1e-9);
     // With the treatment permuted the fitted y-mechanism carries no slope in t.
@@ -430,7 +430,7 @@ fn a_natural_direct_effect_is_bounded_by_its_cross_world_dependence_and_placebo(
         .unwrap();
     let nde = result.estimate().as_effect().unwrap().ate;
     assert!((nde - 0.06).abs() < 0.02, "{nde}");
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     // At rho = 0.3 the sensitivity curve returns the structural direct effect, 0.3.
     let range = result
         .diagnostics
@@ -470,7 +470,7 @@ fn a_cpdag_path_specific_effect_is_refuted_per_completion_against_the_structural
         .unwrap()
         .run(&ExecutionContext::for_tests(26))
         .unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - truth).abs() < 0.03, "{ate} vs {truth}");
     let placebo = report(&result, "target.placebo_treatment");
@@ -537,7 +537,7 @@ fn a_temporal_conditional_pulse_is_refuted_on_the_series_for_a_dag_and_its_class
         run(Study::series(conditional_series()).graph(dag.clone())),
         run(Study::series(conditional_series()).graph(class)),
     ] {
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         let ate = result.estimate().as_effect().unwrap().ate;
         assert!((ate - truth).abs() < 0.05, "{ate}");
         // The circular shift of the treatment removes the lagged dependence.

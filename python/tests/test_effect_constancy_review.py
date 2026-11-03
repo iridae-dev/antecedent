@@ -109,7 +109,7 @@ def test_original_catalog_filtering_does_not_turn_preference_into_transfer_autho
     assert [r.artifact_id for r in out.ranked] == ["near", "far"]
     assert dict(out.scores)["far"] == pytest.approx(ORACLE["prior"]["scores"][0])
     assert out.data_dependent_selection
-    assert not out.posterior_transfer_licensed
+    assert not out.posterior_transfer_supported
     assert out.calibration == "unmeasured"
 
 

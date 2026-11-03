@@ -897,7 +897,7 @@ fn penalty_declaration(
 /// unpenalized, no-fallback default.
 ///
 /// An `ml` fallback is accepted here and refused with its registered reason code when the GLM
-/// fit fails (a flexible destination has no cross-fitted license); a penalized fallback beside a
+/// fit fails (a flexible destination has no cross-fitted support); a penalized fallback beside a
 /// penalized primary is refused by the estimator as an incoherent declaration.
 fn build_propensity_nuisance(
     dict: &Bound<'_, PyDict>,

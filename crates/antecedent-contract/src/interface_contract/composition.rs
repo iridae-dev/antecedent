@@ -78,7 +78,7 @@ impl ComponentConnection {
     }
 }
 
-/// A composition every connection of which is licensed by the declarations
+/// A composition every connection of which is supported by the declarations
 /// and which has no cycle.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ComposedInterfaces {
@@ -160,7 +160,7 @@ fn feed_forward_order<'a>(
 ///
 /// # Errors
 /// Every defect of the group that failed, each a coded refusal with an
-/// `interface_contract.*` detail and the declaration that would license it.
+/// `interface_contract.*` detail and the declaration that would support it.
 pub fn check_composition(
     components: &[InterfaceContract],
     connections: &[ComponentConnection],

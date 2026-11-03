@@ -204,7 +204,7 @@ fn class_study(
     }
 }
 
-/// Every licensed Bayesian `TemporalCpdag` Pulse coordinate (explicit and accepted
+/// Every supported Bayesian `TemporalCpdag` Pulse coordinate (explicit and accepted
 /// structure × none / cheap / full) mixes the completions under the fixture's
 /// `ClassPrior` and recovers the prior-weighted mixture of the completions' exact
 /// effects on the noise-free law (`with_class_prior.pulse_effect`, within
@@ -278,7 +278,7 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
     );
 }
 
-/// Every licensed Bayesian `TemporalCpdag` multi-step Sustained coordinate
+/// Every supported Bayesian `TemporalCpdag` multi-step Sustained coordinate
 /// (explicit and accepted structure × none / cheap / full) recovers the full-window
 /// effect of the two-lag law (`multi_step.full_window_effect`) and does not collapse
 /// to the last step; cheap / full run refuters and none runs none.
@@ -559,7 +559,7 @@ fn temporal_pag_directed_bayesian_pulse_identifies() {
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
     let ate = result.estimate().as_effect().unwrap().ate;
-    // The drawn graph has z -> t -> y and no z -> y edge, so the empty adjustment set is licensed
+    // The drawn graph has z -> t -> y and no z -> y edge, so the empty adjustment set is supported
     // and the estimand is the simple regression slope of y_i on t_{i-1} (the data also carry
     // 0.5 z_{i-1}, with z = (t - 0.3) / 0.4 up to the sine wiggle, so the slope sits near 3.25,
     // not the coefficient 2). Closed-form OLS slope over the rows i = 1..n-1:
@@ -1350,7 +1350,7 @@ fn bayesian_temporal_pulse_reports_one_estimator_id_on_dag_and_class() {
             estimator(&class).as_deref(),
             Some("bayesian.temporal.gcomp"),
             "a Bayesian fit must not report the Frequentist estimator whether or not a class \
-             prior licenses a mixture"
+             prior supports a mixture"
         );
     }
     let class_freq = Study::series(series_from_law(400, false))
@@ -1929,7 +1929,7 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
     assert!(mediation.mediation().is_some() || mediation.mediation_grid().is_some());
 }
 
-/// Every licensed Bayesian `TemporalPag` Pulse and single-step Sustained
+/// Every supported Bayesian `TemporalPag` Pulse and single-step Sustained
 /// coordinate (explicit and accepted structure × none / cheap / full) runs on the
 /// mixed-identification PAG under the fixture's `ClassPrior` and must reproduce the
 /// fixture's known truth (`temporal_class_envelope` →
@@ -1993,7 +1993,7 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                     .run(&ExecutionContext::for_tests(seed))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{case}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{case}");
                 assert!(
                     (result.estimate().as_effect().unwrap().ate - effect).abs() < tol,
                     "{case}: effect {} vs known truth {effect}",

@@ -64,10 +64,10 @@ def test_registry_requires_explicit_registration_and_validates_output():
     assert result.uncertainty_semantics == "point_only"
 
 
-def test_registry_rejects_native_self_promotion_and_wrong_shape():
+def test_registry_rejects_native_self_capability_and_wrong_shape():
     registry = ProviderRegistry()
-    with pytest.raises(ValueError, match="native licensed"):
-        registry.register("x", _Provider(), trust=ProviderTrust.NATIVE_LICENSED)
+    with pytest.raises(ValueError, match="native supported"):
+        registry.register("x", _Provider(), trust=ProviderTrust.NATIVE_SUPPORTED)
 
     class WrongShape(_Provider):
         def execute(self, request):
@@ -95,7 +95,7 @@ def test_provider_reported_support_cannot_become_the_host_trust_status():
     class SelfPromoting(_Provider):
         def execute(self, request):
             return ProviderExecution(
-                [1.0, 2.0], None, ("caller_asserted",), "native_licensed", {"version": "x"}
+                [1.0, 2.0], None, ("caller_asserted",), "native_supported", {"version": "x"}
             )
 
     registry = ProviderRegistry()
@@ -111,7 +111,7 @@ def test_provider_reported_support_cannot_become_the_host_trust_status():
     assert result.inspect().support.summary == "externally_attested"
     dumped = result.to_dict()["provider_result"]
     assert dumped["support_status"] == "externally_attested"
-    assert dumped["provider_reported_support_status"] == "native_licensed"
+    assert dumped["provider_reported_support_status"] == "native_supported"
 
 
 def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
@@ -130,7 +130,7 @@ def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
     assert result.support == ("externally_attested",)
     assert result.inspect().support.summary == "externally_attested"
     assert result.to_dict()["provider_result"]["support_status"] == "externally_attested"
-    assert "native licensed causal claim" in result.claim()
+    assert "native supported causal claim" in result.claim()
     assert result.calibration.reason == "attested_not_reverifiable"
 
 

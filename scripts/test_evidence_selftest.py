@@ -8,7 +8,7 @@ string, a file no `mod` declares, a Python helper that is not a collected test,
 a skipped pytest, a test that never consumes the fixture another test consumes,
 a test that never builds the row's axis values, and checked_execution rows whose
 cited test keeps its builder alive, is not a test, or does not cover every
-licensed estimator. Each broken row, alone, must
+supported estimator. Each broken row, alone, must
 be rejected with its expected reason; the positive control must pass, so a
 checker that rejects everything cannot satisfy the self-test.
 """
@@ -643,7 +643,7 @@ def main() -> int:
                 "never exercises inference 'Bayesian'",
             ),
             ("missing_test", rs("no_such_test"), "no fn no_such_test"),
-            # checked_execution: one entry per licensed estimator, each citing an
+            # checked_execution: one entry per supported estimator, each citing an
             # executing test that discards its builder, executes, and inspects the plan.
             (
                 "checked_execution_control",
@@ -695,7 +695,7 @@ def main() -> int:
                     estimators=["a", "b"],
                     checked_execution=[checked_entry("a", "checked_execution_drops_builder")],
                 ),
-                "!= licensed estimators",
+                "!= supported estimators",
             ),
             (
                 "checked_execution_duplicate_estimator",

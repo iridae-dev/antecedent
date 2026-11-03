@@ -326,9 +326,9 @@ def test_a_value_restricted_trial_is_excluded_not_identified_for_every_level():
         restricted.prepare_exact((), {"x": 1.0})
 
 
-def test_counted_laws_are_not_licensed_on_the_mixed_source_route():
+def test_counted_laws_are_not_supported_on_the_mixed_source_route():
     stage = decide(chain_graph(), CHAIN_STUDIES)
-    with pytest.raises(CausalUnsupportedError, match="cell_not_licensed"):
+    with pytest.raises(CausalUnsupportedError, match="not_supported"):
         stage.prepare_empirical(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
 
 

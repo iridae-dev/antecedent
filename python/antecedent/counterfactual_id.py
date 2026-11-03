@@ -175,9 +175,9 @@ def _graph_edges(graph: object) -> tuple[list[str], list[tuple[str, str]], list[
     if hasattr(graph, "nodes"):
         raise CausalUnsupportedError(
             "counterfactual_id.graph_outside_contract: only a supplied explicit Admg or Dag "
-            "is licensed; accepted, uncertain, equivalence-class and temporal structures "
+            "is supported; accepted, uncertain, equivalence-class and temporal structures "
             "are refused",
-            reason_code="cell_not_licensed",
+            reason_code="not_supported",
         )
     raise CausalTypeError("graph must be an Admg or a Dag")
 

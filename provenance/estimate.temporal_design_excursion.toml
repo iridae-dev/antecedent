@@ -17,7 +17,7 @@ upstream_implementations_observed = []
 implementation_deviations = [
   "Every coordinate is a ratio of Horvitz-Thompson pair scores summed within independent units (or declared interference clusters); the uncertainty is the cluster-robust linearized-ratio covariance, with a Gaussian multiplier sup-t band over several contrasts or a dose grid. The excursion target keeps carryover inside the target rather than assuming it away.",
   "The local-quadratic dose grid weights pairs by kernel over the recorded dose density; its pointwise interval is bias-aware under a declared third-derivative bound, and the band adds that bound to the sup-t half-width. The kernel-smoothed curve and contrast take the bandwidth as part of the estimand.",
-  "The quantile excursion inverts Hajek-weighted distribution functions and reports a whole-procedure cluster-bootstrap percentile interval. No interval is calibrated and the route is not licensed.",
+  "The quantile excursion inverts Hajek-weighted distribution functions and reports a whole-procedure cluster-bootstrap percentile interval. No interval is calibrated and the route is not supported.",
 ]
 
 test_sources = [
@@ -38,7 +38,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Four synthetic panels of 6 to 10 units over 6 to 7 periods with 13 to 20 decision rows left unpaired by missing periods: a two-arm design with probabilities 0.06 and 0.94 and an outcome offset of 1e6, four ordered arms over three clusters, a factorial and an interference design whose clusters have three members one of which is unobserved in some periods. Estimates are asserted to 1e-10, standard errors, covariances and interval ends to 1e-9 and Holm p-values to 1e-7 relative. Lag 1 only; lag 0 and larger lags use the same pairing code but have no separate reference. The sup-t band, the Bayesian bootstrap and the other modules of the directory are not reviewed here and keep their own tests; the quantile and dose routes in particular have no exact reference from this review. The probability tables are taken as recorded; their fitting is another route. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.1080/01621459.2017.1305274", "https://doi.org/10.1198/016214508000000292", "https://mpmath.org/"]
 findings_resolved = ["No defect found: the estimates, cluster-robust covariances, standard errors, intervals and Holm-adjusted p-values of the four designs equal the exact rational references, including probabilities near the floor, rows with no paired outcome, clusters of unequal size and as few as three clusters.", "Per-pair scores, the realised-exposure probabilities of the interference design (product of one minus the other members' probabilities over the members observed that period) and the smallest realised probability reported beside each design equal the definition."]
-record_sha256 = "e05915496b94d19468d336f10b5a3ca74b1223d7c730a539cb2736e4c1c9b08d"
+record_sha256 = "d7df356a91d406ff05e9435330dfadb332dd366e04ab44c36054c319f6c24cbe"
 
 [[method_review.artifacts]]
 role = "implementation"

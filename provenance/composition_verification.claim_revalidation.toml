@@ -16,7 +16,7 @@ papers = [
 
 implementation_deviations = [
   "The classification is relative to the declared graph: a dependence that is not declared as an edge is not detected, and a node's identity, coordinate, support, trust and calibration standing are declarations the producer supplies, not facts the library checks.",
-  "Stage reuse never proves a claim licensed. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws a license even when every number is reusable.",
+  "Stage reuse never proves a claim supported. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws support even when every number is reusable.",
   "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states.",
 ]
 
@@ -34,19 +34,19 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Dependency bookkeeping over a declared directed acyclic graph: a sweep in dependency order propagates changed and withdrawn marks along typed edges and compares two snapshots."
 no_independent_algorithm = "Graph traversal and classification; no statistic is computed and nothing numeric is revalidated beyond identity equality."
-record_sha256 = "aaa9001763d5709ca5838fa32fe7a6cd2682afc3f46afd7a735adfde92ae58a4"
+record_sha256 = "d24cf1b69b96aaf313176285bddb8999bf4ba1d28b86efc24b295f656b38c659"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_verification/graph.rs"
-sha256 = "9bc0cc9f1f071b75ad0a2d36273f8dd4279b4e83cd3dd36039c8883dcb6232ef"
+sha256 = "e2cebea0d0ece2696d7dd506f9624dd62d42da124e6b1a2c2df49f0023607d6d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
-sha256 = "ef48b8ade129e3b1ab5c9421a782dddb86095f4e95013d08524561b8c5d13d9d"
+sha256 = "9d1445744930d78e72c8f7d1e16b8bd63baf7269641a0cd6844acc56bc76a565"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/composition_verification.rs"
-sha256 = "1e940f08df0529a2795fd62c120ddb6ab289d0cba2a02fb568231489bc63bb8c"
+sha256 = "80a857c0316a6040d57e4bae067c81eb3c9b13f445514b298e165cf9e57b5a31"

@@ -34,7 +34,7 @@ record_sha256 = "8ee54999f9a3dea19e8894b0fe8b59838f17a501fa91a4fe2ea76d302f7f1bd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/twosls.rs"
-sha256 = "54bcea00e25c753dee7bd7a8ef6431e961582a182577d5382d338b60fa9bf728"
+sha256 = "9a6cee219922a60432ba686a27a0b1fcf9ce97f7732c2ca279faab91fd0d7814"
 
 [[method_review.artifacts]]
 role = "implementation"

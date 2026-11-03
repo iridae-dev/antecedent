@@ -33,7 +33,7 @@ replacement = "crates/antecedent-estimate/src/dml.rs::learner_ate_known_truth_co
 disposition = "explicit_calibration_only"
 reason = "Keep all four methods, 200 replicates, population truth, influence identities, bias and coverage acceptance unchanged; ignored by ordinary suites and registered in gate_calibration.sh for Q08."
 ordinary_conformance = "crates/antecedent-estimate/src/dml.rs::learner_ate_known_truth_point_conformance"
-limitation = "The one-scenario point check cannot replace or license the deferred full coverage measurement."
+limitation = "The one-scenario point check cannot replace or support the deferred full coverage measurement."
 
 [[case]]
 previous = "crates/antecedent-data/src/resample.rs::moving_block_indexes_are_consecutive_runs_and_replay"
@@ -104,7 +104,7 @@ disposition = "shared_immutable_fit_with_private_update_state"
 reason = "Retain every future-study ranking, regime identity, withdrawal and foreign-source refusal assertion. Fit once per module and create a fresh ledger for every update, with explicit source/ledger isolation checks. Increase retained draws from 24 to 128 so the 5 percent CDF tail indicators are nonconstant; the corrected ESS gate legitimately refused the original fixture. Keep the existing declared permissive routing thresholds unchanged and assert the actual gate passes; this is not sampling convergence or calibration evidence."
 
 [[case]]
-previous = "crates/antecedent-design/tests/decision_reliability.rs::every_published_route_is_licensed_inside_a_measured_coverage_record"
+previous = "crates/antecedent-design/tests/decision_reliability.rs::every_published_route_is_supported_inside_a_measured_coverage_record"
 replacement = "crates/antecedent-design/tests/decision_reliability.rs::measured_routes_respect_current_attestation_and_report_their_closures"
 disposition = "explicit_calibration_acceptance_selection"
 reason = "The renamed assertion verifies that each route opens exactly when its measured coverage record currently attests the governing code and otherwise reports its closure. Retain the existing calibration-acceptance selection; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
@@ -113,73 +113,73 @@ reason = "The renamed assertion verifies that each route opens exactly when its 
 previous = "crates/antecedent-design/tests/decision_reliability_intervals.rs::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"
 replacement = "crates/antecedent-design/tests/decision_reliability_intervals.rs::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs::a_measured_construction_reports_an_interval_bound_to_its_coverage_record"
 replacement = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs::a_measured_construction_reports_an_interval_bound_to_its_coverage_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_group_sequential_repeated_interval_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_group_sequential_repeated_interval_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 replacement = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/evidence_ledger_facade.rs::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/evidence_ledger_facade.rs::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/predictive_score_interval_facade.rs::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/predictive_score_interval_facade.rs::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/predictive_score_interval_facade.rs::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
 replacement = "crates/antecedent/tests/predictive_score_interval_facade.rs::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_correction_inside_a_measured_record_is_published_bound_to_it"
 replacement = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_correction_inside_a_measured_record_is_published_bound_to_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it"
 replacement = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-io/src/measured_inference/transport.rs::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit"
 replacement = "crates/antecedent-io/src/measured_inference/transport.rs::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-design/tests/artifact_compat_sequential_reliability_golden.rs::historical_closure_snapshot_is_conservative_and_cannot_change_the_report"
@@ -239,8 +239,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::latency_tiers::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
+  "antecedent::supported_compiler::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
@@ -295,7 +295,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
@@ -377,8 +377,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::latency_tiers::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
+  "antecedent::supported_compiler::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
@@ -433,7 +433,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::binomial_tails_match_independent_integer_enumeration",
@@ -515,8 +515,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::latency_tiers::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
+  "antecedent::supported_compiler::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
@@ -571,7 +571,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration",
@@ -653,8 +653,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::latency_tiers::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
+  "antecedent::supported_compiler::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
@@ -709,7 +709,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::reported_denominator_does_not_choose_the_spending_look",
@@ -791,8 +791,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::latency_tiers::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
+  "antecedent::supported_compiler::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
@@ -847,7 +847,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
@@ -929,8 +929,8 @@ compiled_occurrences = [
   "antecedent::lag_zero_average_effect::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::latency_tiers::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::learned_continuous_calibration::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
-  "antecedent::licensed_compiler::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
-  "antecedent::licensed_static_cells::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
+  "antecedent::supported_compiler::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
+  "antecedent::supported_static_cells::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::linear_adjustment_route_evidence::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::lowered_dispatch::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::missing_outcome_calibration::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
@@ -985,7 +985,7 @@ compiled_occurrences = [
   "antecedent::transport_statistical_calibration::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::transported_constructors_facade::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::transported_decision_facade::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
-  "antecedent::unlicensed_design_routes::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
+  "antecedent::unsupported_design_routes::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent::weighted_interval_calibration::common::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent-design::decision_reliability_calibration::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
   "antecedent-design::decision_reliability_interval_calibration::calibration::decision::tests::malformed_families_and_unregistered_looks_fail_closed",
@@ -1133,8 +1133,8 @@ disposition = "assertion_strengthened_without_case_removal"
 reason = "Decoding was only required to succeed. The decoded response must now also carry no coordinates, which is what unchanged means for a response sealed without them. Not yet executed."
 
 [[case]]
-previous = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_licensed"
-replacement = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_licensed"
+previous = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_supported"
+replacement = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_supported"
 disposition = "assertion_strengthened_without_case_removal"
 reason = "Sealing was only required to succeed. The pooled stage must now give weights of 1/2 each (the two draws have equal variance 16/7, so precision weights are equal) and the record must replay. Same draft; not yet executed."
 
@@ -1387,7 +1387,7 @@ disposition = "golden_regenerated_for_rounding_level_change"
 reason = "The Gaussian expected maximum of the winner's-curse bound changed by about 2.4e-17 (0.04870361026711675 to 0.048703610267116726) after the normal-cdf tail precision change. A 40-digit evaluation of the same 4000-panel Simpson integral gives 0.048703610267117055, so both values carry about 3e-16 of accumulated summation rounding and neither is more accurate. The stored report must recompute bit for bit, so the golden was rewritten with the documented writer; the draws, request, version and every other report field are unchanged and all gating assertions are untouched."
 
 [[case]]
-previous = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
-replacement = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
+previous = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
+replacement = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 disposition = "assertion_strengthened_without_case_removal"
 reason = "The brute-force reference took the noise from the dispersion of the matched pair differences, the same defect the product had: queries sharing a donor share its noise, so the differences understate the spread. The reference now uses the Abadie-Imbens within-arm nearest-neighbour estimate (half the squared difference to the nearest other unit of the same arm and period), independently of the Rust code, and reproduces the corrected standard errors 2.0964 and 2.0651 to 1e-12."

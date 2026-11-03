@@ -1,4 +1,4 @@
-//! Frozen structural truth through the licensed staged handle.
+//! Frozen structural truth through the supported staged handle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::estimate::validate_static_pair;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
@@ -150,7 +150,7 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Supported));
     let mut prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();

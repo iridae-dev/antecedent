@@ -243,7 +243,7 @@ impl PyCheckedStudyClaim {
 ///
 /// Refuses (a typed error) a parent without a completed estimate, targets that are not
 /// average-effect contrasts, coefficients or output weights the parents do not realize, and
-/// any claim whose kind, identification, support or evaluation does not license the point.
+/// any claim whose kind, identification, support or evaluation does not support the point.
 #[pyfunction]
 #[pyo3(
     name = "compose_checked_study_claims",

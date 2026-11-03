@@ -43,7 +43,7 @@ pub struct CyclicGradientFit {
     pub score_norm: f64,
     /// Score tolerance reached; no global optimality certificate.
     pub converged: bool,
-    /// Backtracking found no acceptable finite, licensed improvement.
+    /// Backtracking found no acceptable finite, supported improvement.
     pub line_search_exhausted: bool,
     /// Explicit almost-everywhere derivative convention for piecewise-linear mechanisms.
     pub nonsmooth_convention: Option<String>,

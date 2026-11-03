@@ -1,4 +1,4 @@
-"""Licensing evidence: independent posterior moments and actual artifacts."""
+"""Support evidence: independent posterior moments and actual artifacts."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def test_posterior_moments_and_artifact(accepted, scale, family):
     prepared = prepare(data, graph, query, accepted=accepted, scale=scale)
     outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=1201)))
     result = require_success(outcome)
-    assert prepared.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     encoded = bytes(outcome.export(quantity="record"))
     query_art = artifacts.loads(bytes(outcome.export(quantity="query")))
@@ -438,7 +438,7 @@ def test_bayesian_response_preserves_or_refuses_observation_contract(
         return require_success(ac.analyze(data, **declarations))
 
     if temporal and field == "observation":
-        # A licensed observed-data posterior still requires an explicit
+        # A supported observed-data posterior still requires an explicit
         # censoring assumption; omitting it is malformed input.
         with pytest.raises(ac.errors.CausalValueError, match="exactly one explicit assumption"):
             call(data, query=query, graph=graph, inference=ac.Bayesian(), refute="none")

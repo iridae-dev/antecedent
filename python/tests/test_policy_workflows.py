@@ -1,4 +1,4 @@
-"""The fitted-model handle reaches every policy capability, with licences, reason codes and provenance.
+"""The fitted-model handle reaches every policy capability, with supports, reason codes and provenance.
 
 One test per acceptance case of the public-workflow area, on simulated linear chains with known
 structure (``a -> b -> c``) and the pricing chain. Results are compared with the library's own
@@ -145,16 +145,16 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
         )
 
 
-def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
+def test_a_prepared_policy_reuses_one_support_and_equals_the_one_shot_results():
     data = pricing_chain(5000, 6512894)
     fitted = fit_pricing_chain(5000, 6512894)
     policy = [transform("price", maximum(1, 0.85 * generated()))]
     handle = prepare_policy(fitted, policy)
 
     support = handle.support
-    assert support.simulation.licensed and support.counterfactual.licensed
-    assert not support.identification.licensed
-    assert support.identification.reason_code == "policy_route_not_licensed"
+    assert support.simulation.supported and support.counterfactual.supported
+    assert not support.identification.supported
+    assert support.identification.reason_code == "policy_route_not_supported"
     assert support.provenance_id == "model.intervention_programs"
     assert handle.identity == policy_program_identity(list(data), policy)
 
@@ -260,7 +260,7 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
 
     # Policy: a transform has no observational identification; a read cycle is refused.
     support = policy_support(fitted, [transform("b", maximum(0, generated()))])
-    codes["policy_licence"] = support.identification.reason_code
+    codes["policy_support"] = support.identification.reason_code
     with pytest.raises(CausalError) as cycle:
         sample_policy(fitted, [assign("a", var("b"))], 10, execution=antecedent.Execution(seed=1))
     codes["policy_cycle"] = _code(cycle.value)
@@ -301,7 +301,7 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
     codes["intrinsic_influence"] = _code(influence.value)
 
     assert codes == {
-        "policy_licence": "policy_route_not_licensed",
+        "policy_support": "policy_route_not_supported",
         "policy_cycle": "policy_dependency_circular",
         "callback": "policy_callback_not_portable",
         "mechanism_selection": "mechanism_candidates_invalid",
@@ -466,9 +466,9 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
 
     # Support decision, contract and provenance are reported on the result.
     support = first.support
-    assert support.simulation.licensed and support.counterfactual.licensed
-    assert not support.identification.licensed
-    assert support.identification.reason_code == "policy_route_not_licensed"
+    assert support.simulation.supported and support.counterfactual.supported
+    assert not support.identification.supported
+    assert support.identification.reason_code == "policy_route_not_supported"
     assert first.provenance_id == "model.intervention_programs"
     contract = first.contract
     assert contract.route == "simulation"
@@ -480,14 +480,14 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     assert report.stage == "executed" and report.program_id == contract.program_identity
     assert report.details["provenance_id"] == "model.intervention_programs"
 
-    # A hard level is licensed for observational identification as well, with the same executor.
+    # A hard level is supported for observational identification as well, with the same executor.
     level = antecedent.prepare(
         data,
         query=PolicyProgramValue([assign("price", 20.0)], "demand", n_draws=500),
         graph=PRICING_EDGES,
         execution=antecedent.Execution(seed=1),
     )
-    assert require_success(antecedent.estimate(level)).support.identification.licensed
+    assert require_success(antecedent.estimate(level)).support.identification.supported
 
     # New observations refit the model on a branch and rebind the program: still one compilation,
     # and the result is the one-shot result on the refit model. The preparation is unchanged.

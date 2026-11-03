@@ -146,7 +146,7 @@ pub struct LearnedContinuousUncertainty {
     /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_WITHHELD`] or [`CONTINUOUS_AVAILABLE`].
     pub status: String,
     /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `estimator_inference_mismatch` or
-    /// `cell_not_licensed`.
+    /// `not_supported`.
     pub reason: String,
     /// The namespaced detail when the request was below the replicate floor.
     pub detail: Option<String>,
@@ -177,7 +177,7 @@ impl LearnedContinuousUncertainty {
                 Some("learned_transport.bootstrap_below_floor"),
             )
         } else {
-            (CONTINUOUS_WITHHELD, antecedent_core::reason_code!("cell_not_licensed"), None)
+            (CONTINUOUS_WITHHELD, antecedent_core::reason_code!("not_supported"), None)
         };
         Self {
             status: status.into(),
@@ -249,7 +249,7 @@ fn support_refusal(detail: &str, message: &str) -> EstimationError {
 #[doc(hidden)]
 pub fn refuse_learned_continuous_interval() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         "learned_transport.interval_withheld",
         "the learned continuous interval route is closed pending promotion of the \
          measured analytic candidate; the point estimate is retained",
@@ -271,7 +271,7 @@ pub fn parse_learned_continuous_sampling(name: &str) -> Result<TrialSampling, Es
             "learned_transport.non_iid_design",
             &format!(
                 "sampling '{other}' is not a declared IID design; only nested_cohort and \
-                 independent_samples are licensed"
+                 independent_samples are supported"
             ),
         )),
     }
@@ -292,7 +292,7 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
         "learned_transport.cate_requested",
         &format!(
             "target '{name}' is not the population mean contrast; conditional, heterogeneous \
-             and simultaneous targets are not licensed"
+             and simultaneous targets are not supported"
         ),
     ))
 }
@@ -394,7 +394,7 @@ pub fn estimate_learned_continuous(
 /// The public route never calls this because its percentile intervals failed coverage.
 /// It is compiled only with the `calibration-internal` feature, which only the facade's
 /// dev-dependencies enable (calibration harness and lifecycle tests): an ordinary
-/// dependent cannot reach the interval around the `cell_not_licensed` refusal.
+/// dependent cannot reach the interval around the `not_supported` refusal.
 ///
 /// # Errors
 /// As [`estimate_learned_continuous`]; and `estimator_inference_mismatch`
@@ -438,7 +438,7 @@ pub fn estimate_learned_continuous_analytic_interval(
     if options.bootstrap != 0 {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "learned_transport.bootstrap_not_licensed",
+            "learned_transport.bootstrap_not_supported",
             "the percentile bootstrap failed calibration; request the analytic interval with bootstrap=0",
         ));
     }
@@ -510,7 +510,7 @@ pub fn learned_continuous_analytic_interval(
 
 #[cfg(feature = "calibration-internal")]
 impl LearnedContinuousOptions {
-    /// Internal candidate for coverage measurement; no public interval is licensed.
+    /// Internal candidate for coverage measurement; no public interval is supported.
     #[doc(hidden)]
     pub fn analytic_interval_internal(
         &self,
@@ -541,10 +541,7 @@ mod tests {
         assert_eq!(low.reason, "estimator_inference_mismatch");
         assert_eq!(low.detail.as_deref(), Some("learned_transport.bootstrap_below_floor"));
         let closed = LearnedContinuousUncertainty::for_request(199);
-        assert_eq!(
-            (closed.status.as_str(), closed.reason.as_str()),
-            ("withheld", "cell_not_licensed")
-        );
+        assert_eq!((closed.status.as_str(), closed.reason.as_str()), ("withheld", "not_supported"));
         assert!(closed.detail.is_none() && !closed.available());
     }
 

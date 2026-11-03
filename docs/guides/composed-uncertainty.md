@@ -22,12 +22,12 @@ The whole-path account is a sealed sibling of the cross-world execution:
 in Python (`CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)` in Rust)
 returns a `WholePathAccount` with `inspect()` and `verify_against(execution)`.
 
-## What each kind of dependence information licenses
+## What each kind of dependence information supports
 
 - A joint moment (a covariance matrix) gives the exact variance of a linear
   combination, and a mixture with known weights gives its mean and variance.
 - An aligned joint law (rows that are realizations of one joint law, proven by a
-  shared alignment identity) licenses nonlinear functionals by row pairing.
+  shared alignment identity) supports nonlinear functionals by row pairing.
 - Only the marginals give a structural envelope (Frechet/Hoeffding, Makarov): an
   envelope is neither a point nor an interval and does not substitute for a
   joint law. A declared correlation range is an assumption range, labelled so.
@@ -68,13 +68,13 @@ cross-world executions have no whole-path derivation and are refused.
 
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
-| Interval of a composition with no record at its coordinate | closed reading (`cell_not_licensed`) | Use the spread, or measure the coordinate |
+| Interval of a composition with no record at its coordinate | closed reading (`not_supported`) | Use the spread, or measure the coordinate |
 | Row pairing of unaligned or marginal inputs | `joint_law_required` (`alignment_mismatch`, `index_pairing_refused`) | Supply draws from one joint law |
 | Independence declared for inputs of unknown evidence overlap | `sampling_dependence_unknown` (`joint_law_propagation.evidence_overlap_unknown`) | Register the sources in the evidence ledger |
 | Independence declared for evidence the ledger shows is shared | `evidence_double_counted` (`joint_law_propagation.shared_evidence_declared_independent`) | Treat the inputs as dependent and supply a covariance or an aligned joint law |
 | Some transport pieces named, some omitted | missing-pieces refusal | Name source sampling, target sampling and the transport functional |
 | Unit sampling not declared | `sampling_dependence_unknown` (`cross_world_uncertainty.unit_sampling_undeclared`) | Declare fixed units or a sample from a population |
-| A sampled-path or transported cross-world path | `cell_not_licensed` (`cross_world_uncertainty.sampled_path_not_licensed`, `transported_path_closed`) | Use exact enumeration in the population the mechanisms were declared for |
+| A sampled-path or transported cross-world path | `not_supported` (`cross_world_uncertainty.sampled_path_not_supported`, `transported_path_closed`) | Use exact enumeration in the population the mechanisms were declared for |
 | Fitted or sampled mechanisms in a cross-world row | closed | Use the sampled counterfactual route with its posterior input |
 | Interval or posterior from the whole path | closed | Use the labelled spread |
 
@@ -91,7 +91,7 @@ inferential paradigms apart: a report of one paradigm is never a statement of
 another. Every result is labelled derived and unmeasured: the law is exact under the
 stated model but no coverage of any method has been measured.
 
-In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `cell_not_licensed` with its own detail.
+In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `not_supported` with its own detail.
 
 ### Declaring the procedure
 
@@ -140,8 +140,8 @@ more: it is not an interval and not a calibration.
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
 | Procedure element missing | `adaptive_contract_incomplete` (for example `adaptive_inference.stopping_rule_missing`) | Declare it |
-| Posterior from value-dependent loss | `cell_not_licensed` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
-| Fixed-sample or group-sequential on an adaptive design | `cell_not_licensed` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
-| Rule that does not match the paradigm | `cell_not_licensed` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
-| Anytime-valid with several contexts | `cell_not_licensed` (an `adaptive_inference.*` premise failure) | Run per context |
-| Any interval or coverage claim | not licensed | Treat as derived and unmeasured |
+| Posterior from value-dependent loss | `not_supported` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
+| Fixed-sample or group-sequential on an adaptive design | `not_supported` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
+| Rule that does not match the paradigm | `not_supported` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
+| Anytime-valid with several contexts | `not_supported` (an `adaptive_inference.*` premise failure) | Run per context |
+| Any interval or coverage claim | not supported | Treat as derived and unmeasured |

@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use super::exact::ExactFactorRequirement;
 
-/// The facade's licensing floor for a nominal-0.95 percentile or posterior interval edge.
+/// The facade's support floor for a nominal-0.95 percentile or posterior interval edge.
 pub(super) const PERCENTILE_FLOOR: ReplicatePolicy =
     ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
 

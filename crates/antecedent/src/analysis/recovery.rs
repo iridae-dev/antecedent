@@ -1,4 +1,4 @@
-//! Prepared exact binary observation recovery: graph-licensed
+//! Prepared exact binary observation recovery: graph-supported
 //! recovery, not MAR/IPCW.
 //!
 //! Preparation decides once (class check, checked recovery formula or verified

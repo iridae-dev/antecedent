@@ -50,7 +50,7 @@ Task guides cover bringing [your own data](guides/your-data.md), [notebook to sy
 
 - [Support lookup](support-lookup.md): search whether a question, structure, evidence, inference and estimator combination has executing support evidence, and read the [support matrix](support-matrix.md) behind it.
 - [Python API](python-api.md), [Python options](python-options.md) and the [Rust API](https://docs.rs/antecedent/).
-- [Glossary](concepts/glossary.md): estimand, world, claim, licensed and the other standing labels.
+- [Glossary](concepts/glossary.md): estimand, world, claim, supported and the other standing labels.
 - [Capability inventory](capabilities.md), [naming dictionary](api_naming.md) and [examples](examples.md).
 
 ## Release and migration

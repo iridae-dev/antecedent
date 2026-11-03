@@ -7,7 +7,7 @@ pub use antecedent_design::source_evidence::{
 use std::sync::Arc;
 
 /// A read-only receipt issued only after actual original checked estimation and full comparison.
-/// It restores no executable state, provider authority or calibration license.
+/// It restores no executable state, provider authority or calibration support.
 #[derive(Clone, Debug)]
 pub struct SourceResolution {
     source_digest: String,

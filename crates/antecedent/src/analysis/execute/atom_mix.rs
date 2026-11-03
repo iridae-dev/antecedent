@@ -171,7 +171,7 @@ pub(super) struct MixedAtomEvals {
     pub posterior: Option<CausalPosterior>,
     /// Structural mixture, including unidentified atoms appended from `graphs`.
     pub mixture: StructuralResponseMixture,
-    /// True when the policy licensed a weighted mean and some mass was mixable.
+    /// True when the policy supported a weighted mean and some mass was mixable.
     pub mixable_scalar: bool,
     /// Running lower bound before the finite check. `INFINITY` when unset.
     pub bound_lo: f64,
@@ -494,7 +494,7 @@ pub(super) struct AtomRefuterBatch {
     pub notes: Vec<Diagnostic>,
 }
 
-/// How positive-weight refuter reports are reduced when a scalar mix is licensed.
+/// How positive-weight refuter reports are reduced when a scalar mix is supported.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ScalarRefuterMix {
     /// [`mix_atom_refutation_reports`], including partial-coverage warnings.

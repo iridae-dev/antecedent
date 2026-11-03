@@ -44,7 +44,7 @@ result.value.survival.survival_at_tau_difference_interval
 result.value.survival.bootstrap_replicates_ok
 ```
 
-The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and note that the interval is available but unlicensed.
+The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and note that the interval is available but unsupported.
 
 With at least 80 subjects per arm and at least 399 valid replicates, the same call gives a simultaneous 95% band over the whole survival-difference curve:
 
@@ -163,7 +163,7 @@ row = result.posterior_row
 row.posterior_mean("survival_difference"), row.credible_interval("survival_difference")
 ```
 
-The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"unmeasured"` and `row.licensed` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
+The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"unmeasured"` and `row.supported` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
 
 ## When treatment was observed, not randomized
 

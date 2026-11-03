@@ -294,7 +294,7 @@ mod tests {
         // two-unit cluster, so the marginal probability of the (0,0) and (1,1)
         // levels is exactly 0.25. Known supplied propensities make the IPW
         // contrast design-unbiased and the CR1 cluster interval cover at the
-        // nominal rate. Thirty independent clusters is the licensed support floor;
+        // nominal rate. Thirty independent clusters is the supported support floor;
         // fifty keeps both requested levels comfortably above eight exposed
         // clusters. The (0,0) -> (1,1) contrast has known truth 3.5.
         const REPLICATES: usize = 2_000;

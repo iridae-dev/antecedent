@@ -44,7 +44,7 @@ fn soft_unknown_family_refuses() {
         0,
     )
     .unwrap_err();
-    assert!(err.to_string().contains("not licensed"));
+    assert!(err.to_string().contains("not supported"));
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn nested_sequence_fails_closed() {
     };
     let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
     let err = plan_for_tests(&[Intervention::Sequence(outer)], &spec).unwrap_err();
-    assert!(err.to_string().contains("not licensed"));
+    assert!(err.to_string().contains("not supported"));
 }
 
 // ---- GAP1: uncertainty is computed but was never asserted anywhere ----

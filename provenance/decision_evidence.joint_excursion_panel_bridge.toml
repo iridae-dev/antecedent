@@ -7,7 +7,7 @@ copied_tests = false
 papers = []
 implementation_deviations = [
   "The joint update conditions the retained panel draws on one multivariate Gaussian likelihood whose covariance is the retained excursion's own joint arm-mean covariance mapped to treated-minus-control contrasts. Evidence with marginal variances only, or point estimates only, is refused rather than given an independence assumption.",
-  "Each component is validated by the existing single-component owner (bridge licence, exact source and target scopes, window, mapping moments, ledger origins and overlap). The joint likelihood is the only new statistical object; the Cholesky and forward-solve kernels are the existing ones.",
+  "Each component is validated by the existing single-component owner (bridge support, exact source and target scopes, window, mapping moments, ledger origins and overlap). The joint likelihood is the only new statistical object; the Cholesky and forward-solve kernels are the existing ones.",
   "Cross-component dependence of the paired per-draw mappings is whatever the caller's slot pairing encodes; it is not inferred. The result stays model-conditional and uncalibrated, and only the bridged targets are informed.",
 ]
 upstream_implementations_observed = []

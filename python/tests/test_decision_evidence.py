@@ -98,11 +98,11 @@ def test_cluster_evidence_refuses_unbound_numeric_edits():
         de.evaluate(de.JointEvidence(edited), _margin(Measured("cost")))
 
 
-def test_nonlinear_margin_has_a_sampling_interval_and_inherits_no_license():
+def test_nonlinear_margin_has_a_sampling_interval_and_inherits_no_support():
     result = de.evaluate(_evidence(80), _margin(Measured("cost")))
     d = result.derived
     assert d["contrast"] > 0 and d["sampling"]["standard_error"] > 0
-    assert (d["license"], d["calibration"]) == ("none", "unmeasured")
+    assert (d["support"], d["calibration"]) == ("none", "unmeasured")
     assert d["standing"] == "sampled"
 
 
@@ -599,7 +599,7 @@ def test_static_regime_aligned_bootstrap_retains_joint_sampling_law():
     assert ev.wire["dependence"]["kind"] == "joint_arms"
     result = de.evaluate(ev, DerivedQuantity("y", "u", Expr.input(0), [Measured("y")])).derived
     assert result["sampling"] is not None
-    assert (result["license"], result["calibration"]) == ("none", "unmeasured")
+    assert (result["support"], result["calibration"]) == ("none", "unmeasured")
 
 
 def test_compiled_evidence_obeys_execution_memory_limit():

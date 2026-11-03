@@ -514,12 +514,12 @@ name = "learned_continuous_calibration"
 path = "tests/learned_continuous_calibration.rs"
 
 [[test]]
-name = "licensed_compiler"
-path = "tests/licensed_compiler.rs"
+name = "supported_compiler"
+path = "tests/supported_compiler.rs"
 
 [[test]]
-name = "licensed_static_cells"
-path = "tests/licensed_static_cells.rs"
+name = "supported_static_cells"
+path = "tests/supported_static_cells.rs"
 
 [[test]]
 name = "linear_adjustment_route_evidence"
@@ -834,8 +834,8 @@ name = "treatment_score_product"
 path = "tests/treatment_score_product.rs"
 
 [[test]]
-name = "unlicensed_design_routes"
-path = "tests/unlicensed_design_routes.rs"
+name = "unsupported_design_routes"
+path = "tests/unsupported_design_routes.rs"
 
 [[test]]
 name = "temporal_design_routes"
@@ -926,8 +926,8 @@ name = "bayesian_intervention_level_refutation"
 path = "tests/bayesian_intervention_level_refutation.rs"
 
 [[test]]
-name = "unlicensed_refuter_states_and_mechanism_bootstrap"
-path = "tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs"
+name = "unsupported_refuter_states_and_mechanism_bootstrap"
+path = "tests/unsupported_refuter_states_and_mechanism_bootstrap.rs"
 
 [[test]]
 name = "file_table_capacity"

@@ -36,7 +36,7 @@ record_sha256 = "eabb501e9d0175361f328ba891f29295d02f77423284347d4e4d045e854a8d9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
-sha256 = "47abf80836c555d7bc3a9c7ec894445b485db1100385cb808f022af5c2c9b5ec"
+sha256 = "c0ec2b1886bea07ee165d437f794a7070911dbe49a9dcf33743dfbbcc9f05894"
 
 [[method_review.artifacts]]
 role = "implementation"

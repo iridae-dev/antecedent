@@ -223,7 +223,7 @@ fn derivative_refuter_states_known_truth() {
                         Some(*estimator),
                         "{label}"
                     );
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     let published = values(&result, &label);
                     assert_eq!(published.len(), truths.len(), "{label}");
                     for (value, truth) in published.iter().zip(&truths) {

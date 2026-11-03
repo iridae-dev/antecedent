@@ -84,10 +84,10 @@ def test_precision_adjusted_intervals_use_retained_public_flow():
         )
         # The design's true effect is 1.4 and the baselines absorb all but a small trend.
         assert fit.effect == pytest.approx(1.4, abs=0.02)
-        assert fit.support_status == "licensed"
+        assert fit.support_status == "supported"
         if query.cuped is not None:
             assert fit.effect == pytest.approx(reference["cuped"], abs=1e-9)
-        assert result.evidence_status == "licensed"
+        assert result.evidence_status == "supported"
         assert (
             require_success(
                 ant.estimate(ant.prepare(data, query=query, refute="none"))
@@ -131,7 +131,7 @@ def test_three_hundred_balanced_rows_publish_each_bernoulli_interval():
             2 * 1.959964 * fit.standard_error, rel=1e-4
         )
         assert fit.effect == pytest.approx(1.4, abs=0.05)
-        assert fit.support_status == "licensed"
+        assert fit.support_status == "supported"
 
 
 def test_weak_arm_support_reports_point_only_and_names_the_arm_rule():
@@ -169,7 +169,7 @@ def _cluster_data(clusters: int = 60, size: int = 4, treated_clusters: int = 30)
     return {"outcome": outcome, "baseline": baseline}, design
 
 
-def test_cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license():
+def test_cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support():
     data, design = _cluster_data()
     plain = require_success(
         ant.analyze(data, query=ant.experiment.RandomizedEffect("outcome", design), refute="none")
@@ -200,7 +200,7 @@ def test_cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license():
     assert plain_fit.uncertainty == "cluster_neyman_normal_interval"
     assert fit.interval_95[0] < 1.4 < fit.interval_95[1]
     assert fit.standard_error < 0.5 * plain_fit.standard_error
-    assert fit.support_status == "licensed"
+    assert fit.support_status == "supported"
 
 
 def test_cluster_fixed_cuped_with_few_clusters_is_point_only_and_ancova_stays_bernoulli():
@@ -215,6 +215,6 @@ def test_cluster_fixed_cuped_with_few_clusters_is_point_only_and_ancova_stays_be
         )
     )
     assert result.randomized_effect.interval_95 is None
-    assert result.randomized_effect.support_status != "licensed"
+    assert result.randomized_effect.support_status != "supported"
     with pytest.raises(Exception, match="Bernoulli"):
         ant.experiment.RandomizedEffect("outcome", design, ancova_covariates=("baseline",))

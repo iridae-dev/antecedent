@@ -30,9 +30,9 @@ flowchart TD
 8. **Results are reproducible.** Schema, preprocessing, graph version, assumptions, config, seeds, backend versions, and warnings attach to artifacts.
 9. **Parity is capability parity**, not Python API cloning.
 10. **Performance is part of the feature.** Hot paths need benches, allocation profiles, and explicit memory/layout contracts before merge.
-11. **The support matrix is the license.** A public query × graph class ×
-    inference cell is licensed, n/a, or refused. Capabilities pages inventory
-    implementations; they do not license a cell. `analyze` is sugar over the
+11. **The support matrix is the support.** A public query × graph class ×
+    inference cell is supported, n/a, or refused. Capabilities pages inventory
+    implementations; they do not support a cell. `analyze` is sugar over the
     staged path.
 
 ## Implementation architecture
@@ -160,7 +160,7 @@ ordinary observer exceptions retain their print-and-continue contract.
 | Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |
-| Security / unsafe / license review | [security_review.md](../security_review.md) |
+| Security / unsafe / support review | [security_review.md](../security_review.md) |
 
 The [multi-source transport and retained-grid architecture](transport-meta-grid.md)
 describes the μsID theorem scope, provider aliases, common prepared lifecycle,

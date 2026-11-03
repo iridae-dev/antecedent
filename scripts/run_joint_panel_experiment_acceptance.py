@@ -139,7 +139,7 @@ def collect(directory: Path, identity: str, commands: list[dict]) -> dict:
         "version": 1,
         "source_identity": identity,
         "update_semantics": protocol["modular_policy"],
-        "release_calibration_license": False,
+        "release_calibration_support": False,
         "commands": commands,
         "counts": {
             "required_rows": len(rows),

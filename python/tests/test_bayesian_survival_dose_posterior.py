@@ -1,11 +1,11 @@
-"""Unlicensed Bayesian survival and fixed group-dose policy posteriors through the package.
+"""Unsupported Bayesian survival and fixed group-dose policy posteriors through the package.
 
 The routes answer the same targets as their frequentist rows (the treated-minus-control
 survival and restricted-mean contrast; the kernel-smoothed fixed group-dose policy value) under a
 declared likelihood and prior. Every reference below is independent of the library: gamma
 hazard updates, closed-form survival means and quadrature restricted means by hand, per-group
 ridge posteriors from numpy with scipy window quadrature, and the frequentist row of the same
-rows. The routes are never licensed and their calibration is unmeasured.
+rows. The routes are never supported and their calibration is unmeasured.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def test_survival_posterior_matches_the_gamma_hazard_reference() -> None:
     row = result.posterior_row
     assert row is not None and result.survival is None
     assert row.estimator == "bayesian.piecewise_survival"
-    assert (row.uncertainty, row.calibration, row.licensed) == ("posterior", "unmeasured", False)
+    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "unmeasured", False)
     assert row.coordinates == ("survival_difference", "rmst_difference")
     # Events and exposure by hand: Gamma(1, 1) hazard updates are shape 1 + events, rate
     # 1 + time at risk; survival means are (rate / (rate + length)) ** shape per interval.
@@ -93,7 +93,7 @@ def test_survival_posterior_matches_the_gamma_hazard_reference() -> None:
     assert covariance[0, 0] > 0 and covariance[1, 1] > 0
     assert result.estimate.ate is None
     assert result.answer.kind == "structured"
-    assert result.answer.detail == "unlicensed_posterior_bayesian_piecewise_survival"
+    assert result.answer.detail == "unsupported_posterior_bayesian_piecewise_survival"
     assert "calibration is unmeasured" in result.claim()
 
 
@@ -146,7 +146,7 @@ def test_survival_posterior_round_trips_in_this_process_and_a_fresh_one(tmp_path
     assert loaded.answer == result.answer
     structured = loaded.answer.structured
     assert structured["estimator"] == "bayesian.piecewise_survival"
-    assert structured["licensed"] is False and structured["calibration"] == "unmeasured"
+    assert structured["supported"] is False and structured["calibration"] == "unmeasured"
     assert structured["mean"] == pytest.approx(list(result.posterior_row.mean))
     path = tmp_path / "survival.antecedent"
     path.write_bytes(artifact)
@@ -268,7 +268,7 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     row = result.posterior_row
     assert row is not None and result.continuous_dose_response is None
     assert row.estimator == "bayesian.continuous_dose_policy"
-    assert (row.calibration, row.licensed) == ("unmeasured", False)
+    assert (row.calibration, row.supported) == ("unmeasured", False)
     assert row.coordinates == ("policy_value", "reference_value", "incremental_value")
     # The truth is linear, so each group's symmetric window average equals the curve value:
     # 0.5 * 1.5 * 0.4 + 0.5 * 2.0 * 0.4 = 0.7.
@@ -285,7 +285,7 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     assert covariance[2, 2] == pytest.approx(
         covariance[0, 0] + covariance[1, 1] - 2.0 * covariance[0, 1], rel=1e-6
     )
-    assert result.answer.detail == "unlicensed_posterior_bayesian_continuous_dose_policy"
+    assert result.answer.detail == "unsupported_posterior_bayesian_continuous_dose_policy"
     assert (
         require_success(
             antecedent.load(bytes(result.export(artifact_id="bayesian-dose-policy")))
@@ -404,7 +404,7 @@ def test_quantile_posterior_matches_the_dirichlet_reference() -> None:
     row = result.posterior_row
     assert row is not None
     assert row.estimator == "bayesian.randomized_quantile"
-    assert (row.calibration, row.licensed) == ("unmeasured", False)
+    assert (row.calibration, row.supported) == ("unmeasured", False)
     assert row.coordinates == ("control_quantile", "treated_quantile", "quantile_difference")
     # Bin counts by hand (control 0,2,3,3,2,2,0; treated 0,1,2,3,3,3,0) under a 0.5 prior per
     # bin: total mass 15.5 and these cumulative masses at the grid.

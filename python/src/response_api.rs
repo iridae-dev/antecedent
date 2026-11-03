@@ -109,14 +109,10 @@ pub(crate) struct ResponseAnalysisResult {
     atom_statuses: Vec<String>,
     #[pyo3(get)]
     atom_values: Vec<Vec<f64>>,
-    /// Matrix evidence contract (`licensed` / `allowed_unlicensed`). Distinct from
+    /// Matrix evidence contract (`supported` or `not_supported`). Distinct from
     /// empirical dose-range [`Self::support_status`].
     #[pyo3(get)]
     evidence_status: Option<String>,
-    #[pyo3(get)]
-    allowlist_reason: Option<String>,
-    #[pyo3(get)]
-    allowlist_parent: Option<String>,
     /// Study-level diagnostic codes (`code: message`), including class envelopes.
     #[pyo3(get)]
     diagnostics: Vec<String>,
@@ -663,8 +659,7 @@ pub(crate) fn response_result(
         level = None;
     }
     let support_status = support_status_name(response.support.status).to_owned();
-    let (evidence_status, allowlist_reason, allowlist_parent) =
-        crate::evidence_status_parts(evidence);
+    let evidence_status = crate::evidence_status_name(evidence);
     let mut unique_treatments = Vec::new();
     for name in treatments {
         if !unique_treatments.contains(&name) {
@@ -769,8 +764,6 @@ pub(crate) fn response_result(
             })
             .unwrap_or_default(),
         evidence_status,
-        allowlist_reason,
-        allowlist_parent,
         diagnostics: Vec::new(),
         identifier: None,
         missing_data_json: None,

@@ -1310,7 +1310,7 @@ pub(crate) fn validate_response_result(
     );
     // Identification can succeed while a required empirical cell is absent.
     // Keep that identification status, the refusal certificate, and the failed
-    // support evidence together; no numerical value or interval is licensed.
+    // support evidence together; no numerical value or interval is supported.
     let unevaluable = matches!(
         (&wire.estimate, &wire.support.status, &wire.uncertainty),
         (
@@ -1614,7 +1614,7 @@ fn validate_uncertainty(
     value_len: Option<usize>,
 ) -> Result<(), IoError> {
     use crate::ResponseUncertaintyWire;
-    // A response without a licensed value (unidentified / unevaluable) has no
+    // A response without a supported value (unidentified / unevaluable) has no
     // shape for an interval to describe, so only a non-numeric uncertainty
     // record may accompany it.
     let Some(value_len) = value_len else {

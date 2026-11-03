@@ -3,8 +3,8 @@
 
 Every row of parity/release_scope/scope.toml is matched to evidence:
 
-  route      the licensed route exists in the route manifest, its lowering is registered in
-             parity/licensed_routes.toml, and a compiler source file reads that lowering
+  route      the supported route exists in the route manifest, its lowering is registered in
+             parity/supported_routes.toml, and a compiler source file reads that lowering
   owner      every owning path exists and, where a symbol is named, defines it
   fixture    every acceptance fixture exists (a `path::name` fixture also names a real
              function or test) and is run by a registered test: a Cargo test target or suite
@@ -46,7 +46,7 @@ EVIDENCE = "parity/release_scope/evidence.toml"
 OUTPUT = "parity/release_scope/reconciliation.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
 CHILDREN = "parity/method_children/children.toml"
-LICENSED = "parity/licensed_routes.toml"
+SUPPORTED = "parity/supported_routes.toml"
 REGISTRY = "parity/v3_test_registry.toml"
 UNLISTED = {"", "unlisted", "none"}
 ROOTS = "crates|python|parity|scripts|docs|examples|conformance|provenance|tests"
@@ -352,9 +352,9 @@ def consumer_problem(
     )
 
 
-def route_lowerings(licensed: dict) -> dict[tuple[str, str], set[str]]:
+def route_lowerings(supported: dict) -> dict[tuple[str, str], set[str]]:
     found: dict[tuple[str, str], set[str]] = defaultdict(set)
-    for row in licensed.get("route", []):
+    for row in supported.get("route", []):
         target, graph = row["coordinate"].split(":")[:2]
         found[(target, graph)].add(row["lowering"])
     return found
@@ -365,7 +365,7 @@ def gather(repo: Repo) -> list[dict]:
     scope = repo.load(SCOPE)["entry"]
     manifest = {r["id"]: r for r in repo.load(MANIFEST)["route"]}
     children = {c["id"]: c for c in repo.load(CHILDREN)["child"]}
-    lowerings = route_lowerings(repo.load(LICENSED))
+    lowerings = route_lowerings(repo.load(SUPPORTED))
     evidence = repo.load(EVIDENCE) if repo.exists(EVIDENCE) else {}
     overlay = {r["id"]: r for r in evidence.get("row", [])}
     if evidence.get("awaiting"):
@@ -390,19 +390,19 @@ def gather(repo: Repo) -> list[dict]:
             if route is None:
                 missing.append(f"route {rid} is not in the route manifest")
             else:
-                if route["status"] != "licensed":
-                    missing.append(f"route is `{route['status']}` in the manifest, not licensed")
+                if route["status"] != "supported":
+                    missing.append(f"route is `{route['status']}` in the manifest, not supported")
                 owners.append(route["owning_module"].split(" ")[0])
                 lowered = sorted(lowerings.get((route["target"], route["graph_class"]), ()))
                 if not lowered:
                     missing.append(
-                        "no lowering is registered for the route in parity/licensed_routes.toml"
+                        "no lowering is registered for the route in parity/supported_routes.toml"
                     )
                 else:
                     symbol = lowered[0]
                     pass
                 fixtures.extend(paths_in(route.get("retained_route_test", "")))
-                fixtures.append("crates/antecedent/tests/licensed_compiler.rs")
+                fixtures.append("crates/antecedent/tests/supported_compiler.rs")
                 consumers.append(route.get("artifact_consumer", ""))
         elif row["source"] == "method_children":
             if child is None:
@@ -569,18 +569,18 @@ def self_test() -> int:
         write(
             root,
             MANIFEST,
-            '[[route]]\nid = "licensed.A.Dag"\ntarget = "A"\ngraph_class = "Dag"\nstatus = "licensed"\n'
+            '[[route]]\nid = "supported.A.Dag"\ntarget = "A"\ngraph_class = "Dag"\nstatus = "supported"\n'
             'owning_module = "crates/c/src/owner.rs"\nartifact_consumer = "unlisted"\n',
         )
         write(
             root,
             CHILDREN,
-            '[[child]]\nid = "P.x"\nroute = "licensed.A.Dag"\nmodule = "crates/c/src/owner.rs"\n'
+            '[[child]]\nid = "P.x"\nroute = "supported.A.Dag"\nmodule = "crates/c/src/owner.rs"\n'
             'owner = "crates/c"\nfixtures = "crates/c/tests/t.rs"\nconsumer = "crates/c/src/reader.rs"\n',
         )
         write(
             root,
-            LICENSED,
+            SUPPORTED,
             '[[route]]\ncoordinate = "A:Dag:explicit:Frequentist:none"\nlowering = "Low"\n',
         )
         write(root, REGISTRY, "schema = 1\n")
@@ -592,10 +592,10 @@ def self_test() -> int:
         write(root, "crates/c/src/owner.rs", "pub struct Thing;\n")
         write(root, "crates/c/src/reader.rs", "use Thing;\nLow\n")
         write(root, "crates/c/tests/t.rs", "#[test]\nfn it() {}\n")
-        write(root, "crates/antecedent/tests/licensed_compiler.rs", "#[test]\nfn it() {}\n")
+        write(root, "crates/antecedent/tests/supported_compiler.rs", "#[test]\nfn it() {}\n")
         write(root, "crates/antecedent/Cargo.toml", '[package]\nname = "a"\n')
         scope = (
-            '[[entry]]\nid = "licensed.A.Dag"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "route_manifest"\n\n'
+            '[[entry]]\nid = "supported.A.Dag"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "route_manifest"\n\n'
             '[[entry]]\nid = "P.x"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "method_children"\n'
         )
         write(root, SCOPE, scope)
@@ -603,7 +603,7 @@ def self_test() -> int:
         records = gather(repo)
         by_id = {r["id"]: r for r in records}
         assert by_id["P.x"]["status"] == "reconciled", by_id["P.x"]
-        assert by_id["licensed.A.Dag"]["status"] == "reconciled", by_id["licensed.A.Dag"]
+        assert by_id["supported.A.Dag"]["status"] == "reconciled", by_id["supported.A.Dag"]
         assert problems(repo, records, render(records)) == []
         assert any(e.startswith("stale") for e in problems(repo, records, "old")), (
             "stale output must fail"

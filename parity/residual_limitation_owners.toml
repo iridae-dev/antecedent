@@ -86,7 +86,7 @@ owner = "E14"
 [[owner]]
 name = "point_only_route_row"
 kind = "^narrowed_promise$"
-locator = "^licensed\\."
+locator = "^supported\\."
 owner = "Q08"
 
 [[owner]]
@@ -95,7 +95,7 @@ kind = "^narrowed_promise$"
 locator = "^(P07|P10|P11|P13|P14|P15|X02|X03)\\."
 owner = "Q08"
 
-# ---- failed promotion gate -----------------------------------------------------------------------
+# ---- failed capability gate -----------------------------------------------------------------------
 
 [[owner]]
 name = "temporal_continuous_cross_world_transport"

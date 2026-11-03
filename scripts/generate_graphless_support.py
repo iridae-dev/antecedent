@@ -1,4 +1,4 @@
-"""Generate exact graphless support licenses for Rust and documentation."""
+"""Generate exact graphless support supports for Rust and documentation."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ BOOLEAN_REQUIREMENTS = (
 
 
 def load_rows() -> list[dict]:
-    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["license"]
+    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["support"]
     seen: set[tuple[str, ...]] = set()
     for row in rows:
         key = tuple(row[field] for field in KEYS)
@@ -193,7 +193,7 @@ def rust(rows: list[dict]) -> str:
     lines = [
         "//! Generated from `parity/support_graphless.toml`; do not edit by hand.",
         "#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.",
-        "pub(crate) struct GraphlessLicenseRow {",
+        "pub(crate) struct GraphlessSupportRow {",
         *(f"    pub(crate) {field}: &'static str," for field in fields),
         *(f"    pub(crate) {field}: usize," for field in INTEGER_LIMITS),
         *(f"    pub(crate) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
@@ -202,10 +202,10 @@ def rust(rows: list[dict]) -> str:
         "    pub(crate) all_reported_intervals: bool,",
         *(f"    pub(crate) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
         "}",
-        "pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[",
+        "pub(crate) const SUPPORTS: &[GraphlessSupportRow] = &[",
     ]
     for row in rows:
-        lines.append("    GraphlessLicenseRow {")
+        lines.append("    GraphlessSupportRow {")
         lines.extend(
             f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields
         )
@@ -232,10 +232,10 @@ def docs(rows: list[dict]) -> str:
         "# Graphless design-family support matrix",
         "",
         "This table is separate from the graph/structure support axes in",
-        "[the geometric matrix](support-matrix.md). A query is licensed only when",
+        "[the geometric matrix](support-matrix.md). A query is supported only when",
         "its exact family, design, method, inference claim, and observed",
         "support thresholds match a row. All other combinations are refused.",
-        "That refusal means no matrix license; off-axis point results may still",
+        "That refusal means no matrix support; off-axis point results may still",
         "execute. The route must validate its stated design and assumptions.",
         "",
         "| Family | Design | Method | Inference claim | Observed support | Evidence |",

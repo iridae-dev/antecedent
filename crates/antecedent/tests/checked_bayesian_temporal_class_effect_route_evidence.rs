@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -292,5 +292,5 @@ fn bayesian_temporal_class_effect_retains_a_caller_supplied_class_mass() {
         "class-mass mixture {} far from {mixed_truth}",
         result.estimate().as_effect().unwrap().ate
     );
-    assert!(result.posterior.is_some(), "a class mass licenses one mixed posterior");
+    assert!(result.posterior.is_some(), "a class mass supports one mixed posterior");
 }

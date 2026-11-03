@@ -388,7 +388,7 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         let wire =
             consumed.body.association.as_ref().expect("the artifact carries the association");
         assert_eq!(wire.terms.len(), terms, "{modality}");
-        assert!(!wire.licensed, "{modality}: an association is never a licensed route");
+        assert!(!wire.supported, "{modality}: an association is never a supported route");
         assert_eq!(wire.calibration, "unmeasured", "{modality}");
         assert!(consumed.contract.is_some(), "{modality}");
     }

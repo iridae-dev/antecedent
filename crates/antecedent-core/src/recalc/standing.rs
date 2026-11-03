@@ -114,7 +114,7 @@ pub enum CouplingInput {
         /// Identity of the alignment (source, stream and draw count).
         alignment: StageIdentity,
     },
-    /// The coupling is not known. A joint statement under it is not licensed.
+    /// The coupling is not known. A joint statement under it is not supported.
     Unknown,
 }
 

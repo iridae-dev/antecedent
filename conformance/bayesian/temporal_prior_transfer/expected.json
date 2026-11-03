@@ -43,9 +43,9 @@
   },
   "sequence_refuses": {
     "message_contains": "isotropic per-mechanism priors",
-    "notes": "Bayesian multi-step Sequence is licensed (00c78c67); the existing catalog filter does not apply to sequential mechanism priors. Transfer is refused. No new filter."
+    "notes": "Bayesian multi-step Sequence is supported (00c78c67); the existing catalog filter does not apply to sequential mechanism priors. Transfer is refused. No new filter."
   },
-  "notes": "Prior transfer rides licensed Bayesian temporal cells only with this named source/target/filter pin. Conflict-sensitive weights stay diagnostic.",
+  "notes": "Prior transfer rides supported Bayesian temporal cells only with this named source/target/filter pin. Conflict-sensitive weights stay diagnostic.",
   "oracle": {
     "kind": "closed_form",
     "method": "stationary linear SCM Y_s = 0.9 X_{s-1} + e_s: the pulse effect is the coefficient 0.9",
@@ -86,10 +86,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_prior_transfer.rs",
-          "sha256": "ec3e64181305d321cacd7f6c6eabd5f9731288e348a29a4a8e47a35de0ee2354"
+          "sha256": "090254eacdd5ac3ab2491946cb59972b4a3d5dbec027952b7c49885bbad8f5c4"
         }
       ],
-      "fixture_payload_sha256": "0a652dd82dae6887312c4c29d8587628eb6aa387c746dae6cc89ef96f97390cb"
+      "fixture_payload_sha256": "3232f6cc0cfd6e30e580f933960186f88c28ecc83e249a240900672382d105fd"
     }
   }
 }

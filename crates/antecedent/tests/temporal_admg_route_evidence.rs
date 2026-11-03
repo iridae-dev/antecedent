@@ -1,11 +1,11 @@
-//! `TemporalAdmg` twins of the licensed static ADMG analyses.
+//! `TemporalAdmg` twins of the supported static ADMG analyses.
 //!
 //! Each variable appears once, at lag 0. Identification is general.id on that
 //! contemporaneous projection, so the functional is the static ADMG functional.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
@@ -186,7 +186,7 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                     study.prepare(&ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
                 drop(builder);
                 drop(study);
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 let (RetainedOperation::FunctionalEffect(program)
                 | RetainedOperation::PathSpecificEffect(program)) = prepared.retained_operation()
                 else {
@@ -332,7 +332,7 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                     drop(study);
                     assert_eq!(
                         prepared.support_status(),
-                        Some(CellStatus::Licensed),
+                        Some(CellStatus::Supported),
                         "{coordinate}"
                     );
                     let RetainedOperation::AdmgResponseCurve(members) =
@@ -488,7 +488,7 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             drop(builder);
             drop(study);
-            assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+            assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
             assert!(matches!(
                 prepared.retained_operation(),
                 RetainedOperation::AdmgResponseCurve(..)
@@ -597,7 +597,7 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                 drop(builder);
                 drop(study);
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 let RetainedOperation::Distribution(program) = prepared.retained_operation() else {
                     panic!("distribution program")
                 };
@@ -787,7 +787,7 @@ fn transport_study(
 /// frequentist standard error is the Newey-West long-run variance of the per-row influence at
 /// the series block length, and the Bayesian interval is the posterior of one Dirichlet weight
 /// per circular block. Both are wider than the same rows read as independent, which a static
-/// ADMG does. Both are unlicensed with calibration unmeasured.
+/// ADMG does. Both are unsupported with calibration unmeasured.
 #[test]
 fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
     let data = dependent_transport_series(1000);
@@ -853,7 +853,7 @@ fn repeated_variable_temporal_admg_is_refused() {
 #[test]
 fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
     // A pulse, sustained or temporal conditional contrast on a TemporalAdmg executes on its
-    // unrolled window and is licensed with the temporal mediation on that window (known truth in
+    // unrolled window and is supported with the temporal mediation on that window (known truth in
     // `temporal_window_route_evidence`), as the contemporaneous projection is.
     let mediation = antecedent::support::classify(
         SupportCell::from_labels(
@@ -865,7 +865,7 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
         )
         .expect("support axis"),
     );
-    assert!(matches!(mediation, CellStatus::Licensed), "{mediation:?}");
+    assert!(matches!(mediation, CellStatus::Supported), "{mediation:?}");
     for query in ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse"] {
         for structure in ["explicit", "accepted"] {
             for inference in ["Frequentist", "Bayesian"] {
@@ -874,8 +874,8 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
                         .expect("support axis"),
                 );
                 assert!(
-                    matches!(status, CellStatus::Licensed),
-                    "{query}:{structure}:{inference} is licensed on its window: {status:?}"
+                    matches!(status, CellStatus::Supported),
+                    "{query}:{structure}:{inference} is supported on its window: {status:?}"
                 );
             }
         }
@@ -884,13 +884,13 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
         SupportCell::from_labels("AverageEffect", "TemporalAdmg", "explicit", "Bayesian", "none")
             .expect("support axis"),
     );
-    assert!(matches!(projection, CellStatus::Licensed), "{projection:?}");
-    // The same contrast on a graph with no latent confounding over time is licensed.
+    assert!(matches!(projection, CellStatus::Supported), "{projection:?}");
+    // The same contrast on a graph with no latent confounding over time is supported.
     let on_temporal_dag = antecedent::support::classify(
         SupportCell::from_labels("PulseEffect", "TemporalDag", "explicit", "Frequentist", "none")
             .expect("support axis"),
     );
-    assert!(matches!(on_temporal_dag, CellStatus::Licensed), "{on_temporal_dag:?}");
+    assert!(matches!(on_temporal_dag, CellStatus::Supported), "{on_temporal_dag:?}");
 }
 
 #[test]
@@ -931,8 +931,8 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         .expect("support axis"),
     );
     assert!(
-        matches!(distribution_cheap, CellStatus::Licensed),
-        "distribution cheap is licensed on TemporalAdmg: {distribution_cheap:?}"
+        matches!(distribution_cheap, CellStatus::Supported),
+        "distribution cheap is supported on TemporalAdmg: {distribution_cheap:?}"
     );
     let transport_on_temporal_dag = antecedent::support::classify(
         SupportCell::from_labels(
@@ -956,8 +956,8 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         .expect("support axis"),
     );
     assert!(
-        matches!(curve_posterior_cheap, CellStatus::Licensed),
-        "the graph-posterior curve refuter state is licensed: {curve_posterior_cheap:?}"
+        matches!(curve_posterior_cheap, CellStatus::Supported),
+        "the graph-posterior curve refuter state is supported: {curve_posterior_cheap:?}"
     );
 }
 
@@ -1082,7 +1082,7 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
 
 /// Pulse, sustained and conditional contrasts on one series under a `TemporalAdmg`: the template
 /// is unrolled over the periods the policy needs, the contrast is identified on that window, and
-/// the identified functional is evaluated on the lag-aligned window table. The cell is licensed
+/// the identified functional is evaluated on the lag-aligned window table. The cell is supported
 /// (its known truth is the temporal window fixture); the expected values below are counted from
 /// the series, not from the engine.
 mod window_contrast {
@@ -1215,18 +1215,18 @@ mod window_contrast {
     }
 
     #[test]
-    fn a_pulse_is_the_counted_contrast_and_stays_unlicensed() {
+    fn a_pulse_is_the_counted_contrast_and_stays_unsupported() {
         let (x, y, w, data) = series(300);
         let counted = counted_contrast(&x, &y, &w);
         assert!(counted > 0.2 && counted < 0.8, "{counted}");
         let built = study(&data, template(false), next_period(), InferenceMode::Frequentist, 0);
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let ctx = ExecutionContext::for_tests(31_001);
         let plan = built.compile(&ctx).unwrap();
         assert_eq!(plan.lowered().unwrap().route(), "TemporalEffectAdmg");
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         assert!(discloses(&result));
         assert_eq!(result.lowered_program_identity(), plan.lowered_program_identity());
         // The prepared handle freezes the identification and reproduces the point; the artifact
@@ -1330,7 +1330,7 @@ mod window_contrast {
         );
         assert!(posterior.summaries.sd[column] > 0.0);
         assert!(discloses(&result));
-        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
     }
 
     #[test]
@@ -1342,7 +1342,7 @@ mod window_contrast {
         let query = next_period().with_effect_modifiers([v(2)]);
         let ctx = ExecutionContext::for_tests(31_004);
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
-        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+        assert_eq!(built.support_status(), Some(CellStatus::Supported));
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
         assert!(discloses(&result));
@@ -1488,7 +1488,7 @@ mod window_contrast {
                     InferenceMode::Frequentist
                 };
                 let built = study_with_suite(&data, next_period(), inference, suite);
-                assert_eq!(built.support_status(), Some(CellStatus::Licensed));
+                assert_eq!(built.support_status(), Some(CellStatus::Supported));
                 let ctx = ExecutionContext::for_tests(31_010);
                 let result = built.run(&ctx).unwrap();
                 assert_eq!(refuters(&result), expected, "bayesian={bayesian} suite={suite:?}");

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Composition exit, interval-coordinate check: zero unmeasured interval coordinates.
 
-For every transport and identification record listed in `INTERVAL_SURFACES` (parity/promotion.toml)
-this proves that no licensed route, row or artifact ships an interval without a matching coverage
+For every transport and identification record listed in `INTERVAL_SURFACES` (parity/capability_records.toml)
+this proves that no supported route, row or artifact ships an interval without a matching coverage
 record:
 
-  (a) no licensed route of such a record has an owning-registry row (parity/transport_stages.toml
-      [[routes]], parity/support_licensed.toml cells) that carries `estimator_grid_not_measured`
+  (a) no supported route of such a record has an owning-registry row (parity/transport_stages.toml
+      [[routes]], parity/support_cells.toml cells) that carries `estimator_grid_not_measured`
       (as `calibration_reason` or anywhere in its text);
   (b) every route whose stage is `uncertainty` is `closed` (and cites an executed refusal test) or
-      is licensed with EVERY coverage record its record allocates present in
+      is supported with EVERY coverage record its record allocates present in
       parity/coverage_records.toml;
   (c) every public interval-bearing output of such a surface (Rust result types, wire structs and
       Python result types found by grep) belongs to a record whose interval route is closed
       or covered, and the closed-route refusal tests that show the runtime status is withheld
-      (`cell_not_licensed` and the other closed reasons) exist, name their reason, and, with
+      (`not_supported` and the other closed reasons) exist, name their reason, and, with
       `--run-refusals`, are executed here.
 
 It also reports, per calibrated record, whether its allocated coverage records
@@ -52,7 +52,7 @@ from _repo import ensure_scripts_on_path, test_target
 
 ROOT = Path(os.environ.get("INTERVAL_SURFACES_ROOT", REPO))
 ensure_scripts_on_path()
-from promotion_source import (  # noqa: E402  (the one reader of test bodies for the gates)
+from capability_source import (  # noqa: E402  (the one reader of test bodies for the gates)
     closure_code,
 )
 
@@ -60,9 +60,9 @@ NOMINAL = "estimator_grid_not_measured"
 # Closed reasons an interval or an aggregate can be refused with; their refusal tests are the
 # runtime proof that the unmeasured coordinate is withheld.
 WITHHOLD_REASONS = {
-    "cell_not_licensed",
+    "not_supported",
     "estimator_inference_mismatch",
-    "scenario_aggregate_not_licensed",
+    "scenario_aggregate_not_supported",
 }
 
 # Public surfaces where an interval-bearing output could live, per record: the Rust result
@@ -105,10 +105,10 @@ INTERVAL_SURFACES = {
     ],
 }
 REGISTRY_FILES = [
-    "parity/promotion.toml",
+    "parity/capability_records.toml",
     "parity/transport_stages.toml",
-    "parity/support_licensed.toml",
-    "parity/support_closed.toml",
+    "parity/support_cells.toml",
+    "parity/support_refusal_reasons.toml",
     "parity/coverage_records.toml",
 ]
 # `pub interval: ...`, `pub mean_intervals: ...`, `pub fn interval(`, python `interval:` fields,
@@ -128,7 +128,7 @@ def coverage_ids() -> set[str]:
 
 def refusal_closure(path: Path, name: str) -> str | None:
     """Comment-free code of test `name` in `path` plus the helpers it reaches
-    (scripts/promotion_source.py); None when no such function exists. A reason
+    (scripts/capability_source.py); None when no such function exists. A reason
     code in a comment, or in an unrelated function that merely follows the test
     in the file, is not the test naming it."""
     try:
@@ -174,13 +174,13 @@ def check() -> dict:
     notes: list[str] = []
     refusals: list[dict] = []
     calibration: dict[str, dict] = {}
-    promotion = load("parity/promotion.toml")
+    capability = load("parity/capability_records.toml")
     stages = load("parity/transport_stages.toml")
-    support = load("parity/support_licensed.toml")
+    support = load("parity/support_cells.toml")
     present = coverage_ids()
-    records = [r for r in promotion.get("record", []) if r.get("id") in INTERVAL_SURFACES]
+    records = [r for r in capability.get("record", []) if r.get("id") in INTERVAL_SURFACES]
     if not records:
-        errors.append("no transport or identification record found in parity/promotion.toml")
+        errors.append("no transport or identification record found in parity/capability_records.toml")
 
     stage_rows = {row.get("route"): row for row in stages.get("routes", [])}
     scoped_routes: set[str] = set()
@@ -191,22 +191,22 @@ def check() -> dict:
         claim = record.get("inference_claim")
         if claim == "nominal":
             errors.append(f"{rid}: inference_claim 'nominal' ships an interval no record measures")
-        if claim == "calibrated" and not allocated:
-            errors.append(f"{rid}: a calibrated claim must allocate its coverage record ids")
+        if claim == "interval" and not allocated:
+            errors.append(f"{rid}: an interval claim must allocate its coverage record ids")
         open_uncertainty = False
         closed_uncertainty = False
         for route in record.get("routes") or []:
             name, status, stage = route.get("name"), route.get("status"), route.get("stage")
             scoped_routes.add(name)
             row = stage_rows.get(name)
-            # (a) no licensed row carries the unmeasured-interval reason.
-            if status == "licensed" and row is not None:
+            # (a) no supported row carries the unmeasured-interval reason.
+            if status == "supported" and row is not None:
                 text = json.dumps(row)
                 if row.get("calibration_reason") == NOMINAL or NOMINAL in text:
                     errors.append(
-                        f"{rid}: licensed route {name} has a transport_stages row carrying {NOMINAL}"
+                        f"{rid}: supported route {name} has a transport_stages row carrying {NOMINAL}"
                     )
-            if status == "licensed" and route.get("registry") == "support_licensed":
+            if status == "supported" and route.get("registry") == "support_cells":
                 for cell in support.get("cell", []):
                     if (
                         cell.get("query") == route.get("query")
@@ -216,15 +216,15 @@ def check() -> dict:
                         )
                     ):
                         errors.append(
-                            f"{rid}: licensed route {name} has a support cell carrying {NOMINAL}"
+                            f"{rid}: supported route {name} has a support cell carrying {NOMINAL}"
                         )
-            # (b) an uncertainty route is closed, or licensed with every record present.
+            # (b) an uncertainty route is closed, or supported with every record present.
             if stage == "uncertainty":
-                if status == "licensed":
+                if status == "supported":
                     open_uncertainty = True
                     if missing:
                         errors.append(
-                            f"{rid}: uncertainty route {name} is licensed but coverage records are "
+                            f"{rid}: uncertainty route {name} is supported but coverage records are "
                             f"absent: {', '.join(missing)}"
                         )
                 elif status == "closed":
@@ -273,7 +273,7 @@ def check() -> dict:
                 f"{'a closed route' if closed_uncertainty else 'covered routes'}"
             )
         # Calibration state of a calibrated record.
-        if claim == "calibrated":
+        if claim == "interval":
             if missing:
                 calibration[rid] = {
                     "status": "PENDING_CALIBRATION",
@@ -296,10 +296,10 @@ def check() -> dict:
         for name, row in stage_rows.items()
         if name not in scoped_routes
         and NOMINAL in json.dumps(row)
-        and row.get("status") == "licensed"
+        and row.get("status") == "supported"
     ]
     if legacy:
-        notes.append(f"{len(legacy)} licensed rows outside these records keep {NOMINAL}")
+        notes.append(f"{len(legacy)} supported rows outside these records keep {NOMINAL}")
     return {
         "intervals": "FAIL" if errors else "PASS",
         "calibration": calibration,
@@ -400,8 +400,8 @@ def self_test() -> int:
     baseline = Path(tempfile.mkdtemp(prefix="a_intervals_"))
     try:
         needed = set(REGISTRY_FILES) - {"parity/coverage_records.toml"}
-        promotion = tomllib.loads((real_root / "parity/promotion.toml").read_text(encoding="utf-8"))
-        for record in (r for r in promotion["record"] if r.get("id") in INTERVAL_SURFACES):
+        capability = tomllib.loads((real_root / "parity/capability_records.toml").read_text(encoding="utf-8"))
+        for record in (r for r in capability["record"] if r.get("id") in INTERVAL_SURFACES):
             needed |= set(INTERVAL_SURFACES[record["id"]])
             for route in record.get("routes") or []:
                 if route.get("refusal_test"):
@@ -411,14 +411,14 @@ def self_test() -> int:
             if src.is_file():
                 (baseline / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, baseline / rel)
-        # The committed matrix can contain licensed routes beyond the multi-source cell. Keep
+        # The committed matrix can contain supported routes beyond the multi-source cell. Keep
         # their coverage present while varying its closed route below.
         baseline_coverage = {
             coverage_id
-            for record in promotion["record"]
+            for record in capability["record"]
             if record.get("id") in INTERVAL_SURFACES
             and any(
-                route.get("stage") == "uncertainty" and route.get("status") == "licensed"
+                route.get("stage") == "uncertainty" and route.get("status") == "supported"
                 for route in record.get("routes") or []
             )
             for coverage_id in record.get("coverage_records") or []
@@ -477,12 +477,12 @@ def self_test() -> int:
                 print(f"self-test ok: '{label}' fails")
 
         multi_source = next(
-            r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment"
+            r for r in capability["record"] if r["id"] == "transport.multi_source_limited_experiment"
         )
         multi_source_records = list(multi_source["coverage_records"])
         multi_source_route = next(r for r in multi_source["routes"] if r["stage"] == "uncertainty")
-        promo = "parity/promotion.toml"
-        licensed_route = f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "licensed", claim = "calibrated" }}'
+        promo = "parity/capability_records.toml"
+        supported_route = f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "supported", claim = "interval" }}'
         closed_route_head = (
             f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "closed"'
         )
@@ -493,7 +493,7 @@ def self_test() -> int:
             start = text.index(closed_route_head)
             end = text.index("},", start) + 1
             path.write_text(
-                text[:start] + licensed_route + text[end:], encoding="utf-8", newline="\n"
+                text[:start] + supported_route + text[end:], encoding="utf-8", newline="\n"
             )
 
         expect("baseline copy", run(), fail_with=None)
@@ -504,13 +504,13 @@ def self_test() -> int:
         else:
             print("self-test ok: absent coverage records report PENDING_CALIBRATION")
         expect(
-            "uncertainty route licensed without coverage records",
+            "uncertainty route supported without coverage records",
             run(open_multi_source),
-            fail_with="licensed but coverage records are absent",
+            fail_with="supported but coverage records are absent",
         )
         covered = run(open_multi_source, coverage=multi_source_records)
         expect(
-            "uncertainty route licensed with every coverage record present", covered, fail_with=None
+            "uncertainty route supported with every coverage record present", covered, fail_with=None
         )
         if covered["calibration"].get(multi_source["id"], {}).get("status") != "PASS":
             failures.append(f"present records must report PASS: {covered['calibration']}")
@@ -520,21 +520,21 @@ def self_test() -> int:
         expect(
             "only one of two coverage records present",
             half,
-            fail_with="licensed but coverage records are absent",
+            fail_with="supported but coverage records are absent",
         )
         stale = run(coverage=multi_source_records[:1])
         if stale["calibration"][multi_source["id"]]["status"] != "PENDING_CALIBRATION":
             failures.append("one of two records present must stay PENDING_CALIBRATION")
         else:
             print("self-test ok: one of two records stays PENDING_CALIBRATION")
-        licensed_name = next(
+        supported_name = next(
             r["name"]
             for r in multi_source["routes"]
-            if r["status"] == "licensed" and r["stage"] == "prepare"
+            if r["status"] == "supported" and r["stage"] == "prepare"
         )
-        row_head = f'route = "{licensed_name}"\n'
+        row_head = f'route = "{supported_name}"\n'
         expect(
-            "licensed row carries estimator_grid_not_measured",
+            "supported row carries estimator_grid_not_measured",
             run(
                 edit_file(
                     "parity/transport_stages.toml",
@@ -546,7 +546,7 @@ def self_test() -> int:
         )
         expect(
             "nominal claim",
-            run(edit_file(promo, 'inference_claim = "calibrated"', 'inference_claim = "nominal"')),
+            run(edit_file(promo, 'inference_claim = "interval"', 'inference_claim = "nominal"')),
             fail_with="ships an interval no record measures",
         )
         expect(
@@ -569,7 +569,7 @@ def self_test() -> int:
             ),
             fail_with="does not exist",
         )
-        two_step = next(r for r in promotion["record"] if r["id"] == "transport.two_step_temporal")
+        two_step = next(r for r in capability["record"] if r["id"] == "transport.two_step_temporal")
         two_step_heads = [
             f'{{ name = "{r["name"]}", stage = "uncertainty", status = "closed"'
             for r in two_step["routes"]

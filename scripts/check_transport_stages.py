@@ -38,7 +38,7 @@ for route in registry.get("routes", []):
         "consume",
     }:
         errors.append(f"invalid stage: {name}")
-    if route.get("status") == "licensed":
+    if route.get("status") == "supported":
         for key in (
             "graph",
             "evidence",
@@ -118,7 +118,7 @@ for route in registry.get("routes", []):
                 _, problems = resolve_rust_test(root / path, assertion)
                 errors.extend(problems)
     elif route.get("status") != "closed" or not route.get("reason_code"):
-        errors.append(f"{name}: expected licensed or a reason-backed closed contract")
+        errors.append(f"{name}: expected supported or a reason-backed closed contract")
 FAMILIES = {
     f"transport_{name}"
     for name in (
@@ -170,7 +170,7 @@ for family in sorted(FAMILIES):
         errors.append(f"{family}: requires a positive and a counterexample row")
     elif pair["positive"] == pair["counterexample"]:
         errors.append(f"{family}: one assertion cannot be both positive and counterexample")
-# Every licensed route owns its evidence: one assertion cited by several routes
+# Every supported route owns its evidence: one assertion cited by several routes
 # proves at most one of them, so a shared citation is an error, not a warning.
 errors.extend(shared_evidence_problems(registry.get("routes", [])))
 required = {

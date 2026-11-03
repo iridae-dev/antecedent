@@ -361,7 +361,7 @@ pub enum CausalError {
     /// Support-matrix refusal (stable id).
     #[error("{id}: {message}")]
     Support {
-        /// Stable matrix id (`not_applicable` or `refused`).
+        /// Stable matrix id (`not_applicable` or `not_supported`).
         id: crate::support::SupportRefusal,
         /// Human-readable reason (n/a rule text, or a refused-cell explanation).
         message: &'static str,
@@ -849,10 +849,10 @@ macro_rules! unsupported_reason {
 ///
 /// ```
 /// let err = antecedent::support_reason!(
-///     "data_modality_not_licensed",
-///     "that cell is not licensed for this data modality"
+///     "data_modality_not_supported",
+///     "that cell is not supported for this data modality"
 /// );
-/// assert!(err.to_string().contains("reason=data_modality_not_licensed: "));
+/// assert!(err.to_string().contains("reason=data_modality_not_supported: "));
 /// ```
 #[macro_export]
 macro_rules! support_reason {
@@ -862,7 +862,7 @@ macro_rules! support_reason {
             concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
         );
         $crate::CausalError::Support {
-            id: $crate::support::SupportRefusal::Refused,
+            id: $crate::support::SupportRefusal::NotSupported,
             message: concat!("reason=", $code, ": ", $message),
         }
     }};
@@ -877,26 +877,27 @@ pub const fn is_runtime_refusal_code(code: &str) -> bool {
 }
 
 /// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.
-pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
-    "design ranking requires a licensed prepared contract";
+pub(crate) const RANK_DESIGNS_REQUIRES_SUPPORT: &str =
+    "design ranking requires a supported prepared contract";
 pub(crate) const RANK_DESIGNS_REQUIRES_PRODUCT: &str =
     "design ranking requires cached identification products";
 pub(crate) const RANK_DESIGNS_INCOMPARABLE_TARGETS: &str =
     "width ranking refuses incomparable estimands; declare a common decision utility";
 pub(crate) const RANK_DESIGNS_RENORMALIZED_MASS: &str =
     "design ranking must not renormalize unidentified mass onto favorable atoms";
-pub(crate) const RETARGET_REQUIRES_LICENSE: &str = "retarget requires a licensed prepared contract";
-pub(crate) const EXPORT_REQUIRES_LICENSE: &str = "export requires a licensed prepared contract";
-pub(crate) const OPERATION_REQUIRES_LICENSE: &str =
-    "operation requires a licensed prepared contract";
+pub(crate) const RETARGET_REQUIRES_SUPPORT: &str =
+    "retarget requires a supported prepared contract";
+pub(crate) const EXPORT_REQUIRES_SUPPORT: &str = "export requires a supported prepared contract";
+pub(crate) const OPERATION_REQUIRES_SUPPORT: &str =
+    "operation requires a supported prepared contract";
 
-/// Refusals that block an operation for want of a license. Matched by
+/// Refusals that block an operation for want of support. Matched by
 /// constant identity: a reworded message never changes a blocker id.
-pub(crate) const OPERATION_UNLICENSED: [&str; 4] = [
-    RANK_DESIGNS_REQUIRES_LICENSE,
-    RETARGET_REQUIRES_LICENSE,
-    EXPORT_REQUIRES_LICENSE,
-    OPERATION_REQUIRES_LICENSE,
+pub(crate) const OPERATION_UNSUPPORTED: [&str; 4] = [
+    RANK_DESIGNS_REQUIRES_SUPPORT,
+    RETARGET_REQUIRES_SUPPORT,
+    EXPORT_REQUIRES_SUPPORT,
+    OPERATION_REQUIRES_SUPPORT,
 ];
 
 /// [`CausalError::Compile`] whose message carries a registered runtime-refusal
@@ -1182,11 +1183,11 @@ impl CausalError {
             Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
                 Some(BlockedOperation::not_applicable(*message))
             }
-            Self::Support { id: crate::support::SupportRefusal::Refused, message } => {
+            Self::Support { id: crate::support::SupportRefusal::NotSupported, message } => {
                 Some(BlockedOperation::refused(*message))
             }
-            Self::Unsupported { message } if OPERATION_UNLICENSED.contains(message) => {
-                Some(BlockedOperation::operation_unlicensed(*message))
+            Self::Unsupported { message } if OPERATION_UNSUPPORTED.contains(message) => {
+                Some(BlockedOperation::operation_unsupported(*message))
             }
             Self::Unsupported { message } if *message == RANK_DESIGNS_REQUIRES_PRODUCT => {
                 Some(BlockedOperation::binding("identification_product"))

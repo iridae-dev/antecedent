@@ -309,13 +309,13 @@ impl TemporalResponseEstimator {
         if identification_count != temporal.horizons.len() {
             return Err(EstimationError::unsupported("one identification required per horizon"));
         }
-        // The untempered posterior is licensed at one step ahead only: an unfolded regression at
+        // The untempered posterior is supported at one step ahead only: an unfolded regression at
         // horizon h >= 2 has moving-average residuals of order h - 1 whatever the innovation
         // process, and horizons are separate fits that no single likelihood joins.
         if self.white_innovation.is_some() && &*temporal.horizons != [1_u32].as_slice() {
             return Err(EstimationError::refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "a declared white-innovation premise licenses the untempered posterior of a \
+                "a declared white-innovation premise supports the untempered posterior of a \
                  temporal response at the single horizon of one step ahead only: an unfolded \
                  regression at horizon h >= 2 has moving-average residuals of order h - 1 whatever \
                  the innovation process, and separate horizons share no likelihood. Next attempt: \

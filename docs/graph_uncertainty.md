@@ -4,7 +4,7 @@ Discovered structure is evidence, not a finished causal model. Antecedent keeps
 compatible graphs in play, reports when an effect is not identified on part of
 that belief, and refuses to invent orientations the data do not support. This
 page is a practitioner reading guide; the [support matrix](support-matrix.md)
-remains the license for which combinations may run.
+remains the support for which combinations may run.
 
 Related mental-model pages: [results are claims](concepts/results-are-claims.md),
 [refusals](concepts/refusals.md), and the
@@ -135,7 +135,7 @@ What is checked, and what is not:
 ## Uncertainty over a discovered structure
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
-sampling error. Two compiled routes carry the missing uncertainty. Both execute unlicensed
+sampling error. Two compiled routes carry the missing uncertainty. Both execute unsupported
 and neither has a coverage record.
 
 **Posterior over Markov equivalence classes.** `EquivalenceClassPosterior(base)` (Rust:
@@ -187,7 +187,7 @@ What to look for:
 1. **`posterior.unidentified_mass`** (or `result` / HTML callouts that mirror it) — posterior (or class) weight where the query has **no** identified estimand. A value of `0.5` means half of the structural belief says the observational data alone cannot answer the question under those graphs.
 2. **`posterior.effect_mean` / envelope means** — typically **`E[τ | identified]`**: a mixture only over atoms that identify the effect. That number is *not* “the ATE under all plausible graphs.”
 3. **Answer shape `partial` / limitation `unidentified_mass`** — Antecedent withholds a single point mean when unidentified mass is material; the HTML banner says so explicitly.
-4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not a license to drop the unidentified share.
+4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not support to drop the unidentified share.
 
 When is an envelope useful vs “don’t publish a point”?
 

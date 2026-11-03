@@ -38,7 +38,7 @@ Everything is a point diagnostic labelled uncalibrated. Ranking probabilities (b
 better than a baseline) are Monte Carlo estimates under the supplied law over the candidates as
 supplied, refused for adaptively generated candidates without a :class:`CandidateSearchRecord`.
 :meth:`DecisionReliability.publish` and :func:`publish` return only where a current coverage record
-measured the route at its coordinate and raise ``cell_not_licensed`` everywhere else, and
+measured the route at its coordinate and raise ``not_supported`` everywhere else, and
 :meth:`DecisionReliability.combined_uncertainty` always raises
 ``uncertainty_components_not_combined``.
 
@@ -54,7 +54,7 @@ intervals at the effective sample size for ranking probabilities) and the select
 confidence set for the best candidate and a selection-corrected interval, next to the held-out
 interval when the decision was re-evaluated). The derivation is a construction, not a claim:
 :meth:`DerivedUncertainty.publish` returns only where a current coverage record measured the route
-at its coordinate and raises ``cell_not_licensed`` everywhere else, and :func:`coverage_design`
+at its coordinate and raises ``not_supported`` everywhere else, and :func:`coverage_design`
 returns the measurement design as data. A derivation is never stored beside the artifact: :func:`consume_derived_uncertainty`
 recomputes it from the carried draws.
 
@@ -169,7 +169,7 @@ class DecisionReliabilityRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
     (``candidate_search_record_required``, ``validation_stream_not_independent``,
     ``uncertainty_components_not_combined``, ``joint_law_required``,
-    ``sampling_dependence_unknown``, ``cell_not_licensed``, ...) and a
+    ``sampling_dependence_unknown``, ``not_supported``, ...) and a
     ``decision_reliability.*`` ``detail``.
     """
 
@@ -694,7 +694,7 @@ class DecisionReliability(ScientificResult):
         """Publish a ranking probability, confidence set or interval as a calibrated claim.
 
         Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
+            DecisionReliabilityRefusal: ``not_supported`` unless a current coverage record
                 measured the route at this report's coordinate (at the default level 0.95).
         """
         return require_success(publish(route, self.report.coordinate))
@@ -822,10 +822,10 @@ def publish(route: str, coordinate: Mapping[str, Any]) -> None:
 
     A route is published only where a current coverage record measured it at its coordinate
     (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence); every
-    other request refuses with ``cell_not_licensed``.
+    other request refuses with ``not_supported``.
 
     Raises:
-        DecisionReliabilityRefusal: ``cell_not_licensed``.
+        DecisionReliabilityRefusal: ``not_supported``.
     """
     _check_choice(route, _ROUTES, "route")
     _refuse(_native.decision_reliability_publish(route, _dumps(dict(coordinate))))
@@ -968,7 +968,7 @@ class DerivedUncertainty(ScientificResult):
         """Publish a route from this derivation as a calibrated claim.
 
         Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
+            DecisionReliabilityRefusal: ``not_supported`` unless a current coverage record
                 measured the route at :attr:`coordinate` and at the derivation's level (ranking
                 probabilities and utilities only for marginal intervals).
         """
@@ -1016,7 +1016,7 @@ def derive_uncertainty(
     """Derive the three uncertainty components (source, Monte Carlo, selection) from draws.
 
     The result is a construction; publishing it as a calibrated claim refuses
-    ``cell_not_licensed`` outside a measured record.
+    ``not_supported`` outside a measured record.
 
     Raises:
         DecisionReliabilityRefusal: anything :func:`assess` refuses, a level outside

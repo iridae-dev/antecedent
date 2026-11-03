@@ -154,7 +154,7 @@ fn a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences() {
                         ClassGraph::Pag(circle_pair())
                     };
                     let built = class_study(graph, inference.clone(), suite);
-                    assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{name}");
+                    assert_eq!(built.support_status(), Some(CellStatus::Supported), "{name}");
                     let result =
                         built.run(&ctx).unwrap_or_else(|e| panic!("{name} {suite:?}: {e}"));
                     let found = ids(&result);

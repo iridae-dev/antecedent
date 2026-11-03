@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 /// Frozen Bayesian envelope version (separate from the original point artifact).
 pub const VERSION: u32 = 1;
-/// Internal posterior artifact marker, never licensed public inference.
+/// Internal posterior artifact marker, never supported public inference.
 pub const FEATURE: &str = "binary_verma_continuous_beta_slice_posterior_internal_v1";
 /// Exact declared sampling model.
 pub const SAMPLING: &str = "iid_multinomial_integer_counts_correctly_specified_verma_nested_markov";

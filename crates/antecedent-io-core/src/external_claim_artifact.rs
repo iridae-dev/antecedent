@@ -90,7 +90,7 @@ pub struct ExternalClaimIdentity {
     pub evidence_ids: Vec<String>,
     /// Assumptions relied on.
     pub assumption_ids: Vec<String>,
-    /// Checked equivalences licensing an observational law.
+    /// Checked equivalences support an observational law.
     pub equivalence_ids: Vec<String>,
     /// Derivation chain behind the values, parents before children.
     pub lineage: Vec<LineageLinkWire>,

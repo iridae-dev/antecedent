@@ -62,7 +62,7 @@ impl GraphPosteriorCell {
         Self::Interference,
     ];
 
-    /// Stable name, written to the licensed-route record.
+    /// Stable name, written to the supported-route record.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -144,7 +144,7 @@ macro_rules! route_lowerings {
                 }
             }
 
-            /// Stable name, written to the licensed-route record.
+            /// Stable name, written to the supported-route record.
             pub(crate) const fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$cell => stringify!($cell),)+
@@ -203,7 +203,7 @@ macro_rules! route_lowerings {
 
         impl PlanRoute {
             /// Stable name; for a route cell, the `lowering` column of the
-            /// licensed-route record.
+            /// supported-route record.
             #[must_use]
             pub const fn as_str(self) -> &'static str {
                 match self {

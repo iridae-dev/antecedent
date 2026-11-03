@@ -1,8 +1,8 @@
-"""Numeric evidence for the already-licensed PAG and ADMG ATE cells.
+"""Numeric evidence for the already-supported PAG and ADMG ATE cells.
 
 The earlier fixtures certified generalized-adjustment/general-ID identification.
 These tests consume frozen empirical laws and also pin the effect number returned by
-every explicit/accepted and validation variant licensed in ``support_licensed.toml``.
+every explicit/accepted and validation variant supported in ``support_cells.toml``.
 """
 
 from __future__ import annotations
@@ -96,8 +96,8 @@ def _assert_common_cell_contract(
 ) -> None:
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     assert fresh.plan.identifier == click.plan.identifier == identifier
     assert fresh.plan.estimator == click.plan.estimator == estimator
@@ -132,7 +132,7 @@ def _assert_common_cell_contract(
 def test_pag_ate_envelope_numeric_pin(
     accepted: bool, validation, validation_suite: str | None, inference_name: str
 ) -> None:
-    """Visible mixed MAGs retain all twelve licensed estimation/validation cells."""
+    """Visible mixed MAGs retain all twelve supported estimation/validation cells."""
     from test_mag_adjustment_visibility import _case
 
     data, graph = _case(True)
@@ -182,7 +182,7 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
     validation,
     validation_suite: str | None,
 ) -> None:
-    """Pin all six licensed Frequentist ADMG ATE structure/validation cells."""
+    """Pin all six supported Frequentist ADMG ATE structure/validation cells."""
     data = _expand_contingency(_ADMG_PIN)
     graph = _admg(accepted=accepted)
     query = _query(_ADMG_PIN)
@@ -318,7 +318,7 @@ def _admg_distribution(*, accepted: bool):
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
-    """Pin licensed ADMG InterventionalDistribution to the front-door SCM truth.
+    """Pin supported ADMG InterventionalDistribution to the front-door SCM truth.
 
     conformance/estimate/admg_frontdoor_distribution: P(Y=1|do(T=1))=0.625 and
     P(Y=1|do(T=0))=0.375 on the exact 800-row law.
@@ -355,22 +355,22 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
 
 
 @pytest.mark.parametrize("refute", ["cheap", "full"])
-def test_admg_interventional_distribution_runs_cheap_full_licensed(refute: str) -> None:
+def test_admg_interventional_distribution_runs_cheap_full_supported(refute: str) -> None:
     """Cheap/full on an ADMG InterventionalDistribution run the functional refuter state.
 
     The atom probabilities are refitted by the same compiled program on perturbed data; the
-    cell has an evidence row in the licensed table, so the result is licensed.
+    cell has an evidence row in the supported table, so the result is supported.
     """
     data = _expand_contingency(_ADMG_DIST_PIN)
     graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
     result = require_success(antecedent.analyze(data, graph=graph, query=query, refute=refute))
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 def test_admg_response_pins_against_distribution(accepted: bool) -> None:
-    """Licensed ADMG InterventionResponse / ResponseCurve match distribution means."""
+    """Supported ADMG InterventionResponse / ResponseCurve match distribution means."""
     data = _expand_contingency(_ADMG_PIN)
     graph = _admg(accepted=accepted)
     tolerance = float(_ADMG_PIN["frequentist"]["absolute_tolerance"])

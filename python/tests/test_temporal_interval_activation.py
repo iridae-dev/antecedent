@@ -110,7 +110,7 @@ def test_temporal_candidate_requires_original_factory():
 def test_temporal_default_route_remains_frozen(method):
     with pytest.raises(CausalUnsupportedError) as caught:
         produce(method)
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     assert caught.value.detail == "temporal_interval.route_frozen"
 
 

@@ -70,7 +70,7 @@ fn binary_policy_posterior_runs_through_the_study_flow_and_matches_hand_scores()
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.binary_policy_value"));
     assert_eq!(result.logical_plan.plan_id.as_ref(), "bayesian_policy_value");
     assert!(matches!(result.estimate(), PrimaryEstimate::NotAnEffect));
-    // Unlicensed: no support status and no calibration claim.
+    // Unsupported: no support status and no calibration claim.
     assert_eq!(result.support_status(), None);
     let policy = result.policy_value().unwrap();
     assert_eq!(policy.policy_value, 4.0);

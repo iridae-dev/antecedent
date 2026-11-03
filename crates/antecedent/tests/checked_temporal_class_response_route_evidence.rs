@@ -3,7 +3,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
@@ -199,7 +199,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                     assert!(plan.identified_mass > 0.0);
 
                     let result = prepared.estimate_series(&initial, &ctx).unwrap();
-                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert!(
                         result
                             .diagnostics

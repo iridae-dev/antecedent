@@ -5,7 +5,7 @@
 //! the Bayesian-bootstrap functional of the backward-recursive subject scores, computed from the
 //! declared sequential probabilities and frozen subject-excluded Q predictions. The declared
 //! probabilities identify the value; the prior on the subject law does not. The route is
-//! unlicensed and its calibration is unmeasured.
+//! unsupported and its calibration is unmeasured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -126,10 +126,10 @@ impl CheckedLongitudinalRegimeOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.longitudinal.bayesian_sequential_regime_value.unlicensed",
+                "estimate.longitudinal.bayesian_sequential_regime_value.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unlicensed and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of \
+                "unsupported and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of \
                  the backward-recursive augmented score has no coverage evidence, the declared \
                  sequential probabilities (not the prior) identify the value, and Q predictions \
                  must be subject-excluded",

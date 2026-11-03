@@ -1,4 +1,4 @@
-//! Coverage of the licensed derivative family.
+//! Coverage of the supported derivative family.
 //!
 //! Every in-assumption DGP here is inside the stated cell assumptions: an
 //! additive outcome surface, a homoskedastic Gaussian treatment law given the
@@ -6,7 +6,7 @@
 //! genuine third-order curvature at the evaluation point (`m(a) = 5 + 2 sin a`,
 //! `m'''(0.5) ≈ -1.76`), so a local-quadratic interval that ignores smoothing
 //! bias under-covers there at a mean-squared-error-sized bandwidth. The
-//! licensed estimand is the true derivative `m'(a)`, not a bandwidth-smoothed
+//! supported estimand is the true derivative `m'(a)`, not a bandwidth-smoothed
 //! surrogate, so every point-type truth below is the analytic derivative.
 //! The uncorrected local-quadratic interval covered 0.820 here; it is now robust
 //! bias-corrected (local cubic at the caller bandwidth).
@@ -826,7 +826,7 @@ fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "probe: weak positive denominator is not a finite-interval license"]
+#[ignore = "probe: weak positive denominator is not a finite-interval support"]
 fn elasticity_weak_positive_level_fieller_probe() {
     let truth = AT * mu_prime(AT) / 0.25;
     let mut tally = CoverageTally::new("elasticity_weak_positive_level_fieller_probe", 0.95);

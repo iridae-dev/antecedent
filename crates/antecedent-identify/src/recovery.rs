@@ -1,4 +1,4 @@
-//! Exact binary causal observation recovery: graph-licensed recovery
+//! Exact binary causal observation recovery: graph-supported recovery
 //! of the full law of partially observed binary variables, not MAR/IPCW.
 //!
 //! # Model class
@@ -144,7 +144,7 @@ pub enum RecoveryDetail {
     /// The downstream effect does not match the recovered law.
     HandoffMismatch,
     /// A sampled or empirical provider was offered.
-    EmpiricalNotLicensed,
+    EmpiricalNotSupported,
 }
 
 impl RecoveryDetail {
@@ -163,7 +163,7 @@ impl RecoveryDetail {
             Self::Positivity => "recovery.positivity",
             Self::InvalidObservedLaw => "recovery.invalid_observed_law",
             Self::HandoffMismatch => "recovery.handoff_mismatch",
-            Self::EmpiricalNotLicensed => "recovery.empirical_not_licensed",
+            Self::EmpiricalNotSupported => "recovery.empirical_not_supported",
         }
     }
 
@@ -186,7 +186,7 @@ impl RecoveryDetail {
                 antecedent_core::reason_code!("invalid_argument")
             }
             Self::Positivity => antecedent_core::reason_code!("transport_support_failure"),
-            Self::EmpiricalNotLicensed => antecedent_core::reason_code!("cell_not_licensed"),
+            Self::EmpiricalNotSupported => antecedent_core::reason_code!("not_supported"),
         }
     }
 }
@@ -1195,7 +1195,7 @@ fn margin_identity(
     observed
         .project(EvidenceProjection::Marginalize { drop: drop.into() })
         .map(|d| d.canonical_identity())
-        .map_err(|e| refuse(RecoveryDetail::MissingMargin, format!("margin not licensed: {e}")))
+        .map_err(|e| refuse(RecoveryDetail::MissingMargin, format!("margin not supported: {e}")))
 }
 
 fn leaf(

@@ -243,7 +243,7 @@ fn source<'a>(claim: &'a ClaimEnvelope, contract: &'a BridgeContract) -> BridgeS
 #[test]
 fn a_surrogate_bridge_is_prepared_derived_exported_and_consumed_independently() {
     let contract = surrogate_contract(0.9);
-    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("supported");
     assert!(!prepared.transported());
     assert_eq!(prepared.contract_identity(), contract.identity());
 
@@ -316,7 +316,7 @@ fn a_surrogate_bridge_is_prepared_derived_exported_and_consumed_independently() 
 #[test]
 fn the_correction_agrees_with_the_independent_corrected_prevalence_routine() {
     let contract = correction_contract();
-    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("supported");
     let source_claim = claim(2, 0.31, "probability");
     let result = prepared.derive(&source(&source_claim, &contract)).expect("derived");
     assert!(close(result.value(), 11.0 / 70.0, 1e-12), "{}", result.value());
@@ -338,7 +338,7 @@ fn the_correction_agrees_with_the_independent_corrected_prevalence_routine() {
 }
 
 #[test]
-fn the_unlicensed_adjacent_substitutions_are_refused_before_any_number() {
+fn the_unsupported_adjacent_substitutions_are_refused_before_any_number() {
     // A measured prevalence offered as the construct.
     let mut proxy = correction_contract();
     proxy.assumptions.clear();
@@ -392,7 +392,7 @@ fn the_unlicensed_adjacent_substitutions_are_refused_before_any_number() {
     assert_eq!(refusal.code, "bridge_substitution_refused");
     assert_eq!(refusal.detail, "scientific_bridge.association_as_intervention");
 
-    // Declared identification licenses the standardized contrast (0.30), which
+    // Declared identification supports the standardized contrast (0.30), which
     // is the interventional truth of the same enumerated model.
     let mut identified = predictive;
     identified.assumptions.push(BridgeAssumption {
@@ -401,7 +401,7 @@ fn the_unlicensed_adjacent_substitutions_are_refused_before_any_number() {
         statement: "Z blocks every back-door path".into(),
         evidence: Some("identification:backdoor-z".into()),
     });
-    let prepared = PreparedScientificBridge::prepare(identified.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(identified.clone()).expect("supported");
     let adjusted = claim(3, 0.30, "probability");
     let result = prepared.derive(&source(&adjusted, &identified)).expect("derived");
     assert!(close(result.value(), 0.30, 1e-12));
@@ -410,7 +410,7 @@ fn the_unlicensed_adjacent_substitutions_are_refused_before_any_number() {
 
 fn derived_surrogate() -> (BridgeContract, antecedent::ScientificBridgeResult) {
     let contract = surrogate_contract(0.9);
-    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("supported");
     let source_claim = claim(1, 0.8, "mmol_per_l");
     let result = prepared.derive(&source(&source_claim, &contract)).expect("derived");
     (contract, result)
@@ -448,7 +448,7 @@ fn a_bridged_mean_is_not_a_law_a_posterior_an_identified_set_or_a_joint_law() {
     holds_law.source_value = ValueKind::PredictiveLaw;
     holds_law.target_value = ValueKind::PredictiveLaw;
     let refusal = PreparedScientificBridge::prepare(holds_law).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, "scientific_bridge.value_kind_not_carried");
 }
 
@@ -470,8 +470,8 @@ fn a_bridged_claim_reports_a_point_value_and_its_labels() {
 fn an_interval_posterior_or_joint_law_request_on_a_bridged_claim_is_refused() {
     let (_, result) = derived_surrogate();
     let refusal = result.interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "scientific_bridge.interval_not_supported");
     assert!(refusal.remedy.is_some());
     // The refusal does not change the claim.
     assert!(close(result.value(), 0.796, 1e-12));
@@ -495,7 +495,7 @@ fn a_transported_bridge_names_its_premise_or_is_refused() {
         applies_to: BridgeScope { population_id: "children".into(), regime_id: "do(t=1)".into() },
         evidence: Some("selection-diagram:pediatric".into()),
     });
-    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("supported");
     assert!(prepared.transported());
     let source_claim = claim(1, 0.8, "mmol_per_l");
     let result = prepared.derive(&source(&source_claim, &contract)).expect("derived");
@@ -516,7 +516,7 @@ fn a_transported_bridge_names_its_premise_or_is_refused() {
 #[test]
 fn refresh_keeps_the_contract_and_recomputes_and_a_refusal_changes_nothing() {
     let contract = surrogate_contract(0.9);
-    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("licensed");
+    let prepared = PreparedScientificBridge::prepare(contract.clone()).expect("supported");
     let first_claim = claim(1, 0.8, "mmol_per_l");
     let first = prepared.derive(&source(&first_claim, &contract)).expect("first");
 
@@ -532,7 +532,7 @@ fn refresh_keeps_the_contract_and_recomputes_and_a_refusal_changes_nothing() {
     // refused; the prepared bridge and the first result are untouched.
     let beyond = claim(3, 2.0, "mmol_per_l");
     let refusal = prepared.derive(&source(&beyond, &contract)).unwrap_err();
-    assert_eq!(refusal.code, "bridge_mapping_not_licensed");
+    assert_eq!(refusal.code, "bridge_mapping_not_supported");
     assert_eq!(refusal.detail, "scientific_bridge.outside_validated_range");
     let other_units = claim(4, 0.8, "mg_per_dl");
     assert_eq!(

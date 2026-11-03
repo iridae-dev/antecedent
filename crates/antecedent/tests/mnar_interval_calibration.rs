@@ -35,7 +35,7 @@ use calibration::{
 };
 
 // 50, 1000 and 10000 rows bound the measured range, since a record covers only the row
-// counts it measured; a run outside every record refuses as unlicensed.
+// counts it measured; a run outside every record refuses as unsupported.
 const SIZES: SampleGrid = SampleGrid { name: "mnar_scope", factors: [(1, 20), (1, 1), (10, 1)] };
 const BASE_ROWS: usize = 1000;
 const ATTEMPTS: u64 = 200;

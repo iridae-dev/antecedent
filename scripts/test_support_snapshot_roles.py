@@ -19,10 +19,10 @@ class SupportSnapshotRoles(unittest.TestCase):
             patch.object(generator, "load", return_value={"record": records}) as load,
             patch.object(generator.external_evidence, "routes", return_value={}),
         ):
-            snapshot = generator.support_snapshot([], [], [], [cell] * 2696)
+            snapshot = generator.support_snapshot([], [], [cell] * 2696)
         load.assert_called_once_with("parity/coverage_records.toml")
-        self.assertEqual(len(snapshot["licensed"]), 2696)
-        for result in snapshot["licensed"]:
+        self.assertEqual(len(snapshot["supported"]), 2696)
+        for result in snapshot["supported"]:
             self.assertEqual(result["estimators"],
                              ["explicit", "linear.adjustment.ate", "propensity.matching"])
 
@@ -34,9 +34,9 @@ class SupportSnapshotRoles(unittest.TestCase):
             patch.object(generator, "load", return_value={"record": []}) as load,
             patch.object(generator.external_evidence, "routes", return_value={}),
         ):
-            snapshot = generator.support_snapshot([], [], [], [cell] * 8)
+            snapshot = generator.support_snapshot([], [], [cell] * 8)
         load.assert_called_once()
-        self.assertEqual(snapshot["licensed"][0]["estimators"], ["explicit"])
+        self.assertEqual(snapshot["supported"][0]["estimators"], ["explicit"])
 
 
 if __name__ == "__main__":

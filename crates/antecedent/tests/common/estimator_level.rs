@@ -117,7 +117,7 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "treated.mean",
     ),
     case("wald_iv_analytic_ci_coverage", "iv.wald", "anderson_rubin", "", "all_observed.mean"),
-    // A non-homoskedastic Wald SE is never licensed (Anderson-Rubin requires the
+    // A non-homoskedastic Wald SE is never supported (Anderson-Rubin requires the
     // homoskedastic assumption, and the estimator never publishes a finite
     // `se_analytic`), so the facade withholds the interval entirely: no product,
     // `calibration_coverage.rs::wald_coverage_on` only `report()`s this cell,
@@ -254,7 +254,7 @@ pub fn case_for(test: &str) -> EstimatorLevelCase {
 impl EstimatorLevelCase {
     /// The facade construction: a Frequentist `AverageEffect` on an explicit
     /// `Dag`, point identified, iid rows, reported at 0.95 — or at 0.0 when no
-    /// interval product is licensed (`interval == "none"`), matching
+    /// interval product is supported (`interval == "none"`), matching
     /// `IntervalBinding::none`.
     #[must_use]
     pub fn construction(&self) -> Construction {

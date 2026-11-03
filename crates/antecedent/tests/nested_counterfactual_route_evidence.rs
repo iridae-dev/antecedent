@@ -213,7 +213,7 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
         .refute(RefuteSuite::None);
     let study = builder.clone().build().unwrap();
-    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Supported));
     let prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
@@ -261,8 +261,8 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
     .build()
     .expect("an accepted Dag executes the nested natural effect as a supplied one does");
-    // The accepted-structure cell is licensed beside the supplied one (validation none).
-    assert_eq!(accepted.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    // The accepted-structure cell is supported beside the supplied one (validation none).
+    assert_eq!(accepted.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

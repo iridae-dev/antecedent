@@ -35,7 +35,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs",
-          "sha256": "c256afe6df36568b96725a2af14aea53bdbda56e37dc04585e92df9352ab7602"
+          "sha256": "b91848f7c54eb1e82c1bcd451236755626110da346b17d133777275b8314ac4a"
         }
       ],
       "fixture_payload_sha256": "b94a22ba146fb971c9d08d2375f95397f396c042567fc44049fd6dc673cdcaf8"

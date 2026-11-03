@@ -1,4 +1,4 @@
-"""Numeric evidence for licensed Cpdag/Pag ConditionalEffect cells."""
+"""Numeric evidence for supported Cpdag/Pag ConditionalEffect cells."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
     )
     click = require_success(antecedent.estimate(prepared))
     assert click.plan.structure_source == ("accepted" if accepted else "explicit")
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.identifier == "generalized.adjustment"
     assert fresh.plan.estimator == freq["estimator"]
     assert fresh.identification.status == "GraphDependent"

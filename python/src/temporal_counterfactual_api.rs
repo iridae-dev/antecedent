@@ -244,8 +244,8 @@ fn role_of(tag: &str) -> PyResult<PopulationRole> {
 /// supplied evidence map. Nothing is evaluated whatever is supplied.
 #[pyfunction]
 fn transported_path_specific_refusal(
-    transport_license: bool,
-    fixed_population_license: bool,
+    transport_support: bool,
+    fixed_population_support: bool,
     cross_population_assumptions: bool,
     required_factors: Vec<(String, String)>,
     supplied_factors: Vec<(String, String, String)>,
@@ -259,8 +259,8 @@ fn transported_path_specific_refusal(
         supplied.insert(key(&(role.clone(), regime.clone()))?, evidence.clone());
     }
     let prerequisites = TransportedCounterfactualPrerequisites {
-        transport_license,
-        fixed_population_license,
+        transport_support,
+        fixed_population_support,
         cross_population_assumptions,
     };
     let refusal = match transported_path_specific(&prerequisites, &required, &supplied) {

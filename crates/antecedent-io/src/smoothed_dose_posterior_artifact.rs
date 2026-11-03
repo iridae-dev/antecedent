@@ -1,4 +1,4 @@
-//! Independent artifact for the unlicensed Bayesian smoothed dose-response transport grid.
+//! Independent artifact for the unsupported Bayesian smoothed dose-response transport grid.
 //!
 //! Format version 1 (`bayesian_smoothed_dose_v1`). The artifact stores the selection diagram,
 //! the smoothed-dose query, the transport certificate the posterior ran under, the rows, and
@@ -7,7 +7,7 @@
 //! `psi_h(a)` over the grid: posterior mean and equal-tailed 95% credible interval of every
 //! grid dose, the joint covariance across the grid, and the exact Gaussian moments when the
 //! residual variance is known. It is a posterior for an outcome-model likelihood with
-//! calibration `unmeasured`; it is not licensed.
+//! calibration `unmeasured`; it is not supported.
 //!
 //! A consumer trusts nothing in the result. It re-derives the transport certificate from the
 //! stored graph and query and requires the stored certificate record to match, then
@@ -356,9 +356,9 @@ impl SmoothedDosePosteriorArtifactWire {
         if result.estimator != SMOOTHED_DOSE_POSTERIOR_ESTIMATOR
             || result.uncertainty != POSTERIOR_ROW_UNCERTAINTY
             || result.calibration != POSTERIOR_ROW_CALIBRATION
-            || result.licensed
+            || result.supported
         {
-            return Err(unsupported("this row publishes an unlicensed posterior"));
+            return Err(unsupported("this row publishes an unsupported posterior"));
         }
         let square =
             |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);

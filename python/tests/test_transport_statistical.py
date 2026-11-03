@@ -1,4 +1,4 @@
-"""Empirical-table stages publish licensed pointwise intervals on the common handle."""
+"""Empirical-table stages publish supported pointwise intervals on the common handle."""
 
 import pytest
 from antecedent import (
@@ -91,13 +91,13 @@ def fixture():
     return identification, catalog, transport.StatisticalTransportData(samples=(sample,))
 
 
-def test_statistical_prepare_estimate_and_inspect_license():
+def test_statistical_prepare_estimate_and_inspect_support():
     identified, catalog, data = fixture()
     study = prepare(
         data,
         query=transport.StatisticalTransportQuery(
             # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
-            # fewer replicates run cleanly but withhold the interval as unlicensed.
+            # fewer replicates run cleanly but withhold the interval as unsupported.
             identified,
             catalog,
             {"x": 1.0},
@@ -107,7 +107,7 @@ def test_statistical_prepare_estimate_and_inspect_license():
     )
     inspection = study.inspect()
     assert inspection.identification.available
-    # Preparation retains the checked derivation; the interval license is decided by
+    # Preparation retains the checked derivation; the interval support is decided by
     # the execution that fits the supplied rows.
     assert not inspection.uncertainty.available
     assert inspection.uncertainty.reason == "not_executed"
@@ -208,7 +208,7 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
         ("state_space_dirichlet", "transport.state_space_dirichlet"),
     ],
 )
-def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, estimator_id):
+def test_bayesian_statistical_providers_keep_posterior_unsupported(provider, estimator_id):
     identified, catalog, data = fixture()
     study = statistical_study(identified, catalog, data, {"x": 1.0}, estimator=provider, seed=23)
 
@@ -407,7 +407,7 @@ def test_joint_grid_and_contrasts_preserve_shared_replicates():
         transport.StatisticalTransportData((zero, data.samples[0])),
         at=[{"x": 0.0}, {"x": 1.0}],
         # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
-        # 39 runs cleanly but withholds the interval as unlicensed.
+        # 39 runs cleanly but withholds the interval as unsupported.
         bootstrap=40,
         execution=Execution(seed=17),
     )

@@ -185,7 +185,7 @@ def test_another_estimand_is_not_supported():
 
 def test_an_interval_is_withheld_with_a_typed_refusal():
     error = refusal(lambda: fit(pairs(7, 3), level=0.95))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert "matched_case_control.interval_withheld" in str(error)
 
 

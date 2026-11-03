@@ -11,7 +11,7 @@ copied_tests = false
 papers = []
 implementation_deviations = [
   "No fact is inferred: support, semantic identity, uncertainty meaning and measurement models come from an explicit interface basis supplied by the caller.",
-  "Component-specific licensing (admission of another context, bridge licensing, measurement operation licensing) stays with each component; the shared check never admits a population change.",
+  "Component-specific support (admission of another context, bridge support, measurement operation support) stays with each component; the shared check never admits a population change.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -23,22 +23,22 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: component adapters."
 no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
-record_sha256 = "1dd407d9af8044d0c4400cf294425213eaf8ebdad6e8bcf89d85f558ff5f9b6e"
+record_sha256 = "026e6354f67da8c4f7f31d33ce14aeb29d853f0d9d62bebea6ff92c445568809"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
-sha256 = "9bd000095fdb53127e18580ad029132d62bf29d9352aaa06446b6a9ecf8b0215"
+sha256 = "02ad8067d3d110f8a9fa88a0b082190ef4b28230edff94ce14b94f5d4d68dd6f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/connection.rs"
-sha256 = "6bd8d54538db7e15bd6ca9dbf625fc77cc1fba65e1803636991b02da0b8292b0"
+sha256 = "608a617aa3499a0027b3052d3f682bd3177132e128798c2fcb6cdbec31bc8a50"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-sha256 = "88b7d987a66ba93f6b39eaa9ac3b2e852884371c0326aee5a3d15e742a0c632d"
+sha256 = "25a98a6e337990efd4eaa7cbab513a550fea3836ace1d7b7d41033a42647d72b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -142,7 +142,7 @@ record_sha256 = "2b1170bc2147c4c2ea2088fc946151c60c9c29c179530915d4544fcc37f7824
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/continuous_cyclic.rs"
-sha256 = "c7da734be5c11c56ceec43cb2eec075a81fbaa76a2cb1e57a14046ca579f7762"
+sha256 = "198c797cd1d0544f656be59ce05ed932f875b5bbfe29a7e478754b52ee67f6b8"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -162,7 +162,7 @@ sha256 = "dad807928f9f900612931760a960ccc68e39ff48cb29bcd80654db010c8a0eb9"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cyclic_adam.rs"
-sha256 = "a5827c1acb34f510821b56a8378fb3438df5827f5cc09c25552eeef3f04eeb2e"
+sha256 = "1aa48ce6e5e0eb44d427f5b1e087afa7725b0c86694e67c83262ea1a1ad3c352"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -187,7 +187,7 @@ sha256 = "9b73c591b5d6a3969effd9ef0e0e1ddd78b50d9bc6d43a35f5fb06ffd670692a"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/cyclic_general_systems_reference.py"
-sha256 = "db515b70ced96c4d3ca3840407d87ed9214faf3152876f130715e46bdcb5f7ae"
+sha256 = "4a1bc08c085968328a2811c1e6ed833f31c98ce8090dcffe20f064ebc0addc03"
 
 [[method_review.artifacts]]
 role = "fixture"

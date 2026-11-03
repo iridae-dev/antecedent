@@ -227,7 +227,7 @@ fn robustness_per_input_support_removes_one_action_in_one_structure() {
     };
     let claims = profile(vec![("s1", AtomSupport::supported()), ("s2", s2)]);
     let result = run(&c, &atoms, &claims);
-    // In s2 only A is licensed, so A leads there; B's raw lead in s2 is not used.
+    // In s2 only A is supported, so A leads there; B's raw lead in s2 is not used.
     assert_eq!(
         result.verdict,
         RobustVerdict::SupportDependent { supported_choice: "A".into(), unrestricted_choice: None }

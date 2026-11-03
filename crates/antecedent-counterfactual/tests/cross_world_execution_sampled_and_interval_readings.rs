@@ -125,8 +125,8 @@ fn a_sampled_posterior_is_refused_before_any_work_for_every_request_shape() {
                 assert_eq!(
                     detail(&err),
                     (
-                        "cell_not_licensed".to_owned(),
-                        "cross_world_execution.sampled_abduction_not_licensed".to_owned()
+                        "not_supported".to_owned(),
+                        "cross_world_execution.sampled_abduction_not_supported".to_owned()
                     ),
                     "{name} {coupling:?} {reading:?}"
                 );
@@ -158,7 +158,7 @@ fn interval_and_posterior_readings_are_closed_for_every_quantity_and_coupling() 
                 );
                 let err = exec.execute(&r, &ctx()).expect_err(name);
                 let (code, d) = detail(&err);
-                assert_eq!(code, "cell_not_licensed", "{name} {coupling:?} {reading:?}");
+                assert_eq!(code, "not_supported", "{name} {coupling:?} {reading:?}");
                 assert_eq!(d, expected, "{name} {coupling:?} {reading:?}");
                 assert_eq!(exec.retained_len(), 0, "a closed reading retains no abduction");
                 assert_eq!(exec.counters().shared_draws, 0);
@@ -202,7 +202,7 @@ fn envelope_reading_is_refused_before_any_work_and_spread_is_the_exact_noise_var
         assert_eq!(
             detail(&err),
             (
-                "cell_not_licensed".to_owned(),
+                "not_supported".to_owned(),
                 "cross_world_execution.envelope_needs_parameter_set".to_owned()
             ),
             "{name}"

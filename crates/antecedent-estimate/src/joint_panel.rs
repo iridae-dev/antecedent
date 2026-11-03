@@ -4,7 +4,7 @@
 //! parameters are shared across groups; Gaussian random intercepts are integrated out of
 //! the stationary AR(1) likelihood and recovered conditionally. Every response evaluation
 //! uses one complete parameter/random-effect draw across all programs. Identification,
-//! scientific target binding, artifact authority and licensing belong to the caller's
+//! scientific target binding, artifact authority and support belong to the caller's
 //! checked compiler, never to the existence of a fit or a finite response.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -332,7 +332,7 @@ impl Default for PanelSamplingOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PanelInference {
-    /// Local group-cluster sandwich parameter approximation, not a posterior or licensed interval.
+    /// Local group-cluster sandwich parameter approximation, not a posterior or supported interval.
     Frequentist {
         /// Requested approximate draws; invalid transformed slots remain None.
         draws: usize,
@@ -933,7 +933,7 @@ impl PanelFitOptions {
 ///
 /// # Errors
 /// Explicit input, numerical, shared resource or cancellation failures. Failed optimizer/
-/// convergence diagnostics remain in the fit; they never become a licensed uncertainty claim.
+/// convergence diagnostics remain in the fit; they never become a supported uncertainty claim.
 pub fn fit_panel(
     data: &PanelData,
     options: &PanelFitOptions,
@@ -948,7 +948,7 @@ pub fn fit_panel(
 /// Evaluate all declared programs from one complete mechanism/random-effect draw.
 ///
 /// No fitting, identification or implicit future-covariate/initial-law selection occurs.
-/// This returns model-conditional mean response, never predictive innovations or a license.
+/// This returns model-conditional mean response, never predictive innovations or support.
 ///
 /// # Errors
 /// Refuses unknown/missing group scenarios, changed parameter dimensions, malformed future
@@ -1064,7 +1064,7 @@ fn map_execution_error(
 
 /// Apply already compiled linear response reductions in the retained world order.
 ///
-/// This numerical reduction carries no support, identification or uncertainty license.
+/// This numerical reduction carries no support, identification or uncertainty support.
 ///
 /// # Errors
 /// Refuses missing world weights, mismatched horizons, nonfinite inputs or arithmetic overflow.

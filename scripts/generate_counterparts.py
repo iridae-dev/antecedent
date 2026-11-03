@@ -5,11 +5,11 @@ Every advertised method has four quadrants: {static, temporal} x {frequentist, b
 The inventory records one row per quadrant, joined from
 
   parity/method_children/children.toml      method-level children (family x design x inference)
-  parity/capabilities/route_manifest.toml   public routes (licensed and closed routes by target)
-  parity/licensed_routes.toml               compiler lowering of each licensed cell
+  parity/capabilities/route_manifest.toml   public routes (supported and closed routes by target)
+  parity/supported_routes.toml               compiler lowering of each supported cell
   parity/release_scope/scope.toml           release scope entry of each child
 
-Row fields: route, status (licensed | executing_unlicensed | closed_with_next_attempt |
+Row fields: route, status (supported | not_supported | closed_with_next_attempt |
 not_applicable_with_theory_reason), uncertainty kind (analytic | design_aware_resampling |
 posterior | enclosure | none), the sampling design honoured, the reuse key, the decision port,
 the artifact, and the closure kind (delivered | narrowed_promise). A closed_with_next_attempt
@@ -34,7 +34,7 @@ from method_evidence import UNLISTED, Evidence
 
 CHILDREN = ROOT / "parity/method_children/children.toml"
 ROUTES = ROOT / "parity/capabilities/route_manifest.toml"
-LICENSED = ROOT / "parity/licensed_routes.toml"
+SUPPORTED = ROOT / "parity/supported_routes.toml"
 SCOPE = ROOT / "parity/release_scope/scope.toml"
 OUT_TOML = ROOT / "parity/counterparts.toml"
 OUT_DOC = ROOT / "docs/counterparts.md"
@@ -43,8 +43,8 @@ DESIGNS = ("static", "temporal")
 INFERENCES = ("frequentist", "bayesian")
 QUADRANTS = tuple(f"{d}.{i}" for d in DESIGNS for i in INFERENCES)
 STATUSES = (
-    "licensed",
-    "executing_unlicensed",
+    "supported",
+    "not_supported",
     "closed_with_next_attempt",
     "not_applicable_with_theory_reason",
 )
@@ -75,7 +75,7 @@ NEXT_ATTEMPT = {
     ),
     "theory": "derive the identification result for this counterpart or record the boundary proof",
 }
-EXECUTING = ("licensed", "executing_unlicensed")
+EXECUTING = ("supported", "not_supported")
 NO_INTERVAL_NEXT = (
     "derive the dependence-aware interval or posterior for this counterpart and publish it through "
     "the same route with the uncertainty port of its static twin"
@@ -160,7 +160,7 @@ class Evidenced:
 def child_status(child: dict, methods: list[dict], verified: bool) -> tuple[str, str]:
     """Status and closure kind of a child, from the methods and verified evidence that back it.
 
-    A child is licensed when a licensed method record implements it, and executing when a method
+    A child is supported when a supported method record implements it, and executing when a method
     record or its own verified module and fixture do. A boundary is not applicable when its
     gap is a target that does not exist on the axis; every other open gap is a closed row that
     names its next attempt.
@@ -172,8 +172,8 @@ def child_status(child: dict, methods: list[dict], verified: bool) -> tuple[str,
         gap == "implementation" and child["module"] != "none"
     )
     if executes and (methods or (verified and child["module"] != "none")):
-        licensed = any(m["status"] == "licensed" for m in methods)
-        status = "licensed" if licensed else "executing_unlicensed"
+        supported = any(m["status"] == "supported" for m in methods)
+        status = "supported" if supported else "not_supported"
         return status, "delivered" if gap == "none" else "narrowed_promise"
     return "closed_with_next_attempt", "narrowed_promise"
 
@@ -292,7 +292,7 @@ def route_inferences(route: dict) -> list[str]:
 
 
 def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenced) -> list[dict]:
-    """One row per quadrant of each licensed or closed route, grouped by its target.
+    """One row per quadrant of each supported or closed route, grouped by its target.
 
     A route outside the dotted ``static``/``temporal`` id scheme is included when it declares its
     ``counterpart_design``. ``narrowed_reason`` and ``narrowed_next_attempt`` narrow the rows of
@@ -307,7 +307,7 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
     """
     rows = []
     for route in routes:
-        if route["status"] not in ("licensed", "closed", "execution_only"):
+        if route["status"] not in ("supported", "closed", "execution_only"):
             continue
         design = route_design(route)
         closed = route["status"] == "closed"
@@ -330,13 +330,13 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
             status = (
                 "closed_with_next_attempt"
                 if closed
-                else "licensed"
+                else "supported"
                 if (
-                    any(m["status"] == "licensed" for m in methods)
+                    any(m["status"] == "supported" for m in methods)
                     if methods
-                    else route["status"] == "licensed"
+                    else route["status"] == "supported"
                 )
-                else "executing_unlicensed"
+                else "not_supported"
             )
             reason = route["notes"] if closed else ""
             weak = kind == "none" and not closed
@@ -439,12 +439,12 @@ def static_boundaries(rows: list[dict]) -> list[dict]:
     return extra
 
 
-def licensed_lowerings(licensed: dict) -> dict[str, str]:
-    """Route id (licensed.<Target>.<Graph>) to its compiled lowering, where unambiguous."""
+def supported_lowerings(supported: dict) -> dict[str, str]:
+    """Route id (supported.<Target>.<Graph>) to its compiled lowering, where unambiguous."""
     out: dict[str, str] = {}
-    for route in licensed["route"]:
+    for route in supported["route"]:
         target, graph = route["coordinate"].split(":")[:2]
-        out.setdefault(f"licensed.{target}.{graph}", route["lowering"])
+        out.setdefault(f"supported.{target}.{graph}", route["lowering"])
     return out
 
 
@@ -456,7 +456,7 @@ def build() -> list[dict]:
     scope = scope_by_id(load(SCOPE))
     evidenced = Evidenced(manifest_data, load(SPECS)["spec"], Evidence(ROOT))
     rows = child_rows(children, routes, scope, evidenced)
-    rows += route_rows(manifest, licensed_lowerings(load(LICENSED)), evidenced)
+    rows += route_rows(manifest, supported_lowerings(load(SUPPORTED)), evidenced)
     rows.sort(
         key=lambda row: (
             row["kind"],
@@ -522,8 +522,8 @@ def methods(rows: list[dict]) -> dict[tuple[str, str], dict[str, list[dict]]]:
 
 
 STATUS_ORDER = {
-    "licensed": 0,
-    "executing_unlicensed": 1,
+    "supported": 0,
+    "not_supported": 1,
     "not_applicable_with_theory_reason": 2,
     "closed_with_next_attempt": 3,
 }
@@ -536,8 +536,8 @@ def best(rows: list[dict]) -> dict:
 def render_doc(rows: list[dict]) -> str:
     grouped = methods(rows)
     short = {
-        "licensed": "licensed",
-        "executing_unlicensed": "executing",
+        "supported": "supported",
+        "not_supported": "not supported",
         "closed_with_next_attempt": "closed",
         "not_applicable_with_theory_reason": "n/a (theory)",
     }

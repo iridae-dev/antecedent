@@ -341,17 +341,17 @@ def transported(**kwargs) -> TemporalRefusal:
 
 
 GATES = (
-    "transport_license_missing",
-    "fixed_population_temporal_license_missing",
+    "transport_support_missing",
+    "fixed_population_temporal_support_missing",
     "cross_population_assumptions_missing",
 )
 
 
 def test_transported_route_is_closed_with_every_missing_gate() -> None:
     error = transported(required_factors=["source:rct", "target:field"])
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "transported_counterfactual.route_frozen"
-    assert error.offending == "transport_license_missing"
+    assert error.offending == "transport_support_missing"
     assert error.missing_gates == GATES
     assert error.missing_factors == ("source:rct", "target:field")
     assert error.stage == "identify"
@@ -380,13 +380,13 @@ def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> 
 
 
 def test_transported_route_reports_only_the_gates_still_missing() -> None:
-    error = transported(prerequisites=TransportedPrerequisites(transport_license=True))
+    error = transported(prerequisites=TransportedPrerequisites(transport_support=True))
     assert error.detail == "transported_counterfactual.route_frozen"
-    assert error.offending == "fixed_population_temporal_license_missing"
+    assert error.offending == "fixed_population_temporal_support_missing"
     assert error.missing_gates == GATES[1:]
     error = transported(
         prerequisites=TransportedPrerequisites(
-            transport_license=True, fixed_population_license=True
+            transport_support=True, fixed_population_support=True
         )
     )
     assert error.offending == "cross_population_assumptions_missing"
@@ -395,11 +395,11 @@ def test_transported_route_reports_only_the_gates_still_missing() -> None:
 
 def test_transported_route_with_a_missing_gate_never_reports_factors_as_the_cause() -> None:
     error = transported(
-        prerequisites=TransportedPrerequisites(transport_license=True),
+        prerequisites=TransportedPrerequisites(transport_support=True),
         required_factors=["source:rct", "target:field"],
         supplied_factors={},
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "transported_counterfactual.route_frozen"
     assert error.missing_factors == ("source:rct", "target:field")
 
@@ -426,7 +426,7 @@ def test_transported_route_stays_closed_even_when_every_gate_and_factor_is_prese
         required_factors=["source:rct", "target:field"],
         supplied_factors={"source:rct": "e1", "target:field": "e2"},
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "transported_counterfactual.route_frozen"
     assert error.offending is None
     assert error.missing_gates == ()

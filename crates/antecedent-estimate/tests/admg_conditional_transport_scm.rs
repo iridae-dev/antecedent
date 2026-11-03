@@ -480,7 +480,7 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
 }
 
 /// Counted laws would make the point an empirical plug-in, which this route does
-/// not license: the estimate-level preparation refuses them, as the facade and
+/// not support: the estimate-level preparation refuses them, as the facade and
 /// Python preparations do, before compiling anything.
 #[test]
 fn counted_laws_are_refused_by_the_estimate_level_preparation() {
@@ -529,7 +529,7 @@ fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     )
     .unwrap_err();
     let EstimationError::Refused { code, message } = error else { panic!("typed refusal") };
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
 }
 

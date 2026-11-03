@@ -160,7 +160,7 @@ def build_primary_fixture(document: dict) -> dict:
             "kind": "independent_reimplementation",
             "generator": "conformance/validate/bayesian_checks/reference.py",
             "method": "Vehtari 2021 sections 3.1-4.3; full initial positive/monotone pair sums including the final complete pair, without odd/even truncation averaging; 60-digit Decimal covariance arithmetic and public SciPy normal scores.",
-            "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration license.",
+            "limitations": "Marginal scalar diagnostics on fixed chains. Drop the last draw for odd lengths. Constant tail indicators fail closed with zero ESS. No convergence proof or posterior/calibration support.",
             "command": "uv run --frozen --script conformance/validate/bayesian_checks/reference.py --check-ips",
             "environment_lock": "conformance/validate/bayesian_checks/reference.py.lock",
         },

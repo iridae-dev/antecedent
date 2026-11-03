@@ -1,7 +1,7 @@
 //! Builder-independent evidence for the Bayesian DAG mean ATE operation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{
@@ -54,7 +54,7 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 "AverageEffect:Dag:{}:Bayesian:{label}",
                 if accepted { "accepted" } else { "explicit" }
             );
-            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
             assert_eq!(
                 prepared.structure_source(),
                 if accepted { StructureSource::Accepted } else { StructureSource::Explicit }

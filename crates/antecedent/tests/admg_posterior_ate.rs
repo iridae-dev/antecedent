@@ -175,7 +175,7 @@ fn admg_posterior_average_effect_none_runs() {
         let result = run(data.clone(), gp.clone(), query.clone(), inference, RefuteSuite::None);
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
-        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         let mixture = result.structural_response.as_ref().expect("ADMG posterior mixture");
         assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
         assert!(
@@ -264,13 +264,13 @@ fn admg_graph_posterior_inspect_and_execute_agree_on_support_status() {
             let inspected = builder.clone().inspect().unwrap();
             assert_eq!(
                 inspected.support_status,
-                Some(CellStatus::Licensed),
-                "{inference:?} {suite:?} inspect must publish licensed"
+                Some(CellStatus::Supported),
+                "{inference:?} {suite:?} inspect must publish supported"
             );
             let preflight = builder.clone().capability().unwrap();
             assert_eq!(
                 preflight.applicability,
-                SemanticApplicability::Licensed,
+                SemanticApplicability::Supported,
                 "{inference:?} {suite:?} capability must agree with inspect"
             );
             let built = builder.build().unwrap();
@@ -306,7 +306,7 @@ fn admg_posterior_average_effect_cheap_and_full_run() {
     ] {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result = run(data.clone(), gp.clone(), query.clone(), inference.clone(), suite);
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
             assert!(

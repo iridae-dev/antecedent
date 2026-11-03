@@ -139,7 +139,7 @@ pub(crate) struct DbnIdentifyDemotion {
     pub invalid_graph: usize,
     /// Temporal identification returned an error.
     pub identify_failed: usize,
-    /// Identification status is not a licensed identified status.
+    /// Identification status is not a supported identified status.
     pub not_identified: usize,
     /// No selected estimand (empty list or selector refusal).
     pub no_estimand: usize,

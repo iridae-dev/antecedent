@@ -542,8 +542,8 @@ impl JointSensitivityArtifactWire {
         }
         if wire.body.sampling.interval.is_some() {
             return Err(IoError::Refused {
-                code: reason_code!("cell_not_licensed"),
-                message: "joint_sensitivity.interval_withheld: an artifact carrying a sampling interval is refused; the interval route is not licensed".into(),
+                code: reason_code!("not_supported"),
+                message: "joint_sensitivity.interval_withheld: an artifact carrying a sampling interval is refused; the interval route is not supported".into(),
             });
         }
         if wire.body.inference_claim

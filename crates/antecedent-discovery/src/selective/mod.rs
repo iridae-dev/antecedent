@@ -18,8 +18,8 @@
 //!
 //! * **No recovery guarantee.** Matching a full run says nothing about whether the output is
 //!   the true graph. No recovery, faithfulness-adequacy, false-discovery or error-control
-//!   statement is made for the output graph, and none is licensed: the route that would
-//!   state one is closed with a typed `cell_not_licensed` refusal until the complete
+//!   statement is made for the output graph, and none is supported: the route that would
+//!   state one is closed with a typed `not_supported` refusal until the complete
 //!   discovery-plus-analysis method, including reuse of the discovery data in the later
 //!   analysis and any sample splitting, has been calibrated (see
 //!   `docs/selective-discovery.md` for the recorded calibration design).

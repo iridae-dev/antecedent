@@ -37,7 +37,7 @@ use crate::propensity::{
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 
-/// Default fold count for licensed AIPW scores.
+/// Default fold count for supported AIPW scores.
 pub const DEFAULT_AIPW_FOLDS: usize = 5;
 
 /// Provenance tag frozen on the score table.

@@ -313,7 +313,7 @@ pub fn compile_joint_switchback(
 /// Estimate joint switchback arm means using the existing sequence-level HT estimator.
 ///
 /// The covariance is recovered from the existing estimator by polarization of its sequence
-/// sandwich variance, including cross-arm and cross-outcome covariance. This does not license
+/// sandwich variance, including cross-arm and cross-outcome covariance. This does not support
 /// the derived interval. The same schedule and assignments are used for every component.
 ///
 /// # Errors
@@ -646,7 +646,7 @@ pub fn compile_joint_static_regime(
             "sequential exchangeability given the complete measured treatment and confounder history",
             "sequential positivity, consistency, no between-subject interference and complete follow-up",
             "the target compares the declared whole static paths, not a single-decision excursion",
-            "this point-only composition does not inherit marginal uncertainty, identification or a license",
+            "this point-only composition does not inherit marginal uncertainty, identification or support",
         ],
     })
 }
@@ -691,7 +691,7 @@ pub fn evidence_from_joint_static_regime(
 /// Joint excursion evidence retaining its native compiler result and resource ownership.
 ///
 /// The numerical evidence alone is a historical component; causal consumption must keep this
-/// owner and check current evidence authority. No support or calibration license is implied.
+/// owner and check current evidence authority. No support or calibration support is implied.
 #[derive(Clone, Debug)]
 pub struct CompiledExcursionEvidence {
     source: crate::analysis::joint_panel::designs::NativeJointDesignResult,

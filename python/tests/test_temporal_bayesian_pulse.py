@@ -70,7 +70,7 @@ def test_manufacturing_bayesian_sustained_recovers_effect():
     )
     assert result.posterior is not None
     assert abs(result.posterior.effect_mean - 0.9) < 0.005
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
 
 
 def _pulse_query_and_data(n: int = 200):

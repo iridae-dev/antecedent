@@ -43,7 +43,7 @@ record_sha256 = "478af3bcdfaa76a2b90b5348b3e25d65b91da7e0748212bd8ed120d54a4e541
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/frontdoor.rs"
-sha256 = "6b06e29d658e5de771030cbd1d86f770e88a94e47560eb03002618f6be77d016"
+sha256 = "716e4bc7aae3176ad0176dd4775f012ff98946e150e5b11fc6162e1d0c3f118a"
 
 [[method_review.artifacts]]
 role = "assertion"

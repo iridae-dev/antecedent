@@ -143,7 +143,7 @@ def test_reliability_outcome_preserves_enumerated_probabilities_and_closed_publi
     assert isinstance(assessment, Outcome) and assessment.accepted
     published = require_success(assessment).publish("ranking_probability")
     assert isinstance(published, Outcome) and not published.accepted
-    assert published.refusal.code == "cell_not_licensed"
+    assert published.refusal.code == "not_supported"
 
 
 @pytest.mark.parametrize("operation", ["rank", "assess"])

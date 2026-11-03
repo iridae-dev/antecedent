@@ -62,7 +62,7 @@ class ReadyCoordinateTest(unittest.TestCase):
             )
         )
         self.assertTrue(
-            any("no licensed cell" in p for p in backlog.ready_coordinate_problems([], [], READY))
+            any("no supported cell" in p for p in backlog.ready_coordinate_problems([], [], READY))
         )
 
     def test_the_frozen_coordinates_are_the_seventeen_the_case_names(self) -> None:

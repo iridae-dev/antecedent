@@ -410,10 +410,10 @@ def test_fixed_sample_inference_of_adaptive_data_is_refused_but_the_posterior_ru
     assert require_success(session.analyse(ai.BayesianPosterior(look=1)))._wire_values
 
 
-def test_no_interval_is_licensed_for_any_route():
+def test_no_interval_is_supported_for_any_route():
     session = prepare(thompson_design())
     error = refused(session.interval)
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "adaptive_inference.interval_closed"
 
 
@@ -422,21 +422,21 @@ def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
     session = prepare(thompson_design())
     request = ai.BayesianPosterior(look=1, prior_alpha=2.0, prior_beta=3.0)
     error = refused(lambda: require_success(session.measured_interval(request)))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "measured_interval.protocol_not_measured"
 
 
-def test_a_paradigm_the_cell_is_not_licensed_for_is_refused():
+def test_a_paradigm_the_cell_is_not_supported_for_is_refused():
     session = prepare(thompson_design())
     error = refused(
         lambda: require_success(
             session.analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0))
         )
     )
-    assert error.reason_code == "cell_not_licensed"
-    assert error.detail == "adaptive_inference.paradigm_not_licensed_for_cell"
+    assert error.reason_code == "not_supported"
+    assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
     error = refused(lambda: require_success(session.analyse(ai.GroupSequential(look=1))))
-    assert error.detail == "adaptive_inference.paradigm_not_licensed_for_cell"
+    assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
 
 
 def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number():
@@ -555,7 +555,7 @@ def test_the_hierarchical_cluster_cell_is_carried_forward():
             prepare(design).analyse(ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0))
         )
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert error.detail == "adaptive_inference.cell_carried_forward"
 
 
@@ -592,7 +592,7 @@ def test_the_confidence_sequence_matches_the_closed_form_and_union_bounds_a_cont
 def test_group_sequential_boundaries_and_decisions_match_published_values():
     design = group_sequential_design()
     session = prepare(design)
-    assert session.status["class"] == "licensed"
+    assert session.status["class"] == "supported"
     result = require_success(session.analyse(ai.GroupSequential(look=2)))
     v = result._wire_values
     published = (3.7103, 2.5114, 1.9930)
@@ -620,7 +620,7 @@ def test_group_sequential_with_adaptive_assignment_is_a_closed_pairing():
         stopping_rule=ai.StoppingRule.alpha_spending("pocock_type", 0.05, "two_sided_symmetric"),
     )
     error = refused(lambda: require_success(prepare(design).analyse(ai.BayesianPosterior(look=1))))
-    assert error.detail == "adaptive_inference.pairing_not_licensed"
+    assert error.detail == "adaptive_inference.pairing_not_supported"
 
 
 # --------------------------------------------------------------------------- evidence ledger
@@ -681,14 +681,14 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
         assert tuple(row.get("paradigms", ())) == cell.paradigms, row["id"]
         assert row.get("owner") == cell.owner, row["id"]
         assert row["status"] in {
-            "licensed",
+            "supported",
             "closed_incoherent",
             "closed_pairing",
             "carried_forward",
         }
     classes = [c.status for c in matrix]
     assert {s: classes.count(s) for s in set(classes)} == {
-        "licensed": 12,
+        "supported": 12,
         "closed_incoherent": 360,
         "closed_pairing": 20,
         "carried_forward": 208,
@@ -750,7 +750,7 @@ def test_a_paradigm_the_design_may_not_use_cannot_be_exported():
     error = refused(lambda: bytes(session.export(paradigm="frequentist_fixed_sample")))
     assert error.reason_code == "adaptive_design_ignored"
     error = refused(lambda: bytes(session.export(paradigm="bayesian_posterior")))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
 
 
 def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_experiments():

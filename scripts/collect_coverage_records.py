@@ -8,7 +8,7 @@ One command after a calibration run:
 It reads `target/calibration-records/*.log` (written by
 `scripts/gate_calibration.sh`), writes `parity/coverage_records.toml` stamped
 with the SHA of the commit the logs were measured at, rewrites the
-`calibration` / `calibration_reason` pair for each already-bound licensed support
+`calibration` / `calibration_reason` pair for each already-bound supported support
 cell using only its existing record IDs, refreshes estimator rows, and regenerates
 `crates/antecedent-io-core/data/coverage_records.json`
 (loaded by `crates/antecedent-io-core/src/coverage_records_data.rs`;
@@ -63,9 +63,9 @@ For a small independently measured set of cells while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
 adds only new IDs from valid, stamped logs, rejects collisions, preserves every
 older record with its original SHA (including stale records), and syncs only
-the named licensed cells to exactly the named record IDs after checking their
+the named supported cells to exactly the named record IDs after checking their
 coordinate and declared estimator ownership. It leaves the global gate ledger and estimator rows
-alone; preserving an older row does not attest or re-license it.
+alone; preserving an older row does not attest or re-support it.
 
 `--smoke --log-dir <dir> --out <file>` collects the lines of a wiring smoke run
 (`ANTECEDENT_CALIBRATION_SMOKE=1` at a reduced replicate count) into a scratch
@@ -109,7 +109,7 @@ coverage_family = calibration_family
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
 GATES = ROOT / "parity" / "calibration_gates.toml"
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 ESTIMATE = ROOT / "parity" / "estimate.toml"
 GENERATOR = ROOT / "scripts" / "generate_support_matrix_docs.py"
 
@@ -987,7 +987,7 @@ def calibration_estimator_evidence_problems(cell: dict, root: Path = ROOT) -> li
     This ownership declaration never changes selectable estimator names or grants
     calibration to another method. Native execution/current records remain required.
     """
-    from promotion_source import assertion_problems, nontest_rust
+    from capability_source import assertion_problems, nontest_rust
     from test_evidence import static_rust_test
 
     entries = cell.get("calibration_estimators", [])
@@ -1081,7 +1081,7 @@ def resolved_record_validation(record: dict) -> str | None:
     )
 
 
-def licensed_record_matches(cell: dict, record: dict) -> bool:
+def supported_record_matches(cell: dict, record: dict) -> bool:
     """Exact support coordinates and declared estimator ownership, never axes alone."""
     structure = ("accepted" if cell.get("structure") == "accepted" and record.get("validation_schema") == 2
                  else "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed")
@@ -1109,7 +1109,7 @@ def licensed_record_matches(cell: dict, record: dict) -> bool:
     )
 
 
-def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
+def supported_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
     """Require all owned coordinate records and refuse foreign/missing bindings.
 
     Ownership is declared by the support cell, not inferred from a new passing
@@ -1121,23 +1121,23 @@ def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> 
         record = records.get(rid)
         if record is None:
             errors.append(f"unknown bound record {rid}")
-        elif not licensed_record_matches(cell, record):
+        elif not supported_record_matches(cell, record):
             errors.append(f"bound record {rid} has foreign estimator or scientific coordinate")
-    owned = {rid for rid, record in records.items() if licensed_record_matches(cell, record)}
+    owned = {rid for rid, record in records.items() if supported_record_matches(cell, record)}
     missing = sorted(owned - set(bound))
     if missing:
         errors.append(f"missing required owned records {missing}")
     return errors
 
 
-def sync_licensed_cells(
+def sync_supported_cells(
     records: dict[str, dict],
     only_cells: dict[tuple[str, str, str, str, str], list[str]] | None = None,
 ) -> int:
     # Collection refreshes measurements, not public-route ownership. New bindings
     # require explicit --only-cell authorization and estimator compatibility.
-    cells = tomllib.loads(read_text(LICENSED)).get("cell", [])
-    text = read_text(LICENSED)
+    cells = tomllib.loads(read_text(SUPPORTED)).get("cell", [])
+    text = read_text(SUPPORTED)
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
     changed = 0
@@ -1157,7 +1157,7 @@ def sync_licensed_cells(
         evidence_errors = calibration_estimator_evidence_problems(cell)
         if evidence_errors:
             raise SystemExit(
-                f"licensed cell {cell_key}: invalid scientific ownership: {evidence_errors}"
+                f"supported cell {cell_key}: invalid scientific ownership: {evidence_errors}"
             )
         structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
         if only_cells is None:
@@ -1165,12 +1165,12 @@ def sync_licensed_cells(
             missing = [rid for rid in ids if rid not in records]
             if missing:
                 raise SystemExit(
-                    f"licensed cell {cell_key}: bound calibration records absent: {missing}"
+                    f"supported cell {cell_key}: bound calibration records absent: {missing}"
                 )
-            incompatible = [rid for rid in ids if not licensed_record_matches(cell, records[rid])]
+            incompatible = [rid for rid in ids if not supported_record_matches(cell, records[rid])]
             if incompatible:
                 raise SystemExit(
-                    f"licensed cell {cell_key}: bound records not owned by the licensed cell: {incompatible}"
+                    f"supported cell {cell_key}: bound records not owned by the supported cell: {incompatible}"
                 )
             if not ids:
                 # An unmeasured cell must not acquire a claim from an unrelated
@@ -1188,10 +1188,10 @@ def sync_licensed_cells(
                     rec["structure"],
                 ) != (cell["query"], cell["graph_class"], cell["inference"], structures[0]):
                     raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
-                if not licensed_record_matches(cell, rec):
+                if not supported_record_matches(cell, rec):
                     raise SystemExit(
                         f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
-                        "is not owned by the licensed cell"
+                        "is not owned by the supported cell"
                     )
         # A point-only cell states `no_interval_reported` itself and keeps it: the
         # runtime publishes no interval there, so there is nothing to measure.
@@ -1208,7 +1208,7 @@ def sync_licensed_cells(
         out.append(new_block)
     if only_cells is not None and seen != only_cells.keys():
         raise SystemExit(f"unknown --only-cell coordinates: {sorted(only_cells.keys() - seen)}")
-    write_text(LICENSED, "[[cell]]".join(out))
+    write_text(SUPPORTED, "[[cell]]".join(out))
     return changed
 
 
@@ -1270,7 +1270,7 @@ def main() -> int:
         action="append",
         default=[],
         metavar="QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID",
-        help="exact licensed cell and record IDs to sync when appending (repeat per cell)",
+        help="exact supported cell and record IDs to sync when appending (repeat per cell)",
     )
     parser.add_argument(
         "--defer-generated",
@@ -1280,7 +1280,7 @@ def main() -> int:
     parser.add_argument(
         "--no-cells",
         action="store_true",
-        help="do not rewrite support_licensed.toml / estimate.toml",
+        help="do not rewrite support_cells.toml / estimate.toml",
     )
     parser.add_argument(
         "--keep-existing",
@@ -1466,9 +1466,9 @@ def main() -> int:
     write_registry(records, retag=not (args.append_attested or args.keep_existing))
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if args.append_attested:
-        cells = sync_licensed_cells(records, only_cells)
+        cells = sync_supported_cells(records, only_cells)
         print(
-            f"appended {len(records) - len(existing)} records; synced {cells} selected licensed cells"
+            f"appended {len(records) - len(existing)} records; synced {cells} selected supported cells"
         )
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
         return 0
@@ -1483,9 +1483,9 @@ def main() -> int:
     )
     print(f"wrote the record-less group ledger to {GATES.relative_to(ROOT)}")
     if not args.no_cells:
-        cells = sync_licensed_cells(records)
+        cells = sync_supported_cells(records)
         rows = sync_estimator_rows(records)
-        print(f"rewrote the calibration pair on {cells} licensed cells and {rows} estimator rows")
+        print(f"rewrote the calibration pair on {cells} supported cells and {rows} estimator rows")
     if args.defer_generated:
         print("deferred generated support assets; evidence registries are preserved")
     else:

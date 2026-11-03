@@ -231,7 +231,7 @@ class Identification:
                 ),
                 "reasoning": payload.get("reasoning", {}),
                 "limitations": (
-                    "Design declaration does not establish a graph certificate or add an estimation or inference license.",
+                    "Design declaration does not establish a graph certificate or add an estimation or inference support.",
                 ),
             }
             if design
@@ -302,7 +302,7 @@ class Identification:
     def statement(self) -> str:
         """One-sentence identification state. This is data, not a display hook."""
         return (
-            f"{type(self.query).__name__} for {self.design.get('outcome') or 'the declared quantity'} uses the declared design; scientific standing and inference licenses are reported by estimation."
+            f"{type(self.query).__name__} for {self.design.get('outcome') or 'the declared quantity'} uses the declared design; scientific standing and inference supports are reported by estimation."
             if self.design is not None
             else identification_statement(self.query, self.status, self.method, self.adjustment_set)
         )

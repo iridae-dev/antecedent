@@ -12,7 +12,7 @@ use crate::EstimationError;
 /// Dahabreh-style trial-to-target IPW/AIPW and the composed response-grid primitive implement
 /// the algebra of *direct* transport and *standardization* over a trial-selection mechanism.
 /// A recursive factorization certificate is a different identifying formula; evaluating the
-/// Dahabreh functional against it would manufacture a number the certificate did not license.
+/// Dahabreh functional against it would manufacture a number the certificate did not support.
 pub(crate) fn require_dahabreh_compatible_formula(
     identification: &TransportIdentification,
     stage: &str,
@@ -550,7 +550,7 @@ fn validate_trial_to_target_inputs(
 ///
 /// The IPW contrast is a ratio of two sample means over all `n` rows,
 /// `ipw = mean(ψ) / mean(1 − S)` with `ψ_i = S_i·(±1)·(1 − s_i)/(s_i·e_i^±)·Y_i`.
-/// With the selection and treatment probabilities known (the licensed
+/// With the selection and treatment probabilities known (the supported
 /// contract) the rows are iid and the only estimated denominator is the
 /// target share, so the influence of row `i` is `(ψ_i − ipw·(1 − S_i)) /
 /// mean(1 − S)` and the delta-method SE is
@@ -829,7 +829,7 @@ impl BoundZFormula for antecedent_identify::BoundMzTransportFunctional {
     }
 }
 
-/// Evaluate the currently licensed point-only z-surrogate functional against
+/// Evaluate the currently supported point-only z-surrogate functional against
 /// exact or empirical joint-law tables. Empirical inputs produce a plug-in
 /// point estimate; this route publishes no interval or sampling guarantee.
 ///
@@ -1855,7 +1855,7 @@ mod tests {
     fn trial_to_target_effect_refuses_recursive_factorization_certificate() {
         // A recursive-factorization certificate is Transportable, so the NotCertified gate
         // alone would let the Dahabreh functional run. That functional is not the identifying
-        // formula the certificate licensed — the same class of hole as estimating under
+        // formula the certificate supported — the same class of hole as estimating under
         // NotCertified, one layer down.
         let err = trial_to_target_effect(
             &recursive_factorization_identification(),

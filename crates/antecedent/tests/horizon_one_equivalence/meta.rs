@@ -410,7 +410,7 @@ fn faulty_share(regime: &str) -> ScientificQuantity {
 /// With one commit decision the transported policy value is the expected immediate utility under
 /// the target initial law, `10 - 20 p` for shipping and zero for holding, which is the static
 /// expected utility of the same two actions under the same mean state share. The temporal route
-/// will not produce that number without the selection diagram that licenses carrying the source
+/// will not produce that number without the selection diagram that supports carrying the source
 /// model to the target population; the static mean-source decision takes the share as given.
 #[test]
 fn horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs_a_selection_diagram()

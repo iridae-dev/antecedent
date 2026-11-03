@@ -1,4 +1,4 @@
-//! Licensed temporal intervention plans.
+//! Supported temporal intervention plans.
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use antecedent_core::{
 
 use super::surface::SequenceLeaf;
 
-/// Licensed temporal intervention shape. The containing plan owns its lease.
+/// Supported temporal intervention shape. The containing plan owns its lease.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TemporalInterventionKind {
     /// One direct intervention, whose schedule is borrowed from the response spec.
@@ -384,7 +384,7 @@ pub fn validate_temporal_response_within(
 ///
 /// # Errors
 ///
-/// Unlicensed Sequence / Soft forms.
+/// Unsupported Sequence / Soft forms.
 pub fn plan_from_response_query(
     query: &ResponseQuery,
     budget: &mut antecedent_core::TemporalBudget,
@@ -407,7 +407,7 @@ pub fn plan_from_response_query(
 ///
 /// # Errors
 ///
-/// Empty, nested, stochastic, unlicensed Soft, or ambiguous schedules.
+/// Empty, nested, stochastic, unsupported Soft, or ambiguous schedules.
 pub(crate) fn plan_temporal_intervention(
     interventions: &[Intervention],
     spec: &TemporalResponseSpec,
@@ -433,11 +433,11 @@ pub(crate) fn plan_temporal_intervention(
             if ctx.cancellation.is_cancelled() {
                 return Err(T::Cancelled.into());
             }
-            // The planner does not license nested sequences or arbitrary symbolic expressions.
+            // The planner does not support nested sequences or arbitrary symbolic expressions.
             if matches!(&step.intervention, Intervention::Sequence(_)) {
                 return Err(EstimationError::unsupported_coded(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "Intervention::Sequence nested inside a Sequence is not licensed for \
+                    "Intervention::Sequence nested inside a Sequence is not supported for \
                      temporal InterventionResponse",
                 ));
             }
@@ -446,7 +446,7 @@ pub(crate) fn plan_temporal_intervention(
                 Intervention::Set { .. } | Intervention::Shift { .. } | Intervention::Soft { .. }
             ) {
                 return Err(EstimationError::unsupported(
-                    "temporal sequence step is not licensed for this route",
+                    "temporal sequence step is not supported for this route",
                 ));
             }
             offsets = offsets
@@ -671,14 +671,14 @@ pub(super) fn resolve_one(
                 Ok((*variable, None, d))
             }
             _ => Err(EstimationError::unsupported(
-                "Soft mechanism family is not licensed for temporal InterventionResponse; use constant or additive_shift",
+                "Soft mechanism family is not supported for temporal InterventionResponse; use constant or additive_shift",
             )),
         },
         Intervention::Sequence(seq) => {
             if depth > 0 {
                 return Err(EstimationError::unsupported_coded(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "Intervention::Sequence nested inside a Sequence is not licensed for \
+                    "Intervention::Sequence nested inside a Sequence is not supported for \
                      temporal InterventionResponse",
                 ));
             }
@@ -692,7 +692,7 @@ pub(super) fn resolve_one(
         }
         Intervention::Stochastic { .. } => Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            "stochastic interventions are not licensed on the temporal InterventionResponse path",
+            "stochastic interventions are not supported on the temporal InterventionResponse path",
         )),
         _ => Err(EstimationError::unsupported(
             "unsupported intervention variant for temporal response",
@@ -712,7 +712,7 @@ fn plan_sequence(
     if depth > 0 {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
-            "Intervention::Sequence nested inside a Sequence is not licensed for \
+            "Intervention::Sequence nested inside a Sequence is not supported for \
              temporal InterventionResponse",
         ));
     }
@@ -725,7 +725,7 @@ fn plan_sequence(
         if matches!(step.intervention, Intervention::Sequence(_)) {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
-                "Intervention::Sequence nested inside a Sequence is not licensed for \
+                "Intervention::Sequence nested inside a Sequence is not supported for \
                  temporal InterventionResponse",
             ));
         }

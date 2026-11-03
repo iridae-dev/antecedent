@@ -32,7 +32,7 @@ pub const CYCLIC_SOLUTION_CONTRACT: &str = "cyclic.solution.v1";
 pub enum IdentitySlot {
     /// Causal target.
     Target,
-    /// Licensed program.
+    /// Supported program.
     Program,
     /// Source snapshot.
     Source,

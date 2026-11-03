@@ -102,7 +102,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
+        super::static_path::ensure_admg_path_specific_supported(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         require_functional_estimator(estimator_id)?;
@@ -160,7 +160,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
+        super::static_path::ensure_admg_path_specific_supported(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         require_functional_estimator(estimator_id)?;

@@ -83,7 +83,7 @@ fn autoregressive_pulse_was_refused_and_is_now_identified_by_parent_adjustment()
     }
 }
 
-/// Every licensed `PulseEffect × TemporalDag` coordinate on fixed structure
+/// Every supported `PulseEffect × TemporalDag` coordinate on fixed structure
 /// takes the same parent-adjusted identification: Frequentist and Bayesian,
 /// explicit and accepted, validation none / cheap / full, through the staged
 /// prepare → estimate handle.

@@ -12,7 +12,7 @@
 //! when replicates are requested; Bayesian inference reports the Bayesian-bootstrap posterior of
 //! the endpoints and the same tail rule. Rows are independent subjects, so a declared dependent
 //! series, independent-trajectory or clustered design refuses the row-level draw. The route is
-//! unlicensed and its calibration is unmeasured.
+//! unsupported and its calibration is unmeasured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::require_built_in_model;
@@ -32,7 +32,7 @@ use antecedent_core::{
 use antecedent_estimate::IvBoundsEstimator;
 
 /// Stable code of the disclosure every bounds result carries.
-const UNLICENSED_DISCLOSURE: &str = "estimate.iv_bounds.unlicensed";
+const UNSUPPORTED_DISCLOSURE: &str = "estimate.iv_bounds.unsupported";
 
 /// What a prepared bounds study keeps beside its query: the Bayesian configuration of a
 /// posterior study and the row-bootstrap replicates of a frequentist one.
@@ -215,11 +215,11 @@ fn disclosure(estimate: &antecedent_estimate::IvBoundsEstimate) -> Diagnostic {
         None => "the identified set without a sampling interval".to_owned(),
     };
     Diagnostic::new(
-        UNLICENSED_DISCLOSURE,
+        UNSUPPORTED_DISCLOSURE,
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "unlicensed and uncalibrated route: the instrument is declared independent of the \
+            "unsupported and uncalibrated route: the instrument is declared independent of the \
              potential outcomes and excluded from the outcome (neither is checked), the answer \
              is the identified set [{:.4}, {:.4}] of average effects the observed law leaves \
              open and not a point, and the result reports {interval}; no coverage record names it",

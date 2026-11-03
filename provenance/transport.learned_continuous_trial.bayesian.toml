@@ -30,7 +30,7 @@ record_sha256 = "f84e33afee8124d44f36606fc5d0b609118a4f68527f792312b6b55313ecd75
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
@@ -40,4 +40,4 @@ sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
-sha256 = "fb53399680c8fb5b1a1fe196d084575eb0a80b7595fb2b5b1995477c6dfe45b6"
+sha256 = "bdfbc4063f7a7e8ef50098f4a8015b51f0c9f954f764290f388224306db47960"

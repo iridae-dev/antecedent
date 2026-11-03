@@ -19,7 +19,7 @@
 //! 6. the claim demand.
 //!
 //! Lowering does not fit, sample, solve or encode an artifact, and grants no
-//! scientific license: a specified model stays model-conditional.
+//! scientific support: a specified model stays model-conditional.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -200,7 +200,7 @@ fn scientific_problem(
         query_variables: variables(payloads),
         source_digest: reads_data(payloads).then_some(payloads.data_snapshot.content),
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     })
 }

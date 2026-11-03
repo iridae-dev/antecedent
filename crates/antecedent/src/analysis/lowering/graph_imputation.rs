@@ -1,6 +1,6 @@
 //! Lowering for a bounded graph-selection / multiple-imputation composite.
 //!
-//! This is internal scaffolding. No interval is licensed by lowering and no raw caller-supplied
+//! This is internal scaffolding. No interval is supported by lowering and no raw caller-supplied
 //! likelihood, posterior, child execution or coverage claim is accepted.
 use std::sync::Arc;
 
@@ -232,7 +232,7 @@ pub(crate) fn lower(
         query_variables: Arc::clone(&input.variables),
         source_digest: Some(input.source_digest),
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     };
     let identification = IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(

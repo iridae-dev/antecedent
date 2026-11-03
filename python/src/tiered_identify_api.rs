@@ -189,7 +189,7 @@ fn identify_tiered_structure(
         }
         .map_err(|error| {
             // Unknown within-tier order denotes two scenarios, not one joint
-            // ADMG. Preserve that scientific license refusal as a typed public
+            // ADMG. Preserve that scientific support refusal as a typed public
             // boundary while leaving data/search failures on their own paths.
             if background.within_tier == antecedent_graph::WithinTier::Unknown
                 && matches!(&query, CausalQuery::Response(_))
@@ -198,10 +198,7 @@ fn identify_tiered_structure(
                     antecedent_identify::IdentificationError::UnsupportedQuery { .. }
                 )
             {
-                crate::refusal(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    error.to_string(),
-                )
+                crate::refusal(antecedent_core::reason_code!("not_supported"), error.to_string())
             } else {
                 crate::py_err(antecedent::CausalError::from(error))
             }

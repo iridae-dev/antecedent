@@ -119,7 +119,7 @@ fn temporal_cpdag_graph_posterior_stays_refused() {
 }
 
 #[test]
-fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
+fn temporal_cpdag_graph_posterior_with_lag_masks_supports_pulse() {
     use antecedent::CellStatus;
     use antecedent_discovery::{GraphPosteriorAtomKind, set_edge};
 
@@ -153,7 +153,7 @@ fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let result = study.run(&ctx).unwrap();
     assert!(result.structural_response.is_some());
 }

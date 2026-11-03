@@ -44,7 +44,7 @@ contract_key = "identities.program"
 python = "inspect().program_id"
 availability = "prepared|loaded"
 naming_row = "Compiled program identity"
-covers = "target, identification, products, licensed inferential commitments, completion budget"
+covers = "target, identification, products, supported inferential commitments, completion budget"
 doc_rust = "program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs"
 doc_python = "`result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id`"
 

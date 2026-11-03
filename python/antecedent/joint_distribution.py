@@ -388,7 +388,7 @@ class DistributionIdentity:
 class JointDistributionArtifact(ScientificResult):
     """Finite draws with typed scientific coordinates and portable identity.
 
-    ``claimed_trust`` is a caller label, not a grant. ``native_licensed`` and
+    ``claimed_trust`` is a caller label, not a grant. ``native_supported`` and
     ``verified_extension`` are refused here: those require retained producer state
     or an exact-request receipt. ``trust`` is the same argument under its older name.
     """
@@ -415,7 +415,7 @@ class JointDistributionArtifact(ScientificResult):
             parsed = ProviderTrust(raw)
         except ValueError as error:
             raise CausalValueError(f"unknown distribution trust {raw!r}") from error
-        if parsed is ProviderTrust.NATIVE_LICENSED:
+        if parsed is ProviderTrust.NATIVE_SUPPORTED:
             raise CausalValueError(
                 "native_distribution.authority_required: native trust requires retained producer-issued execution state",
                 reason_code="invalid_argument",

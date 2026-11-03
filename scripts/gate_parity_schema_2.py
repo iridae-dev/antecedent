@@ -600,8 +600,8 @@ else:
 
 by_id = {rec.get("id"): rec for rec in records}
 
-# --- licensed cell calibration obligation ---
-lic = tomllib.loads((root / "parity/support_licensed.toml").read_text(encoding="utf-8")).get(
+# --- supported cell calibration obligation ---
+lic = tomllib.loads((root / "parity/support_cells.toml").read_text(encoding="utf-8")).get(
     "cell", []
 )
 for cell in lic:
@@ -619,27 +619,27 @@ for cell in lic:
     if has_cal and has_reason:
         if cell.get("calibration_reason") != "boundary_record":
             problems.append(
-                f"support_licensed.toml {label}: calibration and calibration_reason together "
+                f"support_cells.toml {label}: calibration and calibration_reason together "
                 'are only legal as calibration_reason = "boundary_record"'
             )
     elif has_cal == has_reason:
         problems.append(
-            f"support_licensed.toml {label}: exactly one of calibration / calibration_reason"
+            f"support_cells.toml {label}: exactly one of calibration / calibration_reason"
         )
     if has_cal and boundary_only != (cell.get("calibration_reason") == "boundary_record"):
         problems.append(
-            f'support_licensed.toml {label}: calibration_reason = "boundary_record" must be '
+            f'support_cells.toml {label}: calibration_reason = "boundary_record" must be '
             "present exactly when every record at the reported level is a boundary"
         )
     if not has_cal and cell.get("calibration_reason") == "boundary_record":
-        problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
+        problems.append(f"support_cells.toml {label}: boundary_record without a record list")
     for evidence_error in collector.calibration_estimator_evidence_problems(cell, root):
-        problems.append(f"support_licensed.toml {label}: {evidence_error}")
-    for ownership_error in collector.licensed_cell_calibration_problems(cell, by_id):
-        problems.append(f"support_licensed.toml {label}: {ownership_error}")
+        problems.append(f"support_cells.toml {label}: {evidence_error}")
+    for ownership_error in collector.supported_cell_calibration_problems(cell, by_id):
+        problems.append(f"support_cells.toml {label}: {ownership_error}")
     # Coverage figures in `limitations` must cite a matching record or say they are
     # not a registry value: scripts/gate_coverage_citations.sh owns that check, so
-    # known-truth values, SEs and disclosed probe figures stay in the license text.
+    # known-truth values, SEs and disclosed probe figures stay in the support text.
     # ---- [gates] reason-code eligibility comes from the registry row ----
     cited = cell.get("calibration_reason")
     if cited == "no_interval_reported" and cell.get("interval_method") not in (
@@ -648,12 +648,12 @@ for cell in lic:
         "None",
     ):
         problems.append(
-            f"support_licensed.toml {label}: no_interval_reported cannot declare an interval method"
+            f"support_cells.toml {label}: no_interval_reported cannot declare an interval method"
         )
     scope = codes.get(cited, {}).get("queries") if isinstance(cited, str) else None
     if scope is not None and cell.get("query") not in scope:
         problems.append(
-            f"support_licensed.toml {label}: {cited} on a {cell.get('query')} cell; "
+            f"support_cells.toml {label}: {cited} on a {cell.get('query')} cell; "
             f"reason_codes.toml limits it to {scope}"
         )
 
@@ -706,8 +706,8 @@ for row in est:
 # gate_composition.sh executes. Additions are free; removals are a reviewed
 # edit of this list.
 REQUIRED_COMPOSITION_ROWS = {
-    "compiler.inspect_licensed_cells",
-    "compiler.e2e_licensed_cells",
+    "compiler.inspect_supported_cells",
+    "compiler.e2e_supported_cells",
     "compiler.inspect_does_not_identify",
     "compiler.metadata_read_no_identify",
     "compiler.validate_result_bindings",
@@ -727,7 +727,7 @@ REQUIRED_COMPOSITION_ROWS = {
     "compiler.request_identity",
     "compiler.provenance_ancestry",
     "compiler.identity_contract_file",
-    "compiler.licensed_family",
+    "compiler.supported_family",
     "compiler.prepared_second_shot",
     "compiler.prepared_family",
     "compiler.identity_encoding",
@@ -822,10 +822,10 @@ if listed.returncode != 0:
 else:
     problems.extend(json.loads(listed.stdout)["problems"])
 
-# ---- [gates] licensed cells link to the external oracles their routes rest on ----
-# parity/licensed_routes.toml (generated from executed plans) must route exactly
-# the licensed cells, and every `oracle_components` entry must sit on an external
-# oracle row and name a component a licensed cell actually runs
+# ---- [gates] supported cells link to the external oracles their routes rest on ----
+# parity/supported_routes.toml (generated from executed plans) must route exactly
+# the supported cells, and every `oracle_components` entry must sit on an external
+# oracle row and name a component a supported cell actually runs
 # (scripts/external_evidence.py; rendered by generate_support_matrix_docs.py).
 import external_evidence  # noqa: E402
 

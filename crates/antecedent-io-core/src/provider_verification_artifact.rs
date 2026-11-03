@@ -6,7 +6,7 @@
 //! passed probes, never the contracts themselves. A consumer retains the
 //! receipt digest independently and supplies it on load; a changed field,
 //! including a resealed one, is refused. Holding a receipt grants no native
-//! licence and no calibration.
+//! support and no calibration.
 
 // Refusals are the cold path of a once-per-verification call, so the large `Err`
 // variant is not worth boxing.

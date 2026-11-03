@@ -1,6 +1,6 @@
 """Theorem-stage and modality request types. Prefer :class:`antecedent.transport.Transport`.
 
-The licensed trial-IPW cell is :class:`TransportQuery`. Compiler request types
+The supported trial-IPW cell is :class:`TransportQuery`. Compiler request types
 and stage verbs live here; they are not re-exported from
 :mod:`antecedent.transport`.
 """

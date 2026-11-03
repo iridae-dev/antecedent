@@ -15,8 +15,8 @@
 //! (exact-request verified), so a reader of the artifact alone can tell them apart
 //! without the evidence ledger. The label is part of the artifact identity. It is a
 //! declaration: the receipt that would confirm a verified label does not travel in
-//! the artifact, so the label is never read as native licence and never raises the
-//! claim's standing. `native_licensed` and `unverified` are not accepted.
+//! the artifact, so the label is never read as native support and never raises the
+//! claim's standing. `native_supported` and `unverified` are not accepted.
 //!
 //! # Refresh
 //!

@@ -25,9 +25,9 @@ Three things stay distinct and are never merged:
   refuse;
 * an **identified bound** is a separate bound from partial identification;
 * a **sampling interval** is reported next to the decision and never inside the
-  range. Composing the two refuses with ``reason_code == "cell_not_licensed"``
-  (``sensitivity_decision_composition.composition_not_licensed``) because no
-  composition method is licensed.
+  range. Composing the two refuses with ``reason_code == "not_supported"``
+  (``sensitivity_decision_composition.composition_not_supported``) because no
+  composition method is supported.
 
 Decisions are evaluated only at the declared grid points; nothing between them is
 evaluated, so the interpolated crossing of a switch is labelled an interpolation.
@@ -90,7 +90,7 @@ class SensitivityRefusal(StructuredRefusal):
     ``remedy`` are machine-readable. ``reason_code`` is registered. ``detail`` is the namespaced
     ``sensitivity_decision_composition.<slot>`` (or the engine's own detail);
     ``message`` is the human-readable context. Typical details:
-    ``composition_not_licensed`` (a sampling interval composed with the range),
+    ``composition_not_supported`` (a sampling interval composed with the range),
     ``wrong_contract`` (mixed estimands, unlike units, weights on a ranged surface,
     an input the surface does not carry), ``unsupported_coordinate`` (an unsupported
     grid point inside the evaluated range), ``invalid_surface`` and
@@ -214,8 +214,8 @@ class SurfaceQuantity:
 class SamplingInterval:
     """A sampling interval of one surface quantity, kept apart from the assumption range.
 
-    ``composed`` names a composition with the range; no method is licensed, so any
-    value refuses with ``cell_not_licensed``.
+    ``composed`` names a composition with the range; no method is supported, so any
+    value refuses with ``not_supported``.
     """
 
     quantity: str
@@ -509,14 +509,14 @@ class SensitivityArtifact(ScientificResult):
         Refuses with :class:`SensitivityRefusal` on a malformed surface
         (``invalid_surface``), mixed estimands or unlike units (``wrong_contract``), a
         grid point outside the declared range (``unsupported_coordinate``) and a
-        sampling interval composed with the range (``composition_not_licensed``).
+        sampling interval composed with the range (``composition_not_supported``).
         """
         grid_values = [float(g) for g in grid]
         sampling_wire = (
             sampling
             if sampling is not None
             else SamplingWithheld(
-                "cell_not_licensed", "sensitivity_decision_composition.sampling_not_reported"
+                "not_supported", "sensitivity_decision_composition.sampling_not_reported"
             )
         )
         surface = {
@@ -908,7 +908,7 @@ def decide(
     ascending order, and only for a point surface: an assumption range is never a
     probability, so weights on a ranged surface refuse. ``sampling_composition``
     requests composing the sampling interval with the range and always refuses with
-    ``cell_not_licensed`` today.
+    ``not_supported`` today.
     """
     artifact = require_success(artifact)
     if not isinstance(contract, Contract):

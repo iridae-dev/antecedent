@@ -27,7 +27,7 @@ pub(crate) struct Model<'a> {
 }
 fn refused(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("measured_transport.protocol_not_measured: {message}"),
     }
 }
@@ -633,7 +633,7 @@ mod native_lifecycle_tests {
         assert_eq!(slot.reason.as_deref(), Some("coverage_record_not_attesting"));
         match error {
             crate::IoError::Refused { code, message } => {
-                assert_eq!(code, antecedent_core::reason_code!("cell_not_licensed"));
+                assert_eq!(code, antecedent_core::reason_code!("not_supported"));
                 assert_eq!(
                     message,
                     "measured_inference.record_not_attesting: target_effect: coverage_record_not_attesting"

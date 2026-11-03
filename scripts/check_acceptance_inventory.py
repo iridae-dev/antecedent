@@ -9,8 +9,8 @@ Fails when
   conflict       the records disagree about a row: a status, a closure kind, a scope list, a child
                  gap or route, a closure against its residual limitation, or a route in no
                  conformance family. The inventory itself must record no conflict.
-  unsupported    a licensed row has no explicit licence obligation, an obligation lacks its
-                 identification or calibration licence, a coverage record is not recorded, or a
+  unsupported    a supported row has no explicit support obligation, an obligation lacks its
+                 identification or calibration support, a coverage record is not recorded, or a
                  measured-record uncertainty has no record behind it
   stale          a row differs from what the records now derive, or the file differs from the
                  generator output
@@ -46,7 +46,7 @@ SOURCE_BOUND = (
 def classify(message: str) -> str:
     return (
         "unsupported"
-        if "unsupported licensing evidence" in message
+        if "unsupported support evidence" in message
         or "explicit " in message
         or "coverage record" in message
         else "conflict"

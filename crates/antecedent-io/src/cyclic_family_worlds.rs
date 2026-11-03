@@ -1437,7 +1437,7 @@ fn check_recovery_design(
         SamplingDesignWire::ClusteredPanel | SamplingDesignWire::DependentTimeSeries => {
             Err(CyclicArtifactError::ScientificRefusal {
                 code,
-                detail: "cyclic_recovery.row_independence_unlicensed",
+                detail: "cyclic_recovery.row_independence_unsupported",
                 message: format!(
                     "the `{origin}` origin treats rows as independent within each regime, which the declared `{}` design does not allow",
                     declared.label()

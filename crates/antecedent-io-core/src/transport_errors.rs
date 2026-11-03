@@ -95,7 +95,7 @@ pub enum MzTransportArtifactError {
     /// A recomputed contrast differs from the stored contrast.
     #[error("contrast does not replay")]
     ContrastMismatch,
-    /// The stored interval bookkeeping contradicts the licensing decision or
+    /// The stored interval bookkeeping contradicts the support decision or
     /// does not recompute bit for bit from its seed and replicate spec.
     #[error("uncertainty bookkeeping does not check: {0}")]
     UncertaintyMismatch(&'static str),
@@ -224,7 +224,7 @@ impl AdmgConditionalArtifactError {
                 (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
             }
             Self::IntervalWithheld => {
-                (reason_code!("cell_not_licensed"), "admg_transport.interval_withheld")
+                (reason_code!("not_supported"), "admg_transport.interval_withheld")
             }
             Self::LimitsExceeded(_) => {
                 (reason_code!("route_not_supported"), "admg_transport.consumer_limits")

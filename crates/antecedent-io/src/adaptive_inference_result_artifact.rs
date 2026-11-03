@@ -12,7 +12,7 @@
 //!
 //! A consumer trusts none of the stored values. It replays the embedded
 //! contract through the contract checks (so a missing element, an inconsistent
-//! record or a paradigm the cell is not licensed for is refused), requires the
+//! record or a paradigm the cell is not supported for is refused), requires the
 //! contract's paradigm to be the request's, and recomputes the result from the
 //! retained history with the estimators. A resealed edit of the stopping rule,
 //! of a probability, of an outcome, of the paradigm or of a stored value is
@@ -21,7 +21,7 @@
 //!
 //! What this does **not** say: no interval, credible interval, significance
 //! level or coverage statement for the whole procedure (closed:
-//! `cell_not_licensed`), and no claim that the result transfers to another
+//! `not_supported`), and no claim that the result transfers to another
 //! assignment policy, outcome structure, monitoring strategy or stopping rule.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -206,7 +206,7 @@ pub struct AdaptiveResultError {
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -327,7 +327,7 @@ fn estimand_of(
 /// Compute the result a request asks of a contract.
 ///
 /// The route is authorized first: the paradigm must be one the contract's
-/// procedure cell is licensed for, the exposure must equal the assignment and
+/// procedure cell is supported for, the exposure must equal the assignment and
 /// the delay must not depend on the outcome. Value order:
 ///
 /// * Bayesian posterior: per arm `alpha, beta, mean, variance,

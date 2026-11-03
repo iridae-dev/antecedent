@@ -37,7 +37,7 @@ use antecedent_core::{
     MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec,
     PathSpecificEffectQuery, PopulationSelector, ProgressSink, QueryId, RequestIdentity,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
-    SemanticDigest, SequencedIntervention, SmallRoleSet, TEMPORAL_OBSERVATION_UNLICENSED,
+    SemanticDigest, SequencedIntervention, SmallRoleSet, TEMPORAL_OBSERVATION_UNSUPPORTED,
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
@@ -136,7 +136,7 @@ fn inspect_does_not_identify() {
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
     assert!(matches!(inspected.reasoning.uncertainty, SlotAvailability::Unavailable { .. }));
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -857,7 +857,7 @@ fn schema_names(data: &TabularData) -> Vec<String> {
     data.schema().variables().iter().map(|variable| variable.name.to_string()).collect()
 }
 
-fn consume_licensed_family(
+fn consume_supported_family(
     built: &Study,
     estimate: impl FnOnce(&antecedent::PreparedStudy) -> StudyResult,
     artifact_id: &str,
@@ -865,7 +865,7 @@ fn consume_licensed_family(
 ) -> (StudyResult, antecedent_io::AnalysisResultConsumption) {
     let inspected = built.inspect().unwrap();
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     let prepared = built.prepare(ctx).unwrap();
     let contract = prepared.contract().unwrap();
     assert_eq!(inspected.identities.target, contract.identities.target);
@@ -949,7 +949,7 @@ fn conditional_effect_fixture() -> (TabularData, Dag, ConditionalEffectQuery) {
 }
 
 #[test]
-fn licensed_family_conditional_effect_frequentist_consumes() {
+fn supported_family_conditional_effect_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -958,7 +958,7 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-f",
@@ -984,7 +984,7 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_conditional_effect_bayesian_consumes() {
+fn supported_family_conditional_effect_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -994,7 +994,7 @@ fn licensed_family_conditional_effect_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-b",
@@ -1033,7 +1033,7 @@ fn staged_static_kinds() -> (TabularData, Dag, serde_json::Value) {
 }
 
 #[test]
-fn licensed_family_mediation_frequentist_consumes() {
+fn supported_family_mediation_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let mut query = MediationQuery::binary(
@@ -1051,7 +1051,7 @@ fn licensed_family_mediation_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "med-f",
@@ -1079,7 +1079,7 @@ fn licensed_family_mediation_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_counterfactual_frequentist_consumes() {
+fn supported_family_counterfactual_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let query = CounterfactualQuery::new(
@@ -1096,7 +1096,7 @@ fn licensed_family_counterfactual_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "cf-f",
@@ -1148,7 +1148,7 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
 }
 
 /// Full validation of a mixed-graph change attribution is currently refused:
-/// it does not license the underlying operation or allow a prepared claim.
+/// it does not support the underlying operation or allow a prepared claim.
 fn refused_admg_cell() -> antecedent::StudyBuilder {
     let (data, _, _) = path_specific_fixture();
     let mut admg = Admg::with_variables(3);
@@ -1169,12 +1169,12 @@ fn refused_admg_cell() -> antecedent::StudyBuilder {
 fn assert_refused_build(builder: antecedent::StudyBuilder) {
     assert!(matches!(
         builder.build(),
-        Err(antecedent::CausalError::Support { id: antecedent::SupportRefusal::Refused, .. })
+        Err(antecedent::CausalError::Support { id: antecedent::SupportRefusal::NotSupported, .. })
     ));
 }
 
 #[test]
-fn licensed_family_path_specific_frequentist_consumes() {
+fn supported_family_path_specific_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -1185,7 +1185,7 @@ fn licensed_family_path_specific_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-f",
@@ -1242,9 +1242,9 @@ fn distribution_fixture() -> (TabularData, Dag, InterventionalDistributionQuery)
 #[test]
 #[allow(
     clippy::too_many_lines,
-    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for licensed family distribution frequentist consumes"
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for supported family distribution frequentist consumes"
 )]
-fn licensed_family_distribution_frequentist_consumes() {
+fn supported_family_distribution_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = distribution_fixture();
     let built = Study::tabular(data.clone())
@@ -1255,7 +1255,7 @@ fn licensed_family_distribution_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "dist-f",
@@ -1355,7 +1355,7 @@ fn licensed_family_distribution_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_distribution_bayesian_consumes() {
+fn supported_family_distribution_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(18);
     let (data, dag, query) = distribution_fixture();
     let built = Study::tabular(data.clone())
@@ -1367,7 +1367,7 @@ fn licensed_family_distribution_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "dist-b",
@@ -1408,7 +1408,7 @@ fn response_curve_fixture() -> (TabularData, Dag, ResponseQuery) {
 }
 
 #[test]
-fn licensed_family_response_curve_frequentist_consumes() {
+fn supported_family_response_curve_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let built = Study::tabular(data.clone())
@@ -1417,7 +1417,7 @@ fn licensed_family_response_curve_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "resp-f",
@@ -1463,7 +1463,7 @@ fn mixture_data() -> TabularData {
 }
 
 #[test]
-fn licensed_family_conditional_graph_posterior_preserves_mass() {
+fn supported_family_conditional_graph_posterior_preserves_mass() {
     let ctx = ExecutionContext::for_tests(18);
     let data = mixture_data();
     let query = ConditionalEffectQuery::try_new(
@@ -1477,7 +1477,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-gp",
@@ -1515,7 +1515,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
 }
 
 #[test]
-fn licensed_family_cpdag_conditional_refuses_unweighted_average() {
+fn supported_family_cpdag_conditional_refuses_unweighted_average() {
     let ctx = ExecutionContext::for_tests(4);
     let (data, dag, query) = conditional_effect_fixture();
     let cpdag = Cpdag::from_dag(&dag);
@@ -1527,7 +1527,7 @@ fn licensed_family_cpdag_conditional_refuses_unweighted_average() {
         .unwrap();
     let inspected = built.inspect().unwrap();
     assert_eq!(inspected.graph_class.as_str(), "Cpdag");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-cpdag",
@@ -1608,7 +1608,7 @@ fn consume_series_family_refute(
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    consume_licensed_family(
+    consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -1617,7 +1617,7 @@ fn consume_series_family_refute(
 }
 
 #[test]
-fn licensed_family_pulse_temporal_consumes() {
+fn supported_family_pulse_temporal_consumes() {
     let (series, graph) = lag1_series();
     let (result, consumed) =
         consume_series_family(&series, graph, pulse_query(), "pulse-f", InferenceMode::Frequentist);
@@ -1635,7 +1635,7 @@ fn licensed_family_pulse_temporal_consumes() {
 }
 
 #[test]
-fn licensed_family_sustained_temporal_consumes() {
+fn supported_family_sustained_temporal_consumes() {
     let (series, graph) = lag1_series();
     let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::sustained(-1, -1))
@@ -1831,7 +1831,7 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let prepared = built.prepare(&ctx).unwrap();
     let unweighted = prepared.preview_transform(TransformIntent::AverageUnweightedClass).unwrap();
     assert!(unweighted.refused, "class path must not average over completions");
-    let (result, _) = consume_licensed_family(
+    let (result, _) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "pc-class",
@@ -1867,7 +1867,7 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let dag_ids = dag_built.prepare(&ctx).unwrap().contract().unwrap().identities;
     assert_eq!(class_ids.target, dag_ids.target);
     assert_ne!(class_ids.program, dag_ids.program);
-    let (dag_result, _) = consume_licensed_family(
+    let (dag_result, _) = consume_supported_family(
         &dag_built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "pc-dag",
@@ -1896,7 +1896,7 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let ges_inspected = ges_built.inspect().unwrap();
     assert_eq!(ges_inspected.graph_class.as_str(), "Cpdag");
     assert_eq!(ges_inspected.discovery_algorithm.as_deref(), Some("ges"));
-    let (ges_result, _) = consume_licensed_family(
+    let (ges_result, _) = consume_supported_family(
         &ges_built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ges-class",
@@ -1965,7 +1965,7 @@ fn composition_pcmci_plus_accepted_temporal_cpdag_retains_class() {
     assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
     assert_eq!(inspected.structure_source, StructureSource::Accepted);
     assert_eq!(inspected.discovery_algorithm.as_deref(), Some("pcmci_plus"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pcmci-plus-class",
@@ -2075,7 +2075,7 @@ fn composition_two_programs_compare_only_on_shared_data() {
     }
     match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
         }
         other => panic!("expected pool refusal, got {other:?}"),
     }
@@ -2092,7 +2092,7 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(built.inspect().unwrap().support_status.unwrap().as_str(), "licensed");
+    assert_eq!(built.inspect().unwrap().support_status.unwrap().as_str(), "supported");
     let mut prepared = built.prepare(&ctx).unwrap();
     let before = prepared.contract().unwrap();
     let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
@@ -2239,7 +2239,7 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(transferred.inspect().unwrap().support_status.unwrap().as_str(), "licensed");
+    assert_eq!(transferred.inspect().unwrap().support_status.unwrap().as_str(), "supported");
     let iso = isotropic.prepare(&ctx).unwrap();
     let xfer = transferred.prepare(&ctx).unwrap();
     let iso_ids = iso.contract().unwrap().identities;
@@ -2476,22 +2476,22 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
     );
 
     let refused = refused_admg_cell().inspect().unwrap();
-    assert_eq!(refused.support_status.unwrap().as_str(), "refused");
-    assert!(!matches!(refused.support_status.unwrap().as_str(), "licensed"));
+    assert_eq!(refused.support_status.unwrap().as_str(), "not_supported");
+    assert!(!matches!(refused.support_status.unwrap().as_str(), "supported"));
 }
 
 #[test]
-fn licensed_family_refused_cell_inspects_as_structured_refusal() {
+fn supported_family_refused_cell_inspects_as_structured_refusal() {
     let builder = refused_admg_cell();
     let inspected = builder.clone().inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "not_supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
     assert_refused_build(builder);
 }
 
 #[test]
-fn licensed_family_na_cell_inspects_as_incomplete_contract() {
+fn supported_family_na_cell_inspects_as_incomplete_contract() {
     let (data, dag, _) = confounded_scm(32, 3);
     let inspected = Study::tabular(data.clone())
         .graph(dag.clone())
@@ -2525,7 +2525,7 @@ fn licensed_family_na_cell_inspects_as_incomplete_contract() {
 fn capability_preflight_and_build_agree_on_refused_blockers() {
     let builder = refused_admg_cell();
     let preflight = builder.capability().unwrap();
-    assert_eq!(preflight.applicability, SemanticApplicability::Unlicensed);
+    assert_eq!(preflight.applicability, SemanticApplicability::Unsupported);
     assert!(!preflight.is_executable());
     assert_eq!(preflight.primary_blocker_id(), Some("support.refused"));
     assert!(preflight.blockers.iter().all(|blocker| blocker.scientific));
@@ -2539,10 +2539,10 @@ fn capability_preflight_and_build_agree_on_refused_blockers() {
     );
     assert!(preflight.neighbors.iter().all(|n| !n.coordinate.as_ref().contains(":Dag:")));
     let inspected = builder.clone().inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "not_supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert_eq!(inspected.capability().primary_blocker_id(), preflight.primary_blocker_id());
-    // The preflight blocker also prevents constructing a licensed study.
+    // The preflight blocker also prevents constructing a supported study.
     assert_refused_build(builder);
 }
 
@@ -2576,7 +2576,7 @@ fn capability_inspect_cannot_open_a_refused_cell() {
     let builder = refused_admg_cell();
     let inspected = builder.clone().inspect().unwrap();
     let report = inspected.capability();
-    assert_eq!(report.applicability, SemanticApplicability::Unlicensed);
+    assert_eq!(report.applicability, SemanticApplicability::Unsupported);
     assert!(!report.is_executable());
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
@@ -2614,18 +2614,18 @@ fn capability_cpdag_does_not_recommend_dag_relabel() {
 }
 
 #[test]
-fn capability_licensed_cell_is_executable_and_agrees_with_prepare() {
+fn capability_supported_cell_is_executable_and_agrees_with_prepare() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(32, 17);
     let builder = Study::tabular(data).graph(dag).query(query).bootstrap_replicates(0);
     let preflight = builder.capability().unwrap();
-    assert_eq!(preflight.applicability, SemanticApplicability::Licensed);
+    assert_eq!(preflight.applicability, SemanticApplicability::Supported);
     assert_eq!(preflight.readiness, Some(OperationReadiness::Executable));
     assert!(preflight.is_executable());
     assert!(preflight.neighbors.is_empty());
     let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
     let prepared_report = prepared.capability().unwrap();
-    assert_eq!(prepared_report.applicability, SemanticApplicability::Licensed);
+    assert_eq!(prepared_report.applicability, SemanticApplicability::Supported);
     assert!(prepared_report.is_executable());
     assert_eq!(prepared_report.coordinate, preflight.coordinate);
 }
@@ -2654,7 +2654,7 @@ fn capability_rank_designs_uses_scoped_operation_not_matrix_row() {
 
     let refused = refused_admg_cell().inspect().unwrap();
     let refused_rank = refused.capability_for(OperationKind::RankDesigns);
-    assert_eq!(refused_rank.primary_blocker_id(), Some("operation.unlicensed"));
+    assert_eq!(refused_rank.primary_blocker_id(), Some("operation.unsupported"));
     assert!(
         refused_rank
             .coordinate
@@ -2746,7 +2746,7 @@ fn consume_temporal_response(
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    consume_licensed_family(
+    consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -2755,7 +2755,7 @@ fn consume_temporal_response(
 }
 
 #[test]
-fn licensed_family_temporal_response_curve_consumes() {
+fn supported_family_temporal_response_curve_consumes() {
     let (series, graph, pin) = temporal_dose_horizon();
     let doses = pin_f64s(&pin, &["contract", "dose_grid"]);
     let expected = pin_f64s(&pin, &["contract", "surface", "mean"]);
@@ -2791,7 +2791,7 @@ fn licensed_family_temporal_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_sequence_consumes() {
+fn supported_family_temporal_sequence_consumes() {
     let (series, graph, pin) = temporal_dose_horizon();
     let expected = pin_f64s(&pin, &["contract", "intervention_paths", "sequence_two_step_set_1"]);
     let last_step = pin_f64s(&pin, &["contract", "intervention_paths", "set_1"]);
@@ -2829,7 +2829,7 @@ fn licensed_family_temporal_sequence_consumes() {
 }
 
 #[test]
-fn licensed_family_mediation_bayesian_consumes() {
+fn supported_family_mediation_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let mut query = MediationQuery::binary(
@@ -2848,7 +2848,7 @@ fn licensed_family_mediation_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "med-b",
@@ -2863,7 +2863,7 @@ fn licensed_family_mediation_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_response_curve_bayesian_consumes() {
+fn supported_family_response_curve_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let built = Study::tabular(data.clone())
@@ -2873,7 +2873,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "resp-b",
@@ -2910,7 +2910,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_counterfactual_bayesian_consumes() {
+fn supported_family_counterfactual_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let query = CounterfactualQuery::new(
@@ -2928,7 +2928,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "cf-b",
@@ -2948,7 +2948,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_conditional_effect_cheap_validation_consumes() {
+fn supported_family_conditional_effect_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -2964,7 +2964,7 @@ fn licensed_family_conditional_effect_cheap_validation_consumes() {
         other => panic!("inspect must publish support, got {other:?}"),
     };
     assert!(coordinate.contains("cheap"), "cheap validation must appear on {coordinate}");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-cheap",
@@ -3019,7 +3019,7 @@ fn pag_from_pin(pin: &serde_json::Value) -> (TabularData, Pag) {
 }
 
 #[test]
-fn licensed_family_pag_conditional_refuses_unweighted_average() {
+fn supported_family_pag_conditional_refuses_unweighted_average() {
     let ctx = ExecutionContext::for_tests(1);
     let pin = pag_pin();
     let (data, pag) = pag_from_pin(&pin);
@@ -3068,7 +3068,7 @@ fn licensed_family_pag_conditional_refuses_unweighted_average() {
         .unwrap();
     let inspected = built.inspect().unwrap();
     assert_eq!(inspected.graph_class.as_str(), "Pag");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-pag",
@@ -3102,7 +3102,7 @@ fn licensed_family_pag_conditional_refuses_unweighted_average() {
 }
 
 #[test]
-fn licensed_family_response_observation_obligations_inspect() {
+fn supported_family_response_observation_obligations_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let n = 240;
     let confounder: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
@@ -3163,7 +3163,7 @@ fn licensed_family_response_observation_obligations_inspect() {
         other => panic!("inspect must publish assumption obligations, got {other:?}"),
     }
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&observed, &ctx).unwrap(),
         "resp-obs",
@@ -3195,7 +3195,7 @@ fn licensed_family_response_observation_obligations_inspect() {
 }
 
 #[test]
-fn licensed_family_prior_bank_does_not_create_identification() {
+fn supported_family_prior_bank_does_not_create_identification() {
     let ctx = ExecutionContext::for_tests(1);
     let (series, graph) = lag1_series();
     let source = Study::series(series.clone())
@@ -3231,7 +3231,7 @@ fn licensed_family_prior_bank_does_not_create_identification() {
         .build()
         .unwrap();
     let inspected = transferred.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let iso = isotropic.prepare(&ctx).unwrap();
     let xfer = transferred.prepare(&ctx).unwrap();
@@ -3250,7 +3250,7 @@ fn licensed_family_prior_bank_does_not_create_identification() {
         }
         other => panic!("prepared identification must stay available, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pulse-prior",
@@ -3370,7 +3370,7 @@ fn consume_gp_series(
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let prepared = built.prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
@@ -3446,7 +3446,7 @@ fn class_envelope_pag() -> TemporalPag {
 }
 
 #[test]
-fn licensed_family_pulse_bayesian_consumes() {
+fn supported_family_pulse_bayesian_consumes() {
     let (series, graph) = lag1_series();
     let (result, consumed) = consume_series_family(
         &series,
@@ -3466,7 +3466,7 @@ fn licensed_family_pulse_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_sustained_bayesian_consumes() {
+fn supported_family_sustained_bayesian_consumes() {
     let (series, graph) = lag1_series();
     let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::sustained(-1, -1))
@@ -3488,7 +3488,7 @@ fn licensed_family_sustained_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_pulse_cheap_validation_consumes() {
+fn supported_family_pulse_cheap_validation_consumes() {
     let (series, graph) = lag1_series();
     let built = Study::series(series.clone())
         .graph(graph.clone())
@@ -3512,7 +3512,7 @@ fn licensed_family_pulse_cheap_validation_consumes() {
 }
 
 #[test]
-fn licensed_family_pulse_full_validation_consumes() {
+fn supported_family_pulse_full_validation_consumes() {
     let (series, graph) = lag1_series();
     let built = Study::series(series.clone())
         .graph(graph.clone())
@@ -3536,7 +3536,7 @@ fn licensed_family_pulse_full_validation_consumes() {
 }
 
 #[test]
-fn licensed_family_intervention_response_static_consumes() {
+fn supported_family_intervention_response_static_consumes() {
     let ctx = ExecutionContext::for_tests(52);
     let (data, dag, query, truth, tolerance) = intervention_response_fixture();
     let built = Study::tabular(data.clone())
@@ -3545,7 +3545,7 @@ fn licensed_family_intervention_response_static_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ir-f",
@@ -3566,7 +3566,7 @@ fn licensed_family_intervention_response_static_consumes() {
 }
 
 #[test]
-fn licensed_family_intervention_response_cheap_validation_consumes() {
+fn supported_family_intervention_response_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(52);
     let (data, dag, query, truth, tolerance) = intervention_response_fixture();
     let built = Study::tabular(data.clone())
@@ -3577,7 +3577,7 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
         .build()
         .unwrap();
     assert!(inspect_coordinate(&built).contains("cheap"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ir-cheap",
@@ -3600,7 +3600,7 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
 }
 
 #[test]
-fn licensed_family_path_specific_bayesian_consumes() {
+fn supported_family_path_specific_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(18);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -3612,7 +3612,7 @@ fn licensed_family_path_specific_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-b",
@@ -3629,7 +3629,7 @@ fn licensed_family_path_specific_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_path_specific_cheap_validation_consumes() {
+fn supported_family_path_specific_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -3642,7 +3642,7 @@ fn licensed_family_path_specific_cheap_validation_consumes() {
         .build()
         .unwrap();
     assert!(inspect_coordinate(&built).contains("cheap"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-cheap",
@@ -3654,7 +3654,7 @@ fn licensed_family_path_specific_cheap_validation_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_cpdag_pulse_consumes() {
+fn supported_family_temporal_cpdag_pulse_consumes() {
     let (series, _) = lag1_series();
     let (result, consumed) = consume_series_family(
         &series,
@@ -3673,7 +3673,7 @@ fn licensed_family_temporal_cpdag_pulse_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
+fn supported_family_temporal_pag_pulse_inspects_without_identified_mass() {
     let (series, _) = lag1_series();
     let built = Study::series(series.clone())
         .graph(lag1_temporal_pag())
@@ -3682,7 +3682,7 @@ fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalPag");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let ctx = ExecutionContext::for_tests(1);
@@ -3701,7 +3701,7 @@ fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
 }
 
 #[test]
-fn licensed_family_temporal_cpdag_response_curve_consumes() {
+fn supported_family_temporal_cpdag_response_curve_consumes() {
     let series = class_envelope_series();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
@@ -3719,7 +3719,7 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
     let prepared = built.prepare(&ctx).unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
@@ -3747,7 +3747,7 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_response_curve_inspects() {
+fn supported_family_temporal_pag_response_curve_inspects() {
     let series = class_envelope_series();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
@@ -3765,7 +3765,7 @@ fn licensed_family_temporal_pag_response_curve_inspects() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalPag");
     match built.prepare(&ctx).and_then(|prepared| prepared.estimate_series(&series, &ctx)) {
         Ok(result) => assert!(result.response().is_some()),
@@ -3788,7 +3788,7 @@ fn identified_pag_pin() -> serde_json::Value {
 }
 
 #[test]
-fn licensed_family_temporal_pag_pulse_consumes() {
+fn supported_family_temporal_pag_pulse_consumes() {
     let pin = identified_pag_pin();
     let series = identified_pag_series(&pin);
     let expected = pin["pulse_ate"].as_f64().unwrap();
@@ -3824,7 +3824,7 @@ fn licensed_family_temporal_pag_pulse_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_response_curve_consumes() {
+fn supported_family_temporal_pag_response_curve_consumes() {
     let pin = identified_pag_pin();
     let series = identified_pag_series(&pin);
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -3842,7 +3842,7 @@ fn licensed_family_temporal_pag_response_curve_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "tresp-tpag",
@@ -3853,7 +3853,7 @@ fn licensed_family_temporal_pag_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_gp_pulse_temporal_consumes() {
+fn supported_family_gp_pulse_temporal_consumes() {
     let (series, _) = lag1_series();
     let result = consume_gp_series(
         &series,
@@ -3866,7 +3866,7 @@ fn licensed_family_gp_pulse_temporal_consumes() {
 }
 
 #[test]
-fn licensed_family_gp_pulse_bayesian_consumes() {
+fn supported_family_gp_pulse_bayesian_consumes() {
     let (series, _) = lag1_series();
     let result = consume_gp_series(
         &series,
@@ -3880,7 +3880,7 @@ fn licensed_family_gp_pulse_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_response_independent_given_observation_inspect() {
+fn supported_family_response_independent_given_observation_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let n = 240;
     let confounder: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
@@ -3940,7 +3940,7 @@ fn licensed_family_response_independent_given_observation_inspect() {
         }
         other => panic!("inspect must publish assumption obligations, got {other:?}"),
     }
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     let err =
         built.prepare(&ctx).and_then(|prepared| prepared.estimate(&observed, &ctx)).unwrap_err();
     assert!(
@@ -3950,7 +3950,7 @@ fn licensed_family_response_independent_given_observation_inspect() {
 }
 
 #[test]
-fn licensed_family_response_structural_observation_inspect() {
+fn supported_family_response_structural_observation_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let query = query.with_observation(
@@ -3964,7 +3964,7 @@ fn licensed_family_response_structural_observation_inspect() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     match &inspected.reasoning.assumptions {
         SlotAvailability::Available(slot) => {
             assert!(
@@ -3979,7 +3979,7 @@ fn licensed_family_response_structural_observation_inspect() {
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     match built.prepare(&ctx).and_then(|prepared| prepared.estimate(&data, &ctx)) {
         Ok(_) => {
-            let (_, consumed) = consume_licensed_family(
+            let (_, consumed) = consume_supported_family(
                 &built,
                 |prepared| prepared.estimate(&data, &ctx).unwrap(),
                 "resp-struct",
@@ -4010,7 +4010,7 @@ fn licensed_family_response_structural_observation_inspect() {
 }
 
 #[test]
-fn licensed_family_temporal_response_observation_independent_given() {
+fn supported_family_temporal_response_observation_independent_given() {
     let ctx = ExecutionContext::for_tests(21);
     let (series, graph, pin) = temporal_dose_horizon();
     let n = series.row_count();
@@ -4065,7 +4065,7 @@ fn licensed_family_temporal_response_observation_independent_given() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     match &inspected.reasoning.assumptions {
         SlotAvailability::Available(slot) => {
             assert!(slot.obligations.iter().any(|obligation| {
@@ -4074,7 +4074,7 @@ fn licensed_family_temporal_response_observation_independent_given() {
         }
         other => panic!("inspect must publish temporal observation obligations, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&observed, &ctx).unwrap(),
         "tresp-obs",
@@ -4145,7 +4145,7 @@ fn consume_mapped_prior(
     let xfer = transferred.prepare(&ctx).unwrap().contract().unwrap();
     assert_eq!(iso.identities.identification, xfer.identities.identification);
     assert_ne!(iso.identities.inference_binding, xfer.identities.inference_binding);
-    let (_, consumed) = consume_licensed_family(
+    let (_, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -4164,7 +4164,7 @@ fn consume_mapped_prior(
 }
 
 #[test]
-fn licensed_family_prior_mapping_identical_subspace_does_not_create_identification() {
+fn supported_family_prior_mapping_identical_subspace_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -4175,7 +4175,7 @@ fn licensed_family_prior_mapping_identical_subspace_does_not_create_identificati
 }
 
 #[test]
-fn licensed_family_prior_mapping_effect_functional_does_not_create_identification() {
+fn supported_family_prior_mapping_effect_functional_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -4186,7 +4186,7 @@ fn licensed_family_prior_mapping_effect_functional_does_not_create_identificatio
 }
 
 #[test]
-fn licensed_family_prior_mapping_named_parameters_does_not_create_identification() {
+fn supported_family_prior_mapping_named_parameters_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -4308,7 +4308,7 @@ fn inspect_observation_pair(
 }
 
 #[test]
-fn licensed_family_response_right_censored_observation_consumes() {
+fn supported_family_response_right_censored_observation_consumes() {
     let ctx = ExecutionContext::for_tests(21);
     let (series, graph, query) = right_censored_temporal_curve();
     let built = Study::series(series.clone())
@@ -4333,7 +4333,7 @@ fn licensed_family_response_right_censored_observation_consumes() {
         }
         other => panic!("inspect must publish right-censored obligations, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "tresp-rc",
@@ -4354,7 +4354,7 @@ fn licensed_family_response_right_censored_observation_consumes() {
 }
 
 #[test]
-fn licensed_family_response_interval_censored_observation_inspects() {
+fn supported_family_response_interval_censored_observation_inspects() {
     let (built, series) = inspect_observation_pair(
         ObservationSpec::IntervalCensored {
             latent: VariableId::from_raw(1),
@@ -4371,7 +4371,7 @@ fn licensed_family_response_interval_censored_observation_inspects() {
         .and_then(|prepared| prepared.estimate_series(&series, &ctx))
         .unwrap_err();
     assert!(
-        err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED)
+        err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED)
             || err.to_string().contains("interval")
             || matches!(err, antecedent::CausalError::Unsupported { .. }),
         "IntervalCensored must refuse without treating bounds as MAR, got {err}"
@@ -4379,7 +4379,7 @@ fn licensed_family_response_interval_censored_observation_inspects() {
 }
 
 #[test]
-fn licensed_family_response_truncated_observation_inspects() {
+fn supported_family_response_truncated_observation_inspects() {
     let (built, series) = inspect_observation_pair(
         ObservationSpec::Truncated {
             latent: VariableId::from_raw(1),
@@ -4397,7 +4397,7 @@ fn licensed_family_response_truncated_observation_inspects() {
         .and_then(|prepared| prepared.estimate_series(&series, &ctx))
         .unwrap_err();
     assert!(
-        err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED)
+        err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED)
             || err.to_string().contains("truncat")
             || matches!(err, antecedent::CausalError::Unsupported { .. }),
         "Truncated must refuse without treating bounds as MAR, got {err}"
@@ -4405,7 +4405,7 @@ fn licensed_family_response_truncated_observation_inspects() {
 }
 
 #[test]
-fn licensed_family_prior_catalog_does_not_create_identification() {
+fn supported_family_prior_catalog_does_not_create_identification() {
     let ctx = ExecutionContext::for_tests(1);
     let (series, graph) = lag1_series();
     let bytes = pulse_prior_bytes(&series, &graph, &ctx);
@@ -4446,13 +4446,13 @@ fn licensed_family_prior_catalog_does_not_create_identification() {
         .build()
         .unwrap();
     let inspected = transferred.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let iso = isotropic.prepare(&ctx).unwrap().contract().unwrap();
     let xfer = transferred.prepare(&ctx).unwrap().contract().unwrap();
     assert_eq!(iso.identities.identification, xfer.identities.identification);
     assert_ne!(iso.identities.inference_binding, xfer.identities.inference_binding);
-    let (_, consumed) = consume_licensed_family(
+    let (_, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pulse-catalog",
@@ -4841,7 +4841,7 @@ fn derived_claim_compare_is_not_synthesis() {
     }
     match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
             assert_eq!(parents.as_ref(), [left.claim_id, right.claim_id]);
         }
         other => panic!("expected pool refusal, got {other:?}"),
@@ -4944,7 +4944,7 @@ fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
     assert!(!preview.unresolved);
     assert_eq!(preview.violations.len(), 1);
     assert_eq!(preview.violations[0].candidate_index, 2);
-    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unsupported_candidate");
     assert!(preview.obligations.iter().any(|item| item.id.as_ref() == "design.update_rule"));
 
     let ranking = prepared
@@ -4965,7 +4965,7 @@ fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
 
 /// `ReduceDecisionRegret` through a prepared study scores the conjugate-normal
 /// expected value of sample information of each candidate's sample size, and
-/// records a candidate without a sample size as unlicensed instead of scoring it.
+/// records a candidate without a sample size as unsupported instead of scoring it.
 #[test]
 fn design_rank_decision_regret_scores_value_of_sample_information() {
     use antecedent::design::{
@@ -5030,7 +5030,7 @@ fn design_rank_decision_regret_scores_value_of_sample_information() {
     assert!(!preview.unresolved);
     assert_eq!(preview.violations.len(), 1);
     assert_eq!(preview.violations[0].candidate_index, 2);
-    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unsupported_candidate");
 
     let ranking =
         prepared.rank_designs(&tiny_ranker(), &objective, &candidates, &eval, &ctx).unwrap();
@@ -5203,7 +5203,7 @@ fn design_rank_graph_posterior_ate_preserves_unidentified_mass() {
     assert_eq!(ranking.ranked.len(), 1);
     assert_eq!(ranking.ranked[0].candidate_index, 1);
     assert!((graphs.unidentified_mass() - 0.4).abs() < 1e-12);
-    assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(ranking.violations[0].constraint.as_ref(), "unsupported_candidate");
 }
 
 #[test]
@@ -5992,10 +5992,10 @@ fn lag1_panel() -> (antecedent_data::PanelData, TemporalDag) {
 }
 
 #[test]
-fn every_licensed_cell_has_a_calibration_record_or_code() {
-    let licensed = include_str!("../../../parity/support_licensed.toml");
+fn every_supported_cell_has_a_calibration_record_or_code() {
+    let supported = include_str!("../../../parity/support_cells.toml");
     let mut missing = Vec::new();
-    for block in licensed.split("[[cell]]").skip(1) {
+    for block in supported.split("[[cell]]").skip(1) {
         let has_record = block.contains("calibration =");
         let has_reason = block.contains("calibration_reason =");
         // A record list beside `boundary_record` says what was measured and that none
@@ -6965,7 +6965,7 @@ fn bayesian_backend_prior_and_budgets_move_the_layer_that_owns_them() {
         "the posterior backend is an inference binding"
     );
     assert_eq!(conjugate.identification, laplace.identification);
-    assert_eq!(conjugate.program, laplace.program, "a backend is not a licensed commitment");
+    assert_eq!(conjugate.program, laplace.program, "a backend is not a supported commitment");
     let scaled = bayes(BayesianConfig::conjugate().n_draws(64).prior_scale(0.01));
     assert_ne!(conjugate.inference_binding, scaled.inference_binding);
     let drawn = bayes(BayesianConfig::conjugate().n_draws(65));
@@ -7029,19 +7029,19 @@ fn response_bandwidth_moves_the_inference_binding_not_the_program() {
     let wide = curve(Some(0.75));
     assert_ne!(narrow.inference_binding, wide.inference_binding, "bandwidth is a numeric knob");
     assert_ne!(default.inference_binding, narrow.inference_binding);
-    assert_eq!(narrow.program, wide.program, "a bandwidth is not a licensed commitment");
+    assert_eq!(narrow.program, wide.program, "a bandwidth is not a supported commitment");
     assert_eq!(narrow.identification, wide.identification);
     assert_eq!(narrow.target, wide.target);
 }
 
 #[test]
-fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
+fn unsupported_operation_blocker_ids_come_from_constants_not_prose() {
     let inspected = refused_admg_cell().inspect().unwrap();
     for operation in [OperationKind::Retarget, OperationKind::Export, OperationKind::RankDesigns] {
         let report = inspected.capability_for(operation);
         assert_eq!(
             report.primary_blocker_id(),
-            Some("operation.unlicensed"),
+            Some("operation.unsupported"),
             "{operation:?} on a refused cell"
         );
         let message = report.blockers.first().map(|blocker| blocker.reason.to_string()).unwrap();
@@ -7049,13 +7049,13 @@ fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
             antecedent::CausalError::Unsupported { message: Box::leak(message.into_boxed_str()) }
                 .blocker_id()
                 .map(|blocker| blocker.id.to_string()),
-            Some("operation.unlicensed".into()),
+            Some("operation.unsupported".into()),
             "the refusal a capability report prints maps back to the same id"
         );
     }
     // A message that merely mentions the same words is a different refusal.
     let reworded = antecedent::CausalError::Unsupported {
-        message: "this retarget would need a licensed prepared contract first",
+        message: "this retarget would need a supported prepared contract first",
     };
     assert_eq!(reworded.blocker_id().map(|blocker| blocker.id.to_string()), None);
 }

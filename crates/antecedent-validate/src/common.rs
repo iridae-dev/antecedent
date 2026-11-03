@@ -642,10 +642,10 @@ pub(crate) fn with_extra_float(
     data.with_appended_float(name, values).map_err(ValidationError::from)
 }
 
-/// Fit the licensed scalar once (no nested bootstrap pools).
+/// Fit the supported scalar once (no nested bootstrap pools).
 ///
 /// Queries with effect modifiers refit [`ConditionalLinearAdjustment`] — the same
-/// interaction model that produced the licensed CATE-at-mean — not main-effects ATE.
+/// interaction model that produced the supported CATE-at-mean — not main-effects ATE.
 pub(crate) fn fit_once(
     estimator: &LinearAdjustmentAte,
     data: &TabularData,

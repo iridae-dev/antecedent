@@ -1,6 +1,6 @@
 //! Python bridge for typed scientific bridges.
 //!
-//! Python declares a bridge contract and a source claim as JSON; the licensing
+//! Python declares a bridge contract and a source claim as JSON; the support
 //! checks, the mapping, the identities, the artifact and every refusal are
 //! Rust's. A refusal comes back as structured JSON for the Python layer to
 //! raise as a typed exception; a malformed declaration is an input error.
@@ -632,7 +632,7 @@ fn source_json(claim: &ClaimEnvelope) -> Json {
 // Handles.
 // ---------------------------------------------------------------------------
 
-/// A checked bridge contract with its licensing verdict. Every method that
+/// A checked bridge contract with its support verdict. Every method that
 /// changes it returns a new handle and leaves this one untouched.
 #[pyclass(name = "PreparedBridgeHandle", skip_from_py_object)]
 pub(crate) struct PreparedBridgeHandle {
@@ -762,7 +762,7 @@ impl BridgedClaimHandle {
                         "degrees_of_freedom": interval.degrees_of_freedom,
                         "mapping": interval.mapping.as_str(),
                         "construction": interval.construction,
-                        "licensed_by": interval.licensed_by,
+                        "supported_by": interval.supported_by,
                         "coverage_record": interval.coverage_record,
                         "calibration_sha": interval.calibration_sha,
                         "assumptions": interval.assumptions,
@@ -894,7 +894,7 @@ fn scientific_bridge_prepare(contract_json: &str) -> PyResult<Prepared> {
     })
 }
 
-/// The identity of a contract declaration without checking its licensing.
+/// The identity of a contract declaration without checking its support.
 #[pyfunction]
 fn scientific_bridge_contract_identity(contract_json: &str) -> PyResult<String> {
     let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
@@ -1106,7 +1106,7 @@ impl BridgedDistributionHandle {
                         "degrees_of_freedom": interval.degrees_of_freedom,
                         "mapping": interval.mapping.as_str(),
                         "construction": interval.construction,
-                        "licensed_by": interval.licensed_by,
+                        "supported_by": interval.supported_by,
                         "coverage_record": interval.coverage_record,
                         "calibration_sha": interval.calibration_sha,
                         "assumptions": interval.assumptions,

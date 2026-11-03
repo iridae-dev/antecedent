@@ -463,7 +463,7 @@ impl DependenceContract {
     /// Returns an error when the status is [`DependenceStatus::Unknown`]. The
     /// error names that overlap is unknown, and its next contract is this
     /// unknown contract.
-    #[must_use = "unknown overlap does not license a diagonal covariance"]
+    #[must_use = "unknown overlap does not support a diagonal covariance"]
     pub fn covariance_combination(&self) -> Result<CovarianceCombination, DependenceError> {
         match self.status {
             DependenceStatus::Independent => Ok(CovarianceCombination::diagonal()),
@@ -604,7 +604,7 @@ pub enum CovarianceTerms {
     CrossTerms,
 }
 
-/// A covariance combination licensed by a dependence contract.
+/// A covariance combination supported by a dependence contract.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CovarianceCombination {
     terms: CovarianceTerms,

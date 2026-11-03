@@ -278,7 +278,7 @@ fn malformed_declarations_are_refused_with_registered_details() {
         let refusal = refusal_of(&declaration);
         assert_eq!(refusal.code, code, "{expected}");
         assert_eq!(detail(&refusal), expected);
-        assert!(refusal.remedy.is_some(), "{expected} names what would license it");
+        assert!(refusal.remedy.is_some(), "{expected} names what would support it");
         refusal.validate().expect("a well-formed refusal envelope");
     }
 }
@@ -515,10 +515,10 @@ fn a_side_effecting_callback_is_reused_only_under_an_idempotent_contract_and_key
 
 #[test]
 fn standing_is_diagnostic_unless_replayable_complete_and_attested() {
-    assert_eq!(standing_label(&gaussian(), false), ResultStanding::LicensedExternal);
+    assert_eq!(standing_label(&gaussian(), false), ResultStanding::SupportedExternal);
     let mut seeded = gaussian();
     seeded.replay = ReplayContract::SeededStochastic { stream_id: "draws".into() };
-    assert_eq!(standing_label(&seeded, false), ResultStanding::LicensedExternal);
+    assert_eq!(standing_label(&seeded, false), ResultStanding::SupportedExternal);
     let diagnostic = |mutate: &dyn Fn(&mut CallbackDeclaration), reason: &str| {
         let mut declaration = gaussian();
         mutate(&mut declaration);
@@ -541,7 +541,7 @@ fn standing_is_diagnostic_unless_replayable_complete_and_attested() {
     let mut verified = gaussian();
     verified.trust = CallbackTrust::ExactRequestVerified { receipt_digest: "d".repeat(64) };
     assert_eq!(standing_label(&verified, false), ResultStanding::Diagnostic);
-    assert_eq!(standing_label(&verified, true), ResultStanding::LicensedExternal);
+    assert_eq!(standing_label(&verified, true), ResultStanding::SupportedExternal);
 }
 
 // -- output validation ------------------------------------------------------------------------

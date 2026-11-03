@@ -34,7 +34,7 @@ Read it this way:
 
 - The ratio's uncertainty is labelled `rbc_point_with_unvalidated_hc0_standard_error_no_interval`. No confidence interval is published, and a saved artifact rejects fabricated interval fields or design metadata that disagrees with the query.
 - The local counts show sample size near the cutoff only. They do not establish continuity, absence of manipulation or adequate effective support.
-- The result stays an unlicensed point utility, outside the graphless support matrix. There is no weak-instrument-robust inference.
+- The result stays an unsupported point utility, outside the graphless support matrix. There is no weak-instrument-robust inference.
 
 ### Refusals
 
@@ -49,7 +49,7 @@ The route refuses singular local fits, too few positive-kernel observations on e
 | `balance_covariates=(...)` | Reports each covariate's jump at the cutoff. A diagnostic only. |
 | `temporal_replicates=B` | Declares that the running variable is calendar time. The interval comes from a within-side moving-block bootstrap that refits the whole ratio. |
 
-Any of these options returns the answer on `result.quasi_rollout` with an unlicensed interval whose calibration is `unmeasured`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
+Any of these options returns the answer on `result.quasi_rollout` with an unsupported interval whose calibration is `unmeasured`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
 
 ## Assumptions you declare
 

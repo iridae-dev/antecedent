@@ -82,9 +82,9 @@ def main() -> None:
     for path in [
         "parity/release.toml",
         "parity/support_axes.toml",
-        "parity/support_licensed.toml",
+        "parity/support_cells.toml",
         "parity/support_n_a.toml",
-        "parity/support_closed.toml",
+        "parity/support_refusal_reasons.toml",
         "parity/oracle_closure.toml",
         "benches/baselines/baselines.toml",
         "deny.toml",

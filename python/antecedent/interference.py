@@ -163,7 +163,7 @@ class SaturationEffects:
     direct: SaturationEffectEstimate
     spillover: SaturationEffectEstimate
     total: SaturationEffectEstimate
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     uncertainty_semantics: str = "Covariance-free variance bounds cover both randomization stages; no confidence interval or calibration claim is made."
     assumptions: tuple[str, ...] = (
         "Clusters are completely randomized to the declared low/high saturation counts.",
@@ -195,7 +195,7 @@ class ObservationalNetworkExposureEstimate:
         "Partial interference across the explicitly supplied cluster partition.",
         "Supplied exposure probabilities are correctly specified or known.",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,10 +244,10 @@ class InterferenceQuery:
     ``assignment`` is the declared assignment or observation design, ``exposure`` the exposure
     mapping and ``functional`` the contrast between two exposure levels.
 
-    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Dag``,
+    :func:`antecedent.analyze` estimates the supported cell (explicit ``Dag``,
     Frequentist, validation ``none``): NeighborCount exposure under Bernoulli
     assignment, Horvitz–Thompson / Hájek with the conservative Young variance
-    bound. A separate unlicensed construction accepts cluster randomization,
+    bound. A separate unsupported construction accepts cluster randomization,
     NeighborFraction, an explicit partial-interference partition, and the
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
     has no interval claim. ``SaturationDesign`` also supports exact two-stage
@@ -348,7 +348,7 @@ class InterferenceEstimate:
     )
     pointwise_interval: InterferencePointwiseInterval | None = None
     interval_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -454,15 +454,15 @@ def estimate(
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
-    This is an unlicensed utility: every assignment
+    This is an unsupported utility: every assignment
     design and exposure mapping, and ``execution`` carries the exposure-probability Monte
     Carlo seed. It calls the interference estimator directly and returns bare
     numbers, with no study, contract, export or calibration slot. ``work_limit``
     sets the total logical-operation ceiling for both exposure probabilities;
     exceeding it refuses the request without reducing the Monte Carlo draw count.
     ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
-    realized_assignment=))`` retains a study for the licensed Bernoulli cell
-    and the separately checked, unlicensed cluster total-effect construction.
+    realized_assignment=))`` retains a study for the supported Bernoulli cell
+    and the separately checked, unsupported cluster total-effect construction.
     """
 
     if not isinstance(query, InterferenceQuery):
@@ -584,7 +584,7 @@ def estimate_saturation_effects(
     Spillover compares low/high neighbor exposure among untreated units. Total
     compares untreated/low with treated/high. Exact cluster allocations and
     within-cluster Bernoulli assignments provide each unit's exposure
-    probabilities. This direct utility is not licensed on ``analyze``.
+    probabilities. This direct utility is not supported on ``analyze``.
     """
 
     if not isinstance(design, SaturationDesign):

@@ -13,7 +13,7 @@
 //!   at each point of the prior grid and the posterior-mean **level** is read back,
 //!   not the dose coefficient) and the MCMC diagnostics of the primary fit.
 //!
-//! The state executes and is unlicensed: no evidence row or coverage record names
+//! The state executes and is unsupported: no evidence row or coverage record names
 //! it, the support matrix reports the cell `refused`, and a refuter verdict here is
 //! a check, not a calibration claim.
 
@@ -221,7 +221,7 @@ pub(super) fn refute_bayesian_intervention_level(
         DiagnosticSeverity::Info,
         format!(
             "Bayesian {} refuter state ({}): {}prior and posterior predictive checks of the \
-             outcome regression{}. It executes unlicensed: no coverage or evidence record \
+             outcome regression{}. It executes unsupported: no coverage or evidence record \
              names it, and the verdicts are checks, not a calibration claim.",
             input.target_label,
             if full { "full" } else { "cheap" },

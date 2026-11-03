@@ -15,7 +15,7 @@ The observed margin is the nine-cell pattern law :class:`PatternLaw`
 ``P(R1, R2, X*1, X*2)``; the target is the full law ``P(X1, X2)``. With the head ``h`` and
 tail ``t`` the recovered cell is ``both(x_h, x_t) / (P(R_h=1) q(x_h))`` where ``q(x_h)`` is
 ``P(R_h=1, R_t=1, X*_h=x_h) / P(R_h=1, X*_h=x_h)`` when the tail response depends on the head
-variable and ``P(R_h=1, R_t=1) / P(R_h=1)`` otherwise. This is graph-licensed recovery: not
+variable and ``P(R_h=1, R_t=1) / P(R_h=1)`` otherwise. This is graph-supported recovery: not
 complete-case analysis, MAR or inverse-probability weighting.
 
 A **self-censoring edge** (``X_i -> R_i``) with every other edge in the class is refused as
@@ -311,7 +311,7 @@ class ChainDecision:
 
 @dataclass(frozen=True, slots=True)
 class RecoveredChain:
-    """The recovered law ``P(X1, X2)`` with the plan and artifact that license it."""
+    """The recovered law ``P(X1, X2)`` with the plan and artifact that support it."""
 
     plan: ChainPlan
     observed: PatternLaw

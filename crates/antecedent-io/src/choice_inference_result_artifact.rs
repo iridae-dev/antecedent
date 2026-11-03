@@ -11,14 +11,14 @@
 //!
 //! A consumer trusts none of the stored values. It rebuilds the contract from the declaration
 //! (so a missing element, a source on rows the respondents also contribute, a source of another
-//! frame without a declared transfer, or a paradigm the cell is not licensed for is refused),
+//! frame without a declared transfer, or a paradigm the cell is not supported for is refused),
 //! requires the request's paradigm and outcome structure to be the cell's, and recomputes the
 //! result with the estimators. A resealed edit of a count, a discount, the stopping rule or a
 //! stored value is refused, and a consumer that retained the identity independently refuses a
 //! consistently resealed result of another study.
 //!
 //! What this does **not** say: no interval, credible interval or coverage statement (closed:
-//! `cell_not_licensed`), no frequentist error rate for the stopping rule, and no claim that
+//! `not_supported`), no frequentist error rate for the stopping rule, and no claim that
 //! stated choices identify behaviour or a causal effect.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -168,7 +168,7 @@ pub struct ChoiceResultError {
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -235,7 +235,7 @@ fn hierarchical_inputs(
 
 /// Compute the result a request asks of a contract.
 ///
-/// The route is authorized first: the paradigm must be one the contract's cell is licensed for,
+/// The route is authorized first: the paradigm must be one the contract's cell is supported for,
 /// and the request's outcome structure must be the cell's. Value order:
 ///
 /// * Posterior: per option `alpha, mean, probability_best, expected_loss`, then the observations

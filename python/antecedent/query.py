@@ -77,7 +77,7 @@ class ExceedanceGrid:
 
 @dataclass(frozen=True, slots=True)
 class Quantile:
-    """Finite-grid quantile ``F_a^{-1}(tau)`` on licensed Frequentist CDF paths.
+    """Finite-grid quantile ``F_a^{-1}(tau)`` on supported Frequentist CDF paths.
 
     Effect queries return active minus control quantiles. ConditionalEffect
     standardizes arm CDFs over the retained modifier distribution before inversion.
@@ -124,7 +124,7 @@ def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
 
 @dataclass(frozen=True, slots=True)
 class TemporalResponseSpec:
-    """Licensed temporal-response query policy, supplied by Rust.
+    """Supported temporal-response query policy, supplied by Rust.
 
     Python may duplicate error checking against this object. It must not
     define the cap, allowed policies, or lag default itself.
@@ -394,7 +394,7 @@ class TemporalConditionalSustained:
     """One-modifier conditional sustained effect on a single time step.
 
     Same marginal functional as :class:`TemporalConditionalPulse`. A multi-step
-    window is not this license.
+    window is not this support.
     """
 
     treatment: str
@@ -543,7 +543,7 @@ class AnomalyReference:
 class AnomalyAttribution:
     """GCM anomaly scores on a supplied explicit Dag.
 
-    Licensed ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
+    Supported ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
     validation ``none``. Identification is parametric (``gcm.parametric``);
     estimator ``gcm.fit``. accepted, graph-posterior, and non-Dag graphs remain
     refused. A Bayesian run publishes a shared-Dirichlet-row-weight posterior of
@@ -571,7 +571,7 @@ class AnomalyAttribution:
 class ChangeAttribution:
     """GCM distribution-change Shapley on a supplied explicit Dag.
 
-    Licensed ``analyze(data, graph=Dag, query=ChangeAttribution(...))`` at
+    Supported ``analyze(data, graph=Dag, query=ChangeAttribution(...))`` at
     validation ``none``. Identification is parametric (``gcm.parametric``);
     estimator ``gcm.fit``. cheap/full, Bayesian, accepted, graph-posterior,
     and non-Dag graphs remain refused.
@@ -653,7 +653,7 @@ class Counterfactual:
 class NestedCounterfactual:
     """Natural direct effect ``Y(1, M(0)) - Y(0, M(0))``.
 
-    Licensed for one explicit three-node Markovian DAG with linear Gaussian
+    Supported for one explicit three-node Markovian DAG with linear Gaussian
     mechanisms. The same abduced exogenous table is used in both worlds.
     """
 
@@ -950,8 +950,8 @@ class InterventionResponse:
     """Mean outcome under an existing static, stochastic, or modified intervention.
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
-    (ADR 0021), licensed on ``TemporalDag``, ``TemporalCpdag``, and ``TemporalPag``.
-    Class graphs retain per-completion responses and structural uncertainty. Licensed policies are
+    (ADR 0021), supported on ``TemporalDag``, ``TemporalCpdag``, and ``TemporalPag``.
+    Class graphs retain per-completion responses and structural uncertainty. Supported policies are
     Soft(``constant``/``additive_shift``/``multiplicative``/``truncated_shift``) and ``Sequence`` of those overlays
     (multi-step on one variable, or joint at one time when every coordinate
     is identified). Multiplicative scales the structural assignment; truncated shift targets its

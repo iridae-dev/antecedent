@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-# Calibration state is keyed by promotion record id (scripts/check_interval_surfaces.py).
+# Calibration state is keyed by capability record id (scripts/check_interval_surfaces.py).
 MULTI_SOURCE = "transport.multi_source_limited_experiment"
 LEARNED_CONTINUOUS = "transport.learned_continuous_trial"
 STORIES = {
@@ -229,7 +229,7 @@ def self_test() -> int:
         "verdict: FAIL",
     )
     broken = dict(
-        pending, intervals="FAIL", errors=["licensed row carries estimator_grid_not_measured"]
+        pending, intervals="FAIL", errors=["supported row carries estimator_grid_not_measured"]
     )
     expect("an interval violation fails", ok_rust, ok_py, broken, False, 1, "verdict: FAIL")
     absent = dict(done, calibration={})

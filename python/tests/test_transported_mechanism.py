@@ -334,7 +334,7 @@ def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, targe
     assert value.scope == SCOPE
     assert value.method == "first_order_delta_method"
     closed = refusal_of(transported.interval)
-    assert closed.reason_code == "cell_not_licensed"
+    assert closed.reason_code == "not_supported"
     assert closed.detail == "mechanism_transport.interval_route_closed"
 
 

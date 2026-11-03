@@ -18,7 +18,7 @@ prose:
   refusal beside the status of the noncausal claim.
 
 A status is advice about use, never a verdict about the world: ``supported`` means the
-route is licensed, identified under the declared structure and executed, with nothing
+route is supported, identified under the declared structure and executed, with nothing
 contradicting it; it does not certify the assumptions.
 """
 
@@ -185,9 +185,8 @@ def operation_status(applicability: str, readiness: str | None = None) -> HostSt
 
 
 _APPLICABILITY = {
-    "licensed": "licensed",
-    "allowed_unlicensed": "unlicensed",
-    "refused": "unlicensed",
+    "supported": "supported",
+    "not_supported": "unsupported",
     "not_applicable": "impossible",
 }
 
@@ -196,8 +195,8 @@ def inspection_status(report: Any) -> HostStatus:
     """Status of an ``inspect()`` report, before or after execution.
 
     With a claim in the contract the claim decides. Before a claim exists, the support
-    slot's matrix status gives the applicability, and a licensed cell whose
-    identification is available is read as executable; a licensed cell without it is
+    slot's matrix status gives the applicability, and a supported cell whose
+    identification is available is read as executable; a supported cell without it is
     partial (prepare first), and an off-axis cell is partial (unknown support).
     """
     contract = getattr(report, "contract", None)
@@ -207,7 +206,7 @@ def inspection_status(report: Any) -> HostStatus:
     matrix = str(report.support.payload.get("matrix_status") or report.support.summary)
     applicability = _APPLICABILITY.get(matrix, "unknown")
     readiness = None
-    if applicability == "licensed":
+    if applicability == "supported":
         readiness = "executable" if report.identification.available else "binding_missing"
     return operation_status(applicability, readiness)
 
@@ -255,23 +254,23 @@ def operation_record(report: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def support_cells() -> tuple[str, ...]:
-    """Every licensed support-matrix coordinate, ``query:graph:structure:inference:validation``.
+    """Every supported support-matrix coordinate, ``query:graph:structure:inference:validation``.
 
     The list is the generated matrix itself, read without preparing or fitting anything. A
     prepared study's ``matrix_coordinate`` is one of these exactly when its matrix status is
-    ``licensed``.
+    ``supported``.
     """
-    return tuple(_native.support_licensed_cells())
+    return tuple(_native.support_cells())
 
 
 def support_cell_report(coordinate: str) -> dict[str, Any]:
-    """Classification, blocker text and licensed neighbors of one matrix coordinate.
+    """Classification, blocker text and supported neighbors of one matrix coordinate.
 
-    ``status`` is ``licensed``, ``refused`` or ``not_applicable``. ``message`` is the blocker
-    text a refused or not-applicable cell reports (``None`` for a licensed cell), and
-    ``neighbors`` the licensed cells of the same graph class that change explicit premises,
+    ``status`` is ``supported``, ``not_supported`` or ``not_applicable``. ``message`` is the blocker
+    text a refused or not-applicable cell reports (``None`` for a supported cell), and
+    ``neighbors`` the supported cells of the same graph class that change explicit premises,
     nearest first, each with the ``changed`` axes and the ``required_action``: an alternative
-    the caller chooses, never an automatic fallback. A licensed cell has no neighbors.
+    the caller chooses, never an automatic fallback. A supported cell has no neighbors.
     A coordinate that is malformed or names an axis value outside the matrix raises
     :class:`~antecedent.errors.CausalValueError`.
     """

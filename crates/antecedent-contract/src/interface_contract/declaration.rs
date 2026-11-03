@@ -213,7 +213,7 @@ impl UncertaintyMeaning {
 pub enum CalibrationStatus {
     /// No calibration statement.
     None,
-    /// A point value; no uncertainty statement is made or licensed.
+    /// A point value; no uncertainty statement is made or supported.
     PointOnly,
     /// An uncertainty statement is made whose coverage has not been measured.
     Unmeasured,

@@ -84,7 +84,7 @@ fn artifact(
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -137,7 +137,7 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
         aligned_input("x", "snapshot_j", "joint_7"),
         aligned_input("y", "snapshot_j", "joint_7"),
     ))
-    .expect("one alignment licenses the aligned route");
+    .expect("one alignment supports the aligned route");
     assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
     assert_eq!(plan.alignment_id.as_deref(), Some("joint_7"));
     assert_eq!(plan.label, "point_only");
@@ -381,7 +381,7 @@ fn a_dependence_envelope_ranges_over_every_coupling_of_two_marginals() {
     near(variance.value("linear_variance_lower").expect("lower"), 0.1875);
     near(variance.value("linear_variance_upper").expect("upper"), 0.6875);
     // The envelope is never read as an interval.
-    assert_eq!(product.interval().expect_err("closed").code(), "cell_not_licensed");
+    assert_eq!(product.interval().expect_err("closed").code(), "not_supported");
 }
 
 #[test]

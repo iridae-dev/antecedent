@@ -246,7 +246,7 @@ def test_an_undirected_edge_at_the_treatment_is_refused_by_name() -> None:
             execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "parent_set_effect.treatment_parents_ambiguous"
     assert "h - n0" in info.value.message
     assert "no completion is chosen" in info.value.message
@@ -323,7 +323,7 @@ def test_a_maximum_degree_above_four_is_refused_with_both_degrees_named() -> Non
             split_seed=SPLIT_SEED,
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "parent_set_effect.degree_above_supported"
     assert "declared maximum graph degree is 5" in info.value.message
     assert "supported maximum is 4" in info.value.message
@@ -341,7 +341,7 @@ def test_a_table_outside_ten_to_twenty_variables_is_refused() -> None:
             split_seed=1,
             execution=Execution(seed=SEED),
         )
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "parent_set_effect.variable_count_not_measured"
 
 
@@ -404,7 +404,7 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         estimate.measure()
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "measured_inference.record_not_attesting"
 
 

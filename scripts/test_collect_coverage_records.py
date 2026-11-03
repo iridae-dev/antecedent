@@ -184,7 +184,7 @@ class ArchivedSupersededMeasurementTest(unittest.TestCase):
                     self.assertTrue(any(expected in error for error in errors), errors)
                 errors = []
                 intervals.historical_allocations(record, [replacement], {old}, errors)
-                self.assertTrue(any("passing licensed record" in error for error in errors))
+                self.assertTrue(any("passing supported record" in error for error in errors))
                 allocated = {**record, "inference_outputs": [{"allocated_coverage_records": [old]}]}
                 errors = []
                 intervals.historical_allocations(allocated, [replacement], set(), errors)
@@ -353,12 +353,12 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             'calibration = ["old"]\n'
         )
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
-            original = collector.LICENSED
-            collector.LICENSED = path
+            original = collector.SUPPORTED
+            collector.SUPPORTED = path
             try:
-                changed = collector.sync_licensed_cells(
+                changed = collector.sync_supported_cells(
                     {
                         "new.v2_validation_none": {
                             "id": "new.v2_validation_none",
@@ -376,7 +376,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                     {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new.v2_validation_none"]},
                 )
             finally:
-                collector.LICENSED = original
+                collector.SUPPORTED = original
             self.assertEqual(changed, 1)
             self.assertIn('calibration = ["new.v2_validation_none"]', path.read_text(encoding="utf-8"))
             self.assertEqual(
@@ -385,7 +385,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             )
 
 
-class LicensedCellSyncTest(unittest.TestCase):
+class SupportedCellSyncTest(unittest.TestCase):
     @staticmethod
     def source(inference: str = "Bayesian", bound: bool = True) -> str:
         return (
@@ -417,17 +417,17 @@ class LicensedCellSyncTest(unittest.TestCase):
     def test_validation_requires_versioned_exact_coordinate(self) -> None:
         cell = collector.tomllib.loads(self.source())["cell"][0]
         record = self.record("functional.effect")
-        self.assertTrue(collector.licensed_record_matches(cell, record))
+        self.assertTrue(collector.supported_record_matches(cell, record))
         for changes in ({"validation": "cheap"}, {"validation": "unknown"},
                         {"validation": "not_applicable"}, {"validation_schema": 1},
                         {"id": "cov.legacy"},
                         {"id": "cov.v2_validation_none.v2_validation_cheap"}):
             with self.subTest(changes=changes):
-                self.assertFalse(collector.licensed_record_matches(cell, {**record, **changes}))
+                self.assertFalse(collector.supported_record_matches(cell, {**record, **changes}))
         missing = dict(record)
         missing.pop("validation")
-        self.assertFalse(collector.licensed_record_matches(cell, missing))
-        self.assertFalse(collector.licensed_record_matches({**cell, "validation": "full"}, record))
+        self.assertFalse(collector.supported_record_matches(cell, missing))
+        self.assertFalse(collector.supported_record_matches({**cell, "validation": "full"}, record))
 
     def test_reviewed_legacy_binding_is_exact_and_never_transfers_modes(self) -> None:
         import coverage_validation_bindings
@@ -439,19 +439,19 @@ class LicensedCellSyncTest(unittest.TestCase):
         key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
         with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
              patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
-            self.assertTrue(collector.licensed_record_matches(cell, legacy))
-            self.assertFalse(collector.licensed_record_matches({**cell, "validation": "cheap"}, legacy))
-            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "calibration_sha": "b" * 40}))
-            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "test": "other"}))
-            self.assertFalse(collector.licensed_record_matches(cell, {**legacy, "id": "other"}))
+            self.assertTrue(collector.supported_record_matches(cell, legacy))
+            self.assertFalse(collector.supported_record_matches({**cell, "validation": "cheap"}, legacy))
+            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "calibration_sha": "b" * 40}))
+            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "test": "other"}))
+            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "id": "other"}))
 
     def test_new_accepted_measurement_requires_its_own_identity(self) -> None:
         cell = collector.tomllib.loads(self.source())["cell"][0]
         record = self.record("functional.effect")
         accepted = {**record, "structure": "accepted", "id": "cov.test.v2_validation_none.v2_structure_accepted"}
-        self.assertTrue(collector.licensed_record_matches({**cell, "structure": "accepted"}, accepted))
-        self.assertFalse(collector.licensed_record_matches(cell, accepted))
-        self.assertFalse(collector.licensed_record_matches({**cell, "structure": "accepted"}, {**accepted, "id": record["id"]}))
+        self.assertTrue(collector.supported_record_matches({**cell, "structure": "accepted"}, accepted))
+        self.assertFalse(collector.supported_record_matches(cell, accepted))
+        self.assertFalse(collector.supported_record_matches({**cell, "structure": "accepted"}, {**accepted, "id": record["id"]}))
 
     def test_explicit_measurement_does_not_bind_an_accepted_cell(self) -> None:
         import coverage_validation_bindings
@@ -463,18 +463,18 @@ class LicensedCellSyncTest(unittest.TestCase):
         key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
         with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
              patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
-            self.assertTrue(collector.licensed_record_matches(cell, legacy))
-            self.assertFalse(collector.licensed_record_matches({**cell, "structure": "accepted"}, legacy))
+            self.assertTrue(collector.supported_record_matches(cell, legacy))
+            self.assertFalse(collector.supported_record_matches({**cell, "structure": "accepted"}, legacy))
 
     def test_only_cell_rejects_other_validation_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             source = self.source(bound=False)
             path.write_text(source, encoding="utf-8")
             record = {**self.record("functional.effect"), "id": "cov.test.v2_validation_cheap", "validation": "cheap"}
             coordinate = ("AverageEffect", "Admg", "explicit", "Bayesian", "none")
-            with patch.object(collector, "LICENSED", path), self.assertRaises(SystemExit):
-                collector.sync_licensed_cells({"candidate": record}, only_cells={coordinate: {"candidate"}})
+            with patch.object(collector, "SUPPORTED", path), self.assertRaises(SystemExit):
+                collector.sync_supported_cells({"candidate": record}, only_cells={coordinate: {"candidate"}})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_new_passing_fisher_and_bayesian_do_not_rebind_frontdoor_boundary(self) -> None:
@@ -484,10 +484,10 @@ class LicensedCellSyncTest(unittest.TestCase):
         ):
             with self.subTest(inference=inference), tempfile.TemporaryDirectory() as directory:
                 source = self.source(inference)
-                path = Path(directory) / "licensed.toml"
+                path = Path(directory) / "supported.toml"
                 path.write_text(source, encoding="utf-8", newline="\n")
-                with patch.object(collector, "LICENSED", path):
-                    collector.sync_licensed_cells(
+                with patch.object(collector, "SUPPORTED", path):
+                    collector.sync_supported_cells(
                         {
                             "frontdoor": self.record("functional.effect", inference, True),
                             "new_passing": self.record(estimator, inference),
@@ -500,36 +500,36 @@ class LicensedCellSyncTest(unittest.TestCase):
     def test_default_sync_leaves_unmeasured_cell_byte_identical(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source(bound=False)
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
-            with patch.object(collector, "LICENSED", path):
+            with patch.object(collector, "SUPPORTED", path):
                 self.assertEqual(
-                    collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")}), 0
+                    collector.sync_supported_cells({"new": self.record("nested_markov_bayesian")}), 0
                 )
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_missing_bound_record_refuses_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source()
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
             with (
-                patch.object(collector, "LICENSED", path),
+                patch.object(collector, "SUPPORTED", path),
                 self.assertRaisesRegex(SystemExit, "bound calibration records absent"),
             ):
-                collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")})
+                collector.sync_supported_cells({"new": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_explicit_same_axes_foreign_estimator_refuses_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source()
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
             with (
-                patch.object(collector, "LICENSED", path),
-                self.assertRaisesRegex(SystemExit, "not owned by the licensed cell"),
+                patch.object(collector, "SUPPORTED", path),
+                self.assertRaisesRegex(SystemExit, "not owned by the supported cell"),
             ):
-                collector.sync_licensed_cells(
+                collector.sync_supported_cells(
                     {"new": self.record("nested_markov_bayesian")},
                     {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]},
                 )
@@ -537,10 +537,10 @@ class LicensedCellSyncTest(unittest.TestCase):
 
     def test_refresh_uses_new_measurement_of_original_bound_method(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             path.write_text(self.source(), encoding="utf-8", newline="\n")
-            with patch.object(collector, "LICENSED", path):
-                collector.sync_licensed_cells({"frontdoor": self.record("functional.effect")})
+            with patch.object(collector, "SUPPORTED", path):
+                collector.sync_supported_cells({"frontdoor": self.record("functional.effect")})
             parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
             self.assertEqual(parsed["calibration"], ["frontdoor"])
             self.assertNotIn("calibration_reason", parsed)
@@ -555,12 +555,12 @@ class LicensedCellSyncTest(unittest.TestCase):
                 "frontdoor": self.record("functional.effect", inference, True),
                 "new_posterior": self.record(foreign, inference),
             }
-            self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
+            self.assertEqual(collector.supported_cell_calibration_problems(cell, records), [])
             cell["calibration"].append("new_posterior")
             self.assertTrue(
                 any(
                     "foreign estimator" in error
-                    for error in collector.licensed_cell_calibration_problems(cell, records)
+                    for error in collector.supported_cell_calibration_problems(cell, records)
                 )
             )
 
@@ -570,15 +570,15 @@ class LicensedCellSyncTest(unittest.TestCase):
             "frontdoor": self.record("functional.effect", boundary=True),
             "new_owned_grid": self.record("functional.effect"),
         }
-        errors = collector.licensed_cell_calibration_problems(cell, records)
+        errors = collector.supported_cell_calibration_problems(cell, records)
         self.assertTrue(any("missing required owned records" in error for error in errors))
         cell["calibration"].append("new_owned_grid")
-        self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
+        self.assertEqual(collector.supported_cell_calibration_problems(cell, records), [])
         del records["frontdoor"]
         self.assertTrue(
             any(
                 "unknown bound record" in error
-                for error in collector.licensed_cell_calibration_problems(cell, records)
+                for error in collector.supported_cell_calibration_problems(cell, records)
             )
         )
 
@@ -589,7 +589,7 @@ class LicensedCellSyncTest(unittest.TestCase):
         self.assertTrue(
             any(
                 "scientific coordinate" in error
-                for error in collector.licensed_cell_calibration_problems(
+                for error in collector.supported_cell_calibration_problems(
                     cell, {"frontdoor": record}
                 )
             )
@@ -597,14 +597,14 @@ class LicensedCellSyncTest(unittest.TestCase):
 
     def test_default_refresh_refuses_foreign_existing_binding_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "licensed.toml"
+            path = Path(directory) / "supported.toml"
             source = self.source()
             path.write_text(source, encoding="utf-8", newline="\n")
             with (
-                patch.object(collector, "LICENSED", path),
-                self.assertRaisesRegex(SystemExit, "not owned by the licensed cell"),
+                patch.object(collector, "SUPPORTED", path),
+                self.assertRaisesRegex(SystemExit, "not owned by the supported cell"),
             ):
-                collector.sync_licensed_cells({"frontdoor": self.record("nested_markov_bayesian")})
+                collector.sync_supported_cells({"frontdoor": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     @staticmethod
@@ -652,11 +652,11 @@ class LicensedCellSyncTest(unittest.TestCase):
             cell["calibration_estimators"] = [self.scientific_owner(root)]
             self.assertEqual(self.scientific_owner_evidence_errors(cell, root), [])
             self.assertTrue(
-                collector.licensed_record_matches(cell, self.record("actual.scientific"))
+                collector.supported_record_matches(cell, self.record("actual.scientific"))
             )
             self.assertEqual(cell["estimators"], selectors)
             self.assertFalse(
-                collector.licensed_record_matches(cell, self.record("nested_markov_bayesian"))
+                collector.supported_record_matches(cell, self.record("nested_markov_bayesian"))
             )
 
     def test_scientific_owner_requires_actual_native_code_not_comment(self) -> None:

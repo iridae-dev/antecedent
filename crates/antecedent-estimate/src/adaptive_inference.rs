@@ -28,7 +28,7 @@
 //!
 //! No result carries an interval or a coverage statement as a claim. Every
 //! guarantee slot is a [`WithheldGuarantee`] that refuses with
-//! `cell_not_licensed` until whole-procedure coverage of the exact procedure
+//! `not_supported` until whole-procedure coverage of the exact procedure
 //! (assignment, outcome structure, monitoring and stopping together) has been
 //! measured. The numerics are in [`antecedent_stats::adaptive_inference`].
 //!
@@ -49,7 +49,7 @@ pub struct AdaptiveInferenceError {
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -121,7 +121,7 @@ pub(crate) fn refuse_if_interrupted(ctx: &ExecutionContext) -> Result<(), Adapti
 /// A guarantee route that is closed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WithheldGuarantee {
-    /// Always `cell_not_licensed`.
+    /// Always `not_supported`.
     pub code: &'static str,
     /// Namespaced detail naming the closed claim.
     pub detail: &'static str,
@@ -132,7 +132,7 @@ pub struct WithheldGuarantee {
 impl WithheldGuarantee {
     pub(crate) fn closed(detail: &'static str) -> Self {
         Self {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             detail,
             reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
         }
@@ -145,7 +145,7 @@ impl WithheldGuarantee {
             self.code,
             self.detail,
             format!(
-                "{what} is not licensed: whole-procedure coverage of this assignment, outcome structure, monitoring and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result"
+                "{what} is not supported: whole-procedure coverage of this assignment, outcome structure, monitoring and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result"
             ),
         )
     }

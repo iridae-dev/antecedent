@@ -173,8 +173,8 @@ def test_policy_progress_failure_keeps_the_user_traceback():
 
 def test_policy_observer_scientific_error_remains_operational():
     original = CausalUnsupportedError(
-        "raised by observer, not by policy licensing",
-        reason_code="policy_route_not_licensed",
+        "raised by observer, not by policy support",
+        reason_code="policy_route_not_supported",
     )
 
     def observer_raises_scientific_error(*_):

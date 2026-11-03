@@ -1,7 +1,7 @@
 """Tier overlap and E-value diagnostics through the Python surface.
 
 The diagnostics are a view over an executed tiered result: nothing is refit, the interval E-value
-is never reported, and a result that is not a licensed single-treatment tiered average-effect
+is never reported, and a result that is not a supported single-treatment tiered average-effect
 result is refused with its registered code.
 """
 
@@ -52,7 +52,7 @@ def test_a_codetermined_result_reports_its_closure_overlap_and_point_evalue() ->
     assert report.evalue.point.value["value"] >= 1.0
     # The interval E-value is a typed unavailable field on every result.
     assert report.evalue.interval.available is False
-    assert report.evalue.interval.code == "cell_not_licensed"
+    assert report.evalue.interval.code == "not_supported"
     assert report.evalue.interval.detail == "tier_diagnostics.evalue_interval_withheld"
 
 

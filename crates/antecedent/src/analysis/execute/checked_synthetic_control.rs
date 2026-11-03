@@ -356,7 +356,7 @@ impl CheckedSyntheticControlOperation {
             } else if randomization.is_some() {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else {
-                "point_only_with_unlicensed_placebo_rank"
+                "point_only_with_unsupported_placebo_rank"
             }),
             randomization_p_value: randomization.as_ref().map(|test| test.p_value),
             randomization_null_effect: randomization

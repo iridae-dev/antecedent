@@ -1,10 +1,10 @@
-//! Finite-action inverse-outcome query over a licensed forward response.
+//! Finite-action inverse-outcome query over a supported forward response.
 //!
 //! The question is "which of these enumerated interventions reach a target
 //! mean?": `E[Y^do(a)] >= threshold` (or `<=`) for a caller-supplied finite
 //! action grid, each action with a declared cost and named constraints. The
 //! module owns no estimator. The forward response `a -> E[Y^do(a)]` is
-//! evaluated by an existing, licensed response route and handed in as a
+//! evaluated by an existing, supported response route and handed in as a
 //! [`ForwardEvaluation`]; this module classifies every enumerated action
 //! against it and refuses what it cannot answer:
 //!
@@ -59,11 +59,14 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> InverseOutcomeEr
     InverseOutcomeError { code: reason_code!("invalid_argument"), detail, message: message.into() }
 }
 
-fn not_licensed(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
-    InverseOutcomeError { code: reason_code!("cell_not_licensed"), detail, message: message.into() }
+fn not_supported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
+    InverseOutcomeError { code: reason_code!("not_supported"), detail, message: message.into() }
 }
 
-fn not_supported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
+fn route_not_supported_err(
+    detail: &'static str,
+    message: impl Into<String>,
+) -> InverseOutcomeError {
     InverseOutcomeError {
         code: reason_code!("route_not_supported"),
         detail,
@@ -147,7 +150,7 @@ pub struct ForwardInterval {
     pub upper: Vec<f64>,
 }
 
-/// The forward response `a -> E[Y^do(a)]` as the licensed route evaluated it.
+/// The forward response `a -> E[Y^do(a)]` as the supported route evaluated it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForwardEvaluation {
     /// Outcome name.
@@ -463,14 +466,14 @@ fn validate_forward(
     forward: &ForwardEvaluation,
 ) -> Result<BTreeMap<Vec<u64>, usize>, InverseOutcomeError> {
     if !forward.mean_response {
-        return Err(not_supported(
+        return Err(route_not_supported_err(
             "inverse.forward_not_mean_response",
             "the forward route's estimand is not a mean response a -> E[Y^do(a)] (a derivative, \
              contrast or other functional carries no target-mean reading)",
         ));
     }
     if !forward.point_identified {
-        return Err(not_supported(
+        return Err(route_not_supported_err(
             "inverse.forward_not_point_identified",
             "the forward response is not point identified (an identified set, a class mixture or \
              an unidentified response has no single mean to compare with a threshold)",
@@ -651,7 +654,7 @@ fn labels_where(outcomes: &[ActionOutcome], keep: impl Fn(&ActionOutcome) -> boo
 }
 
 /// Accepts only a target-mean query and a finite threshold, tolerance and budget, refusing every other target before inputs are read.
-fn licensed_target(
+fn supported_target(
     query: &InverseQuery,
     tolerance: f64,
     budget: Option<f64>,
@@ -659,21 +662,21 @@ fn licensed_target(
     let (threshold, direction) = match *query {
         InverseQuery::TargetMean { threshold, direction } => (threshold, direction),
         InverseQuery::ChanceConstraint { .. } => {
-            return Err(not_licensed(
+            return Err(not_supported(
                 "inverse.probability_target",
                 "a mean response cannot establish a chance constraint P(Y^do(a) >= y) >= q; that \
                  needs a separately identified and calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::Quantile { .. } => {
-            return Err(not_licensed(
+            return Err(not_supported(
                 "inverse.quantile_target",
                 "a target-quantile inverse query needs the interventional distribution and is \
-                 not licensed without a calibrated interventional-distribution cell",
+                 not supported without a calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::ObservationalScenarios => {
-            return Err(not_licensed(
+            return Err(not_supported(
                 "inverse.observational_scenarios",
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
                  and are closed; ask for feasible interventions instead",
@@ -698,7 +701,7 @@ fn licensed_target(
     Ok((threshold, direction))
 }
 
-/// Classify every enumerated action against a licensed forward response.
+/// Classify every enumerated action against a supported forward response.
 ///
 /// `query` must be a target-mean query; the probability, quantile and
 /// observational-scenario queries are refused before any input is read.
@@ -715,7 +718,7 @@ pub fn classify_inverse_outcome(
     tolerance: f64,
     cancel: &CancellationToken,
 ) -> Result<InverseOutcomeReport, InverseOutcomeError> {
-    let (threshold, direction) = licensed_target(query, tolerance, budget)?;
+    let (threshold, direction) = supported_target(query, tolerance, budget)?;
     let index = validate_forward(forward)?;
     validate_actions(actions, forward.dimension)?;
     let mut outcomes = Vec::with_capacity(actions.len());
@@ -1042,17 +1045,17 @@ mod tests {
             (
                 InverseQuery::ChanceConstraint { threshold: 3.0, probability: 0.9 },
                 "inverse.probability_target",
-                "cell_not_licensed",
+                "not_supported",
             ),
             (
                 InverseQuery::Quantile { level: 0.9, threshold: 3.0 },
                 "inverse.quantile_target",
-                "cell_not_licensed",
+                "not_supported",
             ),
             (
                 InverseQuery::ObservationalScenarios,
                 "inverse.observational_scenarios",
-                "cell_not_licensed",
+                "not_supported",
             ),
         ] {
             let refusal = run(&query, &forward, &actions).unwrap_err();

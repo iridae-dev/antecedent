@@ -53,7 +53,7 @@
 //! A reweighted static score table is not sequential evaluation, learning or
 //! changing a policy inside an evaluation is not evaluation, a different
 //! population or period needs a transport contract, and intervals or
-//! posteriors for any value are not licensed ([`PolicySpec`],
+//! posteriors for any value are not supported ([`PolicySpec`],
 //! [`SequentialRequest`], [`request_interval`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -135,7 +135,7 @@ pub(crate) const PROBABILITY_TOLERANCE: f64 = 1e-9;
 ///
 /// `code` is a registered runtime-refusal reason code and `detail` is a
 /// `sequential_evaluation.<rule>` (or pass-through measurement) detail slot.
-/// `remedy` names the declaration, evidence or route that would license the
+/// `remedy` names the declaration, evidence or route that would support the
 /// request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SequentialEvaluationError {
@@ -145,7 +145,7 @@ pub struct SequentialEvaluationError {
     pub detail: String,
     /// What was refused.
     pub message: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
 }
 
@@ -182,7 +182,7 @@ impl From<ExternalRefusal> for SequentialEvaluationError {
             code: refusal.code,
             detail: refusal.detail,
             message: refusal.offending.unwrap_or_default(),
-            remedy: refusal.remedy.unwrap_or("declare a measurement model that licenses the use"),
+            remedy: refusal.remedy.unwrap_or("declare a measurement model that supports the use"),
         }
     }
 }
@@ -264,9 +264,9 @@ impl SequentialRequest {
 /// Always: no coverage record measures the whole sequential procedure.
 pub fn request_interval() -> SequentialResult<std::convert::Infallible> {
     Err(refusal!(
-        "cell_not_licensed",
-        "sequential_evaluation.interval_not_licensed",
-        "no interval, posterior or coverage statement is licensed for a sequential policy value",
+        "not_supported",
+        "sequential_evaluation.interval_not_supported",
+        "no interval, posterior or coverage statement is supported for a sequential policy value",
         "the whole sequential procedure (model, policy, estimator) needs a measured coverage record; the point value and the uncalibrated diagnostics are reported",
     ))
 }

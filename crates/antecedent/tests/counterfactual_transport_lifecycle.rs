@@ -362,7 +362,7 @@ fn prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_st
     .unwrap();
     let counted = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = second.refresh(counted, &ctx()).unwrap_err();
-    assert_eq!(refusal(&error).0, "cell_not_licensed");
+    assert_eq!(refusal(&error).0, "not_supported");
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = second.refresh(original, &cancelled).unwrap_err();
@@ -484,7 +484,7 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn refusals_name_what_would_license_the_request() {
+fn refusals_name_what_would_support_the_request() {
     // Missing factors: the source experiment is declared available but not
     // supplied. Identification is possible if it were: it is named.
     let case = case_named("missing_interventional_evidence");
@@ -589,7 +589,7 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let swapped = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     assert!(prepared.evaluate(&swapped, &ctx()).is_err());
 
-    // An empirical plug-in is not licensed: sampled inference is another route.
+    // An empirical plug-in is not supported: sampled inference is another route.
     let mut laws = data.laws().to_vec();
     let law = &laws[0];
     laws[0] = ExactDiscreteLaw::try_empirical(
@@ -605,7 +605,7 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = prepared.evaluate(&empirical, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("counterfactual_transport.sampled_inference_closed"), "{message}");
 }
 

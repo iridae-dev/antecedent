@@ -587,7 +587,7 @@ class ExternalEstimate:
 
     @property
     def trust(self):
-        """Caller attestation. Never ``verified_extension`` or ``native_licensed``."""
+        """Caller attestation. Never ``verified_extension`` or ``native_supported``."""
         from .extensibility import ProviderTrust
 
         return ProviderTrust.EXTERNALLY_ATTESTED
@@ -697,7 +697,7 @@ def adjustment(
 ) -> AdjustmentHandoff:
     """Emit an adjustment-set handoff, or refuse.
 
-    Licensed only for point-identified backdoor / generalized-adjustment
+    Supported only for point-identified backdoor / generalized-adjustment
     estimands on an explicit or accepted graph. Front-door, IV, general ID,
     general temporal ID functionals,
     partial identification, and graph-posterior mixtures refuse rather than

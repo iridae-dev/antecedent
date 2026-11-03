@@ -15,7 +15,7 @@
 //!   exposure history, outcome availability and delay, the interim analyses
 //!   and the stopping rule. A trial without that contract is refused with the
 //!   missing source contract named; it is never analysed as if it were fixed.
-//! * **Licensed cell.** The contract's procedure cell must be licensed for
+//! * **Supported cell.** The contract's procedure cell must be supported for
 //!   adaptively weighted scores. A fixed design has its own transport route.
 //! * **Selection diagram.** The caller declares the stratum law as shifted or
 //!   invariant and the outcome-given-stratum-and-arm mechanism, which must be
@@ -345,7 +345,7 @@ fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
             "establish the outcome mechanism in the target population (a target trial), or restrict the shift to the stratum law",
         ));
     }
-    // Either status of the stratum law is licensed here; an invariant
+    // Either status of the stratum law is supported here; an invariant
     // declaration is checked against the trial's own law by the caller.
     Ok(())
 }
@@ -493,7 +493,7 @@ fn weighted_sums(
 /// # Errors
 /// A missing trial contract, selection diagram or target stratum law; a
 /// blank, self-targeting or unbound population pair; a stratum law declared
-/// invariant that differs from the trial's; a fixed-design trial; a procedure cell not licensed for adaptively weighted
+/// invariant that differs from the trial's; a fixed-design trial; a procedure not supported for adaptively weighted
 /// scores; exposure that differs from assignment or an outcome-dependent
 /// delay; an outcome mechanism marked shifted; an assigned arm below the
 /// declared probability floor; a target stratum with no analysed unit under a

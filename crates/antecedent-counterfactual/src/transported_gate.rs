@@ -14,10 +14,10 @@ use antecedent_contract::StructuredRefusal;
 /// A prerequisite of the transported counterfactual composition.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TransportedCounterfactualGate {
-    /// The ordinary transport license for the target functional.
-    TransportLicenseMissing,
-    /// The fixed-population cross-world counterfactual license for the same quantity.
-    FixedPopulationTemporalLicenseMissing,
+    /// The ordinary transport support for the target functional.
+    TransportSupportMissing,
+    /// The fixed-population cross-world counterfactual support for the same quantity.
+    FixedPopulationTemporalSupportMissing,
     /// The extra cross-population assumptions are not stated.
     CrossPopulationAssumptionsMissing,
 }
@@ -27,9 +27,9 @@ impl TransportedCounterfactualGate {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::TransportLicenseMissing => "transport_license_missing",
-            Self::FixedPopulationTemporalLicenseMissing => {
-                "fixed_population_temporal_license_missing"
+            Self::TransportSupportMissing => "transport_support_missing",
+            Self::FixedPopulationTemporalSupportMissing => {
+                "fixed_population_temporal_support_missing"
             }
             Self::CrossPopulationAssumptionsMissing => "cross_population_assumptions_missing",
         }
@@ -69,10 +69,10 @@ impl RegimeFactorKey {
 /// Which prerequisites have been passed.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct TransportedCounterfactualPrerequisites {
-    /// The ordinary transport license exists.
-    pub transport_license: bool,
-    /// The fixed-population cross-world license exists.
-    pub fixed_population_license: bool,
+    /// The ordinary transport support exists.
+    pub transport_support: bool,
+    /// The fixed-population cross-world support exists.
+    pub fixed_population_support: bool,
     /// The extra cross-population assumptions are stated.
     pub cross_population_assumptions: bool,
 }
@@ -82,11 +82,11 @@ impl TransportedCounterfactualPrerequisites {
     #[must_use]
     pub fn missing_gates(&self) -> Vec<TransportedCounterfactualGate> {
         let mut gates = Vec::new();
-        if !self.transport_license {
-            gates.push(TransportedCounterfactualGate::TransportLicenseMissing);
+        if !self.transport_support {
+            gates.push(TransportedCounterfactualGate::TransportSupportMissing);
         }
-        if !self.fixed_population_license {
-            gates.push(TransportedCounterfactualGate::FixedPopulationTemporalLicenseMissing);
+        if !self.fixed_population_support {
+            gates.push(TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing);
         }
         if !self.cross_population_assumptions {
             gates.push(TransportedCounterfactualGate::CrossPopulationAssumptionsMissing);
@@ -109,7 +109,7 @@ pub struct TransportedCounterfactualRefusal {
 /// Refuse the transported path-specific counterfactual route.
 ///
 /// The route is closed whatever is supplied. The refusal is
-/// `transported_counterfactual.route_frozen` (`cell_not_licensed`) when any
+/// `transported_counterfactual.route_frozen` (`not_supported`) when any
 /// prerequisite gate is missing, and also when all gates pass but every required
 /// regime factor is present (the joint theorem itself has not passed). Only when
 /// all gates pass and a required source or target regime factor is absent from
@@ -138,7 +138,7 @@ pub fn refuse_transported_counterfactual(
             )
         } else {
             (
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "transported_counterfactual.route_frozen",
                 missing_gates.first().map(|g| g.name().to_owned()),
                 "this temporal, continuous or non-finite route stays closed because the joint \

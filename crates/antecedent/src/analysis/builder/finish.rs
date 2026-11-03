@@ -18,14 +18,14 @@ use crate::support::{CellStatus, StructureSource};
 use super::super::execute::{Study, StudyConfig, StudyDeclarations, StudyInference};
 use super::super::latency::{ResolvedLatencyBudget, refuse_non_report_hmc};
 use super::super::prepared::{CachedStaticIdentification, IdentificationCache};
-use super::super::query_license::is_graphless_design;
+use super::super::query_support::is_graphless_design;
 use super::settings::{Declarations, ExecutionSettings, ExposureInputs, InferenceSettings};
 use super::{
     DataInput, InterferenceSpec, RefuteSuite, TransportTrialSpec, custom_validators_apply,
     data_schema, estimator_setting_conflict, omitted_bootstrap_resamples, population_estimable,
-    refuse_estimator_inference_mismatch, refuse_unlicensed_interference,
-    refuse_unlicensed_panel_route, refuse_unlicensed_transport, refuse_unsupported_draw_controls,
-    refuse_unsupported_likelihood, stub_accepted_graph_for, tiered_graph_conflict,
+    refuse_estimator_inference_mismatch, refuse_unsupported_draw_controls,
+    refuse_unsupported_interference, refuse_unsupported_likelihood, refuse_unsupported_panel_route,
+    refuse_unsupported_transport, stub_accepted_graph_for, tiered_graph_conflict,
     validate_schema_binding,
 };
 
@@ -98,7 +98,7 @@ struct ChosenEstimator {
     identification_cache: Option<Arc<CachedStaticIdentification>>,
 }
 
-/// Refute phase: default-suite downgrade, then unknown-tier, panel, and class-prior licenses.
+/// Refute phase: default-suite downgrade, then unknown-tier, panel, and class-prior supports.
 struct SettledRefute(ChosenEstimator);
 
 /// Support phase: matrix cell classification for this query.
@@ -392,7 +392,7 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
 /// reading is the per-completion conjugate posterior with draw-wise identified-set bounds; a
 /// `TemporalDag` (or a class whose matrix reading collapses to one) is the single completion. The query is
 /// compiled as that pulse; the requested query is kept so the support cell stays the
-/// `AverageEffect` cell (executing, unlicensed) and every result discloses the reading.
+/// `AverageEffect` cell (executing, unsupported) and every result discloses the reading.
 ///
 /// Over a graph posterior the same pulse is compiled and the per-atom proofs mix as for any
 /// other temporal pulse. Effect modifiers, a non-mean outcome functional and a tier background
@@ -1494,7 +1494,7 @@ fn classify_graph(route: ExecutableRoute) -> Result<ClassifiedGraph, CausalError
         carry.declared.structure_source.unwrap_or(StructureSource::Explicit)
     };
     // Graph-posterior stubs are empty bookkeeping graphs. Collapse based on
-    // stub edges (an empty Admg looks like a DAG) would relabel licensed
+    // stub edges (an empty Admg looks like a DAG) would relabel supported
     // Admg posterior cells. Trust the atom-kind stub class instead.
     let graph_class = if graph_posterior.is_some() {
         graph.class()
@@ -1624,7 +1624,7 @@ fn choose_estimator(classified: ClassifiedGraph) -> Result<ChosenEstimator, Caus
     }
     if classified.spine.carry.declared.continuous_cell.is_some() {
         return Err(CausalError::Unsupported {
-            message: antecedent_estimate::POINT_CDE_UNLICENSED,
+            message: antecedent_estimate::POINT_CDE_UNSUPPORTED,
         });
     }
     let identification_cache = cache_cell_aipw(&classified)?;
@@ -1888,14 +1888,11 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
             if requested.is_some_and(|cell| {
                 matches!(
                     crate::support::classify(cell),
-                    CellStatus::NotApplicable { .. } | CellStatus::Refused
+                    CellStatus::NotApplicable { .. } | CellStatus::NotSupported
                 )
-            }) && without_validation.is_some_and(|cell| {
-                matches!(
-                    crate::support::classify(cell),
-                    CellStatus::Licensed | CellStatus::Allowlisted { .. }
-                ) || crate::support::executes_unlicensed(cell)
-            }) {
+            }) && without_validation
+                .is_some_and(|cell| matches!(crate::support::classify(cell), CellStatus::Supported))
+            {
                 carry.refute_default_downgrade = Some(carry.settings.refute);
                 carry.settings.refute = RefuteSuite::None;
             }
@@ -1909,13 +1906,13 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
             match query {
                 CausalQuery::ConditionalEffect(_) => {
                     return Err(CausalError::Unsupported {
-                        message: "Unknown-tier ConditionalEffect is not licensed; the \
+                        message: "Unknown-tier ConditionalEffect is not supported; the \
                               two-scenario envelope is AverageEffect only",
                     });
                 }
                 CausalQuery::Response(q) if q.functional.treatment_ids().len() <= 1 => {
                     return Err(CausalError::Unsupported {
-                        message: "Unknown-tier single-treatment Response is not licensed; the \
+                        message: "Unknown-tier single-treatment Response is not supported; the \
                               two-scenario envelope is AverageEffect only",
                     });
                 }
@@ -1923,7 +1920,7 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
             }
         }
         if let DataInput::Panel(panel) = &carry.data {
-            refuse_unlicensed_panel_route(
+            refuse_unsupported_panel_route(
                 query,
                 graph.class(),
                 &carry.settings.inference,
@@ -1974,30 +1971,24 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             matches!(carry.data, DataInput::Temporal(_)),
         ) {
             // Geometric n/a / refused still refuse the build (except inspect).
-            // Geometric licensed is reclassified once an estimator is known so
+            // Geometric supported is reclassified once an estimator is known so
             // matching / IV / RD / forest / two-stage front-door cannot inherit
-            // a license whose evidence never ran them.
+            // support whose evidence never ran them.
             match crate::support::classify(cell) {
-                CellStatus::NotApplicable { .. }
-                | CellStatus::Refused
-                | CellStatus::Allowlisted { .. } => {
+                CellStatus::NotApplicable { .. } | CellStatus::NotSupported => {
                     if carry.inspect_only {
                         Some(crate::support::classify(cell))
-                    } else if crate::support::executes_unlicensed(cell) {
-                        // A refused cell its closed rule marks as executing: it runs and
-                        // the result reports `refused`, so no license is implied.
-                        Some(CellStatus::Refused)
                     } else {
                         Some(crate::support::refuse_if_not_applicable(cell)?)
                     }
                 }
-                CellStatus::Licensed => {
+                CellStatus::Supported => {
                     // `inference()` auto-binds `BayesianGcomp` for every static
                     // AverageEffect, including classes whose compiler route is
                     // identifier-native (`general.id` + `functional.effect` on
                     // Admg). Only a caller-selected estimator (`estimator_spec`)
                     // is classified as bound; otherwise the cell's
-                    // licensed_routes default is what will actually run.
+                    // supported_routes default is what will actually run.
                     //
                     // A declared identifier that carries its own estimator (general.id
                     // evaluates a functional) replaces the cell's default the same way.
@@ -2013,22 +2004,22 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     } else if let Some(native) = identifier_estimator {
                         Some(native)
                     } else {
-                        crate::support::licensed_route_estimator(cell).or(carry.declared.estimator)
+                        crate::support::supported_route_estimator(cell).or(carry.declared.estimator)
                     };
                     match estimator {
                         Some(est) => Some(crate::support::classify_estimator(cell, est)),
-                        None => Some(CellStatus::Refused),
+                        None => Some(CellStatus::NotSupported),
                     }
                 }
             }
         } else {
             None
         };
-        // The matrix's InterferenceQuery/Frequentist cell licenses only Bernoulli +
+        // The matrix's InterferenceQuery/Frequentist cell supports only Bernoulli +
         // NeighborCount and its Young-bound calibration. A cluster total effect has
         // separate execution evidence but no matrix cell or interval calibration yet. A cell
-        // the closed rules already mark as executing unlicensed keeps its refused status.
-        if support_status != Some(CellStatus::Refused)
+        // the closed rules already mark as executing unsupported keeps its refused status.
+        if support_status != Some(CellStatus::NotSupported)
             && matches!(
                 query,
                 CausalQuery::Interference(q)
@@ -2043,23 +2034,23 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             support_status = None;
         }
         // The untempered posterior of a declared white-innovation premise is a different
-        // construction from the licensed tempered posterior of the same cell: it is unlicensed
-        // and its calibration is unmeasured, so the cell's license does not carry to it.
+        // construction from the supported tempered posterior of the same cell: it is unsupported
+        // and its calibration is unmeasured, so the cell's support does not carry to it.
         if carry.settings.retain_joint_horizons
             && matches!(carry.settings.inference, InferenceMode::Bayesian(_))
-            && support_status == Some(CellStatus::Licensed)
+            && support_status == Some(CellStatus::Supported)
         {
-            // The block-weight posterior over the surface replaces the licensed conjugate fits.
-            support_status = Some(CellStatus::Refused);
+            // The block-weight posterior over the surface replaces the supported conjugate fits.
+            support_status = Some(CellStatus::NotSupported);
         }
         if matches!(&carry.settings.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
-            && support_status == Some(CellStatus::Licensed)
+            && support_status == Some(CellStatus::Supported)
         {
-            support_status = Some(CellStatus::Refused);
+            support_status = Some(CellStatus::NotSupported);
         }
-        // The Frequentist counterfactual and attribution cells are licensed as point
+        // The Frequentist counterfactual and attribution cells are supported as point
         // values. A requested mechanism-refit bootstrap interval is a construction no
-        // coverage record measures: it executes, and the result is unlicensed.
+        // coverage record measures: it executes, and the result is unsupported.
         if matches!(carry.settings.inference, InferenceMode::Frequentist)
             && carry.settings.bootstrap_replicates > 0
             && matrix_class == "Dag"
@@ -2069,29 +2060,29 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     | CausalQuery::AnomalyAttribution(_)
                     | CausalQuery::ChangeAttribution(_)
             )
-            && support_status == Some(CellStatus::Licensed)
+            && support_status == Some(CellStatus::Supported)
         {
-            support_status = Some(CellStatus::Refused);
+            support_status = Some(CellStatus::NotSupported);
         }
-        // The joint cell is licensed on independent, unweighted rows. Sampling weights and a
+        // The joint cell is supported on independent, unweighted rows. Sampling weights and a
         // declared cluster or serial dependence are read by it (weighted fits, cluster-robust or
         // Newey-West influence variance, against an exact reference) but no coverage record
-        // measures those intervals, so the cell's license does not carry to them.
-        if support_status == Some(CellStatus::Licensed)
+        // measures those intervals, so the cell's support does not carry to them.
+        if support_status == Some(CellStatus::Supported)
             && carry.declared.estimator == Some(EstimatorId::CellAipw)
             && matches!(query, CausalQuery::Response(_))
             && (carry.declared.score_dependence.is_some()
                 || matches!(&carry.data, DataInput::Tabular(t) if t.storage().weights().is_some()))
         {
-            support_status = Some(CellStatus::Refused);
+            support_status = Some(CellStatus::NotSupported);
         }
-        require_licensed_bayesian_estimator(carry, support_status)?;
+        require_supported_bayesian_estimator(carry, support_status)?;
         support_status
     };
     Ok(ClassifiedSupport { settled, support_status })
 }
 
-fn require_licensed_bayesian_estimator(
+fn require_supported_bayesian_estimator(
     carry: &Carry,
     support_status: Option<CellStatus>,
 ) -> Result<(), CausalError> {
@@ -2105,10 +2096,10 @@ fn require_licensed_bayesian_estimator(
                     | EstimatorId::BayesianRobustAte
             )
         )
-        && support_status != Some(CellStatus::Licensed)
+        && support_status != Some(CellStatus::Supported)
     {
         return Err(CausalError::Unsupported {
-            message: "selected Bayesian estimator is not licensed for this support cell",
+            message: "selected Bayesian estimator is not supported for this support cell",
         });
     }
     Ok(())
@@ -2121,7 +2112,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
     let (selection_diagram, transport_trial, interference) = match &spine.query {
         CausalQuery::Transport(transport) => {
             if !carry.inspect_only {
-                refuse_unlicensed_transport(transport)?;
+                refuse_unsupported_transport(transport)?;
             }
             if carry.exposure.interference.is_some() {
                 return Err(CausalError::Unsupported {
@@ -2165,7 +2156,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
         }
         CausalQuery::Interference(design) => {
             if !carry.inspect_only {
-                refuse_unlicensed_interference(design)?;
+                refuse_unsupported_interference(design)?;
             }
             if carry.exposure.transport_trial.is_some()
                 || carry.exposure.selection_targets.is_some()

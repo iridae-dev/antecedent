@@ -1,6 +1,6 @@
 """Refuse a changed randomized design, then explicitly reprepare it.
 
-Also distinguish a composed point/spread from a licensed interval.
+Also distinguish a composed point/spread from a supported interval.
 """
 
 import antecedent as ant
@@ -42,7 +42,7 @@ def main():
     try:
         claim.interval()
     except jl.JointLawPropagationRefusal as error:
-        assert error.reason_code == "cell_not_licensed"
+        assert error.reason_code == "not_supported"
         print("Interval refusal:", error.reason_code, error.detail, error.remedy)
     else:
         raise AssertionError("A point-only mixture supplied an interval")

@@ -1901,11 +1901,11 @@
       "kind": "method"
     },
     "<antecedent::PreparedMechanismComposition>::inverse_forward_source": {
-      "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "method"
     },
     "<antecedent::PreparedMechanismComposition>::inverse_forward_source_typed": {
-      "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>",
+      "declaration": "pub fn <antecedent::PreparedMechanismComposition>::fn inverse_forward_source_typed(&self, actions: &[antecedent::analysis::inverse_sources::ComposedActionQuery], transport: core::option::Option<antecedent_design::decision_transported_source::TransportReceipt>, accept: antecedent_contract::provider_transport::TransportedInputPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent::analysis::inverse_sources::ComposedSourceRefusal>",
       "kind": "method"
     },
     "<antecedent::PreparedMechanismComposition>::mean_contrast": {
@@ -9464,8 +9464,8 @@
       "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn graph_class(&self) -> &'static str",
       "kind": "method"
     },
-    "<antecedent::planner::lowered::ScientificProblem>::licensed": {
-      "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn licensed(&self) -> bool",
+    "<antecedent::planner::lowered::ScientificProblem>::supported": {
+      "declaration": "pub fn <antecedent::planner::lowered::ScientificProblem>::const fn supported(&self) -> bool",
       "kind": "method"
     },
     "<antecedent::planner::lowered::ScientificProblem>::plan_id": {
@@ -9868,8 +9868,8 @@
       "declaration": "pub fn <antecedent::planner::plan_view::SupportView>::fn coordinate(&self) -> core::option::Option<&str>",
       "kind": "method"
     },
-    "<antecedent::planner::plan_view::SupportView>::licensed": {
-      "declaration": "pub fn <antecedent::planner::plan_view::SupportView>::const fn licensed(&self) -> bool",
+    "<antecedent::planner::plan_view::SupportView>::supported": {
+      "declaration": "pub fn <antecedent::planner::plan_view::SupportView>::const fn supported(&self) -> bool",
       "kind": "method"
     },
     "<antecedent::planner::plan_view::SupportView>::status": {
@@ -13489,15 +13489,15 @@
       "kind": "type"
     },
     "antecedent::analysis::inverse_sources::cohort_source": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::cohort_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::cohort_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::composed_source": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::composed_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::composed_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::evaluate": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::evaluate(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::evaluate(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_forward_source::SourcedInverseResult, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::evaluate_observational": {
@@ -13513,15 +13513,15 @@
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::seal": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::seal(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::seal(query: antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<antecedent_design::inverse_query_artifact::InverseQueryArtifact, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::seal_per_action": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::seal_per_action(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::LicensedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::seal_per_action(query: &antecedent_design::inverse_query::InverseQuery, source: &antecedent_design::inverse_forward_source::SupportedForwardSource, demand: antecedent_design::inverse_forward_source::InverseDemand) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, antecedent_design::inverse_query_artifact::InverseQueryArtifact)>, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::transported_source": {
-      "declaration": "pub fn antecedent::analysis::inverse_sources::transported_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::LicensedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
+      "declaration": "pub fn antecedent::analysis::inverse_sources::transported_source(response: &antecedent_design::decision_transported_source::TransportedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::inverse_sources::verify_observational": {
@@ -14636,8 +14636,8 @@
       "kind": "function",
       "source": "crates/antecedent/src/analysis/provider_callbacks.rs"
     },
-    "antecedent::analysis::provider_callbacks::refuse_identification_licence": {
-      "declaration": "pub fn antecedent::analysis::provider_callbacks::refuse_identification_licence() -> antecedent_contract::external_refusal::ExternalRefusal",
+    "antecedent::analysis::provider_callbacks::refuse_identification_evidence": {
+      "declaration": "pub fn antecedent::analysis::provider_callbacks::refuse_identification_evidence() -> antecedent_contract::external_refusal::ExternalRefusal",
       "kind": "function"
     },
     "antecedent::analysis::provider_callbacks::refuse_interval": {
@@ -15997,7 +15997,7 @@
       "kind": "function"
     },
     "antecedent::host::neighbor_records": {
-      "declaration": "pub fn antecedent::host::neighbor_records(neighbors: &[antecedent_contract::capability::LicensedNeighbor]) -> alloc::vec::Vec<serde_json::value::Value>",
+      "declaration": "pub fn antecedent::host::neighbor_records(neighbors: &[antecedent_contract::capability::SupportedNeighbor]) -> alloc::vec::Vec<serde_json::value::Value>",
       "kind": "function"
     },
     "antecedent::host::operation_record": {
@@ -16052,12 +16052,12 @@
       "declaration": "pub fn antecedent::io::encode_model_bundle_bytes(input: &antecedent_io::model_bundle::ModelBundleEncode<'_>) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>",
       "kind": "function"
     },
-    "antecedent::licensed_neighbors": {
-      "declaration": "pub fn antecedent::licensed_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::LicensedNeighbor>",
+    "antecedent::supported_neighbors": {
+      "declaration": "pub fn antecedent::supported_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::SupportedNeighbor>",
       "kind": "function"
     },
-    "antecedent::licensed_support_cells": {
-      "declaration": "pub fn antecedent::licensed_support_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>",
+    "antecedent::supported_cells": {
+      "declaration": "pub fn antecedent::supported_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>",
       "kind": "function"
     },
     "antecedent::period_refresh::PeriodRefresh": {
@@ -16684,12 +16684,12 @@
       "declaration": "pub fn antecedent::support::is_declared_off_axis(query: &antecedent_core::query::variants::CausalQuery) -> bool",
       "kind": "function"
     },
-    "antecedent::support::licensed_estimators": {
-      "declaration": "pub fn antecedent::support::licensed_estimators(cell: antecedent::SupportCell) -> &'static [&'static str]",
+    "antecedent::support::supported_estimators": {
+      "declaration": "pub fn antecedent::support::supported_estimators(cell: antecedent::SupportCell) -> &'static [&'static str]",
       "kind": "function"
     },
-    "antecedent::support::licensed_route_estimator": {
-      "declaration": "pub fn antecedent::support::licensed_route_estimator(cell: antecedent::SupportCell) -> core::option::Option<antecedent::EstimatorId>",
+    "antecedent::support::supported_route_estimator": {
+      "declaration": "pub fn antecedent::support::supported_route_estimator(cell: antecedent::SupportCell) -> core::option::Option<antecedent::EstimatorId>",
       "kind": "function"
     },
     "antecedent::support::query_axis_name": {
@@ -16986,10 +16986,10 @@
       "kind": "reexport",
       "target": "query::IvBoundsQuery"
     },
-    "export:antecedent::LicensedNeighbor": {
-      "declaration": "pub use antecedent::LicensedNeighbor = super::LicensedNeighbor",
+    "export:antecedent::SupportedNeighbor": {
+      "declaration": "pub use antecedent::SupportedNeighbor = super::SupportedNeighbor",
       "kind": "reexport",
-      "target": "super::LicensedNeighbor"
+      "target": "super::SupportedNeighbor"
     },
     "export:antecedent::LocalPolynomialRatioQuery": {
       "declaration": "pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery",
@@ -18051,10 +18051,10 @@
       "kind": "reexport",
       "target": "antecedent::LedgerRefresh"
     },
-    "export:antecedent::analysis::LicensedNeighbor": {
-      "declaration": "pub use antecedent::analysis::LicensedNeighbor = antecedent_contract::LicensedNeighbor",
+    "export:antecedent::analysis::SupportedNeighbor": {
+      "declaration": "pub use antecedent::analysis::SupportedNeighbor = antecedent_contract::SupportedNeighbor",
       "kind": "reexport",
-      "target": "antecedent_contract::LicensedNeighbor"
+      "target": "antecedent_contract::SupportedNeighbor"
     },
     "export:antecedent::analysis::MeasurementAnalysisBinding": {
       "declaration": "pub use antecedent::analysis::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding",
@@ -18871,10 +18871,10 @@
       "kind": "reexport",
       "target": "antecedent_contract::adaptive_design::StoppingSpec"
     },
-    "export:antecedent::analysis::adaptive_inference::licensed_routes": {
-      "declaration": "pub use antecedent::analysis::adaptive_inference::licensed_routes = antecedent_contract::adaptive_design::licensed_routes",
+    "export:antecedent::analysis::adaptive_inference::supported_routes": {
+      "declaration": "pub use antecedent::analysis::adaptive_inference::supported_routes = antecedent_contract::adaptive_design::supported_routes",
       "kind": "reexport",
-      "target": "antecedent_contract::adaptive_design::licensed_routes"
+      "target": "antecedent_contract::adaptive_design::supported_routes"
     },
     "export:antecedent::analysis::adaptive_inference::procedure_cells": {
       "declaration": "pub use antecedent::analysis::adaptive_inference::procedure_cells = antecedent_contract::adaptive_design::procedure_cells",
@@ -19761,10 +19761,10 @@
       "kind": "reexport",
       "target": "antecedent::LedgerRefresh"
     },
-    "export:antecedent::analysis::api::LicensedNeighbor": {
-      "declaration": "pub use antecedent::analysis::api::LicensedNeighbor = super::LicensedNeighbor",
+    "export:antecedent::analysis::api::SupportedNeighbor": {
+      "declaration": "pub use antecedent::analysis::api::SupportedNeighbor = super::SupportedNeighbor",
       "kind": "reexport",
-      "target": "super::LicensedNeighbor"
+      "target": "super::SupportedNeighbor"
     },
     "export:antecedent::analysis::api::MeasurementAnalysisBinding": {
       "declaration": "pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding",
@@ -20516,10 +20516,10 @@
       "kind": "reexport",
       "target": "antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION"
     },
-    "export:antecedent::analysis::array_fits::ARRAY_FIT_LICENSING": {
-      "declaration": "pub use antecedent::analysis::array_fits::ARRAY_FIT_LICENSING = antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING",
+    "export:antecedent::analysis::array_fits::ARRAY_FIT_SUPPORT": {
+      "declaration": "pub use antecedent::analysis::array_fits::ARRAY_FIT_SUPPORT = antecedent_io::array_fit_artifact::ARRAY_FIT_SUPPORT",
       "kind": "reexport",
-      "target": "antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING"
+      "target": "antecedent_io::array_fit_artifact::ARRAY_FIT_SUPPORT"
     },
     "export:antecedent::analysis::array_fits::ArrayFitArtifactWire": {
       "declaration": "pub use antecedent::analysis::array_fits::ArrayFitArtifactWire = antecedent_io::array_fit_artifact::ArrayFitArtifactWire",
@@ -23806,10 +23806,10 @@
       "kind": "reexport",
       "target": "super::design_exports::design_crate::inverse_forward_source::InverseDemand"
     },
-    "export:antecedent::analysis::inverse_sources::LicensedForwardSource": {
-      "declaration": "pub use antecedent::analysis::inverse_sources::LicensedForwardSource = super::design_exports::design_crate::inverse_forward_source::LicensedForwardSource",
+    "export:antecedent::analysis::inverse_sources::SupportedForwardSource": {
+      "declaration": "pub use antecedent::analysis::inverse_sources::SupportedForwardSource = super::design_exports::design_crate::inverse_forward_source::SupportedForwardSource",
       "kind": "reexport",
-      "target": "super::design_exports::design_crate::inverse_forward_source::LicensedForwardSource"
+      "target": "super::design_exports::design_crate::inverse_forward_source::SupportedForwardSource"
     },
     "export:antecedent::analysis::inverse_sources::OBSERVATIONAL_SCENARIO_SCOPE_NOTE": {
       "declaration": "pub use antecedent::analysis::inverse_sources::OBSERVATIONAL_SCENARIO_SCOPE_NOTE = super::design_exports::design_crate::inverse_observational_scenarios::OBSERVATIONAL_SCENARIO_SCOPE_NOTE",
@@ -25866,10 +25866,10 @@
       "kind": "reexport",
       "target": "antecedent_identify::verify_chain_witness"
     },
-    "export:antecedent::analysis::refuse_identification_licence": {
-      "declaration": "pub use antecedent::analysis::refuse_identification_licence = antecedent::analysis::provider_callbacks::refuse_identification_licence",
+    "export:antecedent::analysis::refuse_identification_evidence": {
+      "declaration": "pub use antecedent::analysis::refuse_identification_evidence = antecedent::analysis::provider_callbacks::refuse_identification_evidence",
       "kind": "reexport",
-      "target": "antecedent::analysis::provider_callbacks::refuse_identification_licence"
+      "target": "antecedent::analysis::provider_callbacks::refuse_identification_evidence"
     },
     "export:antecedent::analysis::refuse_interval": {
       "declaration": "pub use antecedent::analysis::refuse_interval = antecedent::analysis::provider_callbacks::refuse_interval",
@@ -26471,10 +26471,10 @@
       "kind": "reexport",
       "target": "antecedent_design::sensitivity_decision::IdentifiedBound"
     },
-    "export:antecedent::analysis::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS": {
-      "declaration": "pub use antecedent::analysis::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS = antecedent_design::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS",
+    "export:antecedent::analysis::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS": {
+      "declaration": "pub use antecedent::analysis::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS = antecedent_design::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS",
       "kind": "reexport",
-      "target": "antecedent_design::sensitivity_decision::LICENSED_SAMPLING_COMPOSITIONS"
+      "target": "antecedent_design::sensitivity_decision::SUPPORTED_SAMPLING_COMPOSITIONS"
     },
     "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ACTIONS": {
       "declaration": "pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_ACTIONS = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_ACTIONS",
@@ -32076,15 +32076,15 @@
       "kind": "reexport",
       "target": "antecedent_io::graphless_support::classify_graphless"
     },
-    "export:antecedent::support::licensed_neighbors": {
-      "declaration": "pub use antecedent::support::licensed_neighbors = antecedent::licensed_neighbors",
+    "export:antecedent::support::supported_neighbors": {
+      "declaration": "pub use antecedent::support::supported_neighbors = antecedent::supported_neighbors",
       "kind": "reexport",
-      "target": "antecedent::licensed_neighbors"
+      "target": "antecedent::supported_neighbors"
     },
-    "export:antecedent::support::licensed_support_cells": {
-      "declaration": "pub use antecedent::support::licensed_support_cells = antecedent::licensed_support_cells",
+    "export:antecedent::support::supported_cells": {
+      "declaration": "pub use antecedent::support::supported_cells = antecedent::supported_cells",
       "kind": "reexport",
-      "target": "antecedent::licensed_support_cells"
+      "target": "antecedent::supported_cells"
     },
     "export:antecedent::support::refused_message": {
       "declaration": "pub use antecedent::support::refused_message = antecedent::refused_message",

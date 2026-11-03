@@ -141,7 +141,7 @@ pub struct ReferenceDecomposition {
 }
 
 /// Retained point and joint uncertainty decompositions. Numerical evaluation
-/// alone grants neither causal identification nor an interval coverage license.
+/// alone grants neither causal identification nor an interval coverage support.
 #[derive(Clone, Debug)]
 pub struct PanelDecomposition {
     /// Point mechanism decomposition.

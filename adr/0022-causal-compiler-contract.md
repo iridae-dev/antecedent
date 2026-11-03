@@ -7,7 +7,7 @@
 ## Context
 
 1.10 makes Antecedent a causal compiler at the public boundary: a typed
-question and declared evidence compile into an inspectable, licensed
+question and declared evidence compile into an inspectable, supported
 scientific contract, which can then be executed repeatedly without silently
 changing its meaning. Compilation may also produce a structured refusal or
 an incomplete contract with explicit obligations.
@@ -24,7 +24,7 @@ snapshot. Arena-local expression IDs, `Debug` text, and DBN
 position-derived keys are not durable semantic identity.
 
 Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
-`TemporalDag` is a licensed data route: per-unit surfaces, equal-weight
+`TemporalDag` is a supported data route: per-unit surfaces, equal-weight
 average, between-unit pointwise bands at `t_{N-1}`. Bayesian panel response,
 panel class Pulse / multi-step Sustained, and panel class response use their
 own panel contracts, under the class-prior and identified-set contracts of
@@ -49,7 +49,7 @@ Interventions that compute a value are a separate typed value language in
 `antecedent-core` (`ValueExpr`, carried by `Intervention::Transform` and
 `Intervention::Assign`), compiled into `antecedent-model` overlays; it does not
 stretch `antecedent-expr` into a value engine. Their wire encoding enters the
-target identity only when such an intervention is present. A program is licensed
+target identity only when such an intervention is present. A program is supported
 separately for simulation, counterfactual execution and observational
 identification; identification accepts only programs that reduce to a hard level.
 
@@ -83,7 +83,7 @@ and contemporaneous edges.
 | Target | query, population, interventions, outcome functional, temporal policy/horizons, variable-name bindings | graph, prior, data rows |
 | Identification | population-free target question + accepted structural semantics (posterior atom graphs and weights, class prior, transport selection diagram and trial columns), observation/evidence contract, relevant assumptions | target population, identifier configuration, numeric knobs |
 | Identification product | status, estimands + expression arena, derivation rule ids, assumptions, hedge witness, capped-search flag | `candidates_examined`, derivation detail prose, diagnostics that are only execution |
-| Program | target (with its population) + identification + products + licensed inferential commitments + completion-search budget | acceptance/review provenance, seeds |
+| Program | target (with its population) + identification + products + supported inferential commitments + completion-search budget | acceptance/review provenance, seeds |
 | Inference binding | resolved prior contents and mapping, Bayesian backend and likelihood, numeric configuration (bootstrap replicates, draws, response options including bandwidth, observation-estimator options, discovery/estimation split), validation, dependence/resampling | structural identification |
 | Observation | schema/observation contract, including each assumption's variables | row contents, order, masks |
 | Data snapshot | observation + modality + ordered storage content digests, masks, weights, unit labels, row counts, per-partition regularity, and a fixed interference network with its realized assignment | causal target |
@@ -190,7 +190,7 @@ fields are `Unavailable`, never empty objects that imply success. Priors,
 validation, and successful estimation never upgrade identification.
 
 A claim is a portable envelope over the contract and a particular
-execution or licensed derivation. Receiving bytes, understanding
+execution or supported derivation. Receiving bytes, understanding
 semantics, verifying dependencies, and being able to execute remain
 separate states. Checksums establish integrity, not validity of
 assumptions.
@@ -216,14 +216,14 @@ program, another snapshot, or no prepared handle at all.
 
 Inventory public structs before adding fields. Prefer accessors, companion
 records, and inspection methods. Preserve support coordinates, refusal
-IDs, and estimator selection. Composition metadata cannot grant a license.
+IDs, and estimator selection. Composition metadata cannot grant support.
 `ProvenanceGraph::push` stays append-only; validated claim ancestry uses
 `try_push` / `validate`.
 
 ### Panel promotions
 
 Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
-`TemporalDag` is licensed via per-unit surfaces and between-unit pointwise
+`TemporalDag` is supported via per-unit surfaces and between-unit pointwise
 bands at `t_{N-1}`. Frequentist panel Pulse / single-step Sustained on
 `TemporalCpdag` / `TemporalPag` fits each identified completion as a pooled
 panel regression with the Arellano cluster-by-unit SE at `G-1` degrees of
@@ -239,7 +239,7 @@ multi-step Sequence overlays stay on the series sequential owner.
 Shipped panel Pulse / single-step Sustained on explicit or accepted
 `TemporalDag` use `PanelClusterHac` at lag 0, the Arellano cluster-by-unit
 meat; they are not an iid-SE defect.
-Compiler completion is judged against the actually licensed surface.
+Compiler completion is judged against the actually supported surface.
 
 ## Consequences
 
@@ -290,6 +290,6 @@ blanket “prepared means structural”:
 | Cached static/temporal/ADMG identification | Identification + product identities | Query, accepted graph, observation contract | Scores, folds, posteriors |
 | AIPW / cell-AIPW score table | Identification certificate | Certified adjustment set, row alignment, declared weight parents | A new target population |
 | Shared batch design / folds | Rebound on refresh | Schema + row index | Identification |
-| Empirical support / overlap | Execution report | Current snapshot | Matrix license |
+| Empirical support / overlap | Execution report | Current snapshot | Matrix support |
 | Temporal regularity | Support / snapshot identity | Represented time | `I(h)` |
 | Bayesian draws / prior mapping | Inference binding | `prior_bank` compatibility | Identification status or mass |

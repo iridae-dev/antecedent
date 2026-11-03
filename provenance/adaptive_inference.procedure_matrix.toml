@@ -11,7 +11,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
- "Licensed means a design contract, estimator and uncertainty method exist; every interval and guarantee route is closed pending whole-procedure measurement.",
+ "Supported means a design contract, estimator and uncertainty method exist; every interval and guarantee route is closed pending whole-procedure measurement.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -21,17 +21,17 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "The matrix of assignment policy, outcome structure, monitoring strategy and stopping rule, with the status the engine gives each cell (licensed, closed or carried forward)."
+rationale = "The matrix of assignment policy, outcome structure, monitoring strategy and stopping rule, with the status the engine gives each cell (supported, closed or carried forward)."
 no_independent_algorithm = "A status table over enumerated combinations; no numerical procedure."
 covered_by = ["adaptive_inference.analysis_contract"]
-record_sha256 = "c50c3543bbeb6f709291d4e49453711beaad6b8536b8fc77b4b85814010800c3"
+record_sha256 = "30a91aefab40696431859947c4bf53e1152de4c4c0c74b1f28f94e0d37d85f97"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/matrix.rs"
-sha256 = "be31bfcf1660920376bbf3ea308f969e05c4b095527fcba40a6b9afd453356a7"
+sha256 = "06452b3d93cb1383d2dd3c89c9fb00d976b03bb84654870abe76b58510103eef"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-sha256 = "7ef5229aed6a57b4a590dbcce7849ffd13354a94302ef938989ae5cc07fdcad2"
+sha256 = "99dead6a461c4f4dc11cc675c0cd0433cbff5615becbf55814ee5b9ef8dfbb0e"

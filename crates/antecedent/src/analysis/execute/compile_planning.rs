@@ -312,7 +312,7 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
         query_variables: Arc::from(Vec::new()),
         source_digest: None,
         support_coordinate: None,
-        licensed: false,
+        supported: false,
         support_status: None,
     };
     let statistical = statistical_program(request)?;

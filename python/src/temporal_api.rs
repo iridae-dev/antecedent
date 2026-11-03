@@ -257,13 +257,9 @@ pub(crate) struct AnalysisResult {
     /// read from the same `StudyResult.performance` record the static DTO uses.
     #[pyo3(get)]
     pub(crate) performance: PerformanceSection,
-    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    /// Support-matrix evidence contract (`supported` or `not_supported`).
     #[pyo3(get)]
     pub(crate) evidence_status: Option<String>,
-    #[pyo3(get)]
-    pub(crate) allowlist_reason: Option<String>,
-    #[pyo3(get)]
-    pub(crate) allowlist_parent: Option<String>,
     #[pyo3(get)]
     pub(crate) structural_weight_basis: Option<String>,
     #[pyo3(get)]
@@ -312,7 +308,7 @@ pub(crate) fn temporal_query_from_policy(
         u64::from(horizon_steps),
         crate::bridge::MAX_HORIZON_STEPS,
     )?;
-    let parsed = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+    let parsed = crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
     let query = match &parsed {
         TemporalPolicy::Pulse { .. } => TemporalEffectQuery::pulse(t_id, y_id, active_level),
         TemporalPolicy::Sustained { .. } => {

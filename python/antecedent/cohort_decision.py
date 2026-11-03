@@ -26,7 +26,7 @@ probability, quantile, nonlinear utility or joint law refuses (``decision_contra
 or ``joint_law_required``). For a linear compact model that retains its coefficient covariance
 the variance of the weighted cohort mean is available as
 :attr:`CohortDecisionSource.uncalibrated_standard_error`, labelled model-based with calibration
-unmeasured; the interval route is closed (``cell_not_licensed``).
+unmeasured; the interval route is closed (``not_supported``).
 
 A source built from a verified analysis result is native. A source built from a caller-built
 compact export is a declared model and is never native.
@@ -36,7 +36,7 @@ A cohort of another population can also be carried under a declared selection-di
 modifiers, which are exactly the model's features, and every row lies inside the fitted support.
 The result is a :class:`TransportedCohortEffect` with a typed :class:`CohortTransportReceipt`,
 its identity, a point-only value and the existing :class:`CohortDecisionSource` for the same
-cohort. An interval or a law is refused with the evidence that would license it.
+cohort. An interval or a law is refused with the evidence that would support it.
 """
 
 from __future__ import annotations
@@ -112,8 +112,8 @@ class CohortDecisionRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     ``cohort_decision.*`` ``detail`` (for example ``cohort_decision.outside_support``,
     ``cohort_decision.support_contract_absent``, ``cohort_decision.wrong_parent_identity`` or
-    ``cohort_decision.interval_not_licensed``); ``offending`` names the row, feature, region or
-    identity and ``remedy`` the declaration or evidence that would license the request.
+    ``cohort_decision.interval_not_supported``); ``offending`` names the row, feature, region or
+    identity and ``remedy`` the declaration or evidence that would support the request.
     """
 
 
@@ -415,7 +415,7 @@ class CohortDecisionSource(ScientificResult):
         exactly this construction. A source from a declared compact export, a portable model or
         a shifted cohort raises a typed :class:`CohortDecisionRefusal`
         (``cohort_decision.interval_requires_native_fit`` or
-        ``cohort_decision.interval_not_licensed``).
+        ``cohort_decision.interval_not_supported``).
         """
         if (
             isinstance(level, bool)
@@ -461,7 +461,7 @@ class CohortDecisionSource(ScientificResult):
         if self.support_status != "supported" and not self.extrapolative_accepted:
             raise CohortDecisionRefusal(
                 {
-                    "code": "cell_not_licensed",
+                    "code": "not_supported",
                     "stage": "evaluate",
                     "detail": "cohort_decision.extrapolative_not_accepted",
                     "offending": self.population,
@@ -479,7 +479,7 @@ class CohortDecisionSource(ScientificResult):
             causal_contract_id=wire["causal_contract_id"],
             rng_id=wire["rng_id"],
             _original_cohort=self,
-            trust="native_licensed" if self.is_native else "externally_attested",
+            trust="native_supported" if self.is_native else "externally_attested",
             evidence=(self.parent_claim,),
         )
 
@@ -538,7 +538,7 @@ class CohortDecisionSource(ScientificResult):
         """The cohort mean as a forward claim of :mod:`antecedent.inverse_query`.
 
         A source built under a declared covariate shift is a transported claim and is refused
-        (``cell_not_licensed``, ``inverse_forward_source.transported_not_accepted``); read it
+        (``not_supported``, ``inverse_forward_source.transported_not_accepted``); read it
         through :func:`antecedent.inverse_sources.cohort_forward_source` with
         ``accepts_transported=True`` so the result carries the transport identity.
         """
@@ -959,7 +959,7 @@ class TransportedCohortEffect(ScientificResult):
         return self.decision_source.accept_extrapolative().mean_source
 
     def interval(self, *, level: float = 0.95) -> None:
-        """Always refuses: no interval, band or posterior is licensed for a transported mean."""
+        """Always refuses: no interval, band or posterior is supported for a transported mean."""
         del level
         raise CohortDecisionRefusal(json.loads(_transported_refusal("interval")))
 

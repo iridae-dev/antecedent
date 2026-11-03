@@ -112,7 +112,7 @@ pub struct PreparedRdProblem {
     pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
-/// Typed checked operation for the licensed sharp local-linear RD estimator.
+/// Typed checked operation for the supported sharp local-linear RD estimator.
 #[derive(Clone, Debug)]
 pub struct CheckedRdLowering {
     /// Source boundary contrast root.

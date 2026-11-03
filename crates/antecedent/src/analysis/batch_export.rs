@@ -58,7 +58,7 @@ pub struct TidyRow {
     /// Family-level simultaneous interval: `max_t` when the family is complete (the band is
     /// available from the report), otherwise `none`.
     pub simultaneous_interval: &'static str,
-    /// `supported` (weighted overlap passed), `refused` (weighted overlap failed) or
+    /// `supported` (weighted overlap passed), `not_supported` (weighted overlap failed) or
     /// `not_assessed` (a contrast, or a member that failed before the overlap gate).
     pub support_status: &'static str,
     /// Kish effective sample size of the target weights, for a claim that succeeded.
@@ -87,7 +87,7 @@ fn failure_fields(
     failure: &MemberFailure,
 ) -> (&'static str, Option<String>, Option<String>, Option<String>) {
     (
-        if failure.support_refused { "refused" } else { "not_assessed" },
+        if failure.support_refused { "not_supported" } else { "not_assessed" },
         failure.reason_code.clone(),
         failure.detail.clone(),
         Some(failure.message.clone()),

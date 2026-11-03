@@ -104,7 +104,7 @@ pub const DETAIL_MISSING_LAW: &str = "learned_joint_transport.missing_law";
 pub const DETAIL_MISSING_SOURCE: &str = "learned_joint_transport.missing_source";
 /// Detail of undeclared, overlapping or unknown source dependence.
 pub const DETAIL_SOURCE_DEPENDENCE: &str = "learned_joint_transport.source_dependence";
-/// Detail of a certificate that does not license the model.
+/// Detail of a certificate that does not support the model.
 pub const DETAIL_IDENTIFICATION: &str = "learned_joint_transport.identification_not_certified";
 /// Detail of covariates that differ from the certified standardizers.
 pub const DETAIL_FEATURE_MISMATCH: &str = "learned_joint_transport.feature_mismatch";
@@ -318,7 +318,7 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRe
 #[must_use]
 pub fn route_frozen_refusal() -> JointTransportRefusal {
     refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         DETAIL_ROUTE_FROZEN,
         "route",
         format!(

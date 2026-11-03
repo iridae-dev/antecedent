@@ -256,7 +256,7 @@ def self_test() -> int:
             "design": "temporal",
             "inference": "bayesian",
             "route": "b",
-            "status": "licensed",
+            "status": "supported",
             "closure": "delivered",
             "reason": "",
             "next_attempt": "",

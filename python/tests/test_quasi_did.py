@@ -23,7 +23,7 @@ def test_native_2x2_did_recovers_known_treatment_effect_and_discloses_scope():
     )
     assert result.estimate == pytest.approx(4.0)
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "parallel_untreated_trends" in result.assumptions
 
 
@@ -64,7 +64,7 @@ def test_native_balanced_panel_did_recovers_known_treatment_effect():
     assert result.control_subjects == 4
     assert result.clusters == 8
     assert result.uncertainty == "cluster_robust_standard_error_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "complete_pre_post_panel" in result.assumptions
 
 
@@ -110,7 +110,7 @@ def test_direct_panel_did_inherits_retained_interval_and_support_status():
     assert direct.interval_95 == pytest.approx(
         (2.0 - 1.959963984540054 * expected_se, 2.0 + 1.959963984540054 * expected_se), rel=1e-12
     )
-    assert direct.support_status == "licensed"
+    assert direct.support_status == "supported"
 
 
 def test_panel_did_refuses_too_few_clusters_or_cluster_changes_within_subject():
@@ -194,11 +194,11 @@ def test_supported_panel_did_reports_interval_through_public_analyze():
     assert did.interval_95 is not None
     assert did.interval_95[0] < 2.0 < did.interval_95[1]
     assert did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
-    assert did.support_status == "licensed"
+    assert did.support_status == "supported"
     assert result.estimate.se_analytic == pytest.approx(did.standard_error)
 
 
-def test_supported_repeated_cross_section_did_has_exact_graphless_license():
+def test_supported_repeated_cross_section_did_has_exact_graphless_support():
     import antecedent
 
     ids, clusters, groups, periods, outcomes = [], [], [], [], []
@@ -232,11 +232,11 @@ def test_supported_repeated_cross_section_did_has_exact_graphless_license():
     assert result.panel_did.interval_95 == pytest.approx(
         (2.0 - 1.959963984540054 * expected_se, 2.0 + 1.959963984540054 * expected_se), rel=1e-12
     )
-    assert result.panel_did.support_status == "licensed"
+    assert result.panel_did.support_status == "supported"
     loaded = require_success(
-        antecedent.load(bytes(result.export(artifact_id="licensed-repeated-did")))
+        antecedent.load(bytes(result.export(artifact_id="supported-repeated-did")))
     )
-    assert loaded.answer.structured["graphless_support_status"] == "licensed"
+    assert loaded.answer.structured["graphless_support_status"] == "supported"
 
 
 def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility():
@@ -392,7 +392,7 @@ def test_selected_staggered_group_time_runs_through_retained_analyze():
     assert (result.panel_did.cohort, result.panel_did.period) == (3, 4)
     assert result.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
     assert np.isnan(result.estimate.se_analytic)
-    assert result.panel_did.support_status == "unlicensed_point_utility"
+    assert result.panel_did.support_status == "unsupported_point_utility"
     assert "cohort_specific_parallel_untreated_trends" in result.panel_did.assumptions
     assert result.plan.estimator == "quasi.staggered_group_time_never_treated"
     assert require_success(antecedent.analyze(data, query=query)).panel_did == result.panel_did
@@ -438,13 +438,13 @@ def test_native_group_time_att_recovers_staggered_known_effects_and_reports_supp
     ]
     assert [effect.estimate for effect in result.effects] == pytest.approx([5.0] * 5)
     assert {(e.treated_subjects, e.control_subjects) for e in result.effects} == {(3, 4)}
-    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unsupported"
     # Every unit in a group shares one change, so the cluster influences are all zero.
     assert all(
         effect.standard_error == pytest.approx(0.0, abs=1e-9) and effect.clusters >= 4
         for effect in result.effects
     )
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert result.control_group == "never_treated_cohort_0"
     assert "cohort_specific_parallel_untreated_trends" in result.assumptions
     assert "pretrend_not_tested" in result.diagnostics
@@ -488,7 +488,7 @@ def test_group_time_att_clustered_se_matches_known_variance_and_refuses_sparse_c
     assert adoption.estimate == pytest.approx(7.0)
     assert adoption.standard_error == pytest.approx((20.0 / 7.0) ** 0.5)
     assert adoption.clusters == 8
-    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unsupported"
     with pytest.raises(
         CausalValueError, match="at least two clusters in each cohort/control group"
     ):
@@ -538,13 +538,13 @@ def test_staggered_event_study_reports_cohort_event_time_and_descriptive_preperi
         }
     )
     assert (2, -1) not in observed and (3, -1) not in observed
-    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unsupported"
     # Every unit in a group shares one change, so the cluster influences are all zero.
     assert all(
         effect.standard_error == pytest.approx(0.0, abs=1e-9) and effect.clusters >= 4
         for effect in result.effects
     )
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "no_anticipation" in result.assumptions
     assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.diagnostics
 
@@ -567,7 +567,7 @@ def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity(
     assert result.panel_did == direct
     assert result.plan.estimator == "quasi.staggered_event_study_never_treated"
     assert np.isnan(result.estimate.se_analytic)
-    assert result.panel_did.support_status == "unlicensed_point_utility"
+    assert result.panel_did.support_status == "unsupported_point_utility"
     assert (
         "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test"
         in result.panel_did.diagnostics
@@ -655,13 +655,13 @@ def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters()
             for effect in effects[1:]:
                 assert effect.interval_95[0] < 4.0 < effect.interval_95[1]
             assert result.estimate.se_analytic > 0.0
-            assert result.panel_did.support_status == "licensed"
+            assert result.panel_did.support_status == "supported"
             assert result.answer.detail == "staggered_event_post_pointwise_intervals"
             assert "no simultaneous band" in result.claim()
         else:
             assert all(effect.interval_95 is None for effect in effects)
             assert np.isnan(result.estimate.se_analytic)
-            assert result.panel_did.support_status == "unlicensed_point_utility"
+            assert result.panel_did.support_status == "unsupported_point_utility"
             assert result.answer.detail == "staggered_event_point_only"
         artifact = require_success(
             antecedent.load(bytes(result.export(artifact_id="staggered-event-boundary")))

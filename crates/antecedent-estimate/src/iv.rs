@@ -684,7 +684,7 @@ impl WaldIv {
 
     /// Compute the Wald ratio (constant effect, or complier LATE; see [`WaldIv`]).
     ///
-    /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
+    /// Supported uncertainty is the homoskedastic Anderson–Rubin set attached to
     /// [`crate::EstimateDiagnostics::first_stage`]. Wald analytic and bootstrap
     /// standard errors are never published.
     ///
@@ -744,7 +744,7 @@ impl WaldIv {
                 treatment_delta: problem.treatment_delta,
             },
         )?;
-        // Licensed IV uncertainty is the Anderson–Rubin set on first-stage
+        // Supported IV uncertainty is the Anderson–Rubin set on first-stage
         // diagnostics — never a Wald SE (pretest or otherwise) or bootstrap SE.
         let se_analytic = f64::NAN;
 
@@ -786,7 +786,7 @@ fn wald_ratio(
     Ok(WaldResult { ratio })
 }
 
-/// Nominal level for the licensed Anderson–Rubin IV confidence set (matches the
+/// Nominal level for the supported Anderson–Rubin IV confidence set (matches the
 /// Wald interval level previously claimed by `se_analytic`).
 const AR_LEVEL: f64 = 0.95;
 
@@ -1036,7 +1036,7 @@ impl TwoStageLeastSquares {
     /// Fit 2SLS and report the instrumented treatment coefficient (constant effect, or an
     /// instrument-weighted complier effect; see the module docs).
     ///
-    /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
+    /// Supported uncertainty is the homoskedastic Anderson–Rubin set attached to
     /// [`crate::EstimateDiagnostics::first_stage`]. Wald analytic and bootstrap
     /// standard errors are never published.
     ///

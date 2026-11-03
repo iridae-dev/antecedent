@@ -66,7 +66,7 @@
 //! result's `identified` is the `Lambda = 1` value, its grid bounds are an assumption
 //! range, and `uncertainty` withholds any sampling interval
 //! (`sampling interval: not reported`). A requested sampling composition refuses with
-//! `msm_sensitivity.composition_not_licensed`. Calibration is unmeasured.
+//! `msm_sensitivity.composition_not_supported`. Calibration is unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -276,7 +276,7 @@ impl MsmSensitivityUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: MSM_SAMPLING_STATEMENT,
-            reason_code: reason_code!("cell_not_licensed"),
+            reason_code: reason_code!("not_supported"),
             detail: MSM_INTERVAL_WITHHELD,
         }
     }
@@ -471,10 +471,10 @@ fn check_lambda(lambda: f64) -> Result<(), MsmSensitivityError> {
 fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
-            reason_code!("cell_not_licensed"),
-            "msm_sensitivity.composition_not_licensed",
+            reason_code!("not_supported"),
+            "msm_sensitivity.composition_not_supported",
             format!(
-                "composing a sampling interval with the assumption range by `{method}` is not licensed"
+                "composing a sampling interval with the assumption range by `{method}` is not supported"
             ),
         ));
     }
@@ -599,7 +599,7 @@ fn tipping_of(
 /// # Errors
 ///
 /// A typed [`MsmSensitivityError`] carrying its reason code and `msm_sensitivity.*`
-/// detail: `composition_not_licensed`, `lambda_below_one`, `lambda_range_empty`,
+/// detail: `composition_not_supported`, `lambda_below_one`, `lambda_range_empty`,
 /// `positivity`, `stratum_mass`, `outcome_law`, `invalid_threshold`,
 /// `invalid_tolerance` or `bounds_exceeded`.
 pub fn msm_ate_sensitivity(

@@ -168,7 +168,7 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
     let topology = topologies[usize::try_from(rep).ok()? % topologies.len()];
     let seed = stream_seed(0x5E7_0057 + VARIABLES as u64, rep);
     let scm =
-        Scm::with_degree(topology, VARIABLES, stream_seed(seed, 1), Variant::Licensed, MAX_DEGREE);
+        Scm::with_degree(topology, VARIABLES, stream_seed(seed, 1), Variant::Supported, MAX_DEGREE);
     let rows = grid_n(BASE_PARTICIPANTS);
     let columns = scm.simulate(rows, stream_seed(seed, 2));
     let table = weighted_table(&scm, &columns, survey_weights(rows, stream_seed(seed, 3)));

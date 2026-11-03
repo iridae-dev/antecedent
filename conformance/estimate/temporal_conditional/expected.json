@@ -36,7 +36,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_conditional_effect.rs",
-          "sha256": "bc5c3fcba9754e6a67aa5c432fb69df608343a1614fe40b4dc4aae076d513394"
+          "sha256": "e208c0c395ee4405d3fbfd757f83175db1992ceb1c77869b0894df3fcddd1627"
         }
       ],
       "fixture_payload_sha256": "a46d6af621207913b2ac82c014ac0521bdfa7f5977054c7a1f3abd7e1ebf714f"

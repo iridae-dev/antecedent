@@ -41,7 +41,7 @@ record_sha256 = "1a3d8cbf008b0da39075765a2f0ca67011fa98a6021b7dc041a7c6282864200
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/penalized.rs"
-sha256 = "29138cc8cbfaa6654f27264b1639946a1b4e240faf0907c2eae4af9554329cc2"
+sha256 = "fc525eab1fa346bcb6ab46853dd056c146b5d48849abcef5e045d89adb92e1f3"
 
 [[method_review.artifacts]]
 role = "assertion"

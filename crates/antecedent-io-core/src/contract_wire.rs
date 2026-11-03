@@ -32,7 +32,7 @@ pub struct CheckedAipwLoweringWire {
     pub adjustment: Vec<u32>,
     /// Target population name (`all_observed` for this checked route).
     pub population: String,
-    /// Licensed procedure: `cross_fitted_logistic_ols` under an untrimmed overlap
+    /// Supported procedure: `cross_fitted_logistic_ols` under an untrimmed overlap
     /// policy, `trimmed_logistic_ols` (full-sample common-support refit) under a
     /// trimming one.
     pub procedure: String,

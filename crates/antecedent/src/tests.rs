@@ -246,7 +246,7 @@ fn graph_posterior_average_effect_accepts_frequentist() {
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
         .build()
-        .expect("AverageEffect × graph_posterior × Frequentist is licensed")
+        .expect("AverageEffect × graph_posterior × Frequentist is supported")
         .run(&ctx)
         .unwrap();
     // Atoms disagree on the estimand (adjust for z: 2.0; do not: 3 * (0.75 - 0.25) + 2 = 3.5), so

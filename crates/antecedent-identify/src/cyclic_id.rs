@@ -406,7 +406,7 @@ mod tests {
         assert!(!cyclic_backdoor_valid(&g, &[2], &[1], &[], premises()).unwrap());
     }
     #[test]
-    fn cyclic_id_latent_bow_is_not_licensed_and_acyclic_chain_is() {
+    fn cyclic_id_latent_bow_is_not_supported_and_acyclic_chain_is() {
         let mut g = CyclicMixedGraph::with_variables(2);
         g.insert_directed(id(0), id(1)).unwrap();
         let ctx = ExecutionContext::for_tests(2);

@@ -47,7 +47,7 @@ sha256 = "8a72da3e80c5455e94da48cc13c55f9fea3a45aedf2f10d595ebfe8937bcd6d1"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/structure_stability.rs"
-sha256 = "b37f3fa627d2cd873724c28b0053550d37642d242adab39729e35186f746ecbd"
+sha256 = "2d552f0f042e76ab478ea75f91c45c34d9754a9017ad58c6e7e3d5e8357b9371"
 
 [[method_review.artifacts]]
 role = "assertion"

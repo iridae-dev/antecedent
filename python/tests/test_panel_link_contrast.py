@@ -4,7 +4,7 @@ Each unit contributes one decision time (its earliest row with a full lag window
 independent subjects. References are computed here with numpy from the raw first rows: the Newton
 logistic maximum-likelihood fit, the probability-scale contrast averaged over the observed lag,
 its Fisher delta-method standard error, and for the Bayesian route the Newton mode and a Laplace
-sample under the stated Gaussian prior. Both routes are unlicensed with calibration unmeasured.
+sample under the stated Gaussian prior. Both routes are unsupported with calibration unmeasured.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def test_the_frequentist_contrast_matches_newton_and_the_delta_method() -> None:
     assert result.ate == pytest.approx(float(contrast(rows, beta)), abs=1e-8)
     assert result.estimate.se_analytic == pytest.approx(delta_se(rows, beta, information), abs=1e-8)
     assert abs(result.ate - beta[1]) > 0.1  # the contrast is not the link-scale coefficient
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status != "supported"
 
 
 def test_the_bayesian_contrast_matches_the_mode_and_a_laplace_sample() -> None:

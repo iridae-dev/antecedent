@@ -57,7 +57,7 @@ fn the_interval_is_bound_to_its_record_or_refused_for_want_of_one() {
             assert_eq!(again.export(), measured.export());
         }
         Err(refusal) => {
-            assert_eq!(refusal.code(), "cell_not_licensed");
+            assert_eq!(refusal.code(), "not_supported");
             // The n = 100 sample lies outside the measured size range, so the record does not attest.
             assert_eq!(refusal.details()[0], "measured_inference.record_not_attesting");
             assert!(
@@ -69,10 +69,10 @@ fn the_interval_is_bound_to_its_record_or_refused_for_want_of_one() {
 }
 
 #[test]
-fn an_unmeasured_level_or_a_two_level_mismatch_refuses_cell_not_licensed() {
+fn an_unmeasured_level_or_a_two_level_mismatch_refuses_not_supported() {
     let ctx = ExecutionContext::for_tests(5);
     let refusal = fitted().interval(0.5, &ctx).unwrap_err();
-    assert_eq!(refusal.code(), "cell_not_licensed");
+    assert_eq!(refusal.code(), "not_supported");
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn draw_counts_from_the_supported_minimum_are_supported_and_fewer_are_refused() 
             }
             Err(refusal) => {
                 // Only the absence of a currently attesting record may stand in the way.
-                assert_eq!(refusal.code(), "cell_not_licensed");
+                assert_eq!(refusal.code(), "not_supported");
                 let detail = &refusal.details()[0];
                 assert!(
                     !detail.contains("protocol_not_measured")
@@ -117,6 +117,6 @@ fn draw_counts_from_the_supported_minimum_are_supported_and_fewer_are_refused() 
         }
     }
     let refusal = with_draws(1999).interval(0.95, &ctx).unwrap_err();
-    assert_eq!(refusal.code(), "cell_not_licensed");
+    assert_eq!(refusal.code(), "not_supported");
     assert!(refusal.details()[0].contains("protocol_not_measured"), "{refusal}");
 }

@@ -137,7 +137,7 @@ fn sealed(
     let claim = source_claim();
     let quantity = contract.source.quantity.clone();
     let source = BridgeSource { claim: &claim, quantity: &quantity };
-    let bridged = derive_bridged_claim(contract, &source).expect("licensed bridge");
+    let bridged = derive_bridged_claim(contract, &source).expect("supported bridge");
     let (artifact, meta) = ScientificBridgeArtifact::seal(&bridged, &source).expect("seal");
     (artifact, meta, claim)
 }
@@ -539,7 +539,7 @@ fn a_caller_byte_bound_refuses_a_point_bridge_over_it() {
     let claim = source_claim();
     let quantity = contract.source.quantity.clone();
     let source = BridgeSource { claim: &claim, quantity: &quantity };
-    let bridged = derive_bridged_claim(&contract, &source).expect("licensed bridge");
+    let bridged = derive_bridged_claim(&contract, &source).expect("supported bridge");
     let bytes = ScientificBridgeArtifact::to_bytes(&bridged, &source, "point").expect("bytes");
     assert!(ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len()).is_ok());
     assert!(matches!(

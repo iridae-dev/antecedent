@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Zero unmeasured interval coordinates, for every record of parity/promotion.toml.
+"""Zero unmeasured interval coordinates, for every record of parity/capability_records.toml.
 
 This is scripts/check_interval_surfaces.py generalised to ALL records of
-parity/promotion.toml, importing its helpers read-only. For each record:
+parity/capability_records.toml, importing its helpers read-only. For each record:
 
-  (a) no licensed route has an owning-registry row (parity/transport_stages.toml [[routes]],
-      parity/support_licensed.toml cells) carrying `estimator_grid_not_measured`;
+  (a) no supported route has an owning-registry row (parity/transport_stages.toml [[routes]],
+      parity/support_cells.toml cells) carrying `estimator_grid_not_measured`;
   (b) every route whose stage is `uncertainty` is `closed` (with an executed refusal test that
-      names its reason code) or licensed with EVERY coverage record its record allocates present
-      in parity/coverage_records.toml; a `nominal` claim is refused; a `calibrated` claim must
+      names its reason code) or supported with EVERY coverage record its record allocates present
+      in parity/coverage_records.toml; a `nominal` claim is refused; an `interval` claim must
       allocate coverage record ids, and each allocated id must be emitted by a test under
       crates/*/tests (or python/tests) and registered in scripts/gate_calibration.sh, so a
       measurement can actually produce it;
       Emission means the id (or its last component, or a `...<component>` composed form) is a STRING
       LITERAL in the body of an `#[ignore]` test function (Rust; comments do not count) or of a
-      function (Python), read through scripts/promotion_source.py; wiring means the component is a registered group name on a `run_*` call line
-      of scripts/gate_calibration.sh (a comment does not count; a `carried_forward` record is not
+      function (Python), read through scripts/capability_source.py; wiring means the component is a registered group name on a `run_*` call line
+      of scripts/gate_calibration.sh (a comment does not count; a `not_supported` record is not
       measured, so only its emission is required). The same holds for every record that
-      allocates ids, whatever its claim or status (`carried_forward` included);
+      allocates ids, whatever its claim or status (`not_supported` included);
   (b2) hidden reservations: a `cov.<...>` id mentioned in any text field of a record but absent from
       that record's `coverage_records` is an error (an id reserved in prose is invisible to (b));
   (b3) orphan registrations: a `run_*` call of scripts/gate_calibration.sh whose test emits a
@@ -28,7 +28,7 @@ parity/promotion.toml, importing its helpers read-only. For each record:
       behind a closed or covered uncertainty route.
 
 Calibration state is reported PER RECORD, for EVERY record that allocates coverage ids (not only
-`calibrated` claims, so a `carried_forward` record's pending measurement stays visible), keyed by record id:
+`interval` claims, so a `not_supported` record's pending measurement stays visible), keyed by record id:
 PENDING_CALIBRATION while an allocated record is absent,
 PASS once all are present and attested (scripts/calibration_facets.py), FAIL otherwise.
 
@@ -66,7 +66,7 @@ if os.environ.get("INTERVAL_COORDINATES_SKIP_ATTEST") == "1":
     os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 ensure_scripts_on_path()
 import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
-from promotion_source import (  # noqa: E402
+from capability_source import (  # noqa: E402
     _scan_literals,
     assertion_texts,
     closure_code,
@@ -700,7 +700,7 @@ def archived_emitter_literals(entry: dict) -> list[str]:
 def historical_allocations(
     record: dict, selected: list[str], present: set[str], errors: list[str]
 ) -> set[str]:
-    """Own failed original emitters without selecting or licensing their intervals."""
+    """Own failed original emitters without selecting or support their intervals."""
     historical = set()
     rid = record["id"]
     declarations = record.get("historical_coverage_records", [])
@@ -750,7 +750,7 @@ def historical_allocations(
                 f"{rid}: historical coverage must be disjoint from selected allocations and unique"
             )
         if cid in present:
-            errors.append(f"{rid}: failed historical coverage cannot be a passing licensed record")
+            errors.append(f"{rid}: failed historical coverage cannot be a passing supported record")
         matching_outputs = [
             output
             for output in record.get("inference_outputs", [])
@@ -778,10 +778,10 @@ def check() -> dict:
     notes: list[str] = []
     refusals: list[dict] = []
     calibration: dict[str, dict] = {}
-    promotion_path = "parity/promotion.toml"
-    promotion = load(promotion_path)
+    capability_path = "parity/capability_records.toml"
+    capability = load(capability_path)
     stages = load("parity/transport_stages.toml")
-    support = load("parity/support_licensed.toml")
+    support = load("parity/support_cells.toml")
     present = {r.get("id") for r in load("parity/coverage_records.toml").get("record", [])}
     gate_text = (
         (ROOT / "scripts/gate_calibration.sh").read_text(encoding="utf-8")
@@ -790,9 +790,9 @@ def check() -> dict:
     )
     groups = registered_groups(gate_text)
     registered_literals = registered_output_ids(gate_text)
-    records = promotion.get("record", [])
+    records = capability.get("record", [])
     if not records:
-        errors.append(f"no record found in {promotion_path}")
+        errors.append(f"no record found in {capability_path}")
     stage_rows = {row.get("route"): row for row in stages.get("routes", [])}
     scoped_routes: set[str] = set()
     diagnostic_groups: set[tuple[str, str]] = set()
@@ -845,20 +845,20 @@ def check() -> dict:
         claim = record.get("inference_claim")
         if claim == "nominal":
             errors.append(f"{rid}: inference_claim 'nominal' ships an interval no record measures")
-        if claim == "calibrated" and not active:
-            errors.append(f"{rid}: a calibrated claim must allocate its coverage record ids")
-        if active and claim != "calibrated" and record.get("status") != "carried_forward":
-            errors.append(f"{rid}: allocates coverage records but claims {claim!r}, not calibrated")
+        if claim == "interval" and not active:
+            errors.append(f"{rid}: an interval claim must allocate its coverage record ids")
+        if active and claim != "interval" and record.get("status") != "not_supported":
+            errors.append(f"{rid}: allocates coverage records but claims {claim!r}, not interval")
         for cid in allocated:
             if not emitted_by_a_test(cid):
                 errors.append(
                     f"{rid}: coverage id {cid} is emitted by no `#[ignore]` test body (string literal) "
                     "under crates/*/tests, crates/*/src, or python/tests"
                 )
-            # a carried_forward record is deliberately not measured, so it need not be
+            # a not_supported record is deliberately not measured, so it need not be
             # registered in gate_calibration.sh (its emitting test must still exist)
             if (
-                record.get("status") != "carried_forward"
+                record.get("status") != "not_supported"
                 and cid.rsplit(".", 1)[-1] not in groups
                 and not any(
                     registration_owns_id(
@@ -918,14 +918,14 @@ def check() -> dict:
             scoped_routes.add(name)
             row = stage_rows.get(name)
             if (
-                status == "licensed"
+                status == "supported"
                 and row is not None
                 and (row.get("calibration_reason") == NOMINAL or NOMINAL in json.dumps(row))
             ):
                 errors.append(
-                    f"{rid}: licensed route {name} has a transport_stages row carrying {NOMINAL}"
+                    f"{rid}: supported route {name} has a transport_stages row carrying {NOMINAL}"
                 )
-            if status == "licensed" and route.get("registry") == "support_licensed":
+            if status == "supported" and route.get("registry") == "support_cells":
                 for cell in support.get("cell", []):
                     if (
                         cell.get("query") == route.get("query")
@@ -935,14 +935,14 @@ def check() -> dict:
                         )
                     ):
                         errors.append(
-                            f"{rid}: licensed route {name} has a support cell carrying {NOMINAL}"
+                            f"{rid}: supported route {name} has a support cell carrying {NOMINAL}"
                         )
             if stage == "uncertainty":
-                if status == "licensed":
+                if status == "supported":
                     open_uncertainty = True
                     if missing_active:
                         errors.append(
-                            f"{rid}: uncertainty route {name} is licensed but coverage records are "
+                            f"{rid}: uncertainty route {name} is supported but coverage records are "
                             f"absent: {', '.join(missing_active)}"
                         )
                 elif status == "closed":
@@ -957,8 +957,8 @@ def check() -> dict:
                     route.get("refusal_assertion"),
                 )
                 if not test or not assertion:
-                    # A frozen record has no executed test yet; in_progress/promoted must.
-                    if record.get("status") in ("in_progress", "promoted"):
+                    # A not_supported record may cite a planned test; a supported one must cite an executed one.
+                    if record.get("status") == "supported":
                         errors.append(f"{rid}: closed route {name} cites no executed refusal test")
                     continue
                 path = ROOT / test
@@ -981,7 +981,7 @@ def check() -> dict:
                 errors.append(f"{rid}: interval surface file {rel} is missing")
                 continue
             findings += [(rel, line, n) for line, n in surface_interval_findings(rel)]
-        # A wrapper may echo an interval licensed by its input route without
+        # A wrapper may echo an interval supported by its input route without
         # constructing its own uncertainty. The record must name those public
         # fields explicitly; any new interval-bearing name still needs a route.
         descriptors = record.get("noninferential_interval_fields") or []
@@ -1093,7 +1093,7 @@ def check() -> dict:
         ]
     }
     # A registration is owned by a record that allocates the id it emits, or has been measured
-    # already: a measured id is a row of parity/coverage_records.toml, which the licensed support
+    # already: a measured id is a row of parity/coverage_records.toml, which the supported support
     # cells own. Only an unmeasured emitter no record allocates is an orphan.
     owned_ids = allocated_ids | present
     for reg in registrations(gate_text):
@@ -1126,10 +1126,10 @@ def check() -> dict:
     legacy = [
         n
         for n, row in stage_rows.items()
-        if n not in scoped_routes and NOMINAL in json.dumps(row) and row.get("status") == "licensed"
+        if n not in scoped_routes and NOMINAL in json.dumps(row) and row.get("status") == "supported"
     ]
     if legacy:
-        notes.append(f"{len(legacy)} licensed rows outside every record keep {NOMINAL} (backlog)")
+        notes.append(f"{len(legacy)} supported rows outside every record keep {NOMINAL} (backlog)")
     return {
         "intervals": "FAIL" if errors else "PASS",
         "calibration": calibration,
@@ -1179,7 +1179,7 @@ def self_test() -> int:
         t.parent.mkdir(parents=True, exist_ok=True)
         t.write_text(
             "#[test]\nfn refuses() {\n"
-            '    let _ = "cell_not_licensed";\n}\n\n'
+            '    let _ = "not_supported";\n}\n\n'
             '#[test]\n#[ignore = "coverage"]\nfn synth_alpha() {\n    record("synth_alpha");\n}\n\n'
             '#[test]\n#[ignore = "coverage"]\nfn synth_beta() {\n'
             '    let _key = "cov.synth.b.l95.synth_beta"; // a composed id also counts\n}\n',
@@ -1196,28 +1196,28 @@ def self_test() -> int:
         synth_records = """
 [[record]]
 id = "synth.uncertainty_cell"
-status = "in_progress"
-inference_claim = "calibrated"
+status = "supported"
+inference_claim = "interval"
 coverage_records = ["cov.synth.b.l95.synth_alpha", "cov.synth.b.l95.synth_beta"]
 surface = ["crates/synth/src/lib.rs"]
 internal_interval_fields = ["candidate_interval_internal"]
 routes = [
-  { name = "synth.prepare", stage = "prepare", status = "licensed", claim = "point_only" },
-  { name = "synth.uncertainty", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses" },
+  { name = "synth.prepare", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "synth.uncertainty", stage = "uncertainty", status = "closed", reason_code = "not_supported", refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses" },
 ]
 
 [[record]]
 id = "synth.inherited_interval"
-status = "promoted"
+status = "supported"
 inference_claim = "point_only"
 surface = ["python/antecedent/synth_inherited.py"]
 inherited_interval_fields = ["interval"]
 """
-        promo = base / "parity/promotion.toml"
+        promo = base / "parity/capability_records.toml"
         promo.parent.mkdir(parents=True, exist_ok=True)
         promo.write_text("version = 1\n" + synth_records, encoding="utf-8", newline="\n")
         (base / "parity/transport_stages.toml").write_text(
-            '[[routes]]\nroute = "synth.prepare"\nstatus = "licensed"\n',
+            '[[routes]]\nroute = "synth.prepare"\nstatus = "supported"\n',
             encoding="utf-8",
             newline="\n",
         )
@@ -1283,7 +1283,7 @@ inherited_interval_fields = ["interval"]
             elif result["intervals"] != "FAIL" or not any(needle in e for e in result["errors"]):
                 failures.append(f"'{label}' did not report {needle!r}: {result['errors']}")
 
-        promo_rel = "parity/promotion.toml"
+        promo_rel = "parity/capability_records.toml"
         expect("baseline synthetic records", run(), None)
         expect(
             "commented cfg cannot attest internal interval gate",
@@ -1304,18 +1304,18 @@ inherited_interval_fields = ["interval"]
         state = run()["calibration"].get("synth.uncertainty_cell", {}).get("status")
         if state != "PENDING_CALIBRATION":
             failures.append(f"absent coverage records must be PENDING_CALIBRATION, got {state}")
-        closed_head = '{ name = "synth.uncertainty", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses" }'
-        opened = '{ name = "synth.uncertainty", stage = "uncertainty", status = "licensed", claim = "calibrated" }'
+        closed_head = '{ name = "synth.uncertainty", stage = "uncertainty", status = "closed", reason_code = "not_supported", refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses" }'
+        opened = '{ name = "synth.uncertainty", stage = "uncertainty", status = "supported", claim = "interval" }'
         expect(
-            "uncertainty licensed without records",
+            "uncertainty supported without records",
             run(edit(promo_rel, closed_head, opened)),
-            "licensed but coverage records are absent",
+            "supported but coverage records are absent",
         )
         covered = run(
             edit(promo_rel, closed_head, opened),
             coverage=["cov.synth.b.l95.synth_alpha", "cov.synth.b.l95.synth_beta"],
         )
-        expect("uncertainty licensed with records", covered, None)
+        expect("uncertainty supported with records", covered, None)
         if covered["calibration"].get("synth.uncertainty_cell", {}).get("status") != "PASS":
             failures.append(f"present coverage records must report PASS: {covered['calibration']}")
         expect(
@@ -1323,14 +1323,14 @@ inherited_interval_fields = ["interval"]
             run(
                 edit(
                     promo_rel,
-                    'inference_claim = "calibrated"\ncoverage_records = ["cov.synth',
+                    'inference_claim = "interval"\ncoverage_records = ["cov.synth',
                     'inference_claim = "nominal"\ncoverage_records = ["cov.synth',
                 )
             ),
             "ships an interval no record measures",
         )
         expect(
-            "calibrated claim without ids",
+            "interval claim without ids",
             run(
                 edit(
                     promo_rel,
@@ -1389,7 +1389,7 @@ inherited_interval_fields = ["interval"]
             run(
                 edit(SYNTH_TEST, alpha_fn, labelled),
                 edit_extra=edit(
-                    "parity/promotion.toml",
+                    "parity/capability_records.toml",
                     '"cov.synth.b.l95.synth_alpha"',
                     '"cov.synth.b.l95.synth_alpha.rho_0_5"',
                 ),
@@ -1401,7 +1401,7 @@ inherited_interval_fields = ["interval"]
             run(
                 edit(SYNTH_TEST, alpha_fn, labelled.replace("rho_0.5", "rho_0.9")),
                 edit_extra=edit(
-                    "parity/promotion.toml",
+                    "parity/capability_records.toml",
                     '"cov.synth.b.l95.synth_alpha"',
                     '"cov.synth.b.l95.synth_alpha.rho_0_5"',
                 ),
@@ -1473,8 +1473,8 @@ inherited_interval_fields = ["interval"]
             run(
                 edit(
                     promo_rel,
-                    'status = "in_progress"\ninference_claim = "calibrated"\ncoverage_records = ["cov.synth.b.l95.synth_alpha"',
-                    'status = "in_progress"\ninference_notes = "also reserves cov.synth.b.l95.synth_gamma."\ninference_claim = "calibrated"\ncoverage_records = ["cov.synth.b.l95.synth_alpha"',
+                    'status = "supported"\ninference_claim = "interval"\ncoverage_records = ["cov.synth.b.l95.synth_alpha"',
+                    'status = "supported"\ninference_notes = "also reserves cov.synth.b.l95.synth_gamma."\ninference_claim = "interval"\ncoverage_records = ["cov.synth.b.l95.synth_alpha"',
                 )
             ),
             "hidden reserved id",
@@ -1496,24 +1496,24 @@ inherited_interval_fields = ["interval"]
             "without an owner",
         )
         expect(
-            "a carried_forward record's allocated ids are still checked and reported",
+            "a not_supported record's allocated ids are still checked and reported",
             run(
                 edit(
                     promo_rel,
-                    'status = "in_progress"\ninference_claim = "calibrated"',
-                    'status = "carried_forward"\ninference_claim = "calibrated"',
+                    'status = "supported"\ninference_claim = "interval"',
+                    'status = "not_supported"\ninference_claim = "interval"',
                 ),
                 edit_extra=edit(SYNTH_TEST, 'record("synth_alpha")', 'record("other")'),
             ),
             "emitted by no `#[ignore]` test body",
         )
         expect(
-            "a carried_forward record need not be registered in gate_calibration.sh",
+            "a not_supported record need not be registered in gate_calibration.sh",
             run(
                 edit(
                     promo_rel,
-                    'status = "in_progress"\ninference_claim = "calibrated"',
-                    'status = "carried_forward"\ninference_claim = "calibrated"',
+                    'status = "supported"\ninference_claim = "interval"',
+                    'status = "not_supported"\ninference_claim = "interval"',
                 ),
                 edit_extra=edit(
                     "scripts/gate_calibration.sh",
@@ -1526,8 +1526,8 @@ inherited_interval_fields = ["interval"]
         cf = run(
             edit(
                 promo_rel,
-                'status = "in_progress"\ninference_claim = "calibrated"',
-                'status = "carried_forward"\ninference_claim = "calibrated"',
+                'status = "supported"\ninference_claim = "interval"',
+                'status = "not_supported"\ninference_claim = "interval"',
             )
         )
         if (
@@ -1535,18 +1535,18 @@ inherited_interval_fields = ["interval"]
             != "PENDING_CALIBRATION"
         ):
             failures.append(
-                f"carried_forward record must report its calibration: {cf['calibration']}"
+                f"not_supported record must report its calibration: {cf['calibration']}"
             )
         nc = run(
             edit(
                 promo_rel,
-                'inference_claim = "calibrated"\ncoverage_records',
+                'inference_claim = "interval"\ncoverage_records',
                 'inference_claim = "assumption_range"\ncoverage_records',
             )
         )
         if nc["calibration"].get("synth.uncertainty_cell", {}).get(
             "status"
-        ) != "PENDING_CALIBRATION" or not any("not calibrated" in e for e in nc["errors"]):
+        ) != "PENDING_CALIBRATION" or not any("not interval" in e for e in nc["errors"]):
             failures.append(
                 f"non-calibrated claim with ids must error and still report calibration: {nc}"
             )
@@ -1556,7 +1556,7 @@ inherited_interval_fields = ["interval"]
                 edit(
                     promo_rel,
                     closed_head,
-                    '{ name = "synth.point", stage = "evaluate", status = "licensed", claim = "point_only" }',
+                    '{ name = "synth.point", stage = "evaluate", status = "supported", claim = "point_only" }',
                 )
             ),
             "has no closed uncertainty route",
@@ -1575,7 +1575,7 @@ inherited_interval_fields = ["interval"]
         )
         expect(
             "refusal test never names the reason",
-            run(edit(SYNTH_TEST, '"cell_not_licensed"', '"other"')),
+            run(edit(SYNTH_TEST, '"not_supported"', '"other"')),
             "never names",
         )
 
@@ -1586,14 +1586,14 @@ inherited_interval_fields = ["interval"]
                 "",
             )
             text = text.replace(
-                'status = "in_progress"\ninference_claim = "calibrated"',
-                'status = "frozen"\ninference_claim = "calibrated"',
+                'status = "supported"\ninference_claim = "interval"',
+                'status = "not_supported"\ninference_claim = "interval"',
             )
             (case / promo_rel).write_text(text, encoding="utf-8", newline="\n")
 
-        expect("frozen record may omit its refusal test", run(freeze_and_drop_test), None)
+        expect("not_supported record may omit its refusal test", run(freeze_and_drop_test), None)
         expect(
-            "in_progress record needs its refusal test",
+            "supported record needs its refusal test",
             run(
                 edit(
                     promo_rel,
@@ -1604,7 +1604,7 @@ inherited_interval_fields = ["interval"]
             "cites no executed refusal test",
         )
         expect(
-            "licensed row carrying estimator_grid_not_measured",
+            "supported row carrying estimator_grid_not_measured",
             run(
                 edit(
                     "parity/transport_stages.toml",
@@ -1658,12 +1658,12 @@ def self_test_exact_ownership() -> int:
         )
         record = (
             '[[record]]\nid = "synth.diagnostic_candidate"\n'
-            'status = "promoted"\ninference_claim = "point_only"\n'
+            'status = "supported"\ninference_claim = "point_only"\n'
             f'candidate_coverage_records = ["{coverage_id}"]\n'
             f'surface = ["{surface}"]\n'
             'noninferential_interval_fields = [{name="interval_status", why="status only"}]\n'
         )
-        write("parity/promotion.toml", record)
+        write("parity/capability_records.toml", record)
         try:
 
             def expect(label: str, needle: str | None) -> dict:
@@ -1683,7 +1683,7 @@ def self_test_exact_ownership() -> int:
                 "    sampling: SamplingInterval\n",
             )
             expect(
-                "interval-typed output remains subject to licensing",
+                "interval-typed output remains subject to support",
                 "public interval-bearing output sampling",
             )
             write(
@@ -1713,20 +1713,20 @@ def self_test_exact_ownership() -> int:
                 'inference_outputs = [{allocation_status="historical_measurement_failed_route_closed", '
                 'allocated_coverage_records=["' + historical_id + '"]}]\n'
             )
-            write("parity/promotion.toml", record + history)
+            write("parity/capability_records.toml", record + history)
             expect("failed historical emitter remains owned", None)
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record + history.replace('status="failed"', 'status="passed"'),
             )
             expect("history cannot relabel passed evidence", "needs failed status")
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record + history.replace('test="old_method"', 'test="invented"'),
             )
             expect("history binds actual original emitter", "no original ignored harness emitter")
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record
                 + history.replace(historical_id, coverage_id)
                 .replace(historical_source, "crates/synth/tests/calibration.rs")
@@ -1734,7 +1734,7 @@ def self_test_exact_ownership() -> int:
             )
             expect("historical cannot hide selected obligation", "disjoint from selected")
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record
                 + history.replace(
                     "historical_measurement_failed_route_closed",
@@ -1744,13 +1744,13 @@ def self_test_exact_ownership() -> int:
             expect(
                 "history cannot be allocated as unmeasured candidate", "explicitly failed output"
             )
-            write("parity/promotion.toml", record + history)
+            write("parity/capability_records.toml", record + history)
             write("parity/coverage_records.toml", '[[record]]\nid="' + historical_id + '"\n')
             expect(
-                "failed history cannot supply passing record", "cannot be a passing licensed record"
+                "failed history cannot supply passing record", "cannot be a passing supported record"
             )
             write("parity/coverage_records.toml", "")
-            write("parity/promotion.toml", record)
+            write("parity/capability_records.toml", record)
             multi_ids = [
                 f"cov.synth.dag.frequentist.l95.whole_method.{label}"
                 for label in ("mean0", "mean1", "contrast")
@@ -1759,21 +1759,21 @@ def self_test_exact_ownership() -> int:
                 f'candidate_coverage_records = ["{coverage_id}"]',
                 "candidate_coverage_records = " + json.dumps(multi_ids),
             )
-            write("parity/promotion.toml", multi_record)
+            write("parity/capability_records.toml", multi_record)
             write(
                 "crates/synth/tests/calibration.rs",
                 '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
                 '    measure("whole_method", ["mean0", "mean1", "contrast"]);\n}\n',
             )
             expect("composed multi-effect candidate IDs retain exact test ownership", None)
-            write("parity/promotion.toml", multi_record.replace(json.dumps(multi_ids), "[]"))
+            write("parity/capability_records.toml", multi_record.replace(json.dumps(multi_ids), "[]"))
             expect("multi-effect emitter without allocations remains orphaned", "without an owner")
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 multi_record.replace("l95.whole_method.", "l95.other_whole_method."),
             )
             expect("similar test-name substring cannot own composed IDs", "without an owner")
-            write("parity/promotion.toml", record)
+            write("parity/capability_records.toml", record)
             write(
                 "crates/synth/tests/calibration.rs",
                 '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
@@ -1790,14 +1790,14 @@ def self_test_exact_ownership() -> int:
             expect("real interval needs its own route", "has no closed uncertainty route")
             write(surface, "class Result:\n    interval_status: str\n")
             write(
-                "parity/promotion.toml",
-                record.replace('inference_claim = "point_only"', 'inference_claim = "calibrated"'),
+                "parity/capability_records.toml",
+                record.replace('inference_claim = "point_only"', 'inference_claim = "interval"'),
             )
             expect(
-                "candidate allocation does not license calibration",
+                "candidate allocation does not support calibration",
                 "must allocate its coverage record ids",
             )
-            write("parity/promotion.toml", record)
+            write("parity/capability_records.toml", record)
             write(
                 "scripts/gate_calibration.sh",
                 'run_synth() {\n cargo test --test wrong_target "$1" -- --ignored\n}\n'
@@ -1820,11 +1820,11 @@ def self_test_exact_ownership() -> int:
             expect("comment is not actual candidate emission", "emitted by no")
             inherited_record = (
                 '\n[[record]]\nid="synth.inherited_candidate"\n'
-                'status="promoted"\ninference_claim="point_only"\n'
+                'status="supported"\ninference_claim="point_only"\n'
                 'inference_outputs=[{inherited_from_records=["synth.diagnostic_candidate"],'
                 f'inherited_coverage_records=["{coverage_id}"]}}]\n'
             )
-            write("parity/promotion.toml", record + inherited_record)
+            write("parity/capability_records.toml", record + inherited_record)
             write(
                 "crates/synth/tests/calibration.rs",
                 '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
@@ -1832,20 +1832,20 @@ def self_test_exact_ownership() -> int:
             )
             expect("candidate inheritance names actual separate owner", None)
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record
                 + inherited_record.replace('"synth.diagnostic_candidate"', '"invented.owner"'),
             )
             expect("inherited reservation without owner refuses", "invalid owning record")
             write(
-                "parity/promotion.toml",
+                "parity/capability_records.toml",
                 record
                 + inherited_record.replace(
-                    'inference_claim="point_only"', 'inference_claim="calibrated"'
+                    'inference_claim="point_only"', 'inference_claim="interval"'
                 ),
             )
             expect(
-                "candidate inheritance cannot license child calibration",
+                "candidate inheritance cannot support child calibration",
                 "must allocate its coverage record ids",
             )
             diagnostic_record = record.replace(
@@ -1853,7 +1853,7 @@ def self_test_exact_ownership() -> int:
                 'diagnostic_measurement_tests = ["crates/synth/tests/calibration.rs::whole_method"]\n'
                 'inference_outputs = [{measurement_suite="crates/synth/tests/calibration.rs"}]\n',
             )
-            write("parity/promotion.toml", diagnostic_record)
+            write("parity/capability_records.toml", diagnostic_record)
             write(
                 "crates/synth/tests/calibration.rs",
                 '#[test]\n#[ignore = "precision"]\nfn whole_method() {\n'

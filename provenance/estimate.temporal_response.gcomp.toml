@@ -15,7 +15,7 @@ papers = [
 
 implementation_deviations = [
   "uses one additive linear OLS projection per horizon on the unfolded backdoor design, not recursive sequential-regression g-computation over a multi-step treatment history",
-  "fits the full aligned sample without cross-fitting and licenses only one treatment-time column; multi-step Sustained and Sequence route through estimate.temporal_sequential",
+  "fits the full aligned sample without cross-fitting and supports only one treatment-time column; multi-step Sustained and Sequence route through estimate.temporal_sequential",
   "the pointwise band is published only when joint bootstrap replicates are requested: a joint circular-block bootstrap of the lag-aligned rows of every horizon (or Dirichlet block-weight draws when block_weight_posterior is set), with a fixed-b dispersion inflation and a per-cell kernel-bias factor; with zero replicates no band is published, because an analytic OLS band would treat lag-aligned rows as independent; the band reads as confidence (bootstrap) or credible (block weights), conditional on the unfolded linear regression and not on the identification step",
   "pinned pointwise 95% band oracle on conformance/response/temporal_dose_horizon (including strictly positive width at dose zero)",
   "adjustment-set correctness on conformance/response/temporal_confounded_pulse (unadjusted slope 4.5 vs structural 2)",
@@ -44,12 +44,12 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Five series (9, 70 and 400 rows) with one treatment, one confounder and horizons 1 and 2, adjustment lags {1,2} and {2} read off the unfolded graph by hand; an outcome offset of 1e6 with a treatment offset of 1e3 and confounder lags correlated at 0.9995. Levels are asserted to 1e-9 of the sum of absolute terms (1e-6 for the nearly collinear case). The review covers the point surface and levels only: the pointwise band is a joint circular-block bootstrap (or Dirichlet block-weight) construction with a fixed-b dispersion inflation and a kernel-bias factor and is not examined here, nor are the simultaneous band, the Bayesian surface, a series with missing time points, sampling weights or the support classification. The adjustment set is taken from the temporal backdoor identifier as hand-checked for this graph; the identifier is a separate record. The cited publications were not retrieved."
 sources = ["https://doi.org/10.1515/9781400829828", "https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/"]
 findings_resolved = ["The mean-curve surface equals the exact rational OLS level at every dose and horizon, with the dose-major, horizon-minor layout, under a 1e6 outcome offset, a 1e3 treatment offset, nearly collinear confounder lags, a nine-row series and 400 rows.", "A hard-level intervention response equals the mean-curve cell at that dose for every horizon, and an additive shift is evaluated at each horizon's own treatment mean plus the shift.", "Record text corrected: the pointwise band is not an analytic delta-method band (the product withholds it with zero replicates and builds it from the joint circular-block bootstrap otherwise); the deviation list now says so.", "The identification-to-design correspondence: with the temporal policy origin at the treatment, a horizon-1 pulse reads the treatment at lag 1 and the confounder at lags 1 and 2, and the horizon-2 pulse the treatment at lag 2 and the confounder at lag 2, as derived by hand for the test graph."]
-record_sha256 = "f5790bdc98a0ab641c909123033f0c10b0713db0d6712e77a48e07074cc81ac4"
+record_sha256 = "ebf6b27702fee7a6c47fdd2b075d58725037b71b01df8e77251ab3085a5ee1d4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
-sha256 = "85d6d8aa753d2aaf00bcae5e3639dded6c23c9cd9340540583ddc23fd3aed29b"
+sha256 = "c7713f367c9713aaeca44cd3e418e5e068d158c83cdee01342fb5816d1caae88"
 
 [[method_review.artifacts]]
 role = "implementation"

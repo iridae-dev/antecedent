@@ -172,7 +172,7 @@ fn run_outer(
 }
 
 #[test]
-fn an_unregistered_inner_callback_is_refused_and_registration_then_licenses_the_call() {
+fn an_unregistered_inner_callback_is_refused_and_registration_then_supports_the_call() {
     let left = law("inner_left", declared_nothing());
     let right = law("inner_right", declared_nothing());
     let outer = outer(&left, &right);

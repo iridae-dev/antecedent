@@ -6,18 +6,18 @@ zero_cell_queries = []
 
 [[record]]
 id = "discovery.sample_split_parent_set_effect"
-status = "in_progress"
+status = "not_supported"
 consumer_question = "After discovery on three quarters of a table of ten to twenty variables, when only the treatment's parent set is unambiguous, what is the total effect (linear study) or intervention mean ratio (log-linear study) of a treatment on an outcome estimated by parent adjustment on the disjoint remaining quarter, with the unrelated undirected edges preserved, and over which measured family of generating processes does its interval cover the truth?"
 graph_class = "A static float64 table of ten to twenty searched variables, connected, of maximum degree at most four, whose generating DAG is linear Gaussian (log-normal on the original scale for a log-linear study), causally sufficient and strongly faithful, with every edge incident to the treatment oriented in its equivalence class."
 guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
-inference_claim = "calibrated"
+inference_claim = "interval"
 coverage_records = ["cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_weak_signal_boundary_95.discovery_fraction_0_75_whole_procedure", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_cancelling_path_boundary_95.discovery_fraction_0_75_whole_procedure", "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95.discovery_fraction_0_75_whole_procedure"]
 bounds = { min_variables = 10, max_variables = 20 }
-routes = [{ name = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" }, { name = "antecedent.python.selective_discovery.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" }]
+routes = [{ name = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "not_supported" }, { name = "antecedent.python.selective_discovery.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "not_supported" }]
 
 [[record]]
 id = "adaptive_inference.participant_family"
-status = "in_progress"
+status = "not_supported"
 consumer_question = "What is the posterior, the decision and the time-uniform frequentist reading at each look of an adaptive experiment whose participants give several binary responses, under historical informative priors, Thompson allocation with a minimum exploration probability, and expected-loss, futility and recruitment-cap decisions, and does a retained history replay under the declared procedure?"
 graph_class = "Not applicable: a property of the declared collection procedure and the retained history."
 guarantee = "design_effect_posterior_and_per_look_confidence_sequences_with_replayable_history_derived_unmeasured_no_coverage"
@@ -28,18 +28,18 @@ routes = []
 
 [[record]]
 id = "estimate.generalized_propensity_aipw"
-status = "promoted"
+status = "supported"
 consumer_question = "Can the contrast between two levels of a multi-level observational treatment be consumed with the population it speaks for stated, either the whole population (generalized-propensity standardization) or the subpopulation at the two levels (pairwise)?"
 graph_class = "No graph is identified or checked: the caller owns that the declared adjustment columns are a valid adjustment set for the multi-level treatment."
 guarantee = "multi_level_treatment_contrast_with_stated_target_population_interval_at_exact_measured_full_population_scope"
-inference_claim = "calibrated"
+inference_claim = "interval"
 coverage_records = ["cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval"]
 bounds = {}
-routes = [{ name = "antecedent.treatment.multi_level_effects", stage = "uncertainty", status = "licensed" }]
+routes = [{ name = "antecedent.treatment.multi_level_effects", stage = "uncertainty", status = "supported" }]
 
 [[record]]
 id = "estimate.randomized_missing_outcomes"
-status = "promoted"
+status = "supported"
 consumer_question = "Can the intention-to-treat contrast of a randomized trial, a panel difference-in-differences, a lagged temporal effect or a NOTEARS graph be consumed when some values are missing, with the policy that handled them, the assumption it needs and the rows it dropped or reweighted stated?"
 graph_class = "No graph is identified or checked for the randomized and panel designs; the caller owns the declared observation covariates and, for temporal estimation, the lagged graph."
 guarantee = "declared_missing_data_policy_with_stated_assumption_and_row_accounting_point_only_variance_unmeasured"
@@ -50,7 +50,7 @@ routes = []
 
 [[record]]
 id = "estimate.sampling_weights"
-status = "promoted"
+status = "supported"
 consumer_question = "Can an effect be estimated in the population that declared sampling weights represent, with the estimand, the normalization, the uncertainty construction and the effective sample size stated, for the linear, propensity, augmented, matching, randomized-trial, panel difference-in-differences and temporal routes?"
 graph_class = "No graph is identified or checked beyond what each route already requires: the caller owns that the declared adjustment columns are a valid adjustment set, that a randomized assignment mechanism is as declared and that parallel untreated trends hold for a panel."
 guarantee = "weighted_population_effect_with_with_replacement_linearized_standard_error_point_only_interval_unmeasured"
@@ -61,7 +61,7 @@ routes = []
 
 [[record]]
 id = "estimate.observational_survival_effect"
-status = "promoted"
+status = "supported"
 consumer_question = "Can the effect of an observed binary treatment on a right-censored event time, as a survival-probability difference and a restricted-mean-survival-time difference at a declared horizon, be consumed with its censoring assumption and positivity stated?"
 graph_class = "No graph is identified or checked: the caller owns that the declared adjustment columns are a valid adjustment set for the binary treatment."
 guarantee = "observational_survival_effect_at_declared_horizon_with_declared_censoring_assumption_point_only_standard_error_unmeasured"
@@ -72,7 +72,7 @@ routes = []
 
 [[record]]
 id = "estimate.observational_policy_value"
-status = "promoted"
+status = "supported"
 consumer_question = "Can the value of a treatment policy be estimated from observational data over a declared treatment support, with the policy evaluated on rows independent of its learning, or by cross-fitted learning when it is learned on the same data?"
 graph_class = "No graph is identified or checked: the caller owns that the declared adjustment columns are a valid adjustment set for the treatment."
 guarantee = "observational_policy_value_under_declared_support_and_evaluation_point_only_standard_error_unmeasured"
@@ -83,7 +83,7 @@ routes = []
 
 [[record]]
 id = "gcm.model.graph_falsification"
-status = "promoted"
+status = "supported"
 consumer_question = "Is a declared causal DAG better than random relabellings of its own nodes at agreeing with the conditional independencies in the data, and can that comparison separate it from them at all?"
 graph_class = "A caller-declared static DAG over the observed columns of the data; causal sufficiency and no selection are assumed."
 guarantee = "graph_node_permutation_comparison_of_local_markov_violations_diagnostic_no_error_rate_claim"
@@ -94,7 +94,7 @@ routes = []
 
 [[record]]
 id = "gcm.attribution.intrinsic_influence"
-status = "promoted"
+status = "supported"
 consumer_question = "How much of a target's variance is each upstream noise term (and the target's own) responsible for, and how well is that split determined by the simulation, the permutation sample and the fitted mechanisms separately?"
 graph_class = "A caller-declared static DAG with fitted mechanisms and mutually independent exogenous noise terms; bidirected edges and latent common causes are refused."
 guarantee = "variance_shapley_of_noise_terms_unbiased_nested_coalition_values_component_standard_errors_uncalibrated"
@@ -105,11 +105,11 @@ routes = []
 
 [[record]]
 id = "estimate.uncertainty"
-status = "promoted"
+status = "supported"
 consumer_question = "Which uncertainty does a published scalar actually use, and which exact endpoint constructions have their own repeated-sampling evidence?"
 graph_class = "Only the graph classes of the allocated records; this endpoint rule identifies no graph."
 guarantee = "published_scalar_endpoint_rule_with_exact_currently_attesting_method_scope_no_universal_standard_error_coverage"
-inference_claim = "calibrated"
+inference_claim = "interval"
 coverage_records = ["cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_trimmed_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_distance_matching_interval.population_linear", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_gaussian_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_logit_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_negative_binomial_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_cluster_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval", "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear", "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_complete_case_mcar_interval", "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_weighted_mar_interval", "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.weighted_randomized_itt_interval", "cov.average_effect.dag.frequentist.balanced_population_linear_score.l95.weighted_ipw_hajek_interval", "cov.average_effect.dag.frequentist.balanced_population_score.l95.weighted_ipw_hajek_cluster_interval", "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_aipw_population_linear_interval", "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dml_aipw_population_linear_interval", "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dr_learner_population_linear_interval", "cov.average_effect.dag.frequentist.population_linear_atc_hc3.l95.weighted_aipw_atc_interval", "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_aipw_cluster_dml_interval", "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_dml_cluster_interval", "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_dr_learner_cluster_interval"]
 bounds = {}
-routes = [{ name = "antecedent.result.PublishedScalarUncertainty.interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.propensity.PropensityWeighting.population_linear_score_interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.propensity.PropensityWeighting.population_score_interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.AipwAte.population_linear_interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.DmlAte.population_linear_interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.DrLearner.population_linear_interval", stage = "uncertainty", status = "licensed" }, { name = "antecedent_estimate.AipwAte.population_linear_atc_interval", stage = "uncertainty", status = "licensed" }]
+routes = [{ name = "antecedent.result.PublishedScalarUncertainty.interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.propensity.PropensityWeighting.population_linear_score_interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.propensity.PropensityWeighting.population_score_interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.AipwAte.population_linear_interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.DmlAte.population_linear_interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.DrLearner.population_linear_interval", stage = "uncertainty", status = "supported" }, { name = "antecedent_estimate.AipwAte.population_linear_atc_interval", stage = "uncertainty", status = "supported" }]

@@ -41,7 +41,7 @@ def test_delayed_entry_km_and_rmst_known_truth():
     assert result.treated_survival == pytest.approx((1.0, 0.5, 0.5, 1 / 3, 1 / 3))
     assert "independent_delayed_entry_within_arm" in result.assumptions
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
@@ -77,7 +77,7 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
     assert section.rmst_difference_interval is not None
     assert section.survival_at_tau_difference_interval is not None
     assert section.bootstrap_replicates_ok == 299
-    assert section.support_status == "unlicensed_pointwise_interval"
+    assert section.support_status == "unsupported_pointwise_interval"
     loaded = require_success(
         antecedent.load(bytes(outcome.export(artifact_id="left-truncated-survival-bootstrap")))
     )
@@ -116,7 +116,7 @@ def test_delayed_entry_competing_risks_cif_known_truth():
     assert result.incidence_difference == pytest.approx(-1 / 12)
     assert "independent_delayed_entry_within_arm" in result.assumptions
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 @pytest.mark.parametrize("family", ["survival", "competing"])

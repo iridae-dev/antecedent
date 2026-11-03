@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Transport gate: parity/transport_stages.toml drives every invocation.
 #
-# The registry contract (licensed routes resolve to collected tests; each T10
+# The registry contract (supported routes resolve to collected tests; each T10
 # fixture family has a positive and a counterexample) is checked statically,
 # then every [[fixture_evidence]] row is executed by the shared row runner:
 # Rust rows must pass exactly one test, Python rows at least one, none may fail.
@@ -60,7 +60,7 @@ python3 scripts/check_transport_stages.py
 echo "== T10 fixture families: positive and counterexample rows =="
 python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" fixture_evidence gate_transport
 
-echo "== licensed stage routes: consuming evidence assertions =="
+echo "== supported stage routes: consuming evidence assertions =="
 python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" routes gate_transport
 
 echo "revision: $(git rev-parse HEAD 2>/dev/null || echo unknown)"

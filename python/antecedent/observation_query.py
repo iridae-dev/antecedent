@@ -19,7 +19,7 @@ What this is, and is not:
   declared Bayes models states whether its numbers were written down or fitted to a sample
   (``basis="sample_fitted"`` -> ``"point_only_sample_fitted"``). No interval and no calibration is
   made: :meth:`ObservationClaim.interval` and :meth:`ObservationClaim.calibrated_probability`
-  raise ``cell_not_licensed``.
+  raise ``not_supported``.
 * **Operation is part of the identity.** Conditioning, intervention and the paired comparison of
   the same variables and levels on the same model have three different identities.
 * **A recorded value is not the construct it measures.** :class:`Recorded` values go in
@@ -371,7 +371,7 @@ class ParameterDraws:
 
 @dataclass(frozen=True, slots=True)
 class ParameterInterval:
-    """An interval of one redrawn quantity that a currently attesting coverage record licensed."""
+    """An interval of one redrawn quantity that a currently attesting coverage record supported."""
 
     quantity: str
     coordinate_id: str
@@ -459,7 +459,7 @@ class ObservationClaim(ScientificResult):
     def parameter_interval(
         self, quantity: str, construction: str, *, evidence_rows: int
     ) -> ParameterInterval:
-        """The interval of one redrawn quantity, licensed only by a measured coverage record.
+        """The interval of one redrawn quantity, supported only by a measured coverage record.
 
         ``evidence_rows`` is declared, not authenticated: the number of observations behind the
         least-supported retained mechanism. No record is measured for any coordinate yet, so this
@@ -467,7 +467,7 @@ class ObservationClaim(ScientificResult):
         ``uncalibrated_spread``.
 
         Raises:
-            ObservationQueryRefusal: ``cell_not_licensed`` without a currently attesting record
+            ObservationQueryRefusal: ``not_supported`` without a currently attesting record
                 at this composed coordinate, construction, level and size.
         """
         raw = _unwrap(
@@ -616,7 +616,7 @@ class ObservationClaim(ScientificResult):
         """An interval for any observation-conditioned value. Always refused.
 
         Raises:
-            ObservationQueryRefusal: ``cell_not_licensed`` with
+            ObservationQueryRefusal: ``not_supported`` with
                 ``observation_query.declared_model_has_no_sampling_interval``.
         """
         raise_refusal(_native.observation_query_closed("interval"), ObservationQueryRefusal)
@@ -625,7 +625,7 @@ class ObservationClaim(ScientificResult):
         """A calibration claim for a posterior or decision probability. Always refused.
 
         Raises:
-            ObservationQueryRefusal: ``cell_not_licensed`` with
+            ObservationQueryRefusal: ``not_supported`` with
                 ``observation_query.calibrated_probability_closed``.
         """
         raise_refusal(
@@ -1178,7 +1178,7 @@ class CountFittedObservation(ScientificResult):
         """The measured posterior interval at ``level`` (0.90 and 0.95 are measured).
 
         Raises:
-            ObservationQueryRefusal: ``cell_not_licensed`` when no currently attesting coverage
+            ObservationQueryRefusal: ``not_supported`` when no currently attesting coverage
                 record governs this construction (level, prior, draws, rows, sample size).
         """
         measured, refusal = _native.count_fitted_observation_interval(

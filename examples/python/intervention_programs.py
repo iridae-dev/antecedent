@@ -60,12 +60,12 @@ np.testing.assert_allclose(worlds["price"], np.maximum(10.0, 0.85 * price), atol
 raised = worlds["price"] > price
 assert raised.any() and (worlds["demand"][raised] < demand[raised]).all()
 
-# Each route is licensed separately before anything runs. A transform is simulable and replayable
+# Each route is supported separately before anything runs. A transform is simulable and replayable
 # but is a function of each unit's noise, not a level, so it has no observational identification.
 support = policy_support(model, [floor])
-assert support.simulation.licensed and support.counterfactual.licensed
-assert not support.identification.licensed
-assert support.identification.reason_code == "policy_route_not_licensed"
+assert support.simulation.supported and support.counterfactual.supported
+assert not support.identification.supported
+assert support.identification.reason_code == "policy_route_not_supported"
 
 # Its model-based value is the paired difference against the unintervened model on the same noise;
 # only the simulation error is quantified, and the model's own uncertainty says it is not.

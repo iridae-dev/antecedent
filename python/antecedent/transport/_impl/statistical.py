@@ -72,7 +72,7 @@ class StatisticalTransportData:
 
 @dataclass(frozen=True, slots=True)
 class StatisticalTransportDistribution(ScientificResult):
-    """Plug-in target law with licensed or withheld sampling uncertainty."""
+    """Plug-in target law with supported or withheld sampling uncertainty."""
 
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
 

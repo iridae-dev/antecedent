@@ -234,7 +234,7 @@ fn selection_on_a_mediator_returns_the_reference_witness_or_no_witness() {
             assert!((got.target_contrast_b - f(&w["moved"])).abs() < 1e-12, "{name}");
             assert!((got.source_contrast - f(&case["source_contrast"])).abs() < 1e-12, "{name}");
         } else {
-            assert_eq!(err.refusal.code, "cell_not_licensed", "{name}");
+            assert_eq!(err.refusal.code, "not_supported", "{name}");
             assert!(err.witness.is_none(), "{name}");
         }
     }

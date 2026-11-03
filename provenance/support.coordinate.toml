@@ -9,7 +9,7 @@ copied_tests = false
 # sample sizes and ranges are computed by the existing response estimators.
 papers = []
 implementation_deviations = [
-  "Labels each requested coordinate (supported, weak overlap, extrapolative, outside empirical support, missing evidence) and checks that a static grid's summary is the worst label; it makes no overlap or positivity theorem claim and grants no interval or causal license.",
+  "Labels each requested coordinate (supported, weak overlap, extrapolative, outside empirical support, missing evidence) and checks that a static grid's summary is the worst label; it makes no overlap or positivity theorem claim and grants no interval or causal support.",
   "A temporal surface keeps its three-way summary; this record covers the static-grid worst-label contract and the missing-evidence distinction only.",
 ]
 upstream_implementations_observed = []
@@ -25,14 +25,14 @@ kind = "contract"
 rationale = "Support labelling and a consistency check: each requested coordinate is labelled supported, weak overlap, extrapolative, outside empirical support or missing evidence, and a static grid's summary is checked to be the worst label."
 no_independent_algorithm = "response.rs defines the label set and severity order and support.rs assigns labels from the local effective sample sizes and ranges the response estimators already computed; the summary is a maximum over severities."
 inline_tests = true
-record_sha256 = "bf22e7fc12826b13313383c1da66249400c951b2179c14748a24df46e5edc11a"
+record_sha256 = "1e76f3c9cad8ba4427d438510958b24c8c3ac303d316486e71d354e863954ebc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/response.rs"
-sha256 = "fad5dc92f7cf93a5a92bd83eadb0d07806481287658c3d403ce8f6c926a262cf"
+sha256 = "166ea8cc80956f7f8fc3f1cbffb1f2de3c38259a407763231567c4ba52b7ef43"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/support.rs"
-sha256 = "d8c0bee0a23ab721c7493b0e68917fa9b1af89377c2395bcf9644c269e1da501"
+sha256 = "06462b14d1cd5e882206894b0133d3e3d0d3499d52b687b429954df4cb5bbc5c"

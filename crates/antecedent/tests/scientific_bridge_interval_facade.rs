@@ -1,5 +1,5 @@
 //! The interval of a bridged value: hand-computed oracles, the refusals, and the
-//! absence of a licence where no coverage record measured the construction.
+//! absence of support where no coverage record measured the construction.
 //!
 //! Oracles that are not the code under test:
 //!
@@ -276,7 +276,7 @@ fn derive(
     let envelope = claim(value, units);
     let source = BridgeSource { claim: &envelope, quantity: &contract.source.quantity };
     PreparedScientificBridge::prepare(contract.clone())
-        .expect("licensed")
+        .expect("supported")
         .derive_with_standard_error(&source, standard_error)
         .expect("derived")
 }
@@ -314,7 +314,7 @@ fn checked_bridge_slot(basis: &CalibrationBasisWire, expected_method: &str) -> C
     reason = "the deterministic fixture preserves its exact values and bounded setup"
 )]
 fn assert_not_attesting(refused: ScientificBridgeRefusal) {
-    assert_eq!(refused.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
     assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
     assert!(refused.message.contains("(coverage_record_not_attesting)"), "{}", refused.message);
 }
@@ -335,7 +335,7 @@ fn a_trial_level_prediction_interval_matches_the_hand_computed_variance_and_t_qu
     assert!(close(built.interval.lower, 0.796 - half, 1e-4), "{}", built.interval.lower);
     assert!(close(built.interval.upper, 0.796 + half, 1e-4), "{}", built.interval.upper);
     assert_eq!(built.interval.degrees_of_freedom, Some(2.0));
-    assert!(built.interval.coverage_record.is_empty(), "construction is not a licence");
+    assert!(built.interval.coverage_record.is_empty(), "construction is not support");
     // The record's scope is the number of validation trials.
     assert_eq!(built.basis.scope.row_count, 4);
     assert_eq!(built.basis.key.estimator, "scientific_bridge_trial_level_linear");
@@ -350,7 +350,7 @@ fn an_affine_map_transforms_the_declared_source_interval_exactly() {
     assert!(close(interval.value, 0.4, 1e-12));
     assert!(close(interval.lower, 0.4 - half, 1e-5));
     assert!(close(interval.upper, 0.4 + half, 1e-5));
-    assert_eq!(interval.licensed_by, "exact_transform_of_declared_source_interval");
+    assert_eq!(interval.supported_by, "exact_transform_of_declared_source_interval");
     assert!(interval.coverage_record.is_empty());
 }
 
@@ -389,7 +389,7 @@ fn a_correction_inside_a_measured_record_is_published_bound_to_it() {
     let p = 11.0_f64 / 70.0;
     assert!(close(interval.value, p, 1e-12));
     assert!(interval.lower < p && p < interval.upper);
-    assert_eq!(interval.licensed_by, "coverage_record");
+    assert_eq!(interval.supported_by, "coverage_record");
     assert!(
         interval.coverage_record.starts_with("cov.bridged_claim_interval."),
         "{}",
@@ -430,7 +430,7 @@ fn a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound
     assert_eq!(Some(interval.calibration_sha.as_str()), slot.calibration_sha.as_deref());
     assert!(interval.lower < interval.value && interval.value < interval.upper);
     assert_eq!(interval.mapping.as_str(), "trial_level_linear");
-    assert_eq!(interval.licensed_by, "coverage_record");
+    assert_eq!(interval.supported_by, "coverage_record");
     assert!(interval.degrees_of_freedom == Some(18.0));
     assert!(interval.coverage_record.contains("student_t_prediction_interval"));
 }
@@ -440,7 +440,7 @@ fn an_interval_without_the_source_standard_error_is_refused_with_its_remedy() {
     let contract = affine_contract();
     let result = derive(&contract, 0.5, "probability", None);
     let refused = refusal(result.bridged_interval(0.95));
-    assert_eq!(refused.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
     assert_eq!(refused.detail, "scientific_bridge.interval_source_uncertainty_required");
     assert!(refused.remedy.as_deref().is_some_and(|remedy| remedy.contains("standard error")));
 }
@@ -451,13 +451,13 @@ fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
     let result = derive(&contract, 0.8, "mmol_per_l", Some(0.1));
     assert_eq!(
         refusal(result.interval()).detail,
-        "scientific_bridge.interval_not_licensed",
+        "scientific_bridge.interval_not_supported",
         "an unscoped request"
     );
     // No record measures the trial-level construction at level 0.8, so the scoped request
     // is refused whatever else has been measured.
     let refused = refusal(result.bridged_interval(0.8));
-    assert_eq!(refused.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
     assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
     // A level outside the admitted range is outside the measured scope.
     assert_eq!(

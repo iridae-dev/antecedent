@@ -82,7 +82,7 @@ fn cpdag_data(n: usize, seed: u64) -> TabularData {
         .unwrap()
 }
 
-/// The licensed-compiler static fixture shape: three smooth continuous columns.
+/// The supported-compiler static fixture shape: three smooth continuous columns.
 fn static_like(n: usize) -> TabularData {
     let column = |j: usize| -> Vec<f64> {
         (0..n).map(|i| ((i + 3 * j) as f64 * 0.17).sin() + 0.25 * (i % 4) as f64).collect()

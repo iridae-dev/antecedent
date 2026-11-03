@@ -410,11 +410,11 @@ fn run_family(family: Family) {
                     let study = builder(&p, bayesian, suite)
                         .build()
                         .unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(study.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(study.support_status(), Some(CellStatus::Supported), "{label}");
                     let result = study
                         .run(&ExecutionContext::for_tests(3))
                         .unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert_values(&label, &p, &result, bayesian);
                     assert_mass_and_set(
                         &label,
@@ -520,7 +520,7 @@ fn run_retained(family: Family) {
                     );
                     let result = prepared.estimate(&p.data, &ctx).unwrap();
                     assert_values(&label, &p, &result, bayesian);
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 }
             }
         }

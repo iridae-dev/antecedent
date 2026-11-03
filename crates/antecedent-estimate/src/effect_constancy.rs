@@ -25,7 +25,7 @@
 //! Non-rejection does **not** prove constancy ([`ConstancyConclusion::NotRejected`] is the
 //! absence of evidence against the null at the stated level). The test's Type I error and
 //! power are *unmeasured* ([`CalibrationStatus::Unmeasured`]); no coverage or false-positive
-//! claim is made here, and the result grants no causal or interval license. The per-partition
+//! claim is made here, and the result grants no causal or interval support. The per-partition
 //! effects are exposed so transport diagnostics, prior transfer and policy generalization can
 //! consume them directly.
 //!

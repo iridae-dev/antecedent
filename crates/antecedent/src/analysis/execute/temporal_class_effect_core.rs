@@ -3,7 +3,7 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalClassEffectExecution`]), the
 //! one-shot route and the sealed Bayesian operation all resolve their proof,
-//! gate their own licence, and call these functions. Callers own what they
+//! gate their own support, and call these functions. Callers own what they
 //! admit (the sealed frequentist operation takes no class prior and no
 //! Bayesian fit; the one-shot route does), never how an admitted fit is
 //! computed.

@@ -17,7 +17,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability license. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'unmeasured' where it declares so).",
+  "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability support. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'unmeasured' where it declares so).",
   "The digests are BLAKE3 throughout (node content digest, link digest over id, stage and parent digests, bundle identity). The chain is a Merkle DAG over dependency order, not a balanced Merkle tree: it gives tamper evidence along dependency edges, not logarithmic inclusion proofs. A changed upstream identity changes the digest of every dependent node and of the bundle.",
   "A node digest binds an embedded node's bytes by their BLAKE3 hash and a reference node's declared identity, requirement, facts and inspected values. An embedded node's facts are never taken from producer-written text: each verifier publishes them from the decoded artifact's fields, and the claim label (point_only_attested or joint_draw) is derived from ancestor facts, never from bytes.",
   "A reference node is verified only as 'matched a supplied source': a consumer-supplied provider (provider, snapshot and exact request fingerprint) or data digest is compared with the node's declaration. It is NEVER replayed, never claimed to have been replayed, and its declared inspected numbers are kept for inspection but are not verified values. A bundle never claims that a serialized result recreates an executable study.",
@@ -45,12 +45,12 @@ kind = "wrapper"
 rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier of its artifact kind."
 no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
 covered_by = ["composition.verifiers", "composition.provenance"]
-record_sha256 = "19e66dbd8e55d7486dc13bb4fe30e4406c053717314cba11bd047b2e613a0239"
+record_sha256 = "1188b265976f491233faa377205fe2b2ca860623ed85105f76f14b18044b1518"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_bundle.rs"
-sha256 = "758d0d89f76057f1d7e78f01ca80992cd2fdc3d1b3dc0abd8116c02c8210f7d7"
+sha256 = "55ffda64a913837506363d74998b16d904e88b2e37ab097adb2a160463891e70"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

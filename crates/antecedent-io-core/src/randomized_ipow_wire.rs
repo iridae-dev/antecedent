@@ -1,11 +1,11 @@
-//! Replay inputs and exact license scope of the randomized-arm IPW pseudo-posterior.
+//! Replay inputs and exact support scope of the randomized-arm IPW pseudo-posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, graphless_admits};
 use crate::{IoError, RandomizationDesignWire, RandomizedEffectQueryWire, RandomizedEstimandWire};
 use serde::{Deserialize, Serialize};
 
-/// Estimator of the licensed conditional pseudo-posterior.
+/// Estimator of the supported conditional pseudo-posterior.
 pub const ESTIMATOR: &str = "bayesian.randomized_superpopulation";
 /// The working likelihood, distinct from a joint model of outcomes and missingness.
 pub const METHOD: &str = "gaussian_ipow_modular_posterior";
@@ -48,7 +48,7 @@ impl RandomizedIpowWire {
             self.prior[3].to_bits()
         )
     }
-    /// Exact graphless license coordinate.
+    /// Exact graphless support coordinate.
     #[must_use]
     pub fn key(&self) -> GraphlessSupportKey<'_> {
         GraphlessSupportKey {
@@ -61,7 +61,7 @@ impl RandomizedIpowWire {
 
     /// Support observed in the retained source table, after validating its shape.
     #[must_use]
-    pub fn licensed(&self, intervals: usize) -> bool {
+    pub fn supported(&self, intervals: usize) -> bool {
         let arms = self.probabilities.first().map_or(0, Vec::len);
         if arms != 2
             || self.contrasts != [vec![-1.0, 1.0]]
@@ -102,7 +102,7 @@ impl RandomizedIpowWire {
     ) -> Result<(), IoError> {
         let fail = || {
             IoError::Convert(
-                "randomized IPW pseudo-posterior source does not match its licensed query".into(),
+                "randomized IPW pseudo-posterior source does not match its supported query".into(),
             )
         };
         let n = self.outcomes.len();
@@ -182,7 +182,7 @@ impl RandomizedIpowWire {
             || (0..arms).any(|arm| {
                 !self.assignment.iter().zip(&self.outcomes).any(|(a, y)| *a == arm && y.is_some())
             })
-            || !self.licensed(coordinates.len())
+            || !self.supported(coordinates.len())
         {
             return Err(fail());
         }

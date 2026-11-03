@@ -1,4 +1,4 @@
-//! Actual nested-model executions licensed only by current method-specific records.
+//! Actual nested-model executions supported only by current method-specific records.
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
@@ -16,7 +16,7 @@ use antecedent_learn::nested_markov_bayesian::{Options, Prior};
 
 fn outside(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("nested_markov.measured_scope: {message}"),
     }
 }
@@ -35,7 +35,7 @@ fn fit_scope(options: &FitOptions) -> Result<(), IoError> {
         || options.refuse_constraint_residual_above != frozen.refuse_constraint_residual_above
     {
         return Err(outside(
-            "only the measured default constrained-likelihood fitting protocol is licensed",
+            "only the measured default constrained-likelihood fitting protocol is supported",
         ));
     }
     Ok(())
@@ -205,7 +205,7 @@ impl Artifact {
         let measured = bayesian_authority(&artifact)?;
         Ok((artifact, measured))
     }
-    /// Independently replay the checked point and every posterior draw before licensing.
+    /// Independently replay the checked point and every posterior draw before support.
     /// # Errors
     /// Changed source/question/receipt, bounded native refusal, or nonattesting records.
     pub fn consume_measured(
@@ -290,7 +290,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("cell_not_licensed"))
+            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("not_supported"))
         );
         assert!(error.to_string().contains("256 UTF-8 byte bound"));
     }

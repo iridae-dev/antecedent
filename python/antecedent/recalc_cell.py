@@ -23,7 +23,7 @@ fold seed, graph, adjustment set or data refits.
 :meth:`CrossfitSession.export_frozen_scores`) return :class:`FrozenScores`, a checksummed
 ``frozen_scores_v1`` artifact holding the scores and the producing workflow's stage digests but
 no data and no model. :func:`resume_from_scores` builds a :class:`ScoreResumeSession` from those
-bytes alone, in any interpreter. Its one licensed operation is :meth:`ScoreResumeSession.retarget`:
+bytes alone, in any interpreter. Its one supported operation is :meth:`ScoreResumeSession.retarget`:
 reweight the frozen scores by row weights and recompute the law and decision with zero fits.
 Anything that would need the data or a fit (a changed outcome, folds, graph, row design, data
 snapshot or new data) is refused before any work with the plan's ``Unavailable`` for the data
@@ -296,11 +296,11 @@ class CellSession:
 
     __slots__ = ("_handle",)
 
-    def __init__(self, *, retarget: Retarget = "licensed") -> None:
+    def __init__(self, *, retarget: Retarget = "supported") -> None:
         self._handle = _native.CellSessionHandle(retarget)
 
     def set_retarget_support(self, retarget: Retarget) -> None:
-        """Declare the estimator's retarget license for later plans (and for export)."""
+        """Declare the estimator's retarget support for later plans (and for export)."""
         self._handle.set_retarget_support(retarget)
 
     @property
@@ -382,8 +382,8 @@ class CellSession:
         """Export the live cell scores as a portable :class:`FrozenScores` artifact.
 
         Raises:
-            RecalcRefusal: ``recalc.retarget_not_licensed`` for a route whose retarget is not
-                licensed (an unlicensed route cannot be resumed by retarget).
+            RecalcRefusal: ``recalc.retarget_not_supported`` for a route whose retarget is not
+                supported (an unsupported route cannot be resumed by retarget).
             RecalcNoLiveState: nothing has run in this session.
         """
         return _frozen(self._handle.export_frozen_scores())
@@ -465,7 +465,7 @@ class ScoreResumeSession:
     """A session built only from :class:`FrozenScores` bytes.
 
     It holds the frozen scores and the producing workflow's identities, and no data, fitted
-    model or prepared study. Its one licensed operation is :meth:`retarget`; :meth:`execute`
+    model or prepared study. Its one supported operation is :meth:`retarget`; :meth:`execute`
     and every ``declared_changes`` entry that would need the data or a fit are refused with
     :class:`ScoreResumeUnavailable` before any work.
     """
@@ -528,7 +528,7 @@ class ScoreResumeSession:
             for arm, values in self._handle.score_columns()
         }
 
-    # -- the licensed operation --
+    # -- the supported operation --
 
     def _position(self, name: str) -> int:
         try:
@@ -647,7 +647,7 @@ class ScoreResumeSession:
         """Refused: a resumed session holds no data, so it cannot run a request over data.
 
         The request's data is not bound to the artifact's snapshot, so the plan refuses with the
-        data as the missing dependency. Use :meth:`retarget` for the licensed operation.
+        data as the missing dependency. Use :meth:`retarget` for the supported operation.
 
         Raises:
             ScoreResumeUnavailable: always, before any work.

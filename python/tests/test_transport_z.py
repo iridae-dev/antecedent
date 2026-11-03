@@ -966,19 +966,19 @@ def _rewrite_version(blob: bytes, current: int, replacement: int) -> bytes:
 
 
 def test_z_transport_older_artifacts_are_refused_by_the_consumers():
-    """Point wire version 3 and sensitivity wire version 2 reject older versions
+    """Point wire version 4 and sensitivity wire version 2 reject older versions
     before any embedded field is trusted."""
     from antecedent import _native
 
     _, stage, catalog, prepared, _ = fixture(False)
     require_success(prepared.estimate())
     point = bytes(prepared.export())
-    assert _rewrite_version(point, 3, 3) == point
-    for old_version in (1, 2):
+    assert _rewrite_version(point, 4, 4) == point
+    for old_version in (1, 2, 3):
         with pytest.raises(
             CausalSerializationError, match=f"unsupported container version {old_version}"
         ):
-            transport.consume_z_transport_artifact(_rewrite_version(point, 3, old_version))
+            transport.consume_z_transport_artifact(_rewrite_version(point, 4, old_version))
     sensitivity = prepared.export_sensitivity(0.2, 0.4)
     with pytest.raises(CausalSerializationError, match="unsupported container version 1"):
         transport.consume_z_transport_sensitivity_artifact(_rewrite_version(sensitivity, 2, 1))

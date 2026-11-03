@@ -296,6 +296,7 @@ impl core::cmp::PartialOrd for antecedent_discovery::selective::StructureNode
 impl core::convert::From<&antecedent_discovery::AdjacencyMask> for antecedent_discovery::AdjacencyMask
 impl core::convert::From<&u64> for antecedent_discovery::AdjacencyMask
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_discovery::DiscoveryError
+impl core::convert::From<antecedent_discovery::DiscoveryError> for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError
 impl core::convert::From<antecedent_discovery::DiscoveryError> for antecedent_discovery::selective::SelectiveDiscoveryError
 impl core::convert::From<antecedent_discovery::OrientationError> for antecedent_discovery::DiscoveryError
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_discovery::DiscoveryError
@@ -363,6 +364,7 @@ impl core::default::Default for antecedent_discovery::selective::WorkUnits
 impl core::default::Default for antecedent_discovery::selective::populations::PerPopulationDiscovery
 impl core::error::Error for antecedent_discovery::DiscoveryError
 impl core::error::Error for antecedent_discovery::OrientationError
+impl core::error::Error for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError
 impl core::error::Error for antecedent_discovery::selective::SelectiveDiscoveryError
 impl core::fmt::Debug for antecedent_discovery::AdjacencyMask
 impl core::fmt::Debug for antecedent_discovery::AlgorithmRecord
@@ -443,6 +445,7 @@ impl core::fmt::Debug for antecedent_discovery::conflict_resolution::IncidentOri
 impl core::fmt::Debug for antecedent_discovery::cyclic_fci::CyclicFciPremises
 impl core::fmt::Debug for antecedent_discovery::cyclic_fci::CyclicPagConclusion
 impl core::fmt::Debug for antecedent_discovery::cyclic_fci::SigmaCiOracle
+impl core::fmt::Debug for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError
 impl core::fmt::Debug for antecedent_discovery::graph_posterior::GraphMcmcRun
 impl core::fmt::Debug for antecedent_discovery::selective::CiTestSpec
 impl core::fmt::Debug for antecedent_discovery::selective::DataIdentity
@@ -488,6 +491,7 @@ impl core::fmt::Debug for antecedent_discovery::selective::reuse::SplitWeights
 impl core::fmt::Display for antecedent_discovery::DiscoveryError
 impl core::fmt::Display for antecedent_discovery::KnowledgeFault
 impl core::fmt::Display for antecedent_discovery::OrientationError
+impl core::fmt::Display for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError
 impl core::fmt::Display for antecedent_discovery::selective::DiscoveredStructureRefusal
 impl core::fmt::Display for antecedent_discovery::selective::SelectiveDiscoveryError
 impl core::fmt::LowerHex for antecedent_discovery::AdjacencyMask
@@ -626,6 +630,7 @@ impl core::marker::Freeze for antecedent_discovery::conflict_resolution::Inciden
 impl core::marker::Freeze for antecedent_discovery::cyclic_fci::CyclicFciPremises [auto]
 impl core::marker::Freeze for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::marker::Freeze for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::marker::Freeze for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::marker::Freeze for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::DataIdentity [auto]
@@ -743,6 +748,7 @@ impl core::marker::Send for antecedent_discovery::cyclic_fci::CyclicFciPremises 
 impl core::marker::Send for antecedent_discovery::cyclic_fci::CyclicFciResult [auto]
 impl core::marker::Send for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::marker::Send for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::marker::Send for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::marker::Send for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Send for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Send for antecedent_discovery::selective::DataIdentity [auto]
@@ -923,6 +929,7 @@ impl core::marker::Sync for antecedent_discovery::cyclic_fci::CyclicFciPremises 
 impl core::marker::Sync for antecedent_discovery::cyclic_fci::CyclicFciResult [auto]
 impl core::marker::Sync for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::marker::Sync for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::marker::Sync for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::marker::Sync for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Sync for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Sync for antecedent_discovery::selective::DataIdentity [auto]
@@ -1045,6 +1052,7 @@ impl core::marker::Unpin for antecedent_discovery::cyclic_fci::CyclicFciPremises
 impl core::marker::Unpin for antecedent_discovery::cyclic_fci::CyclicFciResult [auto]
 impl core::marker::Unpin for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::marker::Unpin for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::marker::Unpin for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::marker::Unpin for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::DataIdentity [auto]
@@ -1156,6 +1164,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::cyclic_fc
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::cyclic_fci::CyclicFciResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::DataIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::DiscoveredStructure [auto]
@@ -1262,6 +1271,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::cyclic_fci::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::cyclic_fci::CyclicFciResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::cyclic_fci::CyclicPagConclusion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::cyclic_fci::SigmaCiOracle [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::DataIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::DiscoveredStructure [auto]
@@ -1360,6 +1370,7 @@ pub enum antecedent_discovery::KnowledgeScope
 pub enum antecedent_discovery::SpaceDummyCiMode
 pub enum antecedent_discovery::TimeDummyCiMode
 pub enum antecedent_discovery::conflict_resolution::ConflictResolution
+pub enum antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError
 pub enum antecedent_discovery::selective::CiTestSpec
 pub enum antecedent_discovery::selective::DiscoveryStage
 pub enum antecedent_discovery::selective::Mark
@@ -2140,6 +2151,9 @@ pub fn antecedent_discovery::evidence::threshold_scored_links(scored: alloc::vec
 pub fn antecedent_discovery::exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::ExactDagMarginals, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::exact_pag_posterior::pag_posterior_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], schedule: antecedent_discovery::PagMcmcSchedule, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::graph_imputation_enumeration::graph_imputation_exact_dags(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, support: antecedent_core::graph_imputation_contract::GraphSupport, retained: &[u64], budget: &mut antecedent_core::search::SearchBudget<'_>) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError>
+pub fn antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_mask(mask: &antecedent_discovery::AdjacencyMask, n: usize, treatment: usize, outcome: usize, support: antecedent_core::graph_imputation_contract::GraphSupport) -> bool
+pub fn antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_masks(n: usize, treatment: usize, outcome: usize, support: antecedent_core::graph_imputation_contract::GraphSupport) -> alloc::vec::Vec<u64>
 pub fn antecedent_discovery::graph_posterior::has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::graph_posterior::lagged_link(variables: &[antecedent_core::ids::VariableId], from: usize, lag: u32, to: usize) -> antecedent_discovery::LaggedLink
 pub fn antecedent_discovery::graph_posterior::mask_is_dag(mask: u64, n: usize) -> bool
@@ -2190,6 +2204,7 @@ pub mod antecedent_discovery::exact_marginals
 pub mod antecedent_discovery::exact_pag_posterior
 pub mod antecedent_discovery::fci
 pub mod antecedent_discovery::ges
+pub mod antecedent_discovery::graph_imputation_enumeration
 pub mod antecedent_discovery::graph_mcmc
 pub mod antecedent_discovery::graph_posterior
 pub mod antecedent_discovery::graph_score
@@ -2645,6 +2660,9 @@ pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Budge
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Invariant(antecedent_discovery::conflict_resolution::IncidentOrientation)
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Unresolvable
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Varies
+pub variant antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError::Discovery(antecedent_discovery::DiscoveryError)
+pub variant antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError::Search(antecedent_core::search::SearchReceipt)
+pub variant antecedent_discovery::graph_imputation_enumeration::BoundedExactDagError::Unscorable { count: u64 }
 pub variant antecedent_discovery::selective::CiTestSpec::Declared { identity: alloc::string::String, test: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync> }
 pub variant antecedent_discovery::selective::CiTestSpec::Named(alloc::string::String)
 pub variant antecedent_discovery::selective::DiscoveryStage::GraphOutput

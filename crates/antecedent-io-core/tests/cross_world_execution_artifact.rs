@@ -158,8 +158,8 @@ fn unsupported_requests_cannot_be_sealed() {
     transported.target_population = Some("pop-b".to_owned());
     let error = CrossWorldExecutionArtifact::seal(&transported, &ctx()).expect_err("closed");
     let refusal = error.refusal().unwrap();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert!(refusal.missing.iter().any(|m| m == "transport_license_missing"));
+    assert_eq!(refusal.code, "not_supported");
+    assert!(refusal.missing.iter().any(|m| m == "transport_support_missing"));
 
     let mut independent = joint();
     independent.coupling = NoiseCoupling::IndependentWorldNoise;
@@ -169,7 +169,7 @@ fn unsupported_requests_cannot_be_sealed() {
     let mut interval = joint();
     interval.reading = RequestedReading::Interval;
     let error = CrossWorldExecutionArtifact::seal(&interval, &ctx()).expect_err("closed");
-    assert_eq!(error.refusal().unwrap().code, "cell_not_licensed");
+    assert_eq!(error.refusal().unwrap().code, "not_supported");
 }
 
 #[test]

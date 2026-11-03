@@ -197,15 +197,18 @@ fn the_cohort_source_is_refused_what_a_point_cannot_answer() {
     );
     assert!(!error.detail().is_empty());
 
-    // An interval region is not licensed for any source.
+    // An interval region is not supported for any source.
     let error = evaluate(
         &query_on(&source, mean_at_least(5.0)),
         &forward,
         InverseDemand { interval_region: true },
     )
     .unwrap_err();
-    assert_eq!(error, ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::CohortContrast));
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(
+        error,
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::CohortContrast)
+    );
+    assert_eq!(error.code(), "not_supported");
 }
 
 #[test]
@@ -215,7 +218,7 @@ fn a_shifted_cohort_is_read_only_under_a_policy_that_accepts_transported_claims(
 
     let refused = cohort_source(&source, TransportedInputPolicy::NativeTargetOnly).unwrap_err();
     assert_eq!(refused, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(refused.code(), "cell_not_licensed");
+    assert_eq!(refused.code(), "not_supported");
 
     let forward = cohort_source(&source, TransportedInputPolicy::AcceptsTransported).unwrap();
     assert_eq!(forward.origin().kind, ForwardSourceKind::TransportedResponse);

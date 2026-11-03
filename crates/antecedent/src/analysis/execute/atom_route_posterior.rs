@@ -512,7 +512,7 @@ struct SharedReplicates {
 
 impl super::Study {
     /// Refusals every execution of this family of graph posteriors shares.
-    fn ensure_atom_route_licensed(
+    fn ensure_atom_route_supported(
         &self,
         gp: &GraphPosterior,
         kind: AtomQuery<'_>,
@@ -798,7 +798,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let kind = AtomQuery::of(&self.query)?;
-        self.ensure_atom_route_licensed(gp, kind)?;
+        self.ensure_atom_route_supported(gp, kind)?;
         let records = self.run_posterior_atoms(data, gp, kind, physical, ctx)?;
         let by_key: HashMap<u64, usize> =
             records.iter().enumerate().map(|(position, record)| (record.key, position)).collect();

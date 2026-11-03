@@ -8,7 +8,7 @@
 //! certificate. The result is the grid of points with their quadrature, smoothing-bias
 //! and support records and the interval status.
 //!
-//! The interval route is registered closed (`cell_not_licensed`) until its coverage
+//! The interval route is registered closed (`not_supported`) until its coverage
 //! records are measured: an estimate reports the interval withheld, and
 //! [`PreparedSmoothedDose::interval`] refuses. The internal estimator the calibration
 //! harness measures is `antecedent_estimate::smoothed_dose_interval_internal`, compiled
@@ -205,7 +205,7 @@ impl PreparedSmoothedDose {
     /// interval is withheld until this cell's coverage records are measured.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` (`dose_response.interval_withheld`), or cancellation.
+    /// Always `not_supported` (`dose_response.interval_withheld`), or cancellation.
     pub fn interval(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseResult, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "smoothed dose interval")
             .map_err(estimate_err)?;
@@ -318,7 +318,7 @@ use antecedent_io::smoothed_dose_posterior_artifact::{
 ///
 /// The posterior is the Bayesian counterpart of the point estimate of
 /// [`PreparedSmoothedDose::estimate`] on the same coordinate (the smoothed dose response at
-/// each grid dose under the same certificate). It is explicitly unlicensed with calibration
+/// each grid dose under the same certificate). It is explicitly unsupported with calibration
 /// `unmeasured`; the interval route of the point estimate stays closed.
 #[derive(Clone, Debug)]
 pub struct SmoothedDosePosteriorResult {
@@ -376,7 +376,7 @@ pub fn consume_smoothed_dose_posterior_artifact_with_context(
 }
 
 impl PreparedSmoothedDose {
-    /// The unlicensed Bayesian posterior of the smoothed dose response over the grid, under
+    /// The unsupported Bayesian posterior of the smoothed dose response over the grid, under
     /// the declared outcome model, on the retained rows and certificate.
     ///
     /// # Errors
@@ -403,7 +403,7 @@ impl PreparedSmoothedDose {
         Ok(SmoothedDosePosteriorResult { wire })
     }
 
-    /// The unlicensed posterior under the context-free native workspace cap.
+    /// The unsupported posterior under the context-free native workspace cap.
     ///
     /// # Errors
     /// Invalid premises or posterior inputs.

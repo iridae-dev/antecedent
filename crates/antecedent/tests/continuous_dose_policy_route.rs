@@ -78,7 +78,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     assert!(value.policy_interval_95.is_some());
     assert!(value.reference_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     assert_eq!(
         response.uncertainty.as_ref(),
         "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
@@ -90,7 +90,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     let executed_contract = prepared.contract_for_result(&result).unwrap();
     assert_eq!(executed_contract.support_status, result.support_status());
     let support = executed_contract.reasoning.support.as_ref().unwrap();
-    assert_eq!(support.matrix_status.as_ref(), "licensed");
+    assert_eq!(support.matrix_status.as_ref(), "supported");
     assert_eq!(
         support.matrix_coordinate.as_deref(),
         Some(
@@ -102,7 +102,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
         antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         artifact.continuous_dose_response.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut legacy_body = artifact.clone();
     legacy_body.continuous_dose_response.as_mut().unwrap().graphless_support_status = None;
@@ -135,7 +135,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     assert!(old_body.continuous_dose_response.unwrap().graphless_support_status.is_none());
     let mut forged = artifact.clone();
     forged.continuous_dose_response.as_mut().unwrap().graphless_support_status =
-        Some("refused".into());
+        Some("not_supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &forged,

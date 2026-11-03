@@ -452,7 +452,7 @@ fn independent_rows_bounds_and_arguments_refuse() {
     let capped = ExactEnumerationOptions { max_compositions: 461, max_failure_mass: 0.0 };
     assert_refusal(
         exact_enumeration_covariance(&family, &capped, &ctx()),
-        "cell_not_licensed",
+        "not_supported",
         "scenario_covariance.exact_enumeration_cap",
     );
 }

@@ -1114,11 +1114,11 @@ impl UncertaintyDemand {
     }
 }
 
-/// The support-matrix cell of the study and its licensing status.
+/// The support-matrix cell of the study and its support status.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupportView {
     coordinate: Option<Arc<str>>,
-    licensed: bool,
+    supported: bool,
     status: Option<CellStatus>,
 }
 
@@ -1129,10 +1129,10 @@ impl SupportView {
         self.coordinate.as_deref()
     }
 
-    /// Whether the coordinate is a licensed cell.
+    /// Whether the coordinate is a supported cell.
     #[must_use]
-    pub const fn licensed(&self) -> bool {
-        self.licensed
+    pub const fn supported(&self) -> bool {
+        self.supported
     }
 
     /// Evidence status of the cell, read from the lowered program so the view and
@@ -1145,7 +1145,7 @@ impl SupportView {
     fn facts(&self) -> Fact {
         fact!({
             "coordinate": self.coordinate.as_deref(),
-            "licensed": self.licensed,
+            "supported": self.supported,
             "status": self.status.map(CellStatus::as_str),
         })
     }
@@ -1701,7 +1701,7 @@ impl PlanView {
         let scientific = program.scientific();
         let support = SupportView {
             coordinate: scientific.support_coordinate.clone(),
-            licensed: scientific.licensed(),
+            supported: scientific.supported(),
             status: scientific.support_status(),
         };
         let physical = PhysicalView {
@@ -1864,7 +1864,7 @@ impl PlanView {
         &self.uncertainty
     }
 
-    /// Support cell and licensing status.
+    /// Support cell and support status.
     #[must_use]
     pub const fn support(&self) -> &SupportView {
         &self.support
@@ -2484,7 +2484,7 @@ pub(crate) mod checks {
             );
         }
         assert_eq!(view.reuse().identification_retained(), program.identification_retained());
-        assert_eq!(view.support().licensed(), program.scientific().licensed(), "{name}");
+        assert_eq!(view.support().supported(), program.scientific().supported(), "{name}");
         assert_eq!(
             view.support().coordinate(),
             program.scientific().support_coordinate(),

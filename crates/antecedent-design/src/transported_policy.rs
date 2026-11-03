@@ -360,7 +360,7 @@ pub(crate) enum Axis {
 
 impl Axis {
     /// Pick the refusal detail for this axis; both spellings are literals so
-    /// every emitted detail is visible to the promotion gate.
+    /// every emitted detail is visible to the capability gate.
     pub(crate) const fn detail(
         self,
         population: &'static str,

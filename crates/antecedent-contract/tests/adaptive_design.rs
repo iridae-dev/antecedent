@@ -15,8 +15,8 @@ use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,
     CellStatus, DelayMechanism, InferenceParadigm, InterimAnalysis, MonitoringStrategy,
     OutcomeAvailability, OutcomeStructure, PolicyEpoch, ProcedureCell, SpendingKind,
-    StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec, licensed_routes, procedure_cells,
-    procedure_status,
+    StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec, procedure_cells, procedure_status,
+    supported_routes,
 };
 use antecedent_core::SemanticDigest;
 
@@ -126,15 +126,15 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
     assert_eq!(cells.len(), 6 * 5 * 4 * 5);
     let identifiers: BTreeSet<String> = cells.iter().map(ProcedureCell::identifier).collect();
     assert_eq!(identifiers.len(), cells.len(), "no cell is listed twice");
-    let mut licensed = 0;
+    let mut supported = 0;
     let mut incoherent = 0;
     let mut pairing = 0;
     let mut carried = 0;
     for cell in &cells {
         match procedure_status(cell) {
-            CellStatus::Licensed { paradigms } => {
+            CellStatus::Supported { paradigms } => {
                 assert!(!paradigms.is_empty());
-                licensed += 1;
+                supported += 1;
             }
             CellStatus::ClosedIncoherent { reason } => {
                 assert!(!reason.is_empty());
@@ -168,12 +168,12 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
             + spending_with_decision_theory
             + 5 * 2 * (4 * 5 - 8)
     );
-    assert_eq!((licensed, pairing, carried), (12, 20, 208));
-    assert_eq!(licensed + incoherent + pairing + carried, cells.len());
+    assert_eq!((supported, pairing, carried), (12, 20, 208));
+    assert_eq!(supported + incoherent + pairing + carried, cells.len());
 }
 
 #[test]
-fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
+fn exactly_the_delivered_cells_are_supported_with_their_own_paradigms() {
     use AssignmentFamily as A;
     use InferenceParadigm as P;
     use MonitoringStrategy as M;
@@ -249,15 +249,15 @@ fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
             vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
         ),
     ];
-    let routes = licensed_routes();
+    let routes = supported_routes();
     assert_eq!(routes.len(), expected.len());
     for (cell, paradigms) in expected {
-        let found = routes.iter().find(|(c, _)| *c == cell).expect("delivered cell is licensed");
+        let found = routes.iter().find(|(c, _)| *c == cell).expect("delivered cell is supported");
         assert_eq!(found.1, paradigms.as_slice(), "{}", cell.identifier());
     }
-    // A guarantee for two components does not license their pairing: each of
+    // A guarantee for two components does not support their pairing: each of
     // these shares an assignment family or a monitoring strategy with a
-    // licensed cell and is not licensed itself.
+    // supported cell and is not supported itself.
     for pairing in [
         cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy),
         cell(A::EpsilonGreedy, O::SingleOutcome, M::GroupSequential, S::Efficacy),
@@ -308,8 +308,8 @@ fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell() {
     for (row, cell) in rows.iter().zip(&cells) {
         assert_eq!(row.0, cell.identifier(), "registry order is the matrix order");
         match procedure_status(cell) {
-            CellStatus::Licensed { paradigms } => {
-                assert_eq!(row.1, "licensed", "{}", row.0);
+            CellStatus::Supported { paradigms } => {
+                assert_eq!(row.1, "supported", "{}", row.0);
                 let names: Vec<&str> = paradigms.iter().map(|p| p.as_str()).collect();
                 assert_eq!(row.3, names, "{}", row.0);
             }
@@ -586,17 +586,17 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
 }
 
 #[test]
-fn a_paradigm_never_transfers_to_a_cell_it_is_not_licensed_for() {
+fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
     assert!(contract.admit_paradigm(InferenceParadigm::BayesianPosterior).is_ok());
     assert!(contract.admit_paradigm(InferenceParadigm::AnytimeValidFrequentist).is_ok());
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
 }
 
 #[test]
@@ -615,7 +615,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     assert_eq!(carried.offending.as_deref(), Some("adaptive_inference/upper_confidence_bound"));
     let paired =
         refused(cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy));
-    assert_eq!(paired.detail, "adaptive_inference.pairing_not_licensed");
+    assert_eq!(paired.detail, "adaptive_inference.pairing_not_supported");
     let closed = refused(cell(
         A::ThompsonBetaBernoulli,
         O::SingleOutcome,
@@ -624,7 +624,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     ));
     assert_eq!(closed.detail, "adaptive_inference.cell_closed");
     for refusal in [&carried, &paired, &closed] {
-        assert_eq!(refusal.code, "cell_not_licensed");
+        assert_eq!(refusal.code, "not_supported");
     }
 }
 
@@ -687,9 +687,9 @@ fn interim_looks_count_each_observation_once() {
     assert!(evidence.mass.unknown_sources.is_empty());
     assert_eq!(evidence.look_sources.len(), 2);
     assert!(evidence.ledger.result(evidence.reuse).is_some());
-    // The ledger never licenses an interval for the repeated use.
+    // The ledger never supports an interval for the repeated use.
     let error = evidence.ledger.request_interval(evidence.reuse).unwrap_err();
-    assert_eq!(error.code, "cell_not_licensed");
+    assert_eq!(error.code, "not_supported");
 }
 
 #[test]

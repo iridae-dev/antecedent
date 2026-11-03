@@ -40,7 +40,7 @@ record_sha256 = "1bedb0b4839bdcf80294b85271eac3cd9600b6ede7bb9d42b6d7e133b8ba396
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/composition.rs"
-sha256 = "dc3a4eafa86956d41d4584ec19414a804e5d5ff0d8f235f441714f40fb015425"
+sha256 = "2485edc3fda18948107f42b5b0abc504444a36923c9cf7143d5dd7f5241a2d96"
 
 [[method_review.artifacts]]
 role = "assertion"

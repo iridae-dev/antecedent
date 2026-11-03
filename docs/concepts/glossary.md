@@ -19,9 +19,11 @@ Terms that name what an answer is, what it rests on and what has been checked. S
 | --- | --- | --- |
 | Identified | Declared causal assumptions and evidence determine the requested quantity through an implemented identification route | A backdoor adjustment identifies an average effect under the supplied DAG |
 | Model conditional | The result follows from the specified or fitted model, without the design identifying the real-world effect | A fitted joint response, or a cyclic equilibrium under the specified equations |
-| Licensed | The exact configured route has executing support evidence, with its recorded scope and limits. Unrelated to a software license | An estimator licensed for the all-observed mean effect refuses another functional |
+| Supported | The exact configured route has provenance and independent scientific checks, with its recorded scope and limits, so it runs. A route that is not supported refuses in release builds | An estimator supported for the all-observed mean effect refuses another functional |
+| Scientific refusal | A typed refusal because the question, structure or evidence is outside what the route can support (`not_supported`, or a more specific reason code). A refusal is not an error in the data | A cell with no supported route refuses with its reason on file |
+| Development build | A build that runs a route that is not supported and reports `would_refuse` beside the result, so the result is never mistaken for a supported one | A route still under review runs in a development build and reports why a release build would refuse it |
 | Independently checked | A named calculation or proposition was compared with an appropriate independent reference | A closed-form value, or a pinned external implementation |
-| Calibrated | A matching coverage record attests the executing code and covers this execution's scope | An interval outside the record's sample-size or configuration scope is not calibrated by that record |
+| Calibration status | An annotation on an interval, never a condition for running: `calibrated` (a matching coverage record covers this execution), `outside_measured_scope`, `measured_below_nominal` or `not_measured` | An interval outside the record's sample-size or configuration scope reports `outside_measured_scope` |
 | Point-only | A numerical estimate without an interval claim | A finite-law decision value can be exact under the supplied law and still lack a sampling interval |
 | Structural envelope | A range across declared structural possibilities | Effects across the completions of a CPDAG; not a confidence interval |
 | Assumption range | A range across a declared sensitivity set | Varying an invariance premise changes the transported answer |

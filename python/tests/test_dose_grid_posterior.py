@@ -1,7 +1,7 @@
 """Bayesian randomized-dose grid posterior through the Python facade.
 
 The oracle is the conjugate ridge posterior of the rescaled polynomial design, computed here with
-numpy from the normal equations (not by the library). The row is unlicensed and its calibration is
+numpy from the normal equations (not by the library). The row is unsupported and its calibration is
 unmeasured; the joint covariance across grid points is retained and exported.
 """
 
@@ -63,7 +63,7 @@ def test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covarianc
     result = _run()
     row = result.posterior
     assert row.estimator == "bayesian.dose_grid"
-    assert (row.uncertainty, row.calibration, row.licensed) == ("posterior", "unmeasured", False)
+    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "unmeasured", False)
     assert row.exact_mean == pytest.approx(basis @ mean, abs=1e-9)
     exact = row.exact_covariance_matrix()
     assert exact == pytest.approx(basis @ covariance @ basis.T, abs=1e-9)

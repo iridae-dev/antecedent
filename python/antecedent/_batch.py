@@ -505,13 +505,13 @@ class BatchRetarget:
         )
         assessed = any(claim.support_status != "not_assessed" for claim in self.claims)
         supported = all(claim.support_status == "supported" for claim in self.claims)
-        refused = any(claim.support_status == "refused" for claim in self.claims)
+        refused = any(claim.support_status == "not_supported" for claim in self.claims)
         support_standing = (
             "supported"
             if supported
             else "partial"
             if any(claim.support_status == "supported" for claim in self.claims)
-            else "refused"
+            else "not_supported"
             if refused
             else "not_assessed"
         )
@@ -639,7 +639,7 @@ def _retarget_member(raw: Mapping[str, Any], kind: str) -> RetargetMember:
         query_index=raw.get("query_index"),
         n_eff=raw.get("n_eff"),
         support_status=(
-            "refused"
+            "not_supported"
             if failure.get("support_refused")
             else ("not_assessed" if failure else "supported")
         ),

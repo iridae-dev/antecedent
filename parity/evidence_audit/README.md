@@ -2,8 +2,8 @@
 
 This is an implementation and audit progress record, not closure of the three
 Before 7 TODO items. Calibration, numerical replay and performance acceptance
-campaigns have not run on this branch. Existing coverage records and licenses
-have not been re-stamped or promoted.
+campaigns have not run on this branch. Existing coverage records and supports
+have not been re-stamped or marked supported.
 
 ## Reproduce the inventory
 
@@ -14,7 +14,7 @@ python3 scripts/verify_provenance_citations.py --check
 python3 scripts/check_v3_test_registry.py
 ```
 
-The inventory joins existing registries; it is not another source of licenses.
+The inventory joins existing registries; it is not another source of supports.
 It records exact assertions, scenarios/axes, fixture origins and tolerances,
 source hashes, method/provenance links, calibration references, required target
 features, doctest source candidates and coverage dispositions. Source review
@@ -136,7 +136,7 @@ ignored fixture writer. The new learner point assertion passes. Thirty-nine
 compiled evidence-gate fault controls and twenty-four audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
-do not grant coverage or license the deferred calibration study.
+do not grant coverage or support the deferred calibration study.
 
 The retained statsmodels environment now also reproduces conditional-effect,
 binomial-adjustment, temporal-mediation, multiplicity, descriptive-reduction and
@@ -231,7 +231,7 @@ the existing executing publication-gate boundary and missing-metric tests. The
 Bayesian-check configuration fixture is labelled software-only and retains its
 historical external-generator disclosure.
 
-Neither fixed-chain comparison nor source correspondence licenses sampling
+Neither fixed-chain comparison nor source correspondence supports sampling
 calibration, convergence, causal identification or interval coverage.
 
 ## Work still required before closing the TODO items
@@ -243,7 +243,7 @@ still need method-by-method independence/implementation review. The route
 evidence ledger now accounts for all 711 owned routes, including the previously
 missing continuous-conditioning, parameter-spread and measurement bindings.
 Their references distinguish exact conditional laws, uncalibrated posterior
-spread and refusal contracts; no interval status was promoted. The calibration surface
+spread and refusal contracts; no interval status was upgraded. The calibration surface
 check now passes with 475 paths in 222 facets. Reviewed repairs remove stale
 allowances, assign moved numerical counterfactual modules to mechanism, and
 include observation table posteriors and counterfactual transport in that
@@ -342,7 +342,7 @@ causal parent and the dependence created by conditioning on a collider.
 All three existing product y0 assertions pass: verdict/disagreement accounting,
 recorded-output mutations, and evaluation of the original 171 expression cases
 against independently enumerated shared-exogenous models at the original 1e-10
-scaled tolerance. The assertion name and promotion prose now say recorded rather
+scaled tolerance. The assertion name and support prose now say recorded rather
 than verbatim. The audit discloses that API searches exposed upstream helper
 source excerpts; the fixture also preserves its older source-inferred Zero
 hypothesis as unverified. No algorithm/test code was copied or translated. These fixed

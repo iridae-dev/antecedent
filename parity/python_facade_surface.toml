@@ -1126,10 +1126,10 @@ python = "antecedent.provider_callbacks.CallbackDeclaration.predictive_law_sourc
 reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
-rust = "antecedent::analysis::provider_callbacks::refuse_identification_licence"
+rust = "antecedent::analysis::provider_callbacks::refuse_identification_evidence"
 kind = "fn"
 status = "bound"
-python = "antecedent.provider_callbacks.refuse_identification_licence"
+python = "antecedent.provider_callbacks.refuse_identification_evidence"
 
 [[entry]]
 rust = "antecedent::analysis::provider_callbacks::refuse_interval"
@@ -1960,13 +1960,13 @@ python = "antecedent._native.encode_model_bundle"
 reason = "model bundle encoding"
 
 [[entry]]
-rust = "antecedent::licensed_neighbors"
+rust = "antecedent::supported_neighbors"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::licensed_support_cells"
+rust = "antecedent::supported_cells"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
@@ -2116,13 +2116,13 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::support::licensed_estimators"
+rust = "antecedent::support::supported_estimators"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::support::licensed_route_estimator"
+rust = "antecedent::support::supported_route_estimator"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
@@ -2606,7 +2606,7 @@ python = "antecedent.host.operation_record"
 rust = "antecedent::host::neighbor_records"
 kind = "fn"
 status = "internal"
-reason = "Formats licensed-neighbor rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
+reason = "Formats supported-neighbor rows inside the host refusal record; Python exposes these rows through antecedent.host.refusal_record."
 
 [[entry]]
 rust = "antecedent::host::unmet_obligation_records"

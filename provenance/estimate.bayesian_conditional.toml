@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
 upstream_implementations_observed = []
-implementation_deviations = ["Independent Gaussian response regression with centered treatment-by-modifier interaction and AllObserved standardization. The empirical modifier distribution is fixed; no Bayesian forest or conditional-surface claim.", "Posterior inference reuses the in-repository conjugate, Laplace or HMC backend. Only GaussianIdentity is licensed; nonlinear links require integrating interactions under intervention."]
+implementation_deviations = ["Independent Gaussian response regression with centered treatment-by-modifier interaction and AllObserved standardization. The empirical modifier distribution is fixed; no Bayesian forest or conditional-surface claim.", "Posterior inference reuses the in-repository conjugate, Laplace or HMC backend. Only GaussianIdentity is supported; nonlinear links require integrating interactions under intervention."]
 test_sources = ["conformance/bayesian/conditional_effect", "python/tests/test_posterior_moments.py", "crates/antecedent-estimate/tests/bayesian_conditional_reference.rs (exact Student-t coefficient covariance plus the Dirichlet modifier-mean variance of the average contrast)"]
 
 [method_review]
@@ -18,7 +18,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Two designs (80 rows with a strong interaction and a wide prior; 60 rows with no interaction and a tight prior, where the modifier term is about 3% of the variance), 300,000 draws; the mean is asserted within five Monte Carlo standard errors and the sd within 8/sqrt(draws) relative error, and the extra variance is shown to be real (the sd exceeds the coefficient-only sd). Only one modifier is exercised; the joint-modifier vector generalization, and the weights being shared across modifiers, are not compared with a reference. The Dirichlet variance formula is the closed form for equal concentrations; the sampler's weights are not separately tested here."
 sources = ["https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The posterior mean of the reported effect equals the treatment coefficient's exact mean, and its sd equals the exact sqrt(Var(b) + (Var(d) + E[d]^2) Var(eps)) on both designs (0.1144 against a coefficient-only 0.0427 on the heterogeneous design), so the modifier-distribution term is neither missing nor double counted.", "No product defect was found in this record."]
-record_sha256 = "028f44b37215ae9df258d9008c05d1fa79e1ec454644886d6badbe42e45fab8d"
+record_sha256 = "d1b78e0582886ae1751da8accbc4044013315d81669c0ebf66b770b6115e2e4d"
 
 [[method_review.artifacts]]
 role = "implementation"

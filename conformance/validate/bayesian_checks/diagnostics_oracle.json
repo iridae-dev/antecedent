@@ -39,7 +39,7 @@
         {
           "role": "generator",
           "path": "conformance/validate/bayesian_checks/reference.py",
-          "sha256": "0e145767c46b57ec45f76f786a461222c952737125ffc79d45396b0b263be584"
+          "sha256": "742f388b1e73f4a72ccf5849d3cbb4e25a70625f8708fbe9796f10dcf0a586f6"
         },
         {
           "role": "comparison_helper",

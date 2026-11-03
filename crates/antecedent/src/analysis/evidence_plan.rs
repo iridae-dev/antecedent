@@ -496,7 +496,7 @@ impl Study {
 
     /// The capability report of a study whose effect is not identified: the cheap
     /// inspection report with the evidence-gathering next actions (`measure_variable`,
-    /// `run_experiment`, `find_instrument`, `collect_panel`), one licensed neighbor per
+    /// `run_experiment`, `find_instrument`, `collect_panel`), one supported neighbor per
     /// repairing route family and one unmet obligation per evidence obligation appended.
     /// An assumption obligation is listed as unmet and `uncheckable`; no study satisfies it.
     ///

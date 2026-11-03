@@ -132,7 +132,7 @@ fn bridge(
     if [1, 2, 4].contains(&translation) {
         result.transport=Some(TransportabilityPremise {id:"explicit_native_transport".into(),statement:"This stated target-specific translation applies across the declared experimental and target population/time/duration settings".into(),established_in:result.evidence_scope.clone(),applies_to:BridgeScope {population_id:quantity.population_id.clone(),regime_id:quantity.regime_id.clone()},evidence:Some("declared_transport_evidence".into())});
     }
-    result.check_licensing().unwrap();
+    result.check_support().unwrap();
     result
 }
 fn zero() -> UtilityExpr {

@@ -256,9 +256,9 @@ impl super::Study {
         }
         let Some(representative) = estimates.iter().position(Option::is_some) else {
             return Err(crate::support_reason!(
-                "construction_not_licensed",
+                "construction_not_supported",
                 "every certified member of the class is a RecursiveFactorization, identified but \
-                 not estimable on the licensed trial-to-target IPW path"
+                 not estimable on the supported trial-to-target IPW path"
             ));
         };
         let (Some(mut transported), representative_case) =

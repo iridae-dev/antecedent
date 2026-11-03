@@ -32,12 +32,12 @@ record_sha256 = "68e790bf1435e36c05db0fc6e3e4e6eebc98b3490e282f6e80aab54eb3d2faa
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
-sha256 = "9bd000095fdb53127e18580ad029132d62bf29d9352aaa06446b6a9ecf8b0215"
+sha256 = "02ad8067d3d110f8a9fa88a0b082190ef4b28230edff94ce14b94f5d4d68dd6f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-sha256 = "88b7d987a66ba93f6b39eaa9ac3b2e852884371c0326aee5a3d15e742a0c632d"
+sha256 = "25a98a6e337990efd4eaa7cbab513a550fea3836ace1d7b7d41033a42647d72b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

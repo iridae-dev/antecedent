@@ -39,7 +39,7 @@ record_sha256 = "91a0ff786fb833d759df074d0820fa87c775c7612869d933bc144aa80e6eb54
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/quantile.rs"
-sha256 = "69a031a34c1108c00dc3556dddadaae32c8ca44066f10fc05d9354aa548d658a"
+sha256 = "18043a81ef1d13df5d4e7964ad0e48010b23ae3ff394d1a1409d6329c3a627cf"
 
 [[method_review.artifacts]]
 role = "assertion"

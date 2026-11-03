@@ -43,8 +43,8 @@
         },
         {
           "role": "assertion_source",
-          "path": "crates/antecedent/tests/licensed_static_cells.rs",
-          "sha256": "f46305ae1419ad35e9c94291b7ad8cf2f27f442e065935e6d625c8746c8da578"
+          "path": "crates/antecedent/tests/supported_static_cells.rs",
+          "sha256": "54464ffb26ec5e56f976926029d4f03114136d4ed77f1079eedba57225cd8f29"
         }
       ],
       "fixture_payload_sha256": "5214e33e6465873c8b9e33d10b65220153558df47b5473fb1358c34677034529"

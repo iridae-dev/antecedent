@@ -234,7 +234,7 @@ fn the_matrix_authorizes_paradigms_for_the_cell() {
     for paradigm in
         [InferenceParadigm::BayesianPosterior, InferenceParadigm::DecisionTheoreticStopping]
     {
-        let granted = contract.admit_paradigm(paradigm).expect("licensed");
+        let granted = contract.admit_paradigm(paradigm).expect("supported");
         assert_eq!(granted.contract_identity, contract.identity());
     }
     for refused in [

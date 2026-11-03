@@ -37,7 +37,7 @@ trust boundaries are:
   that the caller supplies. Do not pass untrusted code as a provider.
 - **Results are claims, not native facts.** A callback result is diagnostic unless its
   declaration and verification support more, and even then it is an external claim; it never
-  becomes native trust, a joint law or an identification licence by metadata alone.
+  becomes native trust, a joint law or an identification evidence by metadata alone.
 - **Decoders are bounded and re-derive.** Each artifact decoder enforces a byte cap before
   parsing, rejects unknown or newer versions and unknown required features, checks the
   container checksum, and recomputes identities and derived values from stored fields rather

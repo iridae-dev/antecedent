@@ -463,7 +463,7 @@ fn a_requested_interval_runs_the_complete_resampling_procedure() {
     );
     assert_eq!(full.uncertainty.bootstrap.replicates_ok, fixed.uncertainty.bootstrap.replicates_ok);
     assert_eq!(full.ate.to_bits(), fixed.ate.to_bits());
-    let (lower, upper) = report.interval.expect("the interval is licensed");
+    let (lower, upper) = report.interval.expect("the interval is supported");
     assert!(lower < full.ate && full.ate < upper);
     assert!(report.se_rel_mc_error.is_some() && report.half_width_rel_mc_error.is_some());
 

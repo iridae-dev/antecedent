@@ -17,7 +17,7 @@ __version__: str
 __build_optimized__: bool
 
 def temporal_response_spec() -> dict[str, Any]:
-    """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
+    """Supported temporal-response query policy from Rust ``TemporalResponseSpec::support``."""
 
 def runtime_refusal_codes() -> list[str]:
     """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
@@ -329,8 +329,6 @@ class AteAnalysisResult:
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
 
 class ResponseAnalysisResult:
     def refutation_reports(
@@ -384,8 +382,6 @@ class ResponseAnalysisResult:
     atom_statuses: list[str]
     atom_values: list[list[float]]
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
     diagnostics: list[str]
     identifier: str | None
     def response_coordinates(
@@ -596,7 +592,7 @@ class QuasiRolloutSection:
     replicates_failed: int
     critical_value: float | None
     diagnostics: list[tuple[str, float]]
-    licensed: bool
+    supported: bool
 
 class SurvivalSection:
     times: list[float]
@@ -624,7 +620,7 @@ class PosteriorRowSection:
     target: str
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
     coordinates: list[str]
     mean: list[float]
     lower: list[float]
@@ -774,7 +770,7 @@ class AssociationSection:
     refused_after: str | None
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
     ranks_actions: bool
     is_intervention_effect: bool
 
@@ -801,7 +797,7 @@ class TemporalDesignSection:
     draws: int | None
     uncertainty: str
     calibration: str
-    licensed: bool
+    supported: bool
 
 class PredictiveReplicateLaws:
     quantity: str
@@ -1375,8 +1371,6 @@ class AnalysisResult:
     validation: ValidationSection
     performance: PerformanceSection
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
@@ -4224,7 +4218,7 @@ def rank_studies_bound(
     decision_target: str | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[DesignRanking, str]: ...
-def support_licensed_cells() -> list[str]: ...
+def support_cells() -> list[str]: ...
 def support_cell_report(coordinate: str) -> str: ...
 def build_cost_model(
     benchmark: str,
@@ -5783,7 +5777,7 @@ def temporal_dependent_interval_closed(
     max_failed_fraction: float,
 ) -> str: ...
 
-# Available only in calibration-internal acceptance builds; no released license.
+# Available only in calibration-internal acceptance builds; no released support.
 class NativeTemporalIntervalCandidate:
     def payload(self) -> str: ...
     def export(self) -> bytes: ...
@@ -7425,13 +7419,13 @@ def consume_recalc_receipt(
 ) -> tuple[str | None, str | None]: ...
 
 class RecalcSessionHandle:
-    def __init__(self, retarget: str = "licensed") -> None: ...
+    def __init__(self, retarget: str = "supported") -> None: ...
     @staticmethod
     def resume(
-        previous_json: str, resume_json: str, retarget: str = "licensed"
+        previous_json: str, resume_json: str, retarget: str = "supported"
     ) -> RecalcSessionHandle: ...
     def set_retarget_support(self, retarget: str) -> None: ...
-    def set_request_support(self, request: str, licensed_route: str | None = None) -> None: ...
+    def set_request_support(self, request: str, supported_route: str | None = None) -> None: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
     def capabilities_json(self) -> str: ...
@@ -7472,7 +7466,7 @@ class RecalcSessionHandle:
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class CellSessionHandle:
-    def __init__(self, retarget: str = "licensed") -> None: ...
+    def __init__(self, retarget: str = "supported") -> None: ...
     def set_retarget_support(self, retarget: str) -> None: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
@@ -7871,8 +7865,8 @@ def consume_general_temporal_counterfactual_artifact(
     artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
 ) -> tuple[str | None, str | None]: ...
 def transported_path_specific_refusal(
-    transport_license: bool,
-    fixed_population_license: bool,
+    transport_support: bool,
+    fixed_population_support: bool,
     cross_population_assumptions: bool,
     required_factors: list[tuple[str, str]],
     supplied_factors: list[tuple[str, str, str]],
@@ -11972,7 +11966,7 @@ class ConsumedGraphImputationHandle:
     def interval(self) -> NativeMeasuredInference: ...
 
 def consume_compiled_graph_imputation(
-    data: list[int], program: list[int], source: list[int], receipt: list[int], seed: int
+    bytes: list[int], program: list[int], source: list[int], receipt: list[int], seed: int
 ) -> tuple[str, ConsumedGraphImputationHandle]: ...
 
 class CompiledCategoricalPosteriorCandidateHandle:

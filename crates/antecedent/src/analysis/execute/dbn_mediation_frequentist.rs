@@ -110,7 +110,7 @@ impl super::Study {
         let started = Instant::now();
         if query.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                message: "Frequentist DBN-posterior mediation is supported for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
             });
         }

@@ -2,7 +2,7 @@
 //! difference in differences, the resampled augmented panel, conformal and multi-unit
 //! synthetic control, and the local ratio with a selected bandwidth or a calendar-time running
 //! variable. Each route executes from its compiled plan, recovers a simulated known truth,
-//! reports its whole-procedure intervals as unlicensed with calibration `unmeasured`, keeps the
+//! reports its whole-procedure intervals as unsupported with calibration `unmeasured`, keeps the
 //! design's own assumptions in the identification, and refuses what it must with the next
 //! attempt.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -120,10 +120,10 @@ fn staggered_rollout_recovers_heterogeneous_effects_where_two_way_fixed_effects_
             result.logical_plan.estimator.as_deref(),
             Some("quasi.staggered_heterogeneity_robust")
         );
-        assert_eq!(result.support_status(), None, "the rollout route is unlicensed");
+        assert_eq!(result.support_status(), None, "the rollout route is unsupported");
         let rollout = result.quasi_rollout().unwrap();
         assert_eq!(rollout.calibration.as_ref(), "unmeasured");
-        assert!(!rollout.licensed);
+        assert!(!rollout.supported);
         let overall = rollout.overall().unwrap();
         assert!((overall.estimate - 3.5).abs() < 0.15, "{estimator:?}: {}", overall.estimate);
         assert!(overall.interval.is_some());
@@ -632,7 +632,7 @@ fn multi_unit_synthetic_control_round_trips_and_did_refuses() {
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let stored = body.quasi_rollout.unwrap();
     assert_eq!(stored.design, "multi_unit_synthetic_control");
-    assert!(!stored.licensed);
+    assert!(!stored.supported);
     assert_eq!(stored.calibration, "unmeasured");
 }
 
@@ -935,7 +935,7 @@ fn the_rollout_section_round_trips_through_the_result_artifact_and_re_derives_it
     let section = body.quasi_rollout.clone().unwrap();
     assert_eq!(section.design, rollout.design.as_ref());
     assert_eq!(section.calibration, "unmeasured");
-    assert!(!section.licensed);
+    assert!(!section.supported);
     assert_eq!(section.effects.len(), rollout.effects.len());
     for (wire, effect) in section.effects.iter().zip(rollout.effects.iter()) {
         assert_eq!(wire.kind, effect.kind.as_str());
@@ -949,15 +949,17 @@ fn the_rollout_section_round_trips_through_the_result_artifact_and_re_derives_it
     assert!((summary - rollout.overall().unwrap().estimate).abs() < 1e-9);
     assert_eq!(body.estimate, Some(rollout.overall().unwrap().estimate));
     assert!(body.standard_error.is_none());
-    // A tampered summary, a licence claim or a narrowed band is refused on re-encode.
+    // A tampered summary, support claim or a narrowed band is refused on re-encode.
     let names = header.variable_names;
     let mut tampered = body.clone();
     tampered.quasi_rollout.as_mut().unwrap().effects[0].estimate += 1.0;
     tampered.estimate = tampered.quasi_rollout.as_ref().map(|s| s.effects[0].estimate);
     assert!(antecedent_io::encode_analysis_result_artifact(&tampered, names.clone(), "t").is_err());
-    let mut licensed = body.clone();
-    licensed.quasi_rollout.as_mut().unwrap().licensed = true;
-    assert!(antecedent_io::encode_analysis_result_artifact(&licensed, names.clone(), "t").is_err());
+    let mut supported = body.clone();
+    supported.quasi_rollout.as_mut().unwrap().supported = true;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(&supported, names.clone(), "t").is_err()
+    );
     let mut narrowed = body.clone();
     if let Some(effect) = narrowed
         .quasi_rollout

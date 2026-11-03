@@ -187,7 +187,7 @@ fn temporal_derivative_refuter_states_known_truth() {
                     let label = format!("{key} accepted={accepted} bayesian={bayesian} {suite:?}");
                     let builder =
                         study(&data, &functional, accepted, bayesian, suite).build().unwrap();
-                    assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
                     let context = ExecutionContext::for_tests(812);
                     let prepared =
                         builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -199,7 +199,7 @@ fn temporal_derivative_refuter_states_known_truth() {
                     let result = prepared
                         .estimate_retained(&context)
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     let values = published(&result, &label);
                     assert_eq!(values.len(), truths.len(), "{label}");
                     for (value, truth) in values.iter().zip(&truths) {

@@ -1,5 +1,5 @@
 //! Conditional posterior-summary precision for actual checked basis and source-prior adapters.
-//! Independent finite-dimensional algebra and quadrature; no sampling coverage license.
+//! Independent finite-dimensional algebra and quadrature; no sampling coverage support.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]
 #[path = "common/calibration.rs"]

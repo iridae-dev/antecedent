@@ -435,7 +435,7 @@ pub struct DesignRankingArtifactWire {
     pub basis: String,
     /// Decision problem.
     pub decision: DecisionWire,
-    /// Cost mapping, if one is licensed.
+    /// Cost mapping, if one is supported.
     pub cost_map: Option<CostMapWire>,
     /// RNG seed of the evaluation.
     pub rng_seed: u64,
@@ -667,7 +667,7 @@ fn parse_mode(label: &str) -> Option<SignalUpdateMode> {
 
 fn parse_trust(label: &str) -> Option<SignalTrustLabel> {
     [
-        SignalTrustLabel::NativeLicensed,
+        SignalTrustLabel::NativeSupported,
         SignalTrustLabel::ExternallyAttested,
         SignalTrustLabel::ExactRequestVerified,
     ]
@@ -1721,8 +1721,8 @@ fn signal_request_of(candidate: &EvsiCandidateWire) -> Option<SignalRequest> {
 /// Trust-limit sentence for the consumed candidate.
 fn trust_limit(trust: SignalTrustLabel, attestor: Option<&str>) -> String {
     match trust {
-        SignalTrustLabel::NativeLicensed => {
-            "native_licensed: implemented and licensed natively".to_owned()
+        SignalTrustLabel::NativeSupported => {
+            "native_supported: implemented and supported natively".to_owned()
         }
         SignalTrustLabel::ExternallyAttested => format!(
             "externally_attested by {}: supplier assertion only, not verified or natively replayed by Antecedent",
@@ -1772,7 +1772,7 @@ fn check_signal(candidate: &EvsiCandidateWire) -> Result<(SignalTrustLabel, Sign
             LawWire::GaussianMean { noise_variance } => vec![*noise_variance],
             _ => Vec::new(),
         };
-        if trust != SignalTrustLabel::NativeLicensed
+        if trust != SignalTrustLabel::NativeSupported
             || candidate.provider.is_some()
             || candidate.attestor.is_some()
             || candidate.family != family
@@ -1786,7 +1786,7 @@ fn check_signal(candidate: &EvsiCandidateWire) -> Result<(SignalTrustLabel, Sign
         let Some(provider) = &candidate.provider else {
             return Err(inconsistent("provider"));
         };
-        if trust == SignalTrustLabel::NativeLicensed || candidate.family != "external_finite_law" {
+        if trust == SignalTrustLabel::NativeSupported || candidate.family != "external_finite_law" {
             return Err(inconsistent("trust"));
         }
         if trust == SignalTrustLabel::ExternallyAttested

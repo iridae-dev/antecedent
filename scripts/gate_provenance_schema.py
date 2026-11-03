@@ -213,7 +213,7 @@ review_checked = 0
 for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(encoding="utf-8"))[
     "spec"
 ]:
-    if spec.get("admission") not in ("licensed", "executing_unlicensed"):
+    if spec.get("admission") not in ("supported", "not_supported"):
         continue
     review_checked += 1
     sid = spec["id"]

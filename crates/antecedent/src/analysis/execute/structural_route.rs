@@ -199,7 +199,7 @@ pub(crate) fn structure_search_identification(
 
 fn modality_refusal(method: &DiscoveryMethod) -> CausalError {
     crate::compile_reason!(
-        "data_modality_not_licensed",
+        "data_modality_not_supported",
         "the {} search does not run on this data: static searches read tabular data, temporal \
          searches read series or panel data, J-PCMCI+ reads multi-environment data, and regime \
          PCMCI reads one series",
@@ -256,7 +256,7 @@ impl super::Study {
     /// # Errors
     ///
     /// An invalid query, or a method on data it does not run on
-    /// (`data_modality_not_licensed`).
+    /// (`data_modality_not_supported`).
     pub(super) fn ensure_discovery_admitted(
         &self,
         query: &DiscoverQuery,

@@ -126,7 +126,7 @@ fn rich_rules() -> AdmissibilityRules {
         ],
         declared_exclusions: vec![
             DeclaredExclusion { action_id: "A".into(), reason: "legal".into() },
-            DeclaredExclusion { action_id: "B".into(), reason: "not licensed".into() },
+            DeclaredExclusion { action_id: "B".into(), reason: "not supported".into() },
         ],
         uncertainty: UncertaintyRequirement::StructuralEnvelope,
     }
@@ -622,7 +622,7 @@ fn resealed_robust_mutations_are_refused() {
     assert!(message(&load(&stripped).unwrap_err()).contains("lineage"));
 
     // Upgrading the trust label to native.
-    for label in ["native_licensed", "native", "verified"] {
+    for label in ["native_supported", "native", "verified"] {
         let upgraded = reseal(&receipt_bytes, ROBUST_KIND, |body| {
             body["external_receipts"][0]["trust"]["label"] = serde_json::json!(label);
         });

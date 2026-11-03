@@ -426,7 +426,7 @@ mod tests {
         assert!(accepted.quantities[0].standard_error.is_some());
         assert!(accepted.quantities[0].band.is_some());
 
-        // A usable component does not license a joint band whose other
+        // A usable component does not support a joint band whose other
         // component failed: distinguish component and vector success counts.
         let partial: Vec<Option<Vec<f64>>> =
             (0..60).map(|i| Some(vec![f64::from(i), f64::NAN])).collect();

@@ -70,7 +70,7 @@ def read_plan(study):
     }
 ```
 
-`support_status` is the support-matrix status of the selected route. A `licensed` route is one the support matrix licenses for this combination of question, graph class, structure, inference and validation. Antecedent can also run a route that is not licensed and record that status. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
+`support_status` is the support-matrix status of the selected route. A `supported` route is one the support matrix supports for this combination of question, graph class, structure, inference and validation. Antecedent can also run a route that is not supported and record that status. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
 
 ## Run it and read the claim
 
@@ -106,7 +106,7 @@ For a successful outcome the host reads four things.
 | --- | --- |
 | `claim["status"]` | `supported`, `partial` or `unsupported`, decided by one rule shared with Rust. `supported` means the claim is identified under the declared structure and evaluated, so the host may use it as stated. It does not certify the declared structure. |
 | `claim["kind"]` | The kind of answer: a `point`, or `bounds` or `incomplete` when the structure identifies less. A `partial` claim must travel with its limit. |
-| `support_status` | The licence status of the route that ran. |
+| `support_status` | The support status of the route that ran. |
 | `calibration` | Whether an interval carries a calibration record. Read the status field; do not infer it from whether an interval is present. |
 
 In this run the status is `supported`, the kind is a `point`, and the value is near 2, as the simulated model says it should be. The example asserts that, with a tolerance, because one sample of 160 users estimates the effect with sampling error. It also asserts that the calibration field is a status string. This request asks for no interval, so there is nothing to calibrate, and the tutorial makes no statement about interval coverage.
@@ -120,7 +120,7 @@ Antecedent reports fields. It does not decide what to do about them. That is the
 class AcceptancePolicy:
     """The host's own rule for acting on an answer. Antecedent does not supply one."""
 
-    accepted_support: frozenset = frozenset({"licensed"})
+    accepted_support: frozenset = frozenset({"supported"})
 
 
 def decide(response, policy):
@@ -134,7 +134,7 @@ def decide(response, policy):
     return "act"
 ```
 
-This service acts only on a supported claim from a licensed route, relays a partial claim with its limit and rejects the rest. A stricter service would change `accepted_support`, and the same answer would go to review instead. The example asserts both decisions. The policy is your code because it encodes what your service is willing to do on a claim, which depends on stakes Antecedent cannot see.
+This service acts only on a supported claim from a supported route, relays a partial claim with its limit and rejects the rest. A stricter service would change `accepted_support`, and the same answer would go to review instead. The example asserts both decisions. The policy is your code because it encodes what your service is willing to do on a claim, which depends on stakes Antecedent cannot see.
 
 ## Handle a refusal
 
@@ -159,7 +159,7 @@ Preparing the request retains the refusal on the study, so the host can decline 
 
 Three situations look alike to a caller and stay distinct here:
 
-* **The data cannot answer the question under the declared structure.** This refusal. Changing the data or the graph, or adding evidence such as measuring the common cause, changes what is identifiable. `study.inspect()` lists `next_actions` and licensed `neighbors` when Antecedent has them.
+* **The data cannot answer the question under the declared structure.** This refusal. Changing the data or the graph, or adding evidence such as measuring the common cause, changes what is identifiable. `study.inspect()` lists `next_actions` and supported `neighbors` when Antecedent has them.
 * **An implementation is unavailable.** The refusal names a route or capability that does not exist. Retrying will not help.
 * **Something operational failed.** A resource limit or a cancellation raises an exception. Retrying with more resources may help, and nothing was answered.
 

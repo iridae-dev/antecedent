@@ -11,7 +11,7 @@
 //! with its cause, so it cannot change silently: the lag-aligned cohort differs
 //! from the raw rows, a tempered temporal posterior is a generalized posterior and
 //! not an ordinary one, a cross-world temporal effect is a population average with
-//! no unit-level payload, a regime value is not licensed where the static
+//! no unit-level payload, a regime value is not supported where the static
 //! randomized contrast is, and a repeated-measures procedure refuses one
 //! measurement per unit.
 //!
@@ -730,7 +730,7 @@ fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
     assert!((b.variance_upper_bound - s.variance_upper_bound).abs() > 0.01);
     for result in [&bernoulli, &switchback] {
         assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::AnalyticSe);
-        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     }
 }
 
@@ -766,15 +766,15 @@ fn ipw_regime(outcomes: &[f64], assigned: &[bool], action: bool) -> Longitudinal
     }
 }
 
-/// outcome: equivalent point contrast, `not_equivalent` uncertainty and licence.
+/// outcome: equivalent point contrast, `not_equivalent` uncertainty and support.
 ///
 /// With one period the always-treat and never-treat regime values are the two
 /// Horvitz-Thompson arm means, and their difference is the static Bernoulli
 /// contrast. Each regime value is published alone, with its own score SE. The
 /// contrast's SE needs the cross-regime covariance, which two separate regime
 /// values do not carry: adding the two variances is wrong by exactly
-/// `2 m1 m0 / (n - 1)`. The regime value is also unlicensed, while the static
-/// randomized contrast is licensed.
+/// `2 m1 m0 / (n - 1)`. The regime value is also unsupported, while the static
+/// randomized contrast is supported.
 #[test]
 fn one_period_regime_values_difference_to_the_static_randomized_contrast() {
     let (assigned, outcomes) = trial_rows();
@@ -824,7 +824,7 @@ fn one_period_regime_values_difference_to_the_static_randomized_contrast() {
         .unwrap());
     let fit = contrast.randomized_effect().unwrap();
     assert!((fit.effect - (a.value - z.value)).abs() < 1e-12);
-    assert_eq!(contrast.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(contrast.support_status(), Some(antecedent::support::CellStatus::Supported));
 
     // The contrast variance includes the covariance of the two arm scores.
     let contrast_variance = fit.standard_error.unwrap().powi(2);
@@ -1359,7 +1359,7 @@ fn one_decision_two_arm_excursion_reproduces_the_static_bernoulli_contrast() {
     assert!(close(design.estimate[2], control_mean));
     assert!(close(treated_mean - control_mean, effect));
     assert_eq!(design.calibration.as_ref(), "unmeasured");
-    assert!(!design.licensed);
+    assert!(!design.supported);
 }
 
 /// outcome: equivalent arm means and reference contrasts; the Holm family is added.
@@ -1883,7 +1883,7 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
         "P05",
         &["horizon_one_discovery_finds_the_static_adjacency_and_adds_only_the_time_orientation"],
     ),
-    ("P06", &["horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence"]),
+    ("P06", &["horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_support"]),
     (
         "P07.continuous_dose",
         &[
@@ -1960,7 +1960,7 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
     (
         "X01",
         &[
-            "horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_licence",
+            "horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_support",
         ],
     ),
     (
@@ -1989,11 +1989,11 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
 const NOT_YET_ESTABLISHED: &[&str] = &[];
 
 /// A family owes a horizon-one equivalence obligation when its temporal counterpart executes
-/// (or is licensed), it is a statistical method rather than an audit over records, and its
+/// (or is supported), it is a statistical method rather than an audit over records, and its
 /// static twin is a route and not a theory-based "does not denote".
 fn owes_obligation(family: &InventoryFamily) -> bool {
     let executes = |status: &Option<String>| {
-        matches!(status.as_deref(), Some("licensed" | "executing_unlicensed"))
+        matches!(status.as_deref(), Some("supported" | "not_supported"))
     };
     executes(&family.temporal_status)
         && executes(&family.static_status)

@@ -7,7 +7,7 @@
     if (!response.ok) throw new Error("Registry unavailable");
     return response.json();
   }).then(registry => {
-    const rows = registry.licensed;
+    const rows = registry.supported;
     const fields = ["query", "graph_class", "structure", "inference", "validation"];
     const labels = ["Query", "Graph class", "Structure source", "Inference", "Validation"];
     const filters = fields.map((field, index) => {
@@ -35,7 +35,7 @@
         });
         body.append(tr);
       });
-      status.textContent = `${matches.length} of ${rows.length} licensed cells match. Calibration and empirical support require their own checks.`;
+      status.textContent = `${matches.length} of ${rows.length} supported cells match. Calibration and empirical support require their own checks.`;
     };
     filters.forEach(select => select.addEventListener("change", render));
     search.addEventListener("input", render);

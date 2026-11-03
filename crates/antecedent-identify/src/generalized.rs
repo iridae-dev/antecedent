@@ -531,7 +531,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
 }
 
 /// The regression conditions on Z union W. A marginal adjustment certificate
-/// for Z alone does not license this conditional regression: W may be a
+/// for Z alone does not support this conditional regression: W may be a
 /// mediator, or may open a collider path. This is a sufficient backdoor check,
 /// not a complete conditional-ID algorithm.
 #[allow(
@@ -1149,7 +1149,7 @@ pub(crate) fn identify_on_mag_completion(
 }
 
 /// MAG adjustment for a single-treatment response: the functional the found adjustment set
-/// licenses is built by `functional` from the set (the mean at a hard level, or the surface a
+/// supports is built by `functional` from the set (the mean at a hard level, or the surface a
 /// declared policy is a functional of), never a stand-in contrast.
 pub(crate) fn identify_on_mag_completion_response(
     mag: &Pag,

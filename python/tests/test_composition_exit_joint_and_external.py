@@ -176,7 +176,7 @@ def test_external_response_binds_inspects_exports_and_shows_support_and_provenan
     assert np.allclose(claim.values, gen.EXTERNAL_VALUES, atol=TOLERANCE, rtol=0)
     assert claim.native is False
     assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
-    assert claim.trust is not ProviderTrust.NATIVE_LICENSED
+    assert claim.trust is not ProviderTrust.NATIVE_SUPPORTED
     assert claim.uncertainty_method is None
     # Coordinate-level support, not one pooled flag.
     assert claim.support == ("supported", "supported", "outside_empirical_support")

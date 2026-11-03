@@ -17,7 +17,7 @@ from pathlib import Path
 from _repo import REPO_ROOT as ROOT
 
 REGISTRY = "parity/limits.toml"
-RECORDS = "parity/promotion.toml"
+RECORDS = "parity/capability_records.toml"
 OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,

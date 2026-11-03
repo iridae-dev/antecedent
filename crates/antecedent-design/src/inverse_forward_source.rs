@@ -1,4 +1,4 @@
-//! Licensed forward sources of an inverse query.
+//! Supported forward sources of an inverse query.
 //!
 //! An inverse query asks which declared actions meet a target on a forward
 //! claim. The claim is only as good as the route that produced it, so each
@@ -32,7 +32,7 @@
 //! transported mean) is refused a quantile, a probability, a nonlinear utility
 //! and an outcome-law input ([`ForwardSourceRefusal::PointOnlyLawRequested`]).
 //! No source supplies an interval region: it is refused for every source
-//! ([`ForwardSourceRefusal::IntervalNotLicensed`]), because the composition
+//! ([`ForwardSourceRefusal::IntervalNotSupported`]), because the composition
 //! variance, the cohort model's standard error and the transport step have no
 //! measured coverage. A source's own variance is retained as a diagnostic and
 //! never becomes a feasibility statement.
@@ -128,7 +128,7 @@ pub const DETAIL_COMPOSED_LAW: &str = "inverse_forward_source.composed_law_not_m
 /// Detail: a point source was asked for a law.
 pub const DETAIL_POINT_ONLY_LAW: &str = "inverse_forward_source.point_only_law_requested";
 /// Detail: an interval region was requested of a source that has none.
-pub const DETAIL_INTERVAL: &str = "inverse_forward_source.interval_not_licensed";
+pub const DETAIL_INTERVAL: &str = "inverse_forward_source.interval_not_supported";
 /// Detail: a per-action source cannot be sealed as one artifact.
 pub const DETAIL_PER_ACTION: &str = "inverse_forward_source.per_action_not_sealable";
 /// Detail: a stored origin does not describe the embedded claim.
@@ -315,12 +315,12 @@ enum SourceClaims {
 
 /// A forward source that passed its own checks, with the identity it carries.
 #[derive(Clone, Debug)]
-pub struct LicensedForwardSource {
+pub struct SupportedForwardSource {
     claims: SourceClaims,
     origin: ForwardOrigin,
 }
 
-impl LicensedForwardSource {
+impl SupportedForwardSource {
     /// Where the claim came from.
     #[must_use]
     pub const fn origin(&self) -> &ForwardOrigin {
@@ -388,7 +388,7 @@ pub enum ForwardSourceRefusal {
         needed: &'static str,
     },
     /// An interval region was requested of a source that has none.
-    IntervalNotLicensed(ForwardSourceKind),
+    IntervalNotSupported(ForwardSourceKind),
     /// A per-action source cannot be sealed as one artifact.
     PerActionNotSealable,
     /// The sealed artifact refused.
@@ -408,8 +408,8 @@ impl ForwardSourceRefusal {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Transported(error) => error.code(),
-            Self::TransportedNotAccepted | Self::IntervalNotLicensed(_) => {
-                antecedent_core::reason_code!("cell_not_licensed")
+            Self::TransportedNotAccepted | Self::IntervalNotSupported(_) => {
+                antecedent_core::reason_code!("not_supported")
             }
             Self::ComposedInvalid(_)
             | Self::ComposedFamilyMismatch(_)
@@ -442,7 +442,7 @@ impl ForwardSourceRefusal {
             }
             Self::ComposedLawNotMaterialized { .. } => DETAIL_COMPOSED_LAW.to_owned(),
             Self::PointOnlyLawRequested { .. } => DETAIL_POINT_ONLY_LAW.to_owned(),
-            Self::IntervalNotLicensed(_) => DETAIL_INTERVAL.to_owned(),
+            Self::IntervalNotSupported(_) => DETAIL_INTERVAL.to_owned(),
             Self::PerActionNotSealable => DETAIL_PER_ACTION.to_owned(),
             Self::Artifact { text, .. } => {
                 text.split(": ").next().unwrap_or(DETAIL_ORIGIN).to_owned()
@@ -507,7 +507,7 @@ impl ForwardSourceRefusal {
                      utility or outcome-law input",
                 )
                 .build(),
-            Self::IntervalNotLicensed(kind) => build(DETAIL_INTERVAL)
+            Self::IntervalNotSupported(kind) => build(DETAIL_INTERVAL)
                 .supplied(kind.as_str())
                 .remedy(
                     "none available: the source's own variance or standard error is an \
@@ -775,7 +775,7 @@ fn finite_law(
 /// mechanisms ([`ForwardSourceRefusal::TransportedNotAccepted`]).
 pub fn composed_forward_source(
     response: &ComposedResponse,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     composed_forward_source_accepting(response, TransportedInputPolicy::NativeTargetOnly)
 }
 
@@ -821,7 +821,7 @@ fn check_composed_actions(response: &ComposedResponse) -> Result<(), ForwardSour
 pub fn composed_forward_source_accepting(
     response: &ComposedResponse,
     accept: TransportedInputPolicy,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     if let Some(receipt) = &response.transport {
         if accept == TransportedInputPolicy::NativeTargetOnly {
             return Err(ForwardSourceRefusal::TransportedNotAccepted);
@@ -894,7 +894,7 @@ pub fn composed_forward_source_accepting(
         .transport
         .as_ref()
         .map_or_else(|| SupportStatus::Supported.as_str().to_owned(), |t| t.support.clone());
-    Ok(LicensedForwardSource {
+    Ok(SupportedForwardSource {
         claims,
         origin: ForwardOrigin {
             version: FORWARD_ORIGIN_VERSION,
@@ -927,7 +927,7 @@ pub fn composed_forward_source_accepting(
 pub fn cohort_forward_source(
     source: &CohortDecisionSource,
     accept: TransportedInputPolicy,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     if source.shift().is_some() {
         if accept == TransportedInputPolicy::NativeTargetOnly {
             return Err(ForwardSourceRefusal::TransportedNotAccepted);
@@ -937,7 +937,7 @@ pub fn cohort_forward_source(
     }
     let claim = ForwardClaim::Means(cohort_mean_source(source));
     let claim_digest = forward_claim_digest(&claim).map_err(|e| encoding(&e))?;
-    Ok(LicensedForwardSource {
+    Ok(SupportedForwardSource {
         origin: ForwardOrigin {
             version: FORWARD_ORIGIN_VERSION,
             kind: ForwardSourceKind::CohortContrast,
@@ -960,7 +960,7 @@ pub fn cohort_forward_source(
 pub fn transported_forward_source(
     response: &TransportedResponse,
     accept: TransportedInputPolicy,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     if accept == TransportedInputPolicy::NativeTargetOnly {
         return Err(ForwardSourceRefusal::TransportedNotAccepted);
     }
@@ -974,7 +974,7 @@ pub fn transported_forward_source(
     };
     let receipt = response.receipt();
     let claim_digest = forward_claim_digest(&claim).map_err(|e| encoding(&e))?;
-    Ok(LicensedForwardSource {
+    Ok(SupportedForwardSource {
         origin: ForwardOrigin {
             version: FORWARD_ORIGIN_VERSION,
             kind: ForwardSourceKind::TransportedResponse,
@@ -1043,12 +1043,12 @@ fn action_needs_law(contract: &DecisionContract, grid: &[String]) -> Option<&'st
 
 fn check_demand(
     query: &InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<(), ForwardSourceRefusal> {
     let kind = source.origin.kind;
     if demand.interval_region {
-        return Err(ForwardSourceRefusal::IntervalNotLicensed(kind));
+        return Err(ForwardSourceRefusal::IntervalNotSupported(kind));
     }
     if source.origin.representation == ForwardRepresentation::PointOnly {
         if let Some(needed) = query_needs_law(query) {
@@ -1063,7 +1063,7 @@ fn check_demand(
     Ok(())
 }
 
-/// Evaluate an inverse query on a licensed forward source.
+/// Evaluate an inverse query on a supported forward source.
 ///
 /// The request is checked against what the source supplies before the engine
 /// runs: an interval region is refused for every source, and a quantile,
@@ -1072,13 +1072,13 @@ fn check_demand(
 /// does for any claim; the result is returned beside the source's origin.
 ///
 /// # Errors
-/// [`ForwardSourceRefusal::IntervalNotLicensed`],
+/// [`ForwardSourceRefusal::IntervalNotSupported`],
 /// [`ForwardSourceRefusal::PointOnlyLawRequested`],
 /// [`ForwardSourceRefusal::ComposedLawNotMaterialized`], and any refusal of the
 /// inverse engine.
 pub fn evaluate_inverse_on_source(
     query: &InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<SourcedInverseResult, ForwardSourceRefusal> {
     check_demand(query, source, demand)?;
@@ -1102,7 +1102,7 @@ pub fn evaluate_inverse_on_source(
 /// the artifact's own refusals.
 pub fn seal_on_source(
     query: InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<InverseQueryArtifact, ForwardSourceRefusal> {
     check_demand(&query, source, demand)?;
@@ -1122,7 +1122,7 @@ pub fn seal_on_source(
 /// As [`seal_on_source`], for a source that answers each action separately.
 pub fn seal_per_action_on_source(
     query: &InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<Vec<(String, InverseQueryArtifact)>, ForwardSourceRefusal> {
     check_demand(query, source, demand)?;

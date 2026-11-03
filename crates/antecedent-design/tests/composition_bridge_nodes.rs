@@ -235,7 +235,7 @@ fn a_decision_over_a_bridge_of_draws_rests_on_the_bridge_as_on_a_distribution() 
     let consumed = run(nodes(&chain), &EDGES);
     consumed.require_verified().unwrap();
     let bridge = consumed.node("bridge").unwrap();
-    // The bridged table is aligned joint draws, and nothing is calibrated or licensed.
+    // The bridged table is aligned joint draws, and nothing is calibrated or supported.
     assert_eq!(bridge.facts.get(FACT_LAW).map(String::as_str), Some(LAW_JOINT));
     assert_eq!(bridge.facts.get(FACT_TRUST).map(String::as_str), Some("unverified"));
     assert_eq!(consumed.value("bridge", "n_draws"), Some(4.0));

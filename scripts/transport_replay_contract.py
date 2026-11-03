@@ -32,7 +32,7 @@ CONTRACTS = {
 
 
 def posterior_consumer_problems(route, body):
-    """Require the exact unlicensed posterior consumer's independent replay evidence."""
+    """Require the exact unsupported posterior consumer's independent replay evidence."""
     if (
         route.get("route") != "antecedent.transport.advanced.consume_smoothed_dose_posterior"
         or route.get("stage") != "consume"
@@ -40,7 +40,7 @@ def posterior_consumer_problems(route, body):
         or route.get("evidence_assertion")
         != "test_posterior_artifact_is_consumed_independently_and_refuses_changes"
     ):
-        return ["posterior consumer replay contract is restricted to its unlicensed route"]
+        return ["posterior consumer replay contract is restricted to its unsupported route"]
     try:
         tree = ast.parse(body)
         test = next(
@@ -192,24 +192,24 @@ def source_replay_problems(root, route, body):
             "source-bound replay is only defined for the six exact measured uncertainty factories"
         ]
     record_id, producer = contract
-    records = tomllib.loads((root / "parity/promotion.toml").read_text(encoding="utf-8"))["record"]
+    records = tomllib.loads((root / "parity/capability_records.toml").read_text(encoding="utf-8"))["record"]
     record = next((r for r in records if r["id"] == record_id), {})
     if (
-        route.get("promotion_record") != record_id
-        or record.get("status") != "promoted"
+        route.get("capability_record") != record_id
+        or record.get("status") != "supported"
         or not record.get("coverage_records")
     ):
         return [
-            "source-bound replay requires its promoted measured owner and actual scalar coverage records"
+            "source-bound replay requires its supported measured owner and actual scalar coverage records"
         ]
     if not any(
         r.get("name") == name
         and r.get("stage") == "uncertainty"
-        and r.get("status") == "licensed"
-        and r.get("claim") == "calibrated"
+        and r.get("status") == "supported"
+        and r.get("claim") == "interval"
         for r in record.get("routes", [])
     ):
-        return ["source-bound replay must match the owning calibrated public uncertainty route"]
+        return ["source-bound replay must match the owning interval public uncertainty route"]
     proof = tomllib.loads((root / f"provenance/{record_id}.toml").read_text(encoding="utf-8"))
     if route["evidence_test"] not in proof.get("test_sources", []):
         return ["source-bound replay evidence must be registered in its original method provenance"]
@@ -219,7 +219,7 @@ def source_replay_problems(root, route, body):
 def shared_evidence_problems(routes):
     cited_by = {}
     for route in routes:
-        if route.get("status") == "licensed":
+        if route.get("status") == "supported":
             key = (route.get("evidence_test", ""), route.get("evidence_assertion", ""))
             cited_by.setdefault(key, []).append(route.get("route", "?"))
     return [

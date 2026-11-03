@@ -1323,12 +1323,12 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
             "action", [0], [1], [], [], io_scm=True, standard_measurable_spaces=True
         ).execute()
     )
-    assert failed.to_dict()["answer"]["result"]["status"] == "not_licensed_by_criterion"
+    assert failed.to_dict()["answer"]["result"]["status"] == "not_supported_by_criterion"
 
 
 @pytest.mark.parametrize(
     ("rule", "max_checks", "status"),
-    [("exchange", 0, "budget_exhausted"), ("action", 1000, "not_licensed_by_criterion")],
+    [("exchange", 0, "budget_exhausted"), ("action", 1000, "not_supported_by_criterion")],
 )
 def test_unavailable_cyclic_functional_is_a_scientific_refusal_with_native_evidence(
     rule, max_checks, status
@@ -2012,7 +2012,7 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
         )
         assert clustered.refusal is not None
         assert clustered.refusal.code == "estimator_inference_mismatch"
-        assert clustered.refusal.detail == "cyclic_recovery.row_independence_unlicensed"
+        assert clustered.refusal.detail == "cyclic_recovery.row_independence_unsupported"
         assert design in clustered.refusal.message
         assert "bootstrap under the declared" in clustered.refusal.remedy
     assert (

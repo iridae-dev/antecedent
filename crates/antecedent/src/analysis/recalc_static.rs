@@ -1,5 +1,5 @@
 //! Shared-plan execution of checked finite ADMG responses and multi-source transport.
-//! Reused numerical factors carry no new uncertainty or causal identification license.
+//! Reused numerical factors carry no new uncertainty or causal identification evidence.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{Fields, float_bytes, identity, literal, table_from_columns};
 use super::recalc_receipt::{
@@ -154,7 +154,7 @@ fn scope_plan(
             request: if supported {
                 RequestSupport::OnGrid
             } else {
-                RequestSupport::OffGrid { licensed_route: None }
+                RequestSupport::OffGrid { supported_route: None }
             },
             boundary,
         },

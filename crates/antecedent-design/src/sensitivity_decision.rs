@@ -14,8 +14,8 @@
 //!   refused;
 //! * a sampling interval is never composed into the range. It is reported next to the
 //!   decision ([`SamplingReport::SeparateNotComposed`]) and a request to compose it is
-//!   refused unless the method is licensed
-//!   ([`LICENSED_SAMPLING_COMPOSITIONS`], empty today);
+//!   refused unless the method is supported
+//!   ([`SUPPORTED_SAMPLING_COMPOSITIONS`], empty today);
 //! * an unsupported grid point refuses the evaluation; an unevaluated one leaves the
 //!   atom unevaluated, so the decision is reported unresolved instead of invariant.
 //!
@@ -36,7 +36,7 @@ use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 pub use antecedent_io_core::sensitivity_artifact::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
-    DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
+    DecisionSwitch, IdentifiedBound, NoRobustReason, PointSupport, SUPPORTED_SAMPLING_COMPOSITIONS,
     SamplingInterval, SamplingStatus, SensitivityArtifact, SensitivityIdentity, SensitivityOutcome,
     SensitivityParts, SensitivityProvenance, SourceTipping, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm,
@@ -67,7 +67,7 @@ pub struct SensitivityDecisionSpec {
     /// required by `BayesOverStructures`.
     pub weights: Option<Vec<f64>>,
     /// A requested composition of the sampling interval with the assumption range;
-    /// refused unless the method is in [`LICENSED_SAMPLING_COMPOSITIONS`].
+    /// refused unless the method is in [`SUPPORTED_SAMPLING_COMPOSITIONS`].
     pub sampling_composition: Option<String>,
 }
 
@@ -172,10 +172,10 @@ fn wrong_contract(message: impl Into<String>) -> SensitivityDecisionError {
     }
 }
 
-fn not_licensed(message: impl Into<String>) -> SensitivityDecisionError {
+fn not_supported(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        detail: "sensitivity_decision_composition.composition_not_licensed",
+        code: antecedent_core::reason_code!("not_supported"),
+        detail: "sensitivity_decision_composition.composition_not_supported",
         message: message.into(),
     }
 }
@@ -197,8 +197,8 @@ fn from_io(error: &IoError) -> SensitivityDecisionError {
         "sensitivity_decision_composition.unsupported_coordinate" => {
             "sensitivity_decision_composition.unsupported_coordinate"
         }
-        "sensitivity_decision_composition.composition_not_licensed" => {
-            "sensitivity_decision_composition.composition_not_licensed"
+        "sensitivity_decision_composition.composition_not_supported" => {
+            "sensitivity_decision_composition.composition_not_supported"
         }
         "sensitivity_decision_composition.bounds_exceeded" => {
             "sensitivity_decision_composition.bounds_exceeded"
@@ -547,8 +547,8 @@ fn point_probabilities(
 /// coordinate (see [`SensitivityOutcome`]).
 ///
 /// # Errors
-/// Refuses (a) a requested sampling composition that is not licensed
-/// (`composition_not_licensed`, code `cell_not_licensed`); (b) an invalid contract, an
+/// Refuses (a) a requested sampling composition that is not supported
+/// (`composition_not_supported`, code `not_supported`); (b) an invalid contract, an
 /// unsupported criterion, unlike units or an input the surface does not carry, weights on
 /// a ranged surface, a weight count that does not match the grid, and `Bayes` without
 /// genuine weights (`wrong_contract`, code `decision_contract_unsatisfied`); (c) an
@@ -560,8 +560,8 @@ pub fn evaluate_sensitivity_decision(
     spec: &SensitivityDecisionSpec,
 ) -> Result<SensitivityDecisionResult, SensitivityDecisionError> {
     if let Some(method) = &spec.sampling_composition {
-        return Err(not_licensed(format!(
-            "composing a sampling interval with an assumption range by `{method}` is not licensed; licensed methods: {LICENSED_SAMPLING_COMPOSITIONS:?}"
+        return Err(not_supported(format!(
+            "composing a sampling interval with an assumption range by `{method}` is not supported; supported methods: {SUPPORTED_SAMPLING_COMPOSITIONS:?}"
         )));
     }
     check_contract(contract, artifact)?;

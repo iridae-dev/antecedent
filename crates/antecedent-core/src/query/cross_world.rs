@@ -3,7 +3,7 @@
 //! A cross-world query is a typed value, not parameters of one estimator. It
 //! names the worlds (each with its hard interventions and its edge routes), the
 //! variables observed in each world, and how the exogenous terms of the worlds
-//! are coupled. It carries no graph: a checker decides whether a graph licenses
+//! are coupled. It carries no graph: a checker decides whether a graph supports
 //! it, and an executor evaluates it on a fitted structural model.
 //!
 //! An *edge route* is the per-edge input assignment of an edge intervention: in

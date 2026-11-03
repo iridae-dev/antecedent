@@ -1,7 +1,7 @@
 """The producer/consumer matrix, executed (``docs/producer-consumer-matrix.md``).
 
 Rows are the producers of a scientific object, columns the consumers that could take it.
-Each cell is ``DIRECT`` (a licensed route takes the object), ``ADAPTER`` (a named,
+Each cell is ``DIRECT`` (a supported route takes the object), ``ADAPTER`` (a named,
 caller-written step or a different entry point takes it) or ``REFUSED`` (the consumer must
 not take it: a joint law, a posterior or a causal response is never inferred from a
 neighbouring object). Cell status lives in ``parity/producer_consumer.toml``;
@@ -1683,7 +1683,7 @@ def _check_sensitivity_decision(o: Objs) -> None:
         require_success(
             sd.decide(o.sensitivity.contract(), o.sensitivity, sampling_composition="merge")
         )
-    assert composed.value.reason_code == "cell_not_licensed"
+    assert composed.value.reason_code == "not_supported"
 
 
 def _check_sensitivity_bundle(o: Objs) -> None:
@@ -2083,10 +2083,10 @@ def _declared_measurement(o: Objs) -> Declared:
     assert estimate.inference == "uncalibrated_standard_error"
     # The independent consumer re-asks the contract for the analysis the decision is about.
     consumed.check_use(_measurement_analysis(), "latent_prevalence")
-    with pytest.raises(MeasurementModelRefusal) as unlicensed:
+    with pytest.raises(MeasurementModelRefusal) as unsupported:
         o.measurement_prepared.check_operation("condition_on_construct")
-    assert unlicensed.value.reason_code == "cell_not_licensed"
-    assert unlicensed.value.detail == "measurement_model.operation_not_licensed"
+    assert unsupported.value.reason_code == "not_supported"
+    assert unsupported.value.detail == "measurement_model.operation_not_supported"
     for closed in (estimate, o.measurement_prepared):
         with pytest.raises(MeasurementModelRefusal) as interval:
             closed.interval()
@@ -2141,7 +2141,7 @@ def _declared_composition(o: Objs) -> Declared:
     assert o.composition.declared_mechanisms, "a declared mechanism is never labelled fitted"
     with pytest.raises(MechanismCompositionRefusal) as closed:
         composition.interval()
-    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
     assert closed.value.details == ("mechanism_composition.interval_route_closed",)
     treated_q = _declared_quantity("Y", "do(X=1)", units="u", population="pop")
     control_q = _declared_quantity("Y", "do(X=0)", units="u", population="pop")
@@ -2193,7 +2193,7 @@ def _declared_ledger(o: Objs) -> Declared:
     assert isinstance(ledgered.envelope.value, el.DependenceEnvelope)
     with pytest.raises(EvidenceLedgerRefusal) as closed:
         ledgered.ledger.pooled_interval(pooled.result)
-    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
     assert closed.value.detail == "evidence_ledger.interval_not_measured"
     # The ledger carries no estimand: the caller declares the pooled quantity.
     quantity = _declared_quantity(
@@ -2256,11 +2256,11 @@ def _declared_transport(o: Objs, *, sampled: bool) -> Declared:
     for estimate, truth in ((t.sampled_treated, 0.75), (t.sampled_control, 0.5)):
         assert estimate.probability == pytest.approx(truth, abs=1e-12)
         assert estimate.labels["point_estimate"] == "plug_in_point_estimate"
-        assert estimate.labels["statistical_inference"] == "withheld_cell_not_licensed"
+        assert estimate.labels["statistical_inference"] == "withheld_not_supported"
         assert estimate.interval["available"] is False
-        assert estimate.interval["reason"] == "cell_not_licensed"
+        assert estimate.interval["reason"] == "not_supported"
         assert estimate.interval["detail"] == (
-            "counterfactual_transport_sampled.interval_not_licensed"
+            "counterfactual_transport_sampled.interval_not_supported"
         )
         assert estimate.standard_error is not None
         assert estimate.standard_error["label"] == "uncalibrated_standard_error"
@@ -2379,7 +2379,7 @@ def _check_cohort_decision(o: Objs) -> None:
     assert diagnostic.calibration == "calibration unmeasured"
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
-    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
     assert closed.value.detail == "cohort_decision.interval_requires_native_fit"
     # The support-aware evaluator does not take the raw source.
     with pytest.raises(CausalTypeError):
@@ -2481,8 +2481,8 @@ def _declared_reliability(o: Objs) -> Declared:
     assert consumed.report.raw == report.raw
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as closed:
         require_success(result.publish("ranking_probability"))
-    assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "decision_reliability.cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
+    assert closed.value.detail == "decision_reliability.not_supported"
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as combined:
         require_success(result.combined_uncertainty())
     assert combined.value.reason_code == "uncertainty_components_not_combined"
@@ -2530,7 +2530,7 @@ def _declared_adaptive(o: Objs) -> Declared:
     for ask in (a.session.interval, a.session.fixed_sample):
         with pytest.raises(ai.AdaptiveInferenceRefusal) as closed:
             ask()
-        assert closed.value.reason_code in {"cell_not_licensed", "adaptive_design_ignored"}
+        assert closed.value.reason_code in {"not_supported", "adaptive_design_ignored"}
         assert_registered_refusal(closed.value)
     quantity = _declared_quantity(
         "arm_mean",
@@ -2638,7 +2638,7 @@ def _declared_observation(o: Objs) -> Declared:
     assert replayed.claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
-    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.reason_code == "not_supported"
     assert closed.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
@@ -2919,8 +2919,8 @@ def _declared_bridge() -> Declared:
         assert wrong.value.detail == "scientific_bridge.value_kind_substitution"
     with pytest.raises(sb.ScientificBridgeRefusal) as closed:
         require_success(claim.interval())
-    assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "scientific_bridge.interval_not_licensed"
+    assert closed.value.reason_code == "not_supported"
+    assert closed.value.detail == "scientific_bridge.interval_not_supported"
     assert_registered_refusal(closed.value)
     # The bridge carries no estimand for a decision: the caller declares the quantity.
     quantity = _declared_quantity(
@@ -2987,8 +2987,8 @@ def _declared_sequential(o: Objs) -> Declared:
     # The interval and a static score table are typed refusals.
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as closed:
         seqeval.request_interval()
-    assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "sequential_evaluation.interval_not_licensed"
+    assert closed.value.reason_code == "not_supported"
+    assert closed.value.detail == "sequential_evaluation.interval_not_supported"
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as table:
         seqeval.evaluate(sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5)))
     assert table.value.reason_code == "route_not_supported"
@@ -3061,7 +3061,7 @@ def _declared_propagated(o: Objs) -> Declared:
     for closed in (claim.interval, claim.posterior):
         with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
     quantity = _declared_quantity("pq", "composed", units="utility", population="cohort")
     return Declared(
         (quantity,),
@@ -3093,13 +3093,13 @@ def _check_envelope_is_not_a_source(o: Objs) -> None:
     assert claim.value("product_moment_upper") == pytest.approx(0.25, abs=1e-12)
     with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
         claim.interval()
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "not_supported"
     for feed in (_feed_evaluate, _feed_inverse):
         with pytest.raises(
             CausalUnsupportedError, match="envelope is not a mean source"
         ) as refused:
             feed(claim)
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
     _check_raw_rejected(claim, feeders=(_feed_support,))
 
 
@@ -3149,7 +3149,7 @@ def _declared_crossed(o: Objs) -> Declared:
     for closed in (claim.interval, claim.posterior):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
     quantity = _declared_quantity("nde", "natural", units="utility", population="cohort")
     return Declared(
         (quantity,),
@@ -3354,7 +3354,7 @@ def _check_discretized_is_a_point(o: Objs) -> None:
     for paradigm in ("frequentist", "bayesian"):
         with pytest.raises(dcomp.DiscretizedCompositionRefusal) as closed:
             discretized.uncertainty(paradigm)
-        assert closed.value.reason_code == "cell_not_licensed"
+        assert closed.value.reason_code == "not_supported"
         assert closed.value.detail == "discretized_scm.point_only"
     _check_raw_rejected(discretized, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
 
@@ -3397,7 +3397,7 @@ def _check_account_is_a_spread(o: Objs) -> None:
     for closed in (account.interval, account.posterior):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
     _check_raw_rejected(account, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
 
 
@@ -3697,7 +3697,7 @@ def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() ->
     """A verification says which claims survive; it carries no value and no consumer reads one.
 
     Hand oracle: replacing ``cohort`` recomputes ``cohort``, ``estimate`` and ``decision_claim``
-    (every claim reading it through data) and leaves ``other`` valid; no license is withdrawn.
+    (every claim reading it through data) and leaves ``other`` valid; no support is withdrawn.
     """
     verified = _verified()
     cvm, result = verified.cv, verified.result
@@ -3742,7 +3742,7 @@ def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> Non
     replayed = pa.consume_predictive_assessment_artifact(bytes(result.export()), result.identity)
     assert replayed.report == result.report
     for detail, call in (
-        ("predictive_assessment.interval_not_licensed", result.score_interval),
+        ("predictive_assessment.interval_not_supported", result.score_interval),
         ("predictive_assessment.not_a_causal_claim", result.causal_validity),
         ("predictive_assessment.score_not_probability", result.score_as_probability),
     ):

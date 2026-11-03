@@ -307,7 +307,7 @@ fn verify_coordinate(spec: &Coordinate<'_>) {
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "InterventionalDistribution", "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.distribution"), "{coordinate}");
@@ -322,7 +322,7 @@ fn verify_coordinate(spec: &Coordinate<'_>) {
 
     let result =
         prepared.estimate(&data, &ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{coordinate}");
     let distribution = result.distribution().expect("distribution result");
     let tolerance = if bayesian { BAYESIAN_TOLERANCE } else { 1e-9 };
     let got = probability_of(&result, 1.0);

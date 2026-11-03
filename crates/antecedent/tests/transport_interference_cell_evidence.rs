@@ -339,7 +339,7 @@ fn point_graph(class: &str) -> Graph {
 fn assert_transport_point(result: &StudyResult, bayesian: bool, label: &str) {
     let pins = transport_pins();
     let effect = result.estimate().as_effect().unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     assert_eq!(result.logical_plan.identifier.as_deref(), Some("transport.sid"), "{label}");
     if bayesian {
         // Dirichlet(1, 1) over the two trial rows makes the draw 8 U - 2.
@@ -449,7 +449,7 @@ fn assert_planted_selection_violation(
     assert!(report(&planted, "transport.arm_calibration").passed, "{label}");
 }
 
-/// One cell of the point-identified family: the study is licensed before and after running, and
+/// One cell of the point-identified family: the study is supported before and after running, and
 /// publishes the pinned contrast and the hand-counted suite.
 fn run_transport_point_cell(
     class: &str,
@@ -460,7 +460,7 @@ fn run_transport_point_cell(
 ) {
     let label = format!("{class} {supplied:?} bayesian={bayesian} {suite:?}");
     let built = transport_study(point_graph(class), supplied, &[], bayesian, suite, 0.5);
-    assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
     let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
     assert_transport_point(&result, bayesian, &label);
     assert_transport_suite(&result, suite, &label);
@@ -555,9 +555,9 @@ fn assert_cpdag_partial_identification(ctx: &ExecutionContext) {
                         suite,
                         0.5,
                     );
-                    assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
                     let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert_eq!(
                         result.identification.status,
                         IdentificationStatus::PartiallyIdentified,
@@ -790,9 +790,9 @@ fn run_transport_posterior_cells(kind: &str, ctx: &ExecutionContext) {
             let label = format!("{kind} posterior bayesian={bayesian} {suite:?}");
             let built =
                 transport_posterior_study(case.posterior.clone(), &[Z], bayesian, suite, 0.5);
-            assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
             let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
-            assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             let pins = transport_pins();
             let effect = result.estimate().as_effect().unwrap();
             if bayesian {
@@ -914,7 +914,7 @@ fn transport_cells_execute_from_the_retained_operation_after_builder_drop() {
                 } else {
                     assert!((ate - pins.ipw).abs() <= pins.ipw_tolerance, "{label}: {ate}");
                 }
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 assert!(
                     ids(&result).len() == 4,
                     "{label}: the cheap suite ran on the retained plan"
@@ -1174,7 +1174,7 @@ fn assert_interference_suite(
 
 /// The pinned contrast on the pinned design.
 fn assert_interference_point(result: &StudyResult, bayesian: bool, label: &str) {
-    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     let effect = result.estimate().as_effect().unwrap();
     if bayesian {
         let pin = gaussian_pin();
@@ -1215,7 +1215,7 @@ fn run_interference_cell(
         (&bernoulli.data, &bernoulli.spec)
     };
     let built = interference_study(class, supplied, design, bayesian, suite);
-    assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{label}");
+    assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
     let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
     assert_interference_point(&result, bayesian, &label);
     assert_interference_suite(&result, suite, bayesian, &label);
@@ -1328,7 +1328,7 @@ fn run_interference_posterior_cells(kind: GraphPosteriorAtomKind, ctx: &Executio
                 .refute(suite)
                 .build()
                 .unwrap();
-            assert_eq!(built.support_status(), Some(CellStatus::Licensed), "{label}");
+            assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
             let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
             assert_interference_point(&result, bayesian, &label);
             assert_interference_suite(&result, suite, bayesian, &label);

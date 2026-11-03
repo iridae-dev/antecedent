@@ -1,5 +1,5 @@
 //! Internal checked-session handoff: replay the original source proof and both arms.
-//! This envelope adds no numerical evaluator or licensed inference claim.
+//! This envelope adds no numerical evaluator or supported inference claim.
 use super::{PyTemporalSession, error};
 use crate::recalc_api::{invalid, parse_json};
 use antecedent::analysis::recalc_temporal::consume_temporal_recalc_artifact;

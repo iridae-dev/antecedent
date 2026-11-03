@@ -10,7 +10,7 @@
 //! so the difference is taken draw by draw. A draw whose quantile the grid cannot resolve is
 //! counted; more than one percent unresolved refuses the posterior. The treatment must be
 //! unconfounded (an empty adjustment set): the Dirichlet law carries no covariates. The result
-//! is an unlicensed, uncalibrated posterior.
+//! is an unsupported, uncalibrated posterior.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -252,7 +252,7 @@ impl Study {
                 format!(
                     "Dirichlet-multinomial arm laws on a declared grid of {} thresholds with \
                      symmetric concentration {}; piecewise-linear inversion at tau={tau}; \
-                     treatment unconfounded (empty adjustment set); unlicensed, calibration \
+                     treatment unconfounded (empty adjustment set); unsupported, calibration \
                      unmeasured",
                     thresholds.len(),
                     bin_concentration

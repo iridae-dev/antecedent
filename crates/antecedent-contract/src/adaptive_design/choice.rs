@@ -6,7 +6,7 @@
 //! arms to units. A choice study has no such policy: every respondent faces the same declared
 //! choice set and the outcome is the option chosen, so the elements that contract requires
 //! (assignment probabilities, exposure) do not exist for it and are not invented. What a choice
-//! posterior needs to be a licensed statement is different, and each element is its own typed
+//! posterior needs to be a supported statement is different, and each element is its own typed
 //! refusal here:
 //!
 //! 1. what a choice means, and the population the respondents are drawn from;
@@ -20,7 +20,7 @@
 //! 5. the looks over respondents and the stopping rule, whose kind and parameters must agree with
 //!    the procedure cell.
 //!
-//! The matrix ([`super::procedure_status`]) is the one authority on what is licensed for the
+//! The matrix ([`super::procedure_status`]) is the one authority on what is supported for the
 //! cell, through the same gate as the assigned-arm contract.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -93,7 +93,7 @@ pub struct RetainedChoiceSource {
     pub discount: f64,
     /// Legacy declaration; cross-population transfer is not supported.
     pub transfer_rationale: Option<String>,
-    /// Optional native posterior proof, replayed before licensed inference.
+    /// Optional native posterior proof, replayed before supported inference.
     pub posterior_proof: Option<RetainedChoiceProof>,
 }
 

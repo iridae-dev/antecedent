@@ -11,7 +11,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
-  "A declared model's posterior probability is an exact number with no sampling distribution; its interval and calibration statements stay closed with cell_not_licensed (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed).",
+  "A declared model's posterior probability is an exact number with no sampling distribution; its interval and calibration statements stay closed with not_supported (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed).",
   "For tables fitted to counts the interval is the equal-tailed posterior quantile interval of P(target | evidence) by Monte Carlo over independent Dirichlet posteriors with exact enumeration of each draw, reported only as a measured scalar bound to a currently attesting coverage record of the whole method (fit, condition, query).",
 ]
 upstream_implementations_observed = []
@@ -32,7 +32,7 @@ redistribution = "The reference script and frozen output are repository-authored
 limitations = "Forty random models of two to five nodes and two to three levels (counted and declared nodes, evidence on a root and on a child) are compared with the exact rational enumeration to 1e-13. Eight child-level probabilities with parent counts from empty to 47:3, prior weights 0.001 to 20 and 2000 to 20000 draws are compared with the exact Beta posterior quantiles (the Dirichlet aggregation property gives the law of one level of a two- or three-level row in closed form): each interval endpoint must lie between the exact quantiles at five Monte Carlo standard deviations either side of its probability. This checks the draw distribution of a single row and the quantile arithmetic; the joint draws across several parent configurations and the nonlinear map through enumeration are checked only through the exact point value and the existing calibration, which is run at measurement time and not here. Evidence of very small probability, sparse parent configurations and the interval's frequentist coverage are the named boundaries of the measured calibration and are not examined. The reference script is not run in a locked environment: its output is frozen in the JSON file."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["Defect fixed: gamma draws of shape below one were formed as G(shape + 1) u^(1/shape), which underflows to zero for u below about 0.475 at shape 0.001, so a row of two empty cells had no mass in about 22% of the draws and the whole interval was refused as 'the evidence has zero probability'. Rows are now normalised from logarithms of the draws, and the interval for prior weights 0.001 and 0.01 matches the exact Beta quantiles.", "The posterior-mean conditional equals the exact rational enumeration on all forty models, and the Monte Carlo endpoints equal the exact Beta quantiles within five Monte Carlo standard deviations in all eight designs at both tails."]
-record_sha256 = "5bdbe7104d72fb6927ff6d4c8b9f0b7aebfe11922fdb540f1bb0ecab0fcbc13a"
+record_sha256 = "56f4406fd66390b8cecced510a0af7449a1114702852b6a46e52dbee710926ec"
 
 [[method_review.artifacts]]
 role = "implementation"

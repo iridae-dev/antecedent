@@ -37,7 +37,7 @@ RETIRED = ("intentional_deviation",)
 # These schemas use `reason` for explanatory prose. Their explicitly typed
 # calibration_reason/reason_code fields still consume the closed vocabulary.
 REASON_PROSE_SCHEMAS = frozenset({
-    "support_closed.toml", "support_n_a.toml", "support_axes.toml",
+    "support_refusal_reasons.toml", "support_n_a.toml", "support_axes.toml",
     "support_graphless.toml", "python_facade_surface.toml",
     "interval_level_exceptions.toml", "counterparts.toml",
     "estimator_route_residual.toml", "test_refactor_dispositions.toml",
@@ -82,7 +82,7 @@ def raw_reason_emissions(path: Path) -> list[int]:
     Follow module ownership so a cfg(test) child in a separate file is excluded,
     while product code after an inline test module is still checked.
     """
-    from promotion_source import nontest_rust
+    from capability_source import nontest_rust
 
     source = nontest_rust(path)
     return [number for number, line in enumerate(source.splitlines(), 1)
@@ -115,7 +115,7 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
     if "/tests/" in p.as_posix() and p.suffix in {".rs", ".py"}:
         # Inspect actual test declarations and assertions, not textual tokens in
         # comments, docstrings, ignored tests or unrelated helper functions.
-        from promotion_source import assertion_problems
+        from capability_source import assertion_problems
         from test_evidence import (
             python_test_declarations,
             rust_items,

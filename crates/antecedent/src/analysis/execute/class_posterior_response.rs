@@ -345,7 +345,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                    "contrast-shaped refuters are not supported for a plugin intervention level; \
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      g-comp level",
                 ));
@@ -945,7 +945,7 @@ fn collect_class_response_atoms(
             let nested =
                 super::atom_mix::nested_complete_weights(w, &eval.point_weights, &score_weights);
             // Equal row-aligned scores and the class's existing identical-interval
-            // check license retaining its uncertainty, including surface bands.
+            // check support retaining its uncertainty, including surface bands.
             let identical_scores = nested.is_some()
                 && eval.response.as_ref().is_some_and(|response| {
                     !matches!(response.uncertainty, ResponseUncertainty::None)
@@ -1008,7 +1008,7 @@ fn collect_class_response_atoms(
     }
 }
 
-/// Mixed response of the evaluated class atoms, with the joint-IF SE when one is licensed.
+/// Mixed response of the evaluated class atoms, with the joint-IF SE when one is supported.
 fn class_posterior_response_payload(
     inputs: &ClassPayloadInputs<'_>,
 ) -> (CausalResponse, Option<f64>) {
@@ -1365,7 +1365,7 @@ impl StaticResponseLevelRefit<'_> {
         }
         if !extras.is_empty() {
             return Err(antecedent_validate::ValidationError::NotApplicable {
-                message: "additional nuisance variables are not licensed for this intervention-level refit",
+                message: "additional nuisance variables are not supported for this intervention-level refit",
             });
         }
         let (selected, _selection_lease) = level_refit_masked_data(data, ctx)?;

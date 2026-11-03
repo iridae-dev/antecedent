@@ -6,7 +6,7 @@
 //! clusters of five (800 to 3200 cases) and a stationary AR(1) series (1600 to 6400
 //! cases), at level 0.95, for the CRPS, the log score and the CRPS difference of two
 //! forecasts. The serial CRPS mean interval was measured as a named boundary and is not
-//! licensed.
+//! supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -181,8 +181,8 @@ fn the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_
         .expect("measured");
     let refused = prepared
         .expected_score_interval(&mean_query(ScoreKind::Crps))
-        .expect_err("a named boundary licenses nothing");
-    assert_eq!(refused.code, "cell_not_licensed");
+        .expect_err("a named boundary supports nothing");
+    assert_eq!(refused.code, "not_supported");
     assert_eq!(refused.detail, "predictive_assessment.interval_scope_outside_measured");
 }
 
@@ -192,7 +192,7 @@ fn a_design_no_record_measured_is_refused_with_the_typed_reason() {
     // declaration at the same cases.
     let small = assess(&spec(Design::Iid, 100, FitDeclaration::NotFitted, true));
     let refused = small.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
-    assert_eq!(refused.code, "cell_not_licensed");
+    assert_eq!(refused.code, "not_supported");
     assert_eq!(refused.detail, "predictive_assessment.interval_scope_outside_measured");
     let measured = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, true));
     let mut ninety = mean_query(ScoreKind::Crps);
@@ -224,6 +224,6 @@ fn an_in_sample_predictor_and_an_undeclared_dependence_are_refused() {
 fn the_unscoped_request_stays_refused() {
     let prepared = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, true));
     let refused = prepared.request_score_interval().unwrap_err();
-    assert_eq!(refused.code, "cell_not_licensed");
-    assert_eq!(refused.detail, "predictive_assessment.interval_not_licensed");
+    assert_eq!(refused.code, "not_supported");
+    assert_eq!(refused.detail, "predictive_assessment.interval_not_supported");
 }

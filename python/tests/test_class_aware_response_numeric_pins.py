@@ -1,4 +1,4 @@
-"""Numeric evidence for licensed Cpdag/Pag response cells."""
+"""Numeric evidence for supported Cpdag/Pag response cells."""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
     )
     click = require_success(antecedent.estimate(prepared))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    assert prepared.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
     # Both graph completions identify their own target. Their equal-weight mean
     # here is a fixture calculation, not a probability distribution over graphs.
     high_targets = _count_derived_intervention_targets(_PIN, 1.0)
@@ -147,7 +147,7 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
     assert low_targets == pytest.approx((0.2, 0.14), abs=1e-12, rel=0)
     high_mean = sum(high_targets) / 2.0
     low_mean = sum(low_targets) / 2.0
-    assert high.evidence_status == low.evidence_status == click.evidence_status == "licensed"
+    assert high.evidence_status == low.evidence_status == click.evidence_status == "supported"
     assert high.identification.status == section["identification"]["status"]
     assert float(_values(high)[0]) == pytest.approx(high_mean, abs=1e-5, rel=0)
     assert float(_values(low)[0]) == pytest.approx(low_mean, abs=1e-5, rel=0)
@@ -200,7 +200,7 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     expected = np.asarray(section["curve"]["mean"], dtype=np.float64)
     for result in (fresh, click):
-        assert result.evidence_status == "licensed"
+        assert result.evidence_status == "supported"
         assert result.identification.status == section["identification"]["status"]
         values = _values(result)
         # Regression pin of the extrapolated levels: grid [0, 1] lies outside the observed
@@ -320,7 +320,7 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
         execution=antecedent.Execution(seed=int(bayes["seed"])),
     )
     click = require_success(antecedent.estimate(prepared))
-    assert high.evidence_status == click.evidence_status == "licensed"
+    assert high.evidence_status == click.evidence_status == "supported"
     assert any(str(d).startswith(bayes["diagnostic"]) for d in high.diagnostics)
     expected = bayes["cpdag_ate_contrast" if class_name == "cpdag" else "pag_ate_contrast"]
     contrast = float(_values(high)[0]) - float(_values(low)[0])

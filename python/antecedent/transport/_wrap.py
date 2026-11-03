@@ -85,7 +85,7 @@ class TransportSection:
     distribution: Any = None
     unavailable: str | None = None
     shape: str | None = None
-    #: Native sampling interval for the reported number, when one was licensed
+    #: Native sampling interval for the reported number, when one was supported
     #: (``LearnedTrialEstimate.interval``, a plug-in ``TransportContrast.interval``,
     #: or the matching entry in ``TransportUncertainty.mean_intervals``). ``None``
     #: means no interval was computed, not that it rounds to a point.

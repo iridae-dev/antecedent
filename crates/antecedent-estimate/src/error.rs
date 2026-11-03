@@ -169,7 +169,7 @@ pub enum EstimationError {
     /// The estimator refused because identification was not certified for this query.
     ///
     /// Distinct from [`Self::Data`]: the inputs are well formed, and the refusal is about
-    /// what the graph licenses. Owned rather than `&'static str` because it carries the
+    /// what the graph supports. Owned rather than `&'static str` because it carries the
     /// certificate's own reason and message.
     #[error("{message}")]
     NotCertified {
@@ -727,7 +727,7 @@ impl EstimationError {
                         | "undeclared_nonconstant_weights",
                     ) = fields.reason.as_deref()
                     {
-                        reason_code!("target_weights_not_licensed")
+                        reason_code!("target_weights_not_supported")
                     } else {
                         reason_code!("positivity_violated")
                     },

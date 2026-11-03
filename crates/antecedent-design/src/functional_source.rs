@@ -161,7 +161,7 @@ impl LawFunctionalArtifact {
             "native_row_origin_verified":false,"source_evidence_scope":"original scoped diagnostic citation; matching quantities and snapshot do not prove native row origin","action":self.action,"functional":self.functional,
             "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io_core::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
             "verification_scope":"original finite law and functional replay; source labels preserve declared standing",
-            "native_authority_issued":false,"calibration_license_issued":false,
+            "native_authority_issued":false,"calibration_support_issued":false,
             "lineage":chain.links().iter().map(|link| {
                 let digest = chain.digest_of(&link.id).map_err(|_| functional_invalid("functional_source.invalid_source"))?;
                 let parent_digests = link.parents.iter().map(|id| chain.digest_of(id).map_err(|_| functional_invalid("functional_source.invalid_source"))).collect::<Result<Vec<_>, _>>()?;

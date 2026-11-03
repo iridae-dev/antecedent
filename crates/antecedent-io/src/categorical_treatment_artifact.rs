@@ -646,7 +646,7 @@ pub struct PosteriorContrastWire {
     /// Posterior standard deviation; absent when the degrees of freedom are at most two.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_deviation: Option<f64>,
-    /// Unlicensed endpoints are withheld. Legacy artifacts may contain an interval; the
+    /// Unsupported endpoints are withheld. Legacy artifacts may contain an interval; the
     /// consumer verifies and removes it before returning the report.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval: Option<[f64; 2]>,
@@ -670,7 +670,7 @@ pub struct PosteriorMonotonicityWire {
 
 /// The optional posterior section: a Bayesian counterpart of the stored fit under a declared
 /// prior, recomputed from the stored design on consumption. Its estimand is the superpopulation
-/// dummy coefficient contrast of the stated linear model; it is unlicensed and its calibration is
+/// dummy coefficient contrast of the stated linear model; it is unsupported and its calibration is
 /// unmeasured.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -683,8 +683,8 @@ pub struct CategoricalPosteriorWire {
     pub estimand: String,
     /// Always `unmeasured`.
     pub calibration: String,
-    /// Always `false`: no support license covers the posterior.
-    pub licensed: bool,
+    /// Always `false`: no support covers the posterior.
+    pub supported: bool,
     /// Posterior Inverse-Gamma shape of the error variance.
     pub variance_shape: f64,
     /// Posterior Inverse-Gamma scale of the error variance.
@@ -722,7 +722,7 @@ fn posterior_section(
         likelihood: CATEGORICAL_POSTERIOR_LIKELIHOOD.to_owned(),
         estimand: CATEGORICAL_POSTERIOR_ESTIMAND.to_owned(),
         calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
-        licensed: false,
+        supported: false,
         variance_shape: posterior.variance_shape_and_scale.0,
         variance_scale: posterior.variance_shape_and_scale.1,
         coefficient_means: posterior.coefficient_means.clone(),
@@ -1912,7 +1912,7 @@ impl CategoricalTreatmentArtifact {
         if let Some(stored) = &mut meta.posterior {
             reject_posterior_of_declared_rows(&decl)?;
             let replayed = posterior_wire(&decl, &replay, &stored.declaration)?;
-            // Older v1 artifacts carried unlicensed endpoints. Verify each one against the
+            // Older v1 artifacts carried unsupported endpoints. Verify each one against the
             // independently replayed Student-t posterior before removing it from the report
             // and from any subsequently exported artifact.
             for (saved, checked) in stored

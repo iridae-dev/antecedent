@@ -230,7 +230,7 @@ pub(super) fn window_disclosure(
              identified functional. Every window is read as a draw from the same law, so the \
              series is assumed stationary over the template. Windows overlap, so uncertainty \
              resamples circular blocks of {block} consecutive windows (never shorter than the \
-             window), the declared dependent-series design; the result is unlicensed and no \
+             window), the declared dependent-series design; the result is unsupported and no \
              coverage record names it",
             plan.periods,
         ),

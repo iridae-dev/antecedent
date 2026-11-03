@@ -95,7 +95,7 @@ fn a_registered_result_records_the_once_counted_mass() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..100));
     let b = add(&mut ledger, data("b", 50..150));
-    // pooling with a declared covariance that carries the cross term is licensed
+    // pooling with a declared covariance that carries the cross term is supported
     let covariance = digest(9);
     let result = ledger
         .combine(pooling(
@@ -103,7 +103,7 @@ fn a_registered_result_records_the_once_counted_mass() {
             &[a, b],
             PoolingDependence::DeclaredCovariance { covariance, has_cross_covariance: true },
         ))
-        .expect("covariance-preserving pooling is licensed");
+        .expect("covariance-preserving pooling is supported");
     let record = ledger.result(result).expect("record");
     assert_eq!(record.mass.declared_slots, 200);
     assert_eq!(record.mass.distinct_observations, 150);
@@ -205,7 +205,7 @@ fn prior_plus_likelihood_re_entry_is_refused() {
         "evidence_ledger.reentry_prior_plus_likelihood",
     );
 
-    // an elicited prior with no data origin is licensed beside the likelihood
+    // an elicited prior with no data origin is supported beside the likelihood
     ledger
         .combine(CombinationRequest {
             label: "borrow_elicited".to_owned(),
@@ -348,7 +348,7 @@ fn unknown_overlap_is_never_promoted_to_independent() {
         .expect_err("a diagonal covariance does not establish independence");
     expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
 
-    // an assumption range is licensed, and is labelled as one
+    // an assumption range is supported, and is labelled as one
     let ranged = ledger
         .combine(pooling(
             "ranged",
@@ -360,11 +360,11 @@ fn unknown_overlap_is_never_promoted_to_independent() {
     assert_eq!(record.claim_class, ClaimClass::AssumptionRange);
     assert!(record.mass.unknown_sources.contains(&vendor));
     assert!(record.observations_digest.is_none());
-    // and nothing licenses an interval from it
+    // and nothing supports an interval from it
     let error = ledger.request_interval(ranged).expect_err("closed");
-    expect_refusal(&error, "cell_not_licensed", "evidence_ledger.interval_not_licensed");
+    expect_refusal(&error, "not_supported", "evidence_ledger.interval_not_supported");
 
-    // a covariance with cross terms is licensed point-only
+    // a covariance with cross terms is supported point-only
     ledger
         .combine(pooling(
             "cross",
@@ -463,13 +463,13 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
             },
             replaces: None,
         })
-        .expect("repeated use is licensed and counted once");
+        .expect("repeated use is supported and counted once");
     let record = ledger.result(reuse_stage).expect("record");
     assert!(record.data_reuse);
     assert_eq!(record.operation.kind(), SynthesisKind::RepeatedObservationUse);
     assert_eq!(record.mass.distinct_observations, 150);
 
-    // covariance-preserving pooling is licensed; citing it again counts once
+    // covariance-preserving pooling is supported; citing it again counts once
     let pooled = ledger
         .combine(pooling(
             "pool_cov",
@@ -1146,16 +1146,16 @@ fn a_reuse_of_a_stale_result_is_refused() {
 }
 
 #[test]
-fn no_interval_or_posterior_is_licensed_from_pooled_evidence() {
+fn no_interval_or_posterior_is_supported_from_pooled_evidence() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..10));
     let b = add(&mut ledger, data("b", 10..20));
     let pooled =
         ledger.combine(pooling("p", &[a, b], PoolingDependence::Independent)).expect("pooled");
     let record = ledger.result(pooled).expect("record");
-    // the ledger licenses a point-only statement
+    // the ledger supports a point-only statement
     assert_eq!(record.claim_class, ClaimClass::PointOnly);
     let error = ledger.request_interval(pooled).expect_err("the interval route is closed");
-    expect_refusal(&error, "cell_not_licensed", "evidence_ledger.interval_not_licensed");
+    expect_refusal(&error, "not_supported", "evidence_ledger.interval_not_supported");
     assert!(error.message.contains("point_only"), "{}", error.message);
 }

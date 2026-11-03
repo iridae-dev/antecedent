@@ -304,6 +304,6 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     assert!(format!("{error:?}").contains("needs a snapshot id"), "{error:?}");
 
     let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.contains("initial_state.route_frozen"), "{message}");
 }

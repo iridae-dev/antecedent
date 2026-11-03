@@ -125,7 +125,7 @@ fn changed_target_recomputes_a_point_claim_and_withdraws_a_claim_calibrated_else
     current.target.identity = d(111);
     let result = revalidate_transport(&base(), &current, &none()).unwrap();
 
-    // point-only claim: the numbers are stale, no license is lost
+    // point-only claim: the numbers are stale, no support is lost
     let note = result.claim("note").unwrap();
     assert_eq!(note.class, Revalidation::Recompute);
     assert!(note.reasons.contains(&TransportReason::TargetPopulationChanged));

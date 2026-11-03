@@ -1815,12 +1815,12 @@ fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_cl
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
+fn the_unmeasured_interval_route_refuses_with_not_supported() {
     let rows = draw(Design::IndependentSamples, Scenario::Good, 900, 600, 2);
     let prepared = prepare(query(&GRID, H), rows.clone(), options(), 2).unwrap();
     let ctx = ExecutionContext::for_tests(2);
     let (code, message) = refused_code(prepared.interval(&ctx).unwrap_err());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.starts_with("dose_response.interval_withheld"), "{message}");
     // The point remains available and reports the interval withheld, never attached.
     let requested = SmoothedDoseOptions { bootstrap: 199, ..options() };
@@ -1828,7 +1828,7 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(
         (uncertainty.status.as_str(), uncertainty.reason.as_str()),
-        ("withheld", "cell_not_licensed")
+        ("withheld", "not_supported")
     );
     assert!(!uncertainty.available());
 }
@@ -2013,7 +2013,7 @@ fn the_free_dose_menu_follows_its_options_without_the_builder() {
     assert!(a.nuisance_tasks.iter().all(|t| t.contains("default: none requested")));
     assert!(b.nuisance_tasks.iter().all(|t| !t.contains("default")));
     assert!(
-        b.uncertainty_status.starts_with("withheld: cell_not_licensed")
+        b.uncertainty_status.starts_with("withheld: not_supported")
             && b.uncertainty_status.contains("300")
     );
     assert_eq!(b.sampling_design, ["independent_samples"]);

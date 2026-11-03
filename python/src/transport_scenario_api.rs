@@ -269,7 +269,7 @@ impl PreparedTransportScenariosStage {
         self.inner.prepared().plan_summary().into_iter().map(|(n, k)| (n.to_string(), k)).collect()
     }
 
-    /// Inference across scenarios sharing data is not licensed; always refuses.
+    /// Inference across scenarios sharing data is not supported; always refuses.
     fn aggregate_interval(&self) -> PyResult<()> {
         self.inner.aggregate_interval().map_err(error)
     }
@@ -371,8 +371,8 @@ fn prepare_transport_scenarios_stage(
     let provider = parse_provider(laws, &catalog, &named, max_support_rows)?;
     if conditioned.is_some() && matches!(provider, Provider::Empirical(_)) {
         return Err(crate::refusal(
-            reason_code!("cell_not_licensed"),
-            "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
+            reason_code!("not_supported"),
+            "admg_transport.interval_withheld: counted laws are not supported for a conditional \
              scenario question; the route publishes exact-law points only",
         ));
     }

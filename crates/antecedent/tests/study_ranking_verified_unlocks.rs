@@ -34,7 +34,7 @@ fn noise(i: usize) -> f64 {
     ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5
 }
 
-/// An identified `x -> y` study: its prepared contract is licensed and carries the
+/// An identified `x -> y` study: its prepared contract is supported and carries the
 /// identification product the ranker requires.
 fn prepared_contract(ctx: &ExecutionContext) -> antecedent::analysis::CausalContract {
     let n = 160;
@@ -183,7 +183,7 @@ fn only_the_study_the_repair_search_verified_is_ranked_and_its_unlocks_are_deriv
         .ranking
         .violations
         .iter()
-        .filter(|item| item.constraint.as_ref() == "unlicensed_candidate")
+        .filter(|item| item.constraint.as_ref() == "unsupported_candidate")
         .map(|item| item.candidate_index)
         .collect();
     assert!(credited.contains(&0) && credited.contains(&2), "{credited:?}");

@@ -28,7 +28,7 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_transported_source::{
-    DETAIL_INTERVAL_NOT_LICENSED, DETAIL_LAW_NOT_SUPPLIED, DETAIL_SUPPORT_BELOW_POLICY,
+    DETAIL_INTERVAL_NOT_SUPPORTED, DETAIL_LAW_NOT_SUPPLIED, DETAIL_SUPPORT_BELOW_POLICY,
 };
 
 #[path = "fixtures_common/mod.rs"]
@@ -250,8 +250,8 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
     let refusal = bound
         .evaluate_transported(&point(2.0), TransportedDemand::Interval, &accepting())
         .unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, DETAIL_INTERVAL_NOT_LICENSED);
+    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.detail, DETAIL_INTERVAL_NOT_SUPPORTED);
 
     // The default policy admits only `supported` coordinates: accepting a
     // transported claim is the consumer's explicit choice.
@@ -262,6 +262,6 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
             &SupportPolicy::compare_supported(),
         )
         .unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert_eq!(refusal.detail, DETAIL_SUPPORT_BELOW_POLICY);
 }

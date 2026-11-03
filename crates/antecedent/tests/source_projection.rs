@@ -209,7 +209,7 @@ fn source_projection_bundle_requires_actual_checked_execution_and_reuses_one_opa
     }
 }
 #[test]
-fn source_projection_changed_data_seed_source_and_unlicensed_mean_functionals_refuse() {
+fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_refuse() {
     let (evidence, _, _) = source();
     for (shift, seed) in [(1., 51), (0., 52)] {
         let (changed, ctx, _) = prepared(shift, seed);

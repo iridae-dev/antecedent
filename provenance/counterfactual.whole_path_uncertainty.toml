@@ -33,9 +33,9 @@ record_sha256 = "914e7ef96a3be0171d5411a50eaf89d3fe3ad50da11f58aa5744e24c7b5de23
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs"
-sha256 = "23ff3ece9cc1e2de3d0565eeb7ef4f5b812bdb760716cb2364af32d9e9e8a081"
+sha256 = "42505e5e3bafbc7ea024b0c228cb1217b84c0e5c333b85996245180c91344bf3"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs"
-sha256 = "67341ed3cad08547955eeb8b2116bd985beef8bc9e01fcb81a92d13f3c607b3d"
+sha256 = "3bb7f49b05dce5964132085253f9694287fead48c228029b15d17d38a3e1b9e6"

@@ -643,8 +643,8 @@ fn view_agrees(found: &mut Findings, stage: &str, view: &PlanView, plan: &Physic
         format!("{stage}: support coordinate"),
     );
     found.check(
-        view.support().licensed() == lowered.scientific().licensed(),
-        format!("{stage}: licensed"),
+        view.support().supported() == lowered.scientific().supported(),
+        format!("{stage}: supported"),
     );
     let json = view.to_json();
     found.check(json["identity"] == lowered.identity().to_hex(), format!("{stage}: JSON identity"));
@@ -1549,8 +1549,8 @@ fn view_matches_program(
         format!("{stage}: support coordinate"),
     );
     found.check(
-        view.support().licensed() == lowered.scientific().licensed(),
-        format!("{stage}: licensed"),
+        view.support().supported() == lowered.scientific().supported(),
+        format!("{stage}: supported"),
     );
     let json = view.to_json();
     found.check(json["identity"] == lowered.identity().to_hex(), format!("{stage}: JSON identity"));
@@ -1657,7 +1657,7 @@ fn cyclic_findings(found: &mut Findings, obligation: Obligation) {
             );
             found.check(inspected.preparation_evaluations == 0, "preparing evaluated the model");
             found.check(
-                view.support().status().is_none() && !view.support().licensed(),
+                view.support().status().is_none() && !view.support().supported(),
                 "a cyclic family claims a support-matrix cell",
             );
             match prepared.contract() {

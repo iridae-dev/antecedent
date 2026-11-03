@@ -20,8 +20,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
-    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, EvidenceObligation, LicensedNeighbor,
-    ObligationRecord, OperationReadiness, OperationReport, SemanticApplicability,
+    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, EvidenceObligation, ObligationRecord,
+    OperationReadiness, OperationReport, SemanticApplicability, SupportedNeighbor,
 };
 use antecedent_core::named_variants;
 use serde_json::{Value, json};
@@ -79,7 +79,7 @@ impl HostStatus {
     /// Every other kind is supported when the structure is identified and the
     /// claim was evaluated and nothing contradicts it; a support domain that is
     /// merely `unknown` (no empirical check ran) stays visible in the claim's
-    /// domains for the host to read but does not demote a licensed, identified,
+    /// domains for the host to read but does not demote a supported, identified,
     /// executed claim. Anything else is partial.
     #[must_use]
     pub fn of_claim_parts(kind: ClaimKind, domains: &ClaimDomains) -> Self {
@@ -139,20 +139,20 @@ impl HostStatus {
 
     /// Status of an operation from its support applicability and readiness.
     ///
-    /// Only a licensed cell with met bindings is supported. An impossible or
-    /// unlicensed cell, or a failed empirical check, is unsupported. Everything
+    /// Only a supported cell with met bindings is supported. An impossible or
+    /// unsupported cell, or a failed empirical check, is unsupported. Everything
     /// else (review pending, an assumption or binding missing, a check not yet
     /// run, a resource limit, unknown support) is partial: not a refusal of the
-    /// question and not a license to run it.
+    /// question and not support to run it.
     #[must_use]
     pub const fn of_operation_parts(
         applicability: SemanticApplicability,
         readiness: Option<OperationReadiness>,
     ) -> Self {
         match (applicability, readiness) {
-            (SemanticApplicability::Impossible | SemanticApplicability::Unlicensed, _)
+            (SemanticApplicability::Impossible | SemanticApplicability::Unsupported, _)
             | (_, Some(OperationReadiness::EmpiricalSupportFailed)) => Self::Unsupported,
-            (SemanticApplicability::Licensed, Some(OperationReadiness::Executable)) => {
+            (SemanticApplicability::Supported, Some(OperationReadiness::Executable)) => {
                 Self::Supported
             }
             _ => Self::Partial,
@@ -399,12 +399,12 @@ pub fn operation_record(report: &OperationReport) -> Value {
     })
 }
 
-/// Host records of licensed neighbors, shaped as the schema's `licensed_neighbor`.
+/// Host records of supported neighbors, shaped as the schema's `supported_neighbor`.
 ///
 /// A neighbor names the premises it changes; it is an explicit alternative the
 /// caller chooses, never an automatic fallback.
 #[must_use]
-pub fn neighbor_records(neighbors: &[LicensedNeighbor]) -> Vec<Value> {
+pub fn neighbor_records(neighbors: &[SupportedNeighbor]) -> Vec<Value> {
     neighbors
         .iter()
         .map(|n| {

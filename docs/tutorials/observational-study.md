@@ -14,7 +14,7 @@ The question and the data follow Hernán and Robins, *Causal Inference: What If*
 
 ## Where the data come from
 
-The manifest [`examples/data/nhefs.toml`](https://github.com/iridae-dev/antecedent/blob/main/examples/data/nhefs.toml) records the origin, citation, SHA-256, retrieval date, preprocessing and the columns used. The publisher states no licence, so Antecedent ships no copy. `examples/data/fetch.py` downloads the file when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/main/examples/data/README.md) describes the cache and the offline path.
+The manifest [`examples/data/nhefs.toml`](https://github.com/iridae-dev/antecedent/blob/main/examples/data/nhefs.toml) records the origin, citation, SHA-256, retrieval date, preprocessing and the columns used. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the file when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/main/examples/data/README.md) describes the cache and the offline path.
 
 Without a verified file the example runs on a synthetic stand-in with the same columns, 1,629 rows and 63 missing outcomes. Its average effect of quitting, 3.0 kg, is a fixture truth of the generator, and it says nothing about smokers. The numbers below are from the verified real file.
 

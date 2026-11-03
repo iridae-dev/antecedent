@@ -569,7 +569,7 @@ def check_connection(
 
 @dataclass(repr=False, frozen=True, slots=True)
 class ComposedInterfaces(ScientificResult):
-    """A composition every connection of which is licensed and which has no cycle."""
+    """A composition every connection of which is supported and which has no cycle."""
 
     order: tuple[str, ...]
     connections: tuple[Connection, ...]

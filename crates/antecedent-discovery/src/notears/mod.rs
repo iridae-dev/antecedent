@@ -605,7 +605,7 @@ fn pairwise_accounting(
 
 /// The refusal for thresholded weights that contain a directed cycle.
 fn notears_cycle_refusal() -> String {
-    antecedent_graph::error::CyclicDagRefusal::unlicensed(
+    antecedent_graph::error::CyclicDagRefusal::unsupported(
         antecedent_graph::error::DagOperation::Discovery,
         ALGORITHM,
         "thresholded weights that contain a directed cycle are not a DAG; read the feedback \

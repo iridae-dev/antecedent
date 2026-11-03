@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
  "The intention-to-treat and first-stage score means share one weight vector per draw and each draw of the complier effect is their ratio. A first-stage draw at or below zero is refused rather than published.",
  "The assignment probabilities are declared and known; the Dirichlet-process prior identifies nothing, and exclusion and monotonicity are declared, not tested.",
- "Unlicensed and uncalibrated: no coverage record covers the credible interval.",
+ "Unsupported and uncalibrated: no coverage record covers the credible interval.",
 ]
 
 upstream_implementations_observed = []
@@ -33,7 +33,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Two ten-row tables (a known probability of one half and ten row-varying probabilities from 0.25 to 0.8) with one-sided receipt, 200,000 draws at one seed. The empirical distribution functions of the ratio at thirteen points and of the intention-to-treat mean at nine points are within five binomial standard errors of the exact rational B-spline laws, the exact 2.5% and 97.5% points of the ratio are crossed at 2.5% and 97.5% of the draws within the same tolerance, and the plain score means (Wald point) equal the exact rationals to 1e-12. The exact formula needs distinct scores, so the first-stage column (which repeats zeros) is checked only through the ratio, not on its own. Not exercised: two-sided receipt (the first stage can then be non-positive and the refusal fires), larger tables, other seeds, and coverage of the interval. The weak-first-stage refusal is a finite-draw guard, as the module states, not a support certificate. The cited publications were not retrieved."
 sources = ["https://doi.org/10.1214/aos/1176345338", "https://doi.org/10.1080/01621459.1996.10476902"]
 findings_resolved = ["No defect was found: the signed scores, the shared weights and the draw-wise ratio reproduce the exact laws, including with row-varying probabilities.", "The exact law of the ratio under Dirichlet weights is not in the module documentation; the reference derives it and the review records that the sampler's weights follow the Dirichlet(1, ..., 1) law at n = 10."]
-record_sha256 = "ae1a51b7eea4520d385419c21e57847344a600230009020efb6e5e91843b5e7b"
+record_sha256 = "1a12dd6ff06e5ef5dd408669bd3dc1e3a1f5e6ee66b7e0475d3346dc312c0c7f"
 
 [[method_review.artifacts]]
 role = "implementation"

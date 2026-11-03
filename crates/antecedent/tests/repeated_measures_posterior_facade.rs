@@ -110,7 +110,7 @@ fn the_posterior_matches_the_hand_calculation() {
     let report = fixed_procedure(2.0).posterior(&spec([0.5; 5])).expect("posterior");
     assert_eq!(report.estimator_id, REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID);
     assert_eq!(report.uncertainty, "posterior_equal_tailed_credible_interval");
-    assert!(!report.licensed && !report.calibration_measured);
+    assert!(!report.supported && !report.calibration_measured);
     assert_eq!(report.calibration, "unmeasured");
     close(report.unit_summary_variance, 1.5, "unit summary variance");
     close(report.arms[0].mean, 1.684_210_526_315_789_4, "arm 0 mean");
@@ -145,7 +145,7 @@ fn an_assignment_that_depends_on_an_unobserved_quantity_is_refused_with_the_next
     let mut request = spec([0.5; 5]);
     request.selection = Some(SelectionMechanism::DependsOnUnobserved);
     let refusal = fixed_procedure(2.0).posterior(&request).expect_err("refused");
-    assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
     assert_eq!(refusal.detail, "adaptive_inference.selection_not_ignorable");
     assert!(refusal.message.contains("model the selection jointly"));
     assert!(refusal.message.contains("randomize"));
@@ -165,7 +165,7 @@ fn a_contrast_arm_without_a_unit_is_refused_because_a_prior_does_not_identify_it
     let mut request = spec([0.5; 5]);
     request.units.retain(|u| u.arm == 1);
     let refusal = fixed_procedure(2.0).posterior(&request).expect_err("refused");
-    assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
     assert_eq!(refusal.detail, "adaptive_inference.arm_not_observed");
     assert!(refusal.message.contains("prior alone does not identify"));
 }
@@ -183,7 +183,7 @@ fn the_artifact_round_trips_and_a_fresh_loader_recomputes_it() {
     let procedure = fixed_procedure(2.0);
     let report = procedure.posterior(&spec([0.5; 5])).expect("posterior");
     let text = encode_repeated_measures_posterior_report(&report, &procedure).expect("encode");
-    assert!(text.contains("\"licensed\":false"));
+    assert!(text.contains("\"supported\":false"));
     assert!(text.contains(REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID));
     // A loader that only holds the declaration (re-declared independently) reproduces the report.
     let loaded = load_repeated_measures_posterior_report(&text, &fixed_procedure(2.0))
@@ -216,7 +216,7 @@ fn an_edited_artifact_a_resealed_forgery_and_another_procedure_are_refused() {
         load_repeated_measures_posterior_report(&text, &other).expect_err("another procedure");
     assert!(refusal.message.contains("different declared procedure"));
 
-    // A claimed license is refused by the envelope.
-    let claimed = text.replace("\"licensed\":false", "\"licensed\":true");
+    // A claimed support is refused by the envelope.
+    let claimed = text.replace("\"supported\":false", "\"supported\":true");
     assert!(load_repeated_measures_posterior_report(&claimed, &procedure).is_err());
 }

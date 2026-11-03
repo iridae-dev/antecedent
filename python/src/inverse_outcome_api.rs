@@ -171,7 +171,7 @@ fn report_json(report: &InverseOutcomeReport) -> serde_json::Value {
     })
 }
 
-/// Classify an enumerated action grid against a licensed forward response.
+/// Classify an enumerated action grid against a supported forward response.
 ///
 /// `query_kind` is `target_mean`, `probability_target`, `quantile_target` or
 /// `observational_scenarios`; every kind but the first is a typed refusal.

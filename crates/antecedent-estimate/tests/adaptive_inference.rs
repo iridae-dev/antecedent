@@ -40,10 +40,10 @@ fn the_posterior_is_conjugate_and_carries_its_premise_and_a_closed_guarantee() {
         "normalization",
     );
     assert!(posterior.premise.contains("observed history"));
-    assert_eq!(posterior.guarantee.code, "cell_not_licensed");
+    assert_eq!(posterior.guarantee.code, "not_supported");
     assert_eq!(posterior.guarantee.detail, "adaptive_inference.posterior_interval_closed");
     let refusal = posterior.guarantee.refusal("a credible interval");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert!(refusal.message.contains("whole-procedure coverage"));
 }
 
@@ -68,7 +68,7 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
             .unwrap();
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
     assert_eq!(stop.guarantee.detail, "adaptive_inference.stopping_reliability_closed");
-    assert_eq!(stop.guarantee.code, "cell_not_licensed");
+    assert_eq!(stop.guarantee.code, "not_supported");
     {
         let error =
             expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
@@ -111,7 +111,7 @@ fn weighted_estimates_match_the_hand_calculation_and_never_clip() {
     close(fit.uncalibrated_variance, 0.774_348_577_567_450_3, 1e-9, "variance");
     close(fit.uncalibrated_standard_error, fit.uncalibrated_variance.sqrt(), 1e-15, "se");
     assert_eq!(fit.units, 4);
-    assert_eq!(fit.guarantee.code, "cell_not_licensed");
+    assert_eq!(fit.guarantee.code, "not_supported");
     // A floor above the smallest probability of an estimand arm is a typed
     // refusal naming the unit and arm, never a clip.
     let strict = WeightedOptions { probability_floor: 0.25, ..options };
@@ -168,7 +168,7 @@ fn confidence_sequences_match_the_closed_form_and_union_bound_a_contrast() {
     close(single.arms[0].upper, 0.865_299_150_331_128_5, 1e-12, "upper");
     close(single.arms[0].mean, 0.75, 1e-15, "mean");
     assert_eq!(single.label, "uncalibrated_confidence_sequence");
-    assert_eq!(single.guarantee.code, "cell_not_licensed");
+    assert_eq!(single.guarantee.code, "not_supported");
     let arm_b: Vec<f64> = (0..100).map(|i| f64::from(i % 2)).collect();
     let contrast =
         anytime_valid_arm_sequences(&[arm_a, arm_b], Some((0, 1)), 0.05, 100.0, &ctx()).unwrap();
@@ -209,7 +209,7 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     let last = group_sequential_decision(&plan(), &[1.0, 2.0, 2.0], &ctx()).unwrap();
     assert_eq!(last.stopped_at, Some(2));
     assert_eq!(last.guarantee.detail, "adaptive_inference.stagewise_adjustment_closed");
-    assert_eq!(last.guarantee.code, "cell_not_licensed");
+    assert_eq!(last.guarantee.code, "not_supported");
     // More looks than planned, and a non-finite statistic.
     {
         let error = group_sequential_decision(&plan(), &[0.0; 4], &ctx()).unwrap_err();
@@ -281,6 +281,6 @@ fn the_calibration_internal_intervals_are_candidates_not_claims() {
     close(mass, 0.9, 1e-9, "interval mass");
     assert!(beta_credible_interval_internal(&posterior.arms[0], 1.5).is_none());
     // The published guarantee stays closed.
-    assert_eq!(posterior.guarantee.code, "cell_not_licensed");
+    assert_eq!(posterior.guarantee.code, "not_supported");
     let _ = weighted_wald_interval_internal;
 }

@@ -8,7 +8,7 @@
 //! coefficient prior and residual prior declared on the study's Bayesian configuration. The
 //! dose density does not enter a likelihood for the outcome given the dose, so it is not read.
 //! Conditional exchangeability within groups and local positivity stay declared premises; the
-//! prior supplies none. The result is an unlicensed, uncalibrated posterior.
+//! prior supplies none. The result is an unsupported, uncalibrated posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{

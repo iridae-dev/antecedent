@@ -1,4 +1,4 @@
-//! Numeric pins for licensed PAG and ADMG ATE cells.
+//! Numeric pins for supported PAG and ADMG ATE cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -194,7 +194,7 @@ fn assert_prepared_reuse(
             .abs()
             < 1e-12
     );
-    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert_eq!(cached_count(fresh), 0);
     assert_eq!(cached_count(click), 1);
     assert_eq!(cached_count(refreshed), 1, "same-schema refresh must reuse identification");
@@ -302,7 +302,7 @@ fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
 }
 
 /// Bidirected front-door ADMG: `InterventionResponse` / `ResponseCurve` means at
-/// do(T=0) and do(T=1) match the licensed `InterventionalDistribution` / ATE
+/// do(T=0) and do(T=1) match the supported `InterventionalDistribution` / ATE
 /// functional on the same graph.
 #[test]
 #[allow(

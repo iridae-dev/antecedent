@@ -3,7 +3,7 @@
 //! Every test compares a temporal graph whose window holds one decision with the static graph on
 //! the lag-aligned rows of the same series (or on the same table, for the contemporaneous
 //! projection of an ADMG). The references are closed forms from the raw rows. Where a family
-//! differs, the cause is pinned: the unlicensed temporal cell, the serial-dependence
+//! differs, the cause is pinned: the unsupported temporal cell, the serial-dependence
 //! uncertainty, or the function class of the outcome model.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -79,17 +79,17 @@ fn ols_standard_error(columns: &[&[f64]], y: &[f64], index: usize) -> f64 {
     (rss / (n - p) as f64 * inverse_column[index]).sqrt()
 }
 
-/// outcome: equivalent point and structural envelope; `not_equivalent` licence and uncertainty.
+/// outcome: equivalent point and structural envelope; `not_equivalent` support and uncertainty.
 ///
 /// A temporal CPDAG whose window is the contemporaneous projection of a static CPDAG has the same
 /// compiled adjustment: the effect of `x` on `y` adjusting for the lagged cause `z`, the least
-/// squares coefficient of `y ~ 1 + x + z_lag` on the aligned rows. The static cell is licensed and
+/// squares coefficient of `y ~ 1 + x + z_lag` on the aligned rows. The static cell is supported and
 /// publishes the influence-function standard error of that fit (within a percent of the
 /// homoskedastic one). The temporal `AverageEffect` is the
-/// lag-zero pulse: it executes unlicensed (refused status), discloses the reading, and does not
+/// lag-zero pulse: it executes unsupported (refused status), discloses the reading, and does not
 /// publish the iid standard error for a dependent series.
 #[test]
-fn horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence() {
+fn horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_support() {
     let [x, y, z] = confounded_lag_zero_series();
     let (aligned_x, aligned_y, aligned_z) = (&x[1..], &y[1..], &z[..LAG_ROWS - 1]);
     let coefficients = ols(&[aligned_x, aligned_z], aligned_y);
@@ -128,10 +128,10 @@ fn horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence
         assert!(close(temporal_mix.identified_mass, static_mix.identified_mass));
         assert!(close(temporal_mix.unidentified_mass, static_mix.unidentified_mass));
     }
-    // Both sides are licensed: the lag-zero average effect on a temporal class is the explicit
+    // Both sides are supported: the lag-zero average effect on a temporal class is the explicit
     // lag-zero pulse, and the static class cell has its own known-truth evidence.
-    assert_eq!(static_result.support_status(), Some(CellStatus::Licensed));
-    assert_eq!(temporal.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(static_result.support_status(), Some(CellStatus::Supported));
+    assert_eq!(temporal.support_status(), Some(CellStatus::Supported));
     assert!(has_diagnostic(&temporal, "estimate.temporal_class.lag_zero_average_effect"));
     assert!(!has_diagnostic(&static_result, "estimate.temporal_class.lag_zero_average_effect"));
 }

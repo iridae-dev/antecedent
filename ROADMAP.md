@@ -14,7 +14,7 @@ These objectives reinforce one another but remain independently valuable. None d
 
 **The central engineering principle is that individually correct scientific operations must not become scientifically invalid through composition, reuse, persistence, or transitions between representations.**
 
-Antecedent already addresses these risks through scientific contracts, support licensing, provenance, parity references, calibration, identity-bound artifacts, typed refusals, and adversarial gates. This roadmap strengthens those existing mechanisms rather than replacing them.
+Antecedent already addresses these risks through scientific contracts, support, provenance, parity references, calibration, identity-bound artifacts, typed refusals, and adversarial gates. This roadmap strengthens those existing mechanisms rather than replacing them.
 
 ## Architectural commitments
 
@@ -62,7 +62,7 @@ Prioritize invariants where individually valid operations can produce invalid sc
 - Invalid reuse after changes to scientific premises.
 - Artifact identity or acceptance mismatches.
 - Improper restoration of withdrawn scientific authority.
-- Unsupported promotion of uncertainty or scientific standing.
+- Claiming uncertainty or scientific standing without support.
 
 A scientifically consequential boundary must preserve its applicable obligations, discharge them through a justified rule, or explicitly refuse the unsupported transition.
 
@@ -176,7 +176,7 @@ The adversarial assurance workstream is cumulative. Early releases establish reu
 
 #### Adversarial assurance foundations
 
-- Inventory existing promotion, parity, provenance, calibration, artifact, support, and mutation gates.
+- Inventory existing capability-record, parity, provenance, calibration, artifact, support, and mutation gates.
 - Reuse existing test runners, evidence identities, and invalidation mechanisms wherever possible.
 - Establish a minimal `gate_scientific_adversarial` entry point or equivalent integration with existing gates.
 - Add deterministic property-based generation for a bounded family of scientific identity and contract operations.
@@ -482,7 +482,7 @@ Do not introduce a second scientific-contract representation solely to support t
 - The derivation and applicable assurance evidence are independently checked.
 - Invalid combinations are rejected, including at least one missing-assumption and one incompatible-dependence case.
 - Adversarial tests detect selected intentionally invalid synthesized procedures.
-- The generator cannot promote an unchecked proposal into a licensed scientific result.
+- The generator cannot turn an unchecked proposal into a supported scientific result.
 - The final result distinguishes checked guarantees from statistical assumptions, numerical limitations, and calibration status.
 
 **Fallback:** If the research gate is not met, ship further verified composition and adversarial assurance improvements instead. Do not claim method synthesis.
@@ -633,7 +633,7 @@ Confirmed defects should become permanent regressions in the existing test and e
 
 Ordinary CI should run:
 
-- Existing promotion, support, provenance, parity, artifact, and relevant implementation gates.
+- Existing capability-record, support, provenance, parity, artifact, and relevant implementation gates.
 - Bounded deterministic adversarial scientific tests.
 - Required fast proof and specification checks.
 - Verification-record consistency and dependency checks.
@@ -679,7 +679,7 @@ Track separately:
 - Generated test families and their scopes.
 - Required semantic mutations detected.
 - Independently reproduced numerical references.
-- Licensed execution coverage.
+- Supported execution coverage.
 - Statistical calibration coverage.
 - Unverified boundaries and unresolved obligations.
 
@@ -779,7 +779,7 @@ Adversarial verification improvements remain independently useful even where for
 - Which scientific-semantic mutations represent the highest-risk failures?
 - How should a reviewed, minimal set of required mutations be maintained without overfitting the gate to those mutations?
 - How should stochastic equivalence and floating-point tolerances be specified for metamorphic tests?
-- Which assurance records can reuse existing parity, provenance, and promotion schemas without extension?
+- Which assurance records can reuse existing parity, provenance, and capability-record schemas without extension?
 
 ### Proof-carrying execution
 

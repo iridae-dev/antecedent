@@ -7,7 +7,7 @@
 //! Two constructions are measured over the advertised family of 5, 10, 15, 20,
 //! 25 and 30 studies, each at three per-study sample sizes (`grid_n(100)`). The
 //! records are keyed by the study-count range and by the observations of the
-//! smallest study, so a count inside the range is licensed only because every
+//! smallest study, so a count inside the range is supported only because every
 //! count visited here passed:
 //!
 //! * fixed-effect inverse-variance pooling, Wald `z` interval, on homogeneous

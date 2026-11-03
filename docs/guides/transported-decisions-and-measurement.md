@@ -37,7 +37,7 @@ The value is `sum_i w_i tau(x_i)` over named cohort rows with normalized weights
 
 A measurement model is established for one population and refuses data from any other. `transport_measurement_model` carries it only under a declared `PopulationErrorStructure`:
 
-- `Invariant` names every error parameter the model's route uses as the same in source and target. Naming specificity alone does not license a sensitivity-and-specificity correction.
+- `Invariant` names every error parameter the model's route uses as the same in source and target. Naming specificity alone does not support a sensitivity-and-specificity correction.
 - `Differential` states that the error differs, so nothing is carried. Only a model established for the target is used; a missing one is refused rather than replaced by another population's rates.
 
 The result is the source model re-bound to the target, with a receipt binding the source model identity, both populations, the premise and the basis. The corrected functional is never presented as native to the target. Only the parameter-estimation uncertainty the correction already propagates is reported; it is conditional on the premise and uncalibrated, and the uncertainty of the premise itself is not propagated. When several models are held, the one established for the requested population, regime and arm is used.
@@ -68,7 +68,7 @@ Check the connection between a declared transported offer and a callback input, 
 
 <!-- example: examples/python/provider_transport.py -->
 
-**Admission.** A source declares one provider object at an exact request, its trust (attestation and exact-request verification stay apart), the source population and regime of the quantity, the invariance and selection assumptions it relies on, and the evidence it rests on. `admit` refuses a missing population or regime, a quantity the provider does not declare, a native licence, a verification receipt that does not cover the object, and a provider that is only attested where the route requires verification. An admitted source is an `external_claim` in the evidence ledger and never native target data. Connect an admitted source with `connect_bound_provider_source` (and `hand_to_consumer_from_sources` for a handoff), which first requires the source to be bound to that transport's population and carried assumptions.
+**Admission.** A source declares one provider object at an exact request, its trust (attestation and exact-request verification stay apart), the source population and regime of the quantity, the invariance and selection assumptions it relies on, and the evidence it rests on. `admit` refuses a missing population or regime, a quantity the provider does not declare, a claim of native support, a verification receipt that does not cover the object, and a provider that is only attested where the route requires verification. An admitted source is an `external_claim` in the evidence ledger and never native target data. Connect an admitted source with `connect_bound_provider_source` (and `hand_to_consumer_from_sources` for a handoff), which first requires the source to be bound to that transport's population and carried assumptions.
 
 **Handoff.** A `TransportedClaimOffer` carries its `TransportIdentity` (source populations, selection diagram, assumptions). A consumer that accepts only native target data refuses it. An accepted handoff stays a transported external claim and its calibration label is never raised. The portable record (`transport_handoff_v1`) is re-derived by the consumer, which rebuilds the offer and contract, re-runs the connection decision and recomputes identities. A stored handoff cannot be relabelled upward. A declared population is the producer's declaration, not proof that data came from it, and a verification receipt covers provider behaviour at exact requests, not the truth of an invariance assumption.
 
@@ -80,7 +80,7 @@ Check the connection between a declared transported offer and a callback input, 
 | Declaration does not match the model, populations or selection structure | `transport_not_certified` | Correct the declaration or refit with the modifiers the diagram requires |
 | A model that names a feature twice | `invalid_argument` (`transported_effect.model_invalid`) | Give every feature one name |
 | No overlap, or rows outside the support box | `transport_support_failure` | Restrict the cohort to the fitted box or refit on data that covers it |
-| Interval, standard error or law of a cohort effect | `cell_not_licensed` / `decision_contract_unsatisfied` | Use the point; an interval needs a measured record at that coordinate |
+| Interval, standard error or law of a cohort effect | `not_supported` / `decision_contract_unsatisfied` | Use the point; an interval needs a measured record at that coordinate |
 | Measurement parameters not declared invariant, or only some of them | `transport_missing_evidence` / `transport_not_certified` | Name every parameter the route uses, or establish the model in the target |
 | Differential error with no target model, or pooling with fewer than two validated sources | `differential_error_not_pooled` | Validate in the target population or in a second source |
 | Replicated measurements or an external latent posterior | `route_not_supported` | Replicates re-estimate in the target; a posterior is bound to its source snapshot |
@@ -94,7 +94,7 @@ Check the connection between a declared transported offer and a callback input, 
 | Adaptive trial with no retained contract | `adaptive_contract_incomplete` | Supply the `AdaptiveDesignContract` |
 | Blank trial population, target equal to the trial population, or a diagram whose source is another population | `adaptive_transport.population_label`, `target_is_source`, `diagram_binding_mismatch` | Name the trial's population and the diagram built for it |
 | Stratum law declared invariant that differs from the trial's own | `adaptive_transport.stratum_law_declared_invariant` | Declare it shifted, or correct the declaration |
-| Contract not licensed for weighted scores, or a fixed design | `route_not_supported` | Use the fixed-design transport route |
+| Contract not supported for weighted scores, or a fixed design | `route_not_supported` | Use the fixed-design transport route |
 | Provider with no population or regime; attested-only provider where verification is required | none issued | Declare both; obtain a verification receipt covering the object |
 | Provider output claimed as native target data; a handoff to a native-only consumer | none issued | Present it as a transported external claim; use a consumer that accepts transported claims |
 | A stored handoff consumed against another callback declaration | `provider_transport.identity_mismatch` | Consume it against the declaration it was sealed for |

@@ -2,8 +2,8 @@
 //!
 //! A previous-release route record is mapped to the current method records that carry its
 //! route: one-to-one, split across several methods, or retired. A closed route keeps its refusal
-//! reason as recorded. An explicit error with a remedy is reserved for a genuine break: a licensed
-//! route that no current method carries, or one whose licence no current method keeps. A
+//! reason as recorded. An explicit error with a remedy is reserved for a genuine break: a supported
+//! route that no current method carries, or one whose support no current method keeps. A
 //! score-row digest is recomputed from wide row ids, and a digest that does not match is refused.
 //! A carried scientific target digest is refused unless it is already the current digest.
 //! Reduced retention already refuses later operations through
@@ -67,22 +67,22 @@ impl std::fmt::Display for RouteAxis {
 /// Status recorded on a public route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ManifestRouteStatus {
-    /// Licensed geometric route.
-    Licensed,
-    /// Graphless design license.
+    /// Supported geometric route.
+    Supported,
+    /// Graphless design support.
     Graphless,
     /// Closed geometric route.
     Closed,
-    /// Execution without an interval license.
+    /// Execution without an interval support.
     ExecutionOnly,
-    /// Fit or score without a licensed inferential guarantee.
+    /// Fit or score without a supported inferential guarantee.
     FittingGap,
 }
 
 impl ManifestRouteStatus {
     /// Every status the route manifest records.
     pub const ALL: [Self; 5] =
-        [Self::Licensed, Self::Graphless, Self::Closed, Self::ExecutionOnly, Self::FittingGap];
+        [Self::Supported, Self::Graphless, Self::Closed, Self::ExecutionOnly, Self::FittingGap];
 }
 
 /// Scientific-target shape whose identity is content-based.
@@ -206,7 +206,7 @@ impl ManifestRouteStatus {
     #[must_use]
     pub fn from_manifest_word(word: &str) -> Option<Self> {
         match word {
-            "licensed" => Some(Self::Licensed),
+            "supported" => Some(Self::Supported),
             "graphless" => Some(Self::Graphless),
             "closed" => Some(Self::Closed),
             "execution_only" => Some(Self::ExecutionOnly),
@@ -314,7 +314,7 @@ pub struct MethodAssignment {
     pub status: String,
     /// Axes that method occupies.
     pub axes: Vec<RouteAxis>,
-    /// The previous route had a license and this method does not carry that license kind.
+    /// The previous route had support and this method does not carry that support kind.
     pub narrowed: bool,
 }
 
@@ -339,7 +339,7 @@ pub enum RouteRecordOutcome {
         /// Axes the previous record names that no method occupies.
         unserved_axes: Vec<RouteAxis>,
     },
-    /// No current method carries the route and it was not licensed. The route left the
+    /// No current method carries the route and it was not supported. The route left the
     /// inventory; a caller must stop requesting it.
     Retired,
 }
@@ -355,25 +355,25 @@ pub enum RouteRecordError {
         /// The status word.
         status: String,
     },
-    /// A licensed route has no current method.
+    /// A supported route has no current method.
     #[error(
-        "licensed route {id} has no current method; request the query through the method that \
+        "supported route {id} has no current method; request the query through the method that \
          replaced it, or record the route as retired in the current inventory before migrating"
     )]
     RouteWithoutCurrentMethod {
         /// Record id.
         id: String,
     },
-    /// No current method carries the previous route's license kind.
+    /// No current method carries the previous route's support kind.
     #[error(
-        "licensed route {id} has no method carrying its original license kind among {}; \
-         establish the original license or record the changed contract before migrating",
+        "supported route {id} has no method carrying its original support kind among {}; \
+         establish the original support or record the changed contract before migrating",
         .methods.join(", ")
     )]
-    LicenseNotCarried {
+    SupportNotCarried {
         /// Record id.
         id: String,
-        /// The current methods, none carrying the original license kind.
+        /// The current methods, none carrying the original support kind.
         methods: Vec<String>,
     },
 }
@@ -383,10 +383,10 @@ pub enum RouteRecordError {
 /// A closed route that no method carries keeps its recorded refusal ([`keep_refusal_reason`]).
 /// Every other record is mapped to the methods whose `route` is its id: one is a one-to-one
 /// outcome and several are a split. A non-closed route with no method is retired unless it was
-/// licensed, which is a break.
+/// supported, which is a break.
 ///
 /// # Errors
-/// The status is unknown, a licensed route has no method, or no method keeps its licence.
+/// The status is unknown, a supported route has no method, or no method keeps its support.
 #[must_use = "a route record that is not carried onto the current methods is refused"]
 pub fn migrate_route_record(
     record: &ManifestRouteRecord<'_>,
@@ -401,19 +401,19 @@ pub fn migrate_route_record(
     if linked.is_empty() {
         return match status {
             ManifestRouteStatus::Closed => Ok(RouteRecordOutcome::RefusalKept),
-            ManifestRouteStatus::Licensed | ManifestRouteStatus::Graphless => {
+            ManifestRouteStatus::Supported | ManifestRouteStatus::Graphless => {
                 Err(RouteRecordError::RouteWithoutCurrentMethod { id })
             }
             _ => Ok(RouteRecordOutcome::Retired),
         };
     }
-    let license_kind = match status {
-        ManifestRouteStatus::Licensed => Some("licensed"),
+    let support_kind = match status {
+        ManifestRouteStatus::Supported => Some("supported"),
         ManifestRouteStatus::Graphless => Some("graphless"),
         _ => None,
     };
-    if license_kind.is_some_and(|kind| linked.iter().all(|m| m.status != kind)) {
-        return Err(RouteRecordError::LicenseNotCarried {
+    if support_kind.is_some_and(|kind| linked.iter().all(|m| m.status != kind)) {
+        return Err(RouteRecordError::SupportNotCarried {
             id,
             methods: linked.iter().map(|m| m.id.clone()).collect(),
         });
@@ -425,7 +425,7 @@ pub fn migrate_route_record(
             estimator: m.estimator.clone(),
             status: m.status.clone(),
             axes: m.axes(),
-            narrowed: license_kind.is_some_and(|kind| m.status != kind),
+            narrowed: support_kind.is_some_and(|kind| m.status != kind),
         })
         .collect();
     let unserved_axes: Vec<RouteAxis> =
@@ -464,10 +464,10 @@ pub enum IntentionalBreak {
     ContentBasedWorldIdentity,
     /// A reduced retention mode refuses the later operations it no longer serves.
     ReducedRetentionOperation,
-    /// A licensed route has no current method.
+    /// A supported route has no current method.
     RouteWithoutCurrentMethod,
-    /// A licensed route is carried only by unlicensed methods.
-    LicenseNotCarried,
+    /// A supported route is carried only by unsupported methods.
+    SupportNotCarried,
     /// A closed route keeps its refusal reason.
     RefusalReason,
 }
@@ -480,7 +480,7 @@ impl IntentionalBreak {
         Self::ContentBasedWorldIdentity,
         Self::ReducedRetentionOperation,
         Self::RouteWithoutCurrentMethod,
-        Self::LicenseNotCarried,
+        Self::SupportNotCarried,
         Self::RefusalReason,
     ];
 }
@@ -535,9 +535,9 @@ pub const fn break_path(change: IntentionalBreak) -> BreakPath {
             error: "RouteRecordError::RouteWithoutCurrentMethod",
             next_attempt: "request the query through the method that replaced the route",
         },
-        IntentionalBreak::LicenseNotCarried => BreakPath::Refused {
-            error: "RouteRecordError::LicenseNotCarried",
-            next_attempt: "license one of the carrying methods, or accept its execution-only \
+        IntentionalBreak::SupportNotCarried => BreakPath::Refused {
+            error: "RouteRecordError::SupportNotCarried",
+            next_attempt: "support one of the carrying methods, or accept its execution-only \
                            standing",
         },
         IntentionalBreak::RefusalReason => {
@@ -834,8 +834,8 @@ mod tests {
     #[test]
     fn inventory_refusal_reasons_are_not_rewritten() {
         let reasons = [
-            "policy_route_not_licensed",
-            "Attribution is licensed only for an explicit Dag at validation none.",
+            "policy_route_not_supported",
+            "Attribution is supported only for an explicit Dag at validation none.",
             "AnomalyAttribution and ChangeAttribution require a supplied static Dag. \
              The attribution engine has no lagged latent slice.",
         ];
@@ -902,14 +902,14 @@ mod tests {
             inference,
         };
         let current = [
-            method("m.one", "r.one", "static", "frequentist", "licensed"),
-            method("m.a", "r.split", "static", "frequentist", "licensed"),
+            method("m.one", "r.one", "static", "frequentist", "supported"),
+            method("m.a", "r.split", "static", "frequentist", "supported"),
             method("m.b", "r.split", "static", "bayesian", "execution_only"),
-            method("m.both", "r.both", "temporal", "both", "licensed"),
+            method("m.both", "r.both", "temporal", "both", "supported"),
             method("m.down", "r.down", "static", "bayesian", "execution_only"),
         ];
         let one = migrate_route_record(
-            &record("r.one", "licensed", "static; structure=explicit", "Frequentist"),
+            &record("r.one", "supported", "static; structure=explicit", "Frequentist"),
             &current,
         )
         .unwrap();
@@ -921,7 +921,7 @@ mod tests {
         assert!(!method.narrowed && unserved_axes.is_empty());
 
         let split = migrate_route_record(
-            &record("r.split", "licensed", "static", "Frequentist,Bayesian"),
+            &record("r.split", "supported", "static", "Frequentist,Bayesian"),
             &current,
         )
         .unwrap();
@@ -934,7 +934,7 @@ mod tests {
 
         // The method record is the authority on the time frame; the old text over-named one.
         let both = migrate_route_record(
-            &record("r.both", "licensed", "static and temporal", "Frequentist"),
+            &record("r.both", "supported", "static and temporal", "Frequentist"),
             &current,
         )
         .unwrap();
@@ -959,11 +959,11 @@ mod tests {
     }
 
     #[test]
-    fn a_licensed_route_without_a_licensed_method_is_a_break_with_a_remedy() {
+    fn a_supported_route_without_a_supported_method_is_a_break_with_a_remedy() {
         use super::{ManifestRouteRecord, RouteRecordError, migrate_route_record};
         let record = |id| ManifestRouteRecord {
             id,
-            status: "licensed",
+            status: "supported",
             design_time_model: "static",
             inference: "bayesian",
         };
@@ -974,7 +974,7 @@ mod tests {
         let downgraded = migrate_route_record(&record("r.down"), &current).unwrap_err();
         assert_eq!(
             downgraded,
-            RouteRecordError::LicenseNotCarried {
+            RouteRecordError::SupportNotCarried {
                 id: "r.down".into(),
                 methods: vec!["m.down".into()]
             }
@@ -983,7 +983,7 @@ mod tests {
     }
 
     #[test]
-    fn graphless_and_geometric_licenses_preserve_only_their_own_kind() {
+    fn graphless_and_geometric_supports_preserve_only_their_own_kind() {
         use super::{
             ManifestRouteRecord, RouteRecordError, RouteRecordOutcome, migrate_route_record,
         };
@@ -994,18 +994,18 @@ mod tests {
             inference: "frequentist",
         };
         let graphless = [method("g", "r", "static", "frequentist", "graphless")];
-        let licensed = [method("l", "r", "static", "frequentist", "licensed")];
+        let supported = [method("l", "r", "static", "frequentist", "supported")];
         assert!(matches!(migrate_route_record(&record("graphless"), &graphless),
             Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
-        assert!(matches!(migrate_route_record(&record("licensed"), &licensed),
+        assert!(matches!(migrate_route_record(&record("supported"), &supported),
             Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
         assert!(matches!(
-            migrate_route_record(&record("graphless"), &licensed),
-            Err(RouteRecordError::LicenseNotCarried { .. })
+            migrate_route_record(&record("graphless"), &supported),
+            Err(RouteRecordError::SupportNotCarried { .. })
         ));
         assert!(matches!(
-            migrate_route_record(&record("licensed"), &graphless),
-            Err(RouteRecordError::LicenseNotCarried { .. })
+            migrate_route_record(&record("supported"), &graphless),
+            Err(RouteRecordError::SupportNotCarried { .. })
         ));
         assert!(matches!(
             migrate_route_record(&record("graphless"), &[]),
@@ -1017,7 +1017,7 @@ mod tests {
         ));
         let both = [
             method("g", "r", "static", "frequentist", "graphless"),
-            method("l", "r", "static", "frequentist", "licensed"),
+            method("l", "r", "static", "frequentist", "supported"),
         ];
         assert!(matches!(migrate_route_record(&record("graphless"), &both),
             Ok(RouteRecordOutcome::Split { methods, .. }) if !methods[0].narrowed && methods[1].narrowed));
@@ -1027,7 +1027,7 @@ mod tests {
     fn methods_without_a_previous_route_are_additions() {
         let current = [
             method("m.new", "unlisted", "static", "unlisted", "execution_only"),
-            method("m.kept", "r.one", "static", "bayesian", "licensed"),
+            method("m.kept", "r.one", "static", "bayesian", "supported"),
         ];
         let added = super::added_methods(&current, &["r.one"]);
         assert_eq!(added.len(), 1);
@@ -1038,10 +1038,10 @@ mod tests {
     #[test]
     fn reserved_route_never_links_and_invalid_previous_ids_are_refused() {
         use super::{ManifestRouteRecord, PreviousReleaseError, RouteRecordError};
-        let current = [method("m.new", "unlisted", "static", "frequentist", "licensed")];
+        let current = [method("m.new", "unlisted", "static", "frequentist", "supported")];
         let record = ManifestRouteRecord {
             id: "unlisted",
-            status: "licensed",
+            status: "supported",
             design_time_model: "static",
             inference: "frequentist",
         };
@@ -1051,9 +1051,9 @@ mod tests {
         ));
         assert_eq!(super::added_methods(&current, &["unlisted"]).len(), 1);
         for bytes in [
-            br#"{"routes":[{"id":"","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
-            br#"{"routes":[{"id":"unlisted","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
-            br#"{"routes":[{"id":"r","status":"licensed","design_time_model":"static","inference":"frequentist"},{"id":"r","status":"licensed","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+            br#"{"routes":[{"id":"","status":"supported","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+            br#"{"routes":[{"id":"unlisted","status":"supported","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
+            br#"{"routes":[{"id":"r","status":"supported","design_time_model":"static","inference":"frequentist"},{"id":"r","status":"supported","design_time_model":"static","inference":"frequentist"}]}"#.as_slice(),
         ] {
             assert!(matches!(super::consume_previous_route_records(bytes, &current),
                 Err(PreviousReleaseError::ArtifactNotDecoded)));
@@ -1066,9 +1066,9 @@ mod tests {
             BreakPath, IntentionalBreak, ManifestRouteRecord, RouteRecordError, break_path,
             migrate_route_record,
         };
-        let licensed = ManifestRouteRecord {
+        let supported = ManifestRouteRecord {
             id: "r",
-            status: "licensed",
+            status: "supported",
             design_time_model: "static",
             inference: "bayesian",
         };
@@ -1102,20 +1102,20 @@ mod tests {
                     assert!(next_attempt.contains("reload"));
                 }
                 (IntentionalBreak::RouteWithoutCurrentMethod, BreakPath::Refused { error, .. }) => {
-                    let refused = migrate_route_record(&licensed, &[]).unwrap_err();
+                    let refused = migrate_route_record(&supported, &[]).unwrap_err();
                     assert!(matches!(refused, RouteRecordError::RouteWithoutCurrentMethod { .. }));
                     assert!(error.ends_with("RouteWithoutCurrentMethod"));
                 }
-                (IntentionalBreak::LicenseNotCarried, BreakPath::Refused { error, .. }) => {
+                (IntentionalBreak::SupportNotCarried, BreakPath::Refused { error, .. }) => {
                     let current = [method("m", "r", "static", "bayesian", "execution_only")];
-                    let refused = migrate_route_record(&licensed, &current).unwrap_err();
-                    assert!(matches!(refused, RouteRecordError::LicenseNotCarried { .. }));
-                    assert!(error.ends_with("LicenseNotCarried"));
+                    let refused = migrate_route_record(&supported, &current).unwrap_err();
+                    assert!(matches!(refused, RouteRecordError::SupportNotCarried { .. }));
+                    assert!(error.ends_with("SupportNotCarried"));
                 }
                 (IntentionalBreak::RefusalReason, BreakPath::Unchanged { .. }) => {
                     assert_eq!(
-                        keep_refusal_reason("policy_route_not_licensed"),
-                        "policy_route_not_licensed"
+                        keep_refusal_reason("policy_route_not_supported"),
+                        "policy_route_not_supported"
                     );
                 }
                 (other, path) => panic!("{other:?} has the unexpected path {path:?}"),

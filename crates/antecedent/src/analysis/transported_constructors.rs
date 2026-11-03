@@ -297,7 +297,7 @@ pub fn adaptive_trial_response(
 /// Derives the bridged claim from `claim` under the bridge's contract (a
 /// selection node into the terminal outcome or a relation modifier, a diagram
 /// between other populations, a surrogate effect outside the validated range
-/// and an unlicensed trial-level fit are the bridge's refusals), then builds
+/// and an unsupported trial-level fit are the bridge's refusals), then builds
 /// the response from it: the source population is where the relation was
 /// validated, the target the claim's population, the identity the bridge
 /// diagram digest and the premise, its modifiers and the validation evidence

@@ -20,7 +20,7 @@ const SECTION: &str = "cyclic_equilibrium_v1";
 pub const MAX_CYCLIC_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 
 /// Optional model-fitting stage; all rows are independent equilibrium replicates
-/// conditional on known intervention targets. This is not a time-series license.
+/// conditional on known intervention targets. This is not a time-series support.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CyclicFitRequest {

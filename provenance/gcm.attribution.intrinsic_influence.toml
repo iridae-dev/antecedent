@@ -53,7 +53,7 @@ record_sha256 = "387e3a192c51181dcabd3cbbdfdb0fe887aa6f0158009c61d9b835cafac5515
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/intrinsic_influence.rs"
-sha256 = "077f07c2a1d6ab8d6bb217c1ec045289b6c0583af46424821b16445fbcc46eb6"
+sha256 = "b915c72acd0c7da7c6de59edf37b11939810d7b844f721e389569dbcddd75d9a"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -109,7 +109,7 @@ specificity, confusion columns, between-imputation variance). The record says
 whether parameter uncertainty was propagated, declared exact, or not
 representable (`ParameterUncertainty`). The standard error is an uncalibrated
 estimate: no interval is produced and an interval request is refused
-(`cell_not_licensed`) until the whole measurement-plus-estimation method has a
+(`not_supported`) until the whole measurement-plus-estimation method has a
 measured coverage record.
 
 ## Artifact
@@ -170,7 +170,7 @@ check. `PreparedMeasurementModel` offers `estimate`, `estimate_continuous`
 and a refusal leaves the prepared object untouched. `MeasurementEstimate`
 carries the point, the naive point, the uncalibrated standard error and the
 variance parts, exports with `export`, and `interval()` raises
-`cell_not_licensed`. `consume_measurement_model_artifact` recomputes the stored
+`not_supported`. `consume_measurement_model_artifact` recomputes the stored
 numbers against the retained model identity. A posterior provider is stated
 with `ProviderObject` (an attestation, or a verification receipt the library
 issued); a claim of native trust is refused by name. Refusals are

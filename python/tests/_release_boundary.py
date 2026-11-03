@@ -2,7 +2,7 @@
 
 A binary exposure with a declared confusion model is corrected by the measurement-model route and
 enters a finite causal model; two study summaries are pooled through the evidence ledger; the
-licensed mean of the attributable excess risk feeds an affine decision through a caller-declared
+supported mean of the attributable excess risk feeds an affine decision through a caller-declared
 mean source; a claim graph revalidates what a revision of the evidence touches.
 
 Shared by ``test_composition_release_fixture.py`` and the exit-gate story. The declared inputs and
@@ -234,7 +234,7 @@ def contract(d: dict[str, Any]) -> decision.Contract:
 
 
 def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> Outcome[decision.Decision]:
-    """Evaluate through a caller-declared mean source built from the licensed mean."""
+    """Evaluate through a caller-declared mean source built from the supported mean."""
     source = decision.MeanSource(
         coordinates=(excess_quantity(d["mean_units"]),),
         means=(mean,),

@@ -92,7 +92,7 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
 }
 
 #[test]
-fn basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatment() {
+fn basis_gcomp_refuses_unsupported_population_and_non_binary_or_degenerate_treatment() {
     let (treatment, outcome, z, _, _) = quadratic_fixture(80);
     let ctx = ExecutionContext::for_tests(1);
     let spec = BayesianBasisSpec { n_draws: 8, ..Default::default() };

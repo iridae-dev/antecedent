@@ -417,8 +417,8 @@ impl AssessmentUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: "not reported",
-            reason_code: reason_code!("cell_not_licensed"),
-            detail: detail::INTERVAL_NOT_LICENSED,
+            reason_code: reason_code!("not_supported"),
+            detail: detail::INTERVAL_NOT_SUPPORTED,
         }
     }
 }
@@ -458,7 +458,7 @@ impl PredictiveAssessmentReport {
     /// [`super::expected_score_interval`].
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `predictive_assessment.interval_not_licensed`.
+    /// Always `not_supported` with `predictive_assessment.interval_not_supported`.
     pub fn request_score_interval(&self) -> Result<Infallible, PredictiveAssessmentError> {
         Err(interval_refusal())
     }
@@ -494,8 +494,8 @@ impl PredictiveAssessmentReport {
 
 pub(crate) fn interval_refusal() -> PredictiveAssessmentError {
     refuse(
-        reason_code!("cell_not_licensed"),
-        detail::INTERVAL_NOT_LICENSED,
+        reason_code!("not_supported"),
+        detail::INTERVAL_NOT_SUPPORTED,
         "the report states point scores, paired differences and the Diebold-Mariano style \
          statistic as diagnostics and carries no interval. An interval is a statement about \
          the expected score of one predictor (or the expected difference of two) under the \

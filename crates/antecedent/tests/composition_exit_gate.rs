@@ -56,7 +56,7 @@ use antecedent_io::IoError;
 use antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
 use antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits;
 use antecedent_io::mz_transport_artifact::{
-    MZ_INTERVAL_NOT_LICENSED, MZ_WITHHELD, MzTransportConsumeLimits,
+    MZ_INTERVAL_NOT_SUPPORTED, MZ_WITHHELD, MzTransportConsumeLimits,
 };
 use antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits;
 use antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits;
@@ -434,7 +434,10 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
         let counted_result = counted_prepared.estimate(&ctx).unwrap();
         assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-9);
         let u = counted_result.uncertainty();
-        assert_eq!((u.status.as_str(), u.reason.as_str()), (MZ_WITHHELD, MZ_INTERVAL_NOT_LICENSED));
+        assert_eq!(
+            (u.status.as_str(), u.reason.as_str()),
+            (MZ_WITHHELD, MZ_INTERVAL_NOT_SUPPORTED)
+        );
         assert!(!u.available() && u.mean_intervals.is_empty() && u.seed.is_none());
         let counted_bytes = counted_result.export(&counted_prepared, &ctx).unwrap();
         let counted_producer = bits(&counted_result.distribution().probabilities);
@@ -695,7 +698,7 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
                 .aggregate_interval()
                 .unwrap_err()
                 .to_string()
-                .contains("scenario_aggregate_not_licensed")
+                .contains("scenario_aggregate_not_supported")
         );
 
         // Refresh moves points and keeps every decision.
@@ -1452,7 +1455,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         )
         .unwrap_err()
         .to_string();
-        assert!(text.contains("reason=cell_not_licensed"), "{text}");
+        assert!(text.contains("reason=not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
         // The witness the check returns is what the artifact carries.
         let witness = check(&mediation(), &indirect).unwrap();
@@ -1753,7 +1756,7 @@ mod release_boundary;
 /// The release-boundary scenario end to end (`conformance/composition/release_boundary`):
 /// a misclassified exposure corrected by its declared confusion model enters a
 /// finite causal model together with a pooled study effect; an affine decision reads
-/// the licensed mean; new observations make the claim graph classify the claim for
+/// the supported mean; new observations make the claim graph classify the claim for
 /// recomputation and the decision flips; a fresh consumer holding only bytes
 /// recomputes both decisions against hand-written closed forms.
 #[test]

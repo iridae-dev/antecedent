@@ -91,7 +91,7 @@ impl super::Study {
         )?;
         if query.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "Frequentist TemporalCpdag/Pag graph-posterior mediation is licensed \
+                message: "Frequentist TemporalCpdag/Pag graph-posterior mediation is supported \
                           for one horizon; multi-horizon grids need their own joint uncertainty \
                           contract",
             });
@@ -567,7 +567,7 @@ fn single_mediation_horizon(query: &antecedent_core::MediationQuery) -> Result<u
     match query.horizons.as_ref() {
         [horizon] => Ok(*horizon),
         _ => Err(CausalError::Unsupported {
-            message: "TemporalCpdag/Pag graph-posterior mediation is licensed for one horizon",
+            message: "TemporalCpdag/Pag graph-posterior mediation is supported for one horizon",
         }),
     }
 }

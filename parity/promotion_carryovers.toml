@@ -1,9 +1,0 @@
-version = 1
-
-# Failed obligations, not waivers. Promotion must remove the corresponding
-# disposition only after its public routes pass their own evidence gates.
-[[cell]]
-id = "counterfactual.transported_path_specific"
-failed_gates = ["joint_cross_world_transport_theorem_not_derived_for_temporal_continuous_nonfinite_scope"]
-detail = "Status: the finite discrete, static, acyclic semi-Markovian scope this record once awaited is delivered and promoted as counterfactual.transport_general (nested counterfactual and edge-route queries over a selection diagram, exact provider, derivation and independent replay; Rust and Python public producers with a fresh-process consumer; point-only, no interval or coverage claim), with the sampled point route counterfactual.transport_sampled promoted point-only and its interval route counterfactual.transport_sampled_interval closed. antecedent.cross_world.transported_path_specific is no longer a dead end: it still refuses, with its registered reason code and detail, but the refusal remedy names antecedent.transport.advanced.identify_counterfactual and that scope, and it never delegates or answers a request itself. What remains failed is this record's own unproven scope: the joint cross-world transport theorem for temporal, continuous and non-finite transported path-specific counterfactuals is not derived, so no composed artifact, proof search or budget evidence exists and that route stays closed with route_frozen. The separately promoted affine-additive row does not license the general composition."
-corrective_action = "Derive and implement the joint cross-world transport theorem for the temporal, continuous or non-finite scope with an enumerated two-population oracle, a composed proof-replay artifact and a search budget, then promote this record; until then it stays closed with route_frozen and its refusal evidence, and finite discrete static questions are answered by counterfactual.transport_general."

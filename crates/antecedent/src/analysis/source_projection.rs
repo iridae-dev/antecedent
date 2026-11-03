@@ -63,7 +63,7 @@ impl NodeVerifier for ResolvedProjectionVerifier {
 }
 
 /// Original bundle consumer plus source projections resolved only by opaque actual-execution receipts.
-/// A receipt supplies no live fit, provider authority or calibration license.
+/// A receipt supplies no live fit, provider authority or calibration support.
 #[must_use]
 pub fn source_resolved_consumer(receipts: Vec<SourceResolution>) -> BundleConsumer {
     let receipts: Arc<[SourceResolution]> = receipts.into();

@@ -43,7 +43,7 @@
 //! the seeds. The result stays point only: the table is marked
 //! (`provenance_marks_learned`) so no interval or covariance is published
 //! ([`refuse_joint_learner_inference`]), because a flexible nuisance needs its own remainder and
-//! coverage license that no record grants.
+//! coverage support that no record grants.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -91,7 +91,7 @@ const LEARNED_PROVENANCE: &str = "joint_cell.factorized.crossfit.learner_prefix.
 const LEARNED_PROVENANCE_TAG: &str = ";nuisance=ml_joint_cell";
 
 /// Whether a score table's provenance marks learner-supplied joint-cell nuisances, whose
-/// remainder is not licensed: the table is a point-and-score artifact.
+/// remainder is not supported: the table is a point-and-score artifact.
 #[must_use]
 pub(crate) fn provenance_marks_learned(provenance: &str) -> bool {
     provenance.contains(LEARNED_PROVENANCE_TAG)
@@ -192,8 +192,8 @@ impl FactorizedJointConfig {
 /// `ridge_logistic` is the default route (`None`). `random_forest` and `gradient_boosted_trees`
 /// declare that learner with its default hyperparameters for every conditional and outcome
 /// model (a point-only route; see [`FactorizedJointConfig::learner`]). `lasso` is closed
-/// (`selection_inference_not_licensed`). The remaining machine-learning names are not declared
-/// joint-cell learners (`ml_nuisance_not_licensed`). Any other name is an invalid argument.
+/// (`selection_inference_not_supported`). The remaining machine-learning names are not declared
+/// joint-cell learners (`ml_nuisance_not_supported`). Any other name is an invalid argument.
 ///
 /// # Errors
 ///
@@ -204,14 +204,14 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         "random_forest" => Ok(Some(LearnerSpec::RandomForest(ForestSpec::default()))),
         "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
         "lasso" => Err(refuse(
-            antecedent_core::reason_code!("selection_inference_not_licensed"),
+            antecedent_core::reason_code!("selection_inference_not_supported"),
             "penalized_propensity.selection_closed",
             "a lasso conditional propensity is not a declared joint-cell nuisance: the \
              prefix-stratum selections are not cross-fitted per cell, so the option is closed; \
              declare ridge_logistic, random_forest or gradient_boosted_trees",
         )),
         "ml" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => Err(refuse(
-            antecedent_core::reason_code!("ml_nuisance_not_licensed"),
+            antecedent_core::reason_code!("ml_nuisance_not_supported"),
             "joint_cells.ml_learner_not_declared",
             &format!(
                 "{provider} is not a declared joint-cell learner; declare random_forest or \
@@ -236,26 +236,26 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
 #[must_use]
 pub fn refuse_joint_inference() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("penalized_interval_not_licensed"),
+        antecedent_core::reason_code!("penalized_interval_not_supported"),
         "joint_cells.interval_withheld",
         "factorized joint cells publish point estimates and an aligned score table only; no \
-         interval or joint covariance is licensed for penalized conditional propensities",
+         interval or joint covariance is supported for penalized conditional propensities",
     )
 }
 
 /// The refusal for an interval or joint covariance over learner-supplied joint cells.
 ///
-/// A flexible nuisance needs its own remainder-rate and coverage license for an interval, and no
+/// A flexible nuisance needs its own remainder-rate and coverage support for an interval, and no
 /// record grants one on joint cells; only the point estimates and the aligned score table are
 /// published.
 #[must_use]
 pub fn refuse_joint_learner_inference() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("ml_nuisance_not_licensed"),
+        antecedent_core::reason_code!("ml_nuisance_not_supported"),
         "joint_cells.ml_interval_withheld",
         "learner-supplied joint cells publish point estimates and an aligned score table only; \
          an interval or joint covariance over machine-learning nuisances needs a nuisance \
-         remainder and coverage license that no record grants",
+         remainder and coverage support that no record grants",
     )
 }
 

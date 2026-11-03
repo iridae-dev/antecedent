@@ -3,7 +3,7 @@
 The theoretical contract is Bareinboim and Pearl (2013),
 [*Meta-Transportability of Causal Effects: A Formal Approach*](https://proceedings.mlr.press/v31/bareinboim13a.pdf),
 Figure 5 (μsID) and its μs-hedge obstruction theorem. Only the paper's unrestricted
-source-experiment setting licenses completeness. The
+source-experiment setting supports completeness. The
 [limited-experiment setting](https://ftp.cs.ucla.edu/pub/stat_ser/r419.pdf) is
 distinct. Arbitrary finite catalogs and general limited-experiment completeness
 remain outside this claim.

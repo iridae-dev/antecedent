@@ -122,9 +122,9 @@ def test_temporal_class_identify_exposes_completion_keys() -> None:
     assert _PIN["cpdag"]["identification"]["status"] == "PartiallyIdentified"
 
 
-def test_temporal_class_observation_fixture_names_licensed_pairs() -> None:
+def test_temporal_class_observation_fixture_names_supported_pairs() -> None:
     assert _OBS["case"] == "temporal_class_observation"
-    assert _OBS["licensed_pairs"] == [
+    assert _OBS["supported_pairs"] == [
         "Selected x OutcomeIndependentGiven",
         "RightCensored x IndependentGiven([])",
         "LeftCensored x IndependentGiven([])",

@@ -201,7 +201,7 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
     assert section.bootstrap_replicates_requested == 399
     assert section.bootstrap_replicates_ok == 399
-    assert section.support_status == "unlicensed_pointwise_interval"
+    assert section.support_status == "unsupported_pointwise_interval"
     assert (
         section.rmst_difference_interval[0]
         <= section.rmst_difference
@@ -242,7 +242,7 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         )
 
 
-def test_graphless_survival_scalar_license_at_support_boundary() -> None:
+def test_graphless_survival_scalar_support_at_support_boundary() -> None:
     data = {
         "duration": [1.0 if i % 3 == 0 else 3.0 for i in range(120)]
         + [1.0 if i % 7 == 0 else 3.0 for i in range(120)],
@@ -265,15 +265,15 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
             execution=antecedent.Execution(seed=7729),
         )
     )
-    assert result.evidence_status == "licensed"
-    assert result.survival.support_status == "licensed"
+    assert result.evidence_status == "supported"
+    assert result.survival.support_status == "supported"
     assert result.survival.rmst_difference_interval is not None
     assert result.survival.survival_at_tau_difference_interval is not None
     assert result.survival.difference_band is None
     loaded = require_success(antecedent.load(bytes(result.export())))
     assert (
         loaded.decoded_artifact.to_dict()["payload"]["survival"]["graphless_support_status"]
-        == "licensed"
+        == "supported"
     )
     assert loaded.decoded_artifact.to_dict()["payload"]["survival"]["assignment_counts"] == [
         120,
@@ -288,7 +288,7 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
             execution=antecedent.Execution(seed=7729),
         )
     )
-    assert off_axis.survival.support_status == "unlicensed_pointwise_interval"
+    assert off_axis.survival.support_status == "unsupported_pointwise_interval"
 
 
 def test_retained_competing_risk_known_g_pointwise_interval() -> None:

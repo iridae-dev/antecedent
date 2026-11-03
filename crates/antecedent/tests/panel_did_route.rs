@@ -81,12 +81,12 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     assert_eq!(refreshed.support_status(), None);
     let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    body.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".into());
     assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-thin-did-license",
+            "forged-thin-did-support",
         ),
         FABRICATION,
     );
@@ -136,7 +136,7 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
         antecedent_core::IntervalMethod::AnalyticSe
     );
     assert_eq!(result.interval().as_ref().unwrap().dependence, "cluster");
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let (contract, claim) = prepared.execution_contract(&result, &context).unwrap();
     let bases = result.calibration_bases(&contract).unwrap();
     assert!(!bases.is_empty());
@@ -159,7 +159,7 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
@@ -214,16 +214,16 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
         &result,
         &context,
     );
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     let interval = did.interval_95.expect("30 independent clusters in every cell");
     let bytes =
-        prepared.encode_contracted_result(&result, "repeated-did-license", &context).unwrap();
+        prepared.encode_contracted_result(&result, "repeated-did-support", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     body.panel_did.as_mut().unwrap().interval_95 = Some([interval[0] - 1.0, interval[1]]);
     assert_refused(
@@ -642,9 +642,9 @@ fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelD
 }
 
 #[test]
-fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_license() {
+fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_support() {
     // Supported cohort: 24 independent clusters per group publish the
-    // post-adoption interval and license the row.
+    // post-adoption interval and support the row.
     let (data, query) = staggered_interval_fixture(24);
     let context = ExecutionContext::for_tests(112);
     let prepared =
@@ -662,16 +662,16 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         "event_time_pointwise_normal_intervals_independent_clusters"
     );
     let bounds = did.interval_95.expect("published representative post-adoption interval");
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes =
         prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
-    // Fabricating the licensed representative interval is rejected.
+    // Fabricating the supported representative interval is rejected.
     let mut fabricated = body.clone();
     let index = fabricated
         .panel_did
@@ -692,8 +692,8 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         FABRICATION,
     );
 
-    // Thin cohort: 8 clusters per group withholds the interval and the license;
-    // stamping "licensed" onto that unsupported result is refused.
+    // Thin cohort: 8 clusters per group withholds the interval and the support;
+    // stamping "supported" onto that unsupported result is refused.
     let (thin_data, thin_query) = staggered_interval_fixture(8);
     let thin_prepared = Study::tabular(thin_data.clone())
         .query(thin_query)
@@ -710,12 +710,12 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
     let (_, thin_header, mut thin_body) =
         antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
     assert_eq!(thin_body.panel_did.as_ref().unwrap().graphless_support_status, None);
-    thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".into());
     assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &thin_body,
             thin_header.variable_names,
-            "forged-thin-staggered-license",
+            "forged-thin-staggered-support",
         ),
         FABRICATION,
     );
@@ -781,13 +781,13 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
 }
 
 #[test]
-fn licensed_staggered_event_study_publishes_its_own_matrix_coordinate() {
+fn supported_staggered_event_study_publishes_its_own_matrix_coordinate() {
     let (data, query) = staggered_interval_fixture(24);
     let context = ExecutionContext::for_tests(112);
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let contract = prepared.contract_for_result(&result).unwrap();
     match &contract.reasoning.support {
         antecedent_contract::SlotAvailability::Available(slot) => assert_eq!(

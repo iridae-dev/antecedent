@@ -145,7 +145,7 @@ struct Fixture {
     graph: ClassGraph,
     pin: serde_json::Value,
     /// Seeded posterior mean of the envelope mixture; see the numeric-pin tests for
-    /// the closed-form checks that license these values.
+    /// the closed-form checks that support these values.
     expected_ate: f64,
 }
 

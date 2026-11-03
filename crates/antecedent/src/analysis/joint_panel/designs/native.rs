@@ -366,10 +366,10 @@ impl PreparedNativeJointDesign {
     }
 }
 impl NativeJointDesignResult {
-    /// No native design composition inherits a release support license from its inputs.
+    /// No native design composition inherits a release support from its inputs.
     #[must_use]
     pub const fn support(&self) -> &'static str {
-        "unlicensed"
+        "unsupported"
     }
     /// Calibration of this composed native law is not established by execution alone.
     #[must_use]

@@ -121,7 +121,7 @@ impl CheckedContinuousDoseOperation {
             .map_err(|message| CausalError::Compile { message })?
         };
         let fixed_policy = self.fixed_policy_value(&outcome, &dose, &density, &groups)?;
-        let licensed_fixed_policy = self.licenses_fixed_policy(fixed_policy.as_ref(), &groups);
+        let supported_fixed_policy = self.supports_fixed_policy(fixed_policy.as_ref(), &groups);
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -157,8 +157,8 @@ impl CheckedContinuousDoseOperation {
                 fixed_policy,
             },
         );
-        if licensed_fixed_policy {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if supported_fixed_policy {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         Ok(result)
@@ -208,8 +208,8 @@ impl CheckedContinuousDoseOperation {
             .transpose()
     }
 
-    /// Grants the graphless license when all three fixed-policy intervals publish on supported rows.
-    fn licenses_fixed_policy(
+    /// Grants the graphless support when all three fixed-policy intervals publish on supported rows.
+    fn supports_fixed_policy(
         &self,
         fixed_policy: Option<&antecedent_estimate::continuous_dose::DosePolicyValue>,
         groups: &[String],
@@ -224,7 +224,7 @@ impl CheckedContinuousDoseOperation {
                 value.reference_interval_95,
                 value.incremental_interval_95,
             ];
-            crate::support::license_if_graphless(
+            crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "continuous_dose_policy",
                     design: "fixed_group_kernel",

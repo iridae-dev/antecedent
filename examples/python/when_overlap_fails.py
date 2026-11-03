@@ -5,7 +5,7 @@ Question: for the men who entered the National Supported Work (NSW) job-training
 how much did it change their real earnings in 1978 compared with what they would have earned
 without it? This is the effect on the treated. The comparison group is drawn from the Panel
 Study of Income Dynamics (PSID); see ``examples/data/nsw_psid.toml`` for origin, citation,
-licence, checksums and preprocessing.
+support, checksums and preprocessing.
 
 Most PSID respondents earned far more than anyone who entered the programme, so a propensity
 model gives many of them essentially no chance of treatment. The script follows what Antecedent

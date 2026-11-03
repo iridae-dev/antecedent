@@ -1,21 +1,18 @@
 //! Public support-matrix lookup.
 //!
-//! Axes, n/a predicates, licensed cells, refusal-reason rules, and the legacy
-//! allowlist source are generated from `parity/support_*.toml`. Runtime states
-//! are three: licensed
-//! (`parity/support_licensed.toml`), n/a (`parity/support_n_a.toml`, typed
-//! impossibility, [`SupportRefusal::NotApplicable`]), or not licensed
-//! ([`SupportRefusal::Refused`]). `parity/support_closed.toml` is the reason
+//! Axes, n/a predicates, supported cells, and refusal-reason rules are generated
+//! from `parity/support_*.toml`. Runtime states are three: supported
+//! (`parity/support_cells.toml`), n/a (`parity/support_n_a.toml`, typed
+//! impossibility, [`SupportRefusal::NotApplicable`]), or not supported
+//! ([`SupportRefusal::NotSupported`]). `parity/support_refusal_reasons.toml` is the reason
 //! table for refused cells, not a fourth state; its filename is retained for
-//! compatibility. `allowed_unlicensed` is also retained as a wire value for
-//! older artifacts and clients, but `parity/support_allowlist.toml` must have
-//! zero active entries (a parity gate checks it). Any refused cell without a
-//! reason uses the shared default-refusal message.
+//! compatibility. Any refused cell without a reason uses the shared
+//! default-refusal message.
 //!
 //! Geometric [`classify`] keys on the five-tuple cell. [`classify_estimator`]
 //! additionally requires the concrete [`EstimatorId`](crate::EstimatorId) to appear on that cell's
-//! evidence list (`LicensedCell::estimators`), so matching / IV / RD / forest /
-//! two-stage front-door cannot inherit a license whose calibration never ran
+//! evidence list (`SupportedCell::estimators`), so matching / IV / RD / forest /
+//! two-stage front-door cannot inherit support whose calibration never ran
 //! them.
 //!
 //! # Module boundary
@@ -66,22 +63,22 @@ pub use cell::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
     SupportQuery, SupportRefusal, SupportStructure, SupportValidation,
 };
+pub(crate) use matrix::retarget_permitted;
 pub use matrix::{
-    cell_coordinate, classify, classify_estimator, licensed_estimators, licensed_neighbors,
-    licensed_route_estimator, licensed_support_cells, refuse_if_not_applicable, refused_message,
-    support_cell_from_coordinate,
+    cell_coordinate, classify, classify_estimator, refuse_if_not_applicable, refused_message,
+    support_cell_from_coordinate, supported_cells, supported_estimators, supported_neighbors,
+    supported_route_estimator,
 };
-pub(crate) use matrix::{executes_unlicensed, retarget_permitted};
 
-/// The execute-side graphless license handshake: return
-/// [`CellStatus::Licensed`] when `key`/`observed` classify as licensed, and
+/// The execute-side graphless support handshake: return
+/// [`CellStatus::Supported`] when `key`/`observed` classify as supported, and
 /// `None` otherwise. Every checked-execution operation shares this so the
 /// per-site scaffold is only the key derivation and support-field population.
 #[must_use]
-pub(crate) fn license_if_graphless(
+pub(crate) fn support_if_graphless(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> Option<CellStatus> {
-    matches!(classify_graphless(key, observed), GraphlessSupportStatus::Licensed { .. })
-        .then_some(CellStatus::Licensed)
+    matches!(classify_graphless(key, observed), GraphlessSupportStatus::Supported { .. })
+        .then_some(CellStatus::Supported)
 }

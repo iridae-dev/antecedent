@@ -36,7 +36,7 @@ record_sha256 = "7416887a6d7e0b7223435698d151f52f5675e6b570f3a1f5573f353eec973db
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference_observational.rs"
-sha256 = "976de99d9a4f6b0f9d28bc0e5bd78e53168602553d4301834733b78c9e2f676a"
+sha256 = "65117a46a35a4b745ef1630c75f9740844fdbbdac3ccc0094b423dd9259ba6d9"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -46,4 +46,4 @@ sha256 = "1324318f6a07f54c40ae5123858d7dc8e177b963ec362671a5bd0d79f13d088f"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "0be6112eb9b4ffdfced25a6e52ea0604317ae9a6c4ae54d826174794b6c080ba"
+sha256 = "68cc6f0b32eb664fc36fee835230efb08e48739b82b7a5e30ced25044eb2d537"

@@ -263,7 +263,7 @@ class PropensityPenalty:
     intervals rest on a stated remainder condition (``docs/guides/penalized-aipw.md``);
     their coverage is what the calibration suite measures. Outcome models stay arm-wise OLS.
     A lasso outside the cross-fitted untrimmed ``AllObserved`` mean ATE is refused with
-    ``selection_inference_not_licensed``.
+    ``selection_inference_not_supported``.
     """
 
     kind: PropensityPenaltyKind = "ridge_logistic"
@@ -324,17 +324,17 @@ class ClusterDml:
     cluster-sandwich standard error** of those scores (``se_analytic``; ``se_kind`` is
     ``cluster`` for one-way and ``multiway`` for dyadic units). ``Aipw(bootstrap=0,
     cluster_dml=...)`` is required: a row bootstrap would split clusters and a different
-    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_licensed``. The iid
-    joint covariance and influence values stay withheld. It is licensed for the untrimmed
+    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_supported``. The iid
+    joint covariance and influence values stay withheld. It is supported for the untrimmed
     ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
 
     ``unit="dyad"`` declares two-way (dyadic) dependence: ``cluster_ids`` are the first
     endpoint of every row and ``second_cluster_ids`` the second, in separate label sets
     (an entity that is a first endpoint of some rows and a second endpoint of others refuses
-    ``dyadic_dependence_not_licensed``). Folds own whole connected components of the endpoint
+    ``dyadic_dependence_not_supported``). Folds own whole connected components of the endpoint
     graph, so no endpoint crosses folds; ``min_components_per_fold`` (default 4, at least 2)
     is the fewest components each of the five folds must own. One giant component (more than
-    a fold's share of the rows) also refuses ``dyadic_dependence_not_licensed``. The
+    a fold's share of the rows) also refuses ``dyadic_dependence_not_supported``. The
     two-way variance is a Rust receipt only; no interval is published.
     """
 
@@ -936,7 +936,7 @@ class Aipw:
     (its kind and tuning) re-run the whole cross-fitted route with that penalized propensity
     and record the failed fit (``penalized_fallback``) beside the result; the claim is the
     destination's and nothing is silently substituted. ``"ml"`` (a flexible learner) is
-    closed (``nuisance_fallback_not_licensed``): a failed fit is refused with the failure
+    closed (``nuisance_fallback_not_supported``): a failed fit is refused with the failure
     recorded. A fallback is not combined with ``propensity_penalty``.
     ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
     ``bootstrap=0`` and publishes the point estimate and score table with no interval.
@@ -984,7 +984,7 @@ class Aipw:
             if self.bootstrap != 0 or self.se not in (None, "homoskedastic"):
                 raise CausalValueError(
                     "Aipw(cluster_dml=...) reports its own cluster-sandwich SE: pass bootstrap=0 "
-                    "and leave se unset (reason=cluster_interval_not_licensed)"
+                    "and leave se unset (reason=cluster_interval_not_supported)"
                 )
             if self.cluster_ids is not None:
                 raise CausalValueError(

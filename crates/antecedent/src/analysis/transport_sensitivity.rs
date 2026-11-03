@@ -11,7 +11,7 @@
 //!
 //! What the range is: an assumption range at the declared grid points only. The
 //! bound is the caller's declaration of how far the premise may fail; nothing in
-//! the data licenses it. It is never a confidence interval, a credible interval
+//! the data supports it. It is never a confidence interval, a credible interval
 //! or a posterior, no probability attaches to a shift, and a sampling interval is
 //! withheld with its registered reason.
 //!

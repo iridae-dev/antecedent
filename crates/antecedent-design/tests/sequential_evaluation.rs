@@ -761,8 +761,8 @@ fn transport_and_intervals_are_typed_refusals() {
     assert_eq!(err.detail, "sequential_evaluation.temporal_transport_contract_missing");
 
     let err = request_interval().unwrap_err();
-    assert_eq!(err.code, "cell_not_licensed");
-    assert_eq!(err.detail, "sequential_evaluation.interval_not_licensed");
+    assert_eq!(err.code, "not_supported");
+    assert_eq!(err.detail, "sequential_evaluation.interval_not_supported");
 }
 
 #[test]

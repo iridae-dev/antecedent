@@ -4,7 +4,7 @@
 //! panel program of one step with no lag compiles to exactly those worlds, so the contrast is the
 //! same scientific question; the same program with a lag order is a temporal frame whose horizon
 //! is one, a different target by construction. The numerical engines differ (cell scores against
-//! a fitted dynamic mechanism) and so do their licences, which is pinned.
+//! a fitted dynamic mechanism) and so do their supports, which is pinned.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -235,7 +235,7 @@ fn sorted_coefficients(target: &antecedent_core::ScientificTarget) -> Vec<f64> {
     coefficients
 }
 
-/// outcome: equivalent target (worlds, coefficients); `not_equivalent` licence, estimator and
+/// outcome: equivalent target (worlds, coefficients); `not_equivalent` support, estimator and
 /// the temporal one-step frame.
 ///
 /// The static interaction contrast is `m11 - m10 - m01 + m00` over the four static decision
@@ -246,7 +246,7 @@ fn sorted_coefficients(target: &antecedent_core::ScientificTarget) -> Vec<f64> {
 /// never an identified claim. A panel with a lag order and the same one-step programs is a
 /// temporal frame of horizon one, which is a different scientific target.
 #[test]
-fn horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_licence() {
+fn horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_support() {
     // The static family contrast over cell scores.
     let (data, graph) = static_pair_data(800);
     let context = ExecutionContext::for_tests(271);
@@ -297,7 +297,7 @@ fn horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_i
     }
     assert_ne!(static_frame.identity(), temporal_frame.identity());
 
-    // The licence of the numerical route: the fitted dynamic mechanism identifies nothing.
+    // The support of the numerical route: the fitted dynamic mechanism identifies nothing.
     let prepared =
         Study::prepare_joint_panel(panel.clone(), panel_request(&panel, 0, 1), &context).unwrap();
     assert_eq!(prepared.inspect().fits_performed, 0);

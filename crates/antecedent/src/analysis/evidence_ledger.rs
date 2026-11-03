@@ -14,7 +14,7 @@
 //!   registered with the ledger *before* any number is computed. The ledger
 //!   refuses shared or unknown overlap declared independent, duplicate and
 //!   re-entered evidence, and a retired source, with a typed reason and the
-//!   declaration that would license the request.
+//!   declaration that would support the request.
 //! * **Then the numbers.** `antecedent_stats::synthesis` computes the pooled
 //!   value from the study summaries: inverse-variance or generalized least
 //!   squares pooling, DerSimonian-Laird or restricted-maximum-likelihood
@@ -99,14 +99,14 @@ use super::StudyBuilder;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `evidence_ledger.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EvidenceLedgerRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `evidence_ledger.<rule>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
     /// Sources the refusal names.
     pub sources: Vec<SourceId>,
@@ -217,7 +217,7 @@ pub enum PoolingDeclaration {
     /// Pairwise independent: every pair known and disjoint in the ledger.
     Independent,
     /// A full covariance of the summaries, row-major in the order of the
-    /// summaries, preserved by generalized least squares. Licensed when it
+    /// summaries, preserved by generalized least squares. Supported when it
     /// has cross terms (shared or unknown overlap) or the sources are known
     /// and disjoint.
     DeclaredCovariance {
@@ -254,7 +254,7 @@ pub enum SynthesisValue {
 }
 
 impl SynthesisValue {
-    /// What the value licenses: `point_only` or `assumption_range`.
+    /// What the value supports: `point_only` or `assumption_range`.
     #[must_use]
     pub const fn claim_label(&self) -> &'static str {
         match self {
@@ -273,7 +273,7 @@ pub struct SynthesisOutcome {
     pub value: SynthesisValue,
     /// Observation mass of the result, each observation counted once.
     pub mass: MassAccount,
-    /// What the result licenses.
+    /// What the result supports.
     pub claim_class: ClaimClass,
 }
 
@@ -447,7 +447,7 @@ const POOLED_INTERVAL_LEVEL: f64 = 0.95;
 
 /// Study counts of the measured pooled-interval family, inclusive. Coverage
 /// records are keyed by this range, not by an individual count: a count inside
-/// it is licensed only because every count the measurement visited passed.
+/// it is supported only because every count the measurement visited passed.
 const MEASURED_STUDY_COUNTS: std::ops::RangeInclusive<usize> = 5..=30;
 
 /// A pooled interval with the measured coverage record that governs it.
@@ -508,7 +508,7 @@ pub struct PooledIntervalCandidate {
     /// Construction and scope a coverage record is matched against.
     pub basis: antecedent_core::CalibrationBasis,
     /// The same construction under the key of records measured at one exact study
-    /// count with the total observations as scope. Such a record licenses exactly
+    /// count with the total observations as scope. Such a record supports exactly
     /// its count and sample range; new measurements use [`Self::basis`].
     pub exact_count_basis: antecedent_core::CalibrationBasis,
     /// Checked facts and declared assumptions of the construction.
@@ -742,7 +742,7 @@ impl EvidenceLedgerSession {
     /// Pool the summaries of two or more studies.
     ///
     /// The ledger decides first: independent pooling needs every pair known
-    /// and disjoint; a declared covariance is licensed when it has cross terms
+    /// and disjoint; a declared covariance is supported when it has cross terms
     /// or the sources are known and disjoint. Then the pooled value is
     /// `1' S^-1 y / 1' S^-1 1` with variance `1 / 1' S^-1 1` (inverse variance
     /// for independent studies, generalized least squares for a declared
@@ -1123,7 +1123,7 @@ impl EvidenceLedgerSession {
     /// the actual study count, with `k - 1` degrees of freedom.
     ///
     /// # Errors
-    /// `cell_not_licensed` for a result with no numbers (accounting only), a
+    /// `not_supported` for a result with no numbers (accounting only), a
     /// hierarchical borrowing or dependence range (no measured construction),
     /// or a construction, study count or sample size without a currently
     /// attesting coverage record. An unknown result is `invalid_argument`.
@@ -1134,7 +1134,7 @@ impl EvidenceLedgerSession {
         let candidate = self.pooled_interval_candidate(result)?;
         // Legacy HKSJ records share a broad `studies=5-30` key. Only the
         // baseline designs at these three counts passed; strong-heterogeneity
-        // records at 5 and 15 cannot license other generating families there.
+        // records at 5 and 15 cannot support other generating families there.
         // Keep the historical numerical candidate and its replay key intact.
         let unmeasured_hksj_count = matches!(
             self.values.get(&result),
@@ -1143,7 +1143,7 @@ impl EvidenceLedgerSession {
         );
         if unmeasured_hksj_count {
             return Err(EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "evidence_ledger.hksj_study_count_not_measured",
                 "legacy HKSJ intervals are measured at 20, 25 and 30 studies; use pool_gaussian_studies for the measured Gaussian construction at 5, 10 or 15 studies",
             ));
@@ -1174,7 +1174,7 @@ impl EvidenceLedgerSession {
             .unwrap_or_else(|| unreachable!("two bases were supplied"))
         .map_err(|error| {
             EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "evidence_ledger.interval_not_measured",
                 format!(
                     "no currently attesting coverage record governs this construction ({error:?})"
@@ -1220,7 +1220,7 @@ impl EvidenceLedgerSession {
         })?;
         let unmeasured = |what: &str| {
             EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                antecedent_core::reason_code!("not_supported"),
                 "evidence_ledger.interval_not_measured",
                 format!("no measured interval construction exists for {what}"),
             )

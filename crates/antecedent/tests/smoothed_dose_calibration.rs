@@ -2,7 +2,7 @@
 //! closed-form smoothed target.
 //!
 //! The estimator measured is the whole composed one the public route withholds
-//! (`cell_not_licensed`) until these records exist: cross-fitted outcome and membership
+//! (`not_supported`) until these records exist: cross-fitted outcome and membership
 //! nuisances, the quadrature, every support and quadrature refusal, the augmented score
 //! and the pointwise joint outer refit percentile bootstrap, grouped per design
 //! (`antecedent_estimate::smoothed_dose_interval_internal`).

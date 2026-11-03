@@ -46,7 +46,7 @@ pub struct ConditionedTreatmentWire {
 pub struct EquivalenceWire {
     /// Graph the equivalence was checked on.
     pub graph_id: String,
-    /// Interventional regime it licenses, for a coordinate differing only in regime.
+    /// Interventional regime it supports, for a coordinate differing only in regime.
     pub interventional_regime_id: Option<String>,
     /// Or: a conditional law on the treatment standing for its intervention.
     /// Exactly one of the two scopes must be given.

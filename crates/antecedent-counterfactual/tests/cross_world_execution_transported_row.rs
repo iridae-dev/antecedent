@@ -1,6 +1,6 @@
 //! The closed transported row of the cross-world capability matrix.
 //!
-//! No joint theorem composes a transport licence with factual abduction in a target
+//! No joint theorem composes a transport support with factual abduction in a target
 //! population, so every transported request whose quantity and model have no theorem-scoped
 //! route of their own is refused with the closed row's code, detail, remedy and the named
 //! unmet prerequisites. This file sweeps the whole quantity-by-model-by-everything-else surface
@@ -81,7 +81,7 @@ fn every_transported_cell_is_closed_except_the_static_additive_theorem_route() {
                                 }
                                 Err(refusal) => {
                                     assert!(!expected_open, "{request:?}");
-                                    assert_eq!(refusal.code, "cell_not_licensed");
+                                    assert_eq!(refusal.code, "not_supported");
                                     assert_eq!(
                                         refusal.detail,
                                         "cross_world_execution.transported_row_closed"
@@ -92,7 +92,7 @@ fn every_transported_cell_is_closed_except_the_static_additive_theorem_route() {
                                     );
                                     assert!(!refusal.remedy.is_empty());
                                     for gate in [
-                                        "transport_license_missing",
+                                        "transport_support_missing",
                                         "target_population_abduction_receipt",
                                         "shared_exogenous_invariance_across_populations",
                                     ] {
@@ -175,7 +175,7 @@ fn a_different_target_population_refuses_before_any_work_and_the_declared_one_ex
     for target in ["pop-b", "POP-A", "pop-a ", "", "pop-a2"] {
         let err = exec.execute(&request(Some(target)), &ctx).expect_err(target);
         let refusal = err.refusal().unwrap();
-        assert_eq!(refusal.code, "cell_not_licensed", "{target:?}");
+        assert_eq!(refusal.code, "not_supported", "{target:?}");
         assert_eq!(refusal.detail, "cross_world_execution.transported_row_closed", "{target:?}");
         assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
         let c = exec.counters();

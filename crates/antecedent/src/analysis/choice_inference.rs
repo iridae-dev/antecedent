@@ -12,7 +12,7 @@
 //! 2. **Analyse** ([`ChoiceInferenceSession::analyse`]) authorizes one paradigm for the cell and
 //!    runs it: the pooled Dirichlet posterior, the hierarchical posterior of repeated choices,
 //!    or the contract's stopping decision on either. Every result is point-only; interval and
-//!    guarantee routes refuse with `cell_not_licensed` until coverage is measured.
+//!    guarantee routes refuse with `not_supported` until coverage is measured.
 //! 3. **Operating characteristics** ([`ChoiceInferenceSession::operating_characteristics`]) is
 //!    the exact law of the contract's sequential procedure under a declared kernel.
 //! 4. **Export / consume** write and replay `choice_inference_result_v1`, recomputing every
@@ -46,14 +46,14 @@ use antecedent_io::choice_inference_result_artifact::{
 };
 
 /// One refusal as plain data: registered reason code, namespaced `choice_inference.*` detail,
-/// and what would license the request.
+/// and what would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChoiceInferenceRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -273,7 +273,7 @@ impl ChoiceInferenceSession {
     /// Run the inferential paradigm a request names.
     ///
     /// # Errors
-    /// A paradigm the cell is not licensed for, a request of the wrong outcome structure, a
+    /// A paradigm the cell is not supported for, a request of the wrong outcome structure, a
     /// numerical refusal, or cancellation.
     pub fn analyse(
         &self,
@@ -358,7 +358,7 @@ impl ChoiceInferenceSession {
     /// hierarchical posterior. The respondent's choices remain dependent.
     ///
     /// # Errors
-    /// A different outcome or request, an unlicensed cell, unsupported candidates, failed
+    /// A different outcome or request, an unsupported cell, unsupported candidates, failed
     /// quadrature, cancellation or resource refusal.
     pub fn rank_hierarchical_studies(
         &self,
@@ -434,14 +434,14 @@ impl ChoiceInferenceSession {
     /// Request an interval or coverage statement without naming a result.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: a coverage statement belongs to one measured cell and one
+    /// Always `not_supported`: a coverage statement belongs to one measured cell and one
     /// named result. Ask for a result's interval with [`Self::measured_interval`].
     pub fn interval(&self) -> Result<(), ChoiceInferenceRefusal> {
         Err(ChoiceInferenceRefusal {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("not_supported"),
             detail: "choice_inference.interval_closed".to_owned(),
             message: format!(
-                "no interval or coverage statement is licensed for the choice procedure {} as an unqualified request; request the interval of a result with measured_interval, which is licensed only for measured cells",
+                "no interval or coverage statement is supported for the choice procedure {} as an unqualified request; request the interval of a result with measured_interval, which is supported only for measured cells",
                 self.contract.cell().identifier()
             ),
         })
@@ -452,7 +452,7 @@ impl ChoiceInferenceSession {
     ///
     /// # Errors
     /// A result the contract cannot produce, a study outside the measured cells
-    /// (`cell_not_licensed`), or coverage evidence that is absent or no longer attesting.
+    /// (`not_supported`), or coverage evidence that is absent or no longer attesting.
     pub fn measured_interval(
         &self,
         request: &ChoiceRequest,

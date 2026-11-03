@@ -12,7 +12,7 @@ papers = [
 implementation_deviations = [
  "Curves are arm-stratified product limits on an already identified randomized contrast, plus restricted mean survival time to a declared horizon. A competing-risk endpoint uses the Aalen–Johansen cumulative incidence for one declared cause instead.",
  "Independent censoring and delayed entry are query assumptions. The module cannot verify them from the observed follow-up. When an inverse-probability-of-censoring weight is used, the censoring survival is caller-supplied and treated as correct.",
- "Intervals, where licensed, are arm-stratified subject bootstrap percentile intervals for the restricted mean and horizon survival. They are pointwise. The product-limit point itself carries no analytic variance from the 1958 paper.",
+ "Intervals, where supported, are arm-stratified subject bootstrap percentile intervals for the restricted mean and horizon survival. They are pointwise. The product-limit point itself carries no analytic variance from the 1958 paper.",
 ]
 
 upstream_implementations_observed = []
@@ -33,12 +33,12 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "Kaplan and Meier's paper was not retrieved for this review (nothing downloaded, no local copy); the check is against the standard definitions of the product-limit, Aalen-Johansen and restricted-mean quantities, not a section-level reading. The comparison covers 39 seeded datasets of 14 to 43 subjects in two arms (13 with delayed entry, 19 with a second competing cause) with tied event times, ties between events and censorings, events exactly at the horizon and censoring before it, at 1e-14 on curves and 1e-13 on restricted means. It does not cover large samples, weights, the censoring-weighted variant, or intervals; no variance or interval from the paper exists in this module. Left-truncated risk sets that are very small early on yield valid but highly variable curves and are not otherwise screened here."
 sources = ["https://doi.org/10.1080/01621459.1958.10501452", "https://docs.python.org/3/library/fractions.html"]
 findings_resolved = ["No numerical defect was found: curves on the merged grid, restricted means, cumulative incidence (using the survival function just before each event time), the left-truncation risk set and the smallest event risk set agree with exact rational arithmetic on every dataset.", "The record's description of the module as Kaplan-Meier plus an Aalen-Johansen option, with no analytic variance, was confirmed against the code."]
-record_sha256 = "98779fb6f9837f81596e8d20d6a78a39d7f277596adb00109df1d5a216408128"
+record_sha256 = "8b4f98a5d1c4842ca02151e2b10241fb650c941c5d9e750d3ce9f0928e57c612"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/survival.rs"
-sha256 = "678d5cd460b602976f7721d17075b8a0e511b5604d38470adfda08c77f3ec199"
+sha256 = "ba6fa1615f8ac6fc8a7a9650285e1c7f7c4100a7b5da3070d7452f3131dd2428"
 
 [[method_review.artifacts]]
 role = "assertion"

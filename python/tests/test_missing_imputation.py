@@ -257,7 +257,7 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     assert not hasattr(result, "credible_interval")
     with pytest.raises(GraphSelectionImputationRefusal) as interval:
         result.interval()
-    assert interval.value.reason_code == "cell_not_licensed"
+    assert interval.value.reason_code == "not_supported"
     assert interval.value.detail == "graph_selection_imputation.interval_unmeasured"
     assert result.total >= result.within and result.between >= 0.0
 

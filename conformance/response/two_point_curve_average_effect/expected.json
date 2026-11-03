@@ -79,7 +79,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "76cf6b917cca13cdeca1673b0440a81a3378ff55bea93809ba18ae4a27e03f64"
+          "sha256": "167890bda22fce3b8e2007c3d7231c658d62aa82a255abf3e56e710a0b055fb7"
         }
       ],
       "fixture_payload_sha256": "07fada19dfcabe6a144a0f9edc4586c4a51e176b0d704e0ceac646dc2fcb1834"

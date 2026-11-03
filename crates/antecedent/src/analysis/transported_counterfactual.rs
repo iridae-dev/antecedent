@@ -1,6 +1,6 @@
 //! The transported static path-specific counterfactual (narrow class).
 //!
-//! One cell is licensed: a source structural fit with **additive-noise** equations affine in
+//! One cell is supported: a source structural fit with **additive-noise** equations affine in
 //! the covariates, finite-support source and target covariate laws, and a selection diagram
 //! whose selection nodes point only at covariates or the treatment. The answer is the
 //! target-population path-specific edge-intervention contrast
@@ -58,7 +58,7 @@ impl TransportedCounterfactual {
     /// Evaluate the transported contrast and seal it with its identity.
     ///
     /// # Errors
-    /// `cell_not_licensed` (`transported_counterfactual.nonadditive_mechanism`,
+    /// `not_supported` (`transported_counterfactual.nonadditive_mechanism`,
     /// `.noise_law_not_shared`, `.cross_world_independence_missing` for an undeclared premise;
     /// `.selection_on_mechanism` without a witness), `transport_proven_non_transportable`
     /// (`.selection_on_mechanism` with the two-model witness retained in

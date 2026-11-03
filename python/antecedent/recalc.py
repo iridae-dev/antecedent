@@ -69,15 +69,15 @@ from .outcomes import outcome_operation, require_success
 ARTIFACT_KIND = "recalc_receipt_v1"
 MAX_EXTERNAL_BRANCHES = 8
 
-Retarget = Literal["licensed", "not_declared", "incompatible"]
-"""Whether a target-population change is a licensed reweighting of retained scores
-(``licensed``), has no declared reweighting (``not_declared``) or is incompatible with them."""
+Retarget = Literal["supported", "not_declared", "incompatible"]
+"""Whether a target-population change is a supported reweighting of retained scores
+(``supported``), has no declared reweighting (``not_declared``) or is incompatible with them."""
 RequestKind = Literal["on_grid", "off_grid", "unsupported"]
-"""How a request relates to the licensed grid of changes: ``on_grid`` (a licensed route),
+"""How a request relates to the supported grid of changes: ``on_grid`` (a supported route),
 ``off_grid`` (a refit is needed) or ``unsupported`` (no route)."""
 StatusKind = Literal["reused", "recomputed", "refused"]
 
-_RETARGETS = ("licensed", "not_declared", "incompatible")
+_RETARGETS = ("supported", "not_declared", "incompatible")
 _REQUESTS = ("on_grid", "off_grid", "unsupported")
 
 
@@ -230,7 +230,7 @@ class StandingInput:
     that reads only data), ``not_applicable`` (the claim does not rest on it; ``reason`` says why)
     or ``undeclared`` (the session does not hold what the input names; ``finding`` names what is
     missing and ``remedy`` what would make it declarable, so a claim that needs it is not
-    licensed by this session's identities alone).
+    supported by this session's identities alone).
     """
 
     status: Literal["declared", "not_applicable", "undeclared"]
@@ -308,7 +308,7 @@ class ResumeContext:
 
     An ordinary loaded result supplies none of these (all ``False``): ``ant.load`` does not
     recreate a prepared study. Only a portable fit or score, a supplied compatible data
-    snapshot or a supplied compatible provider can resume its licensed operation.
+    snapshot or a supplied compatible provider can resume its supported operation.
     """
 
     portable_fit: bool = False
@@ -335,18 +335,18 @@ class ResumeContext:
 class Capabilities:
     """The declared capabilities a plan is made under.
 
-    ``retarget`` says whether the estimator's frozen-score row-weight retarget is licensed
-    (``"licensed"``: a compatible target change reweights frozen scores without a refit;
+    ``retarget`` says whether the estimator's frozen-score row-weight retarget is supported
+    (``"supported"``: a compatible target change reweights frozen scores without a refit;
     ``"not_declared"``: it recomputes the score artifact; ``"incompatible"``: the weights are
-    not a licensed function of the adjustment set, so a target change is refused).
+    not a supported function of the adjustment set, so a target change is refused).
     ``request`` says whether the requested treatment grid or operation is inside the declared
-    route, with the separately ``licensed_route`` that serves it when it is not. ``resume`` is
+    route, with the separately ``supported_route`` that serves it when it is not. ``resume`` is
     ``None`` in process and a :class:`ResumeContext` across a process boundary.
     """
 
-    retarget: Retarget = "licensed"
+    retarget: Retarget = "supported"
     request: RequestKind = "on_grid"
-    licensed_route: str | None = None
+    supported_route: str | None = None
     resume: ResumeContext | None = None
 
     def __post_init__(self) -> None:
@@ -354,8 +354,8 @@ class Capabilities:
             raise CausalValueError(f"retarget must be one of {_RETARGETS}, got {self.retarget!r}")
         if self.request not in _REQUESTS:
             raise CausalValueError(f"request must be one of {_REQUESTS}, got {self.request!r}")
-        if self.request == "on_grid" and self.licensed_route is not None:
-            raise CausalValueError("an on-grid request names no licensed route")
+        if self.request == "on_grid" and self.supported_route is not None:
+            raise CausalValueError("an on-grid request names no supported route")
 
     @property
     def boundary(self) -> Literal["in_process", "fresh_process"]:
@@ -367,7 +367,7 @@ class Capabilities:
         return {
             "retarget": self.retarget,
             "request": self.request,
-            "licensed_route": self.licensed_route,
+            "supported_route": self.supported_route,
             "boundary": self.boundary,
             "resume": None if self.resume is None else self.resume.to_wire(),
         }
@@ -379,7 +379,7 @@ class Capabilities:
         return cls(
             retarget=wire["retarget"],
             request=wire["request"],
-            licensed_route=wire.get("licensed_route"),
+            supported_route=wire.get("supported_route"),
             resume=None if resume is None else ResumeContext(**resume),
         )
 
@@ -392,7 +392,7 @@ class StageStatus:
     """Per-stage outcome: ``reused``, ``recomputed`` or ``refused``, and what determined it.
 
     ``detail`` is the determining dependency: for ``reused`` the dependency whose unchanged
-    identity licensed reuse (the stage itself for an input); for ``recomputed`` the changed
+    identity supported reuse (the stage itself for an input); for ``recomputed`` the changed
     input (``own:<stage>:<change>``), the changed upstream stage
     (``upstream:<via><-<origin>:<change>``) or ``fresh_process``; for ``refused`` the
     ``recalc.*`` detail (with a ``[route]`` or ``[stage]`` suffix where one applies).
@@ -882,7 +882,7 @@ class Utility:
 class TargetWeights:
     """Row weights declaring a target population and the columns they depend on.
 
-    ``depends_on`` must lie in the adjustment set for the route to be licensed.
+    ``depends_on`` must lie in the adjustment set for the route to be supported.
     """
 
     weights: ArrayLike
@@ -1041,7 +1041,7 @@ class RecalcSession:
 
     __slots__ = ("_handle",)
 
-    def __init__(self, *, retarget: Retarget = "licensed") -> None:
+    def __init__(self, *, retarget: Retarget = "supported") -> None:
         self._handle = _native.RecalcSessionHandle(retarget)
 
     @classmethod
@@ -1050,7 +1050,7 @@ class RecalcSession:
         previous: Mapping[Stage, str] | RecalcReceipt,
         context: ResumeContext | None = None,
         *,
-        retarget: Retarget = "licensed",
+        retarget: Retarget = "supported",
     ) -> RecalcSession:
         """A fresh-process session that knows ``previous`` and holds only what ``context`` names.
 
@@ -1066,12 +1066,12 @@ class RecalcSession:
         return session
 
     def set_retarget_support(self, retarget: Retarget) -> None:
-        """Declare the estimator's retarget license for later plans."""
+        """Declare the estimator's retarget support for later plans."""
         self._handle.set_retarget_support(retarget)
 
-    def set_request_support(self, request: RequestKind, licensed_route: str | None = None) -> None:
+    def set_request_support(self, request: RequestKind, supported_route: str | None = None) -> None:
         """Declare whether the next request is on the declared grid, off it or unsupported."""
-        self._handle.set_request_support(request, licensed_route)
+        self._handle.set_request_support(request, supported_route)
 
     @property
     def is_live(self) -> bool:

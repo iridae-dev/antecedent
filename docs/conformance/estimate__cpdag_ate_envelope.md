@@ -15,7 +15,7 @@ sampling. The Bayesian value is the deterministic 64-draw conjugate envelope
 mean at seed 1 (`0.4615641945101853`). It is an output pin, not a claim that posterior shrinkage
 must equal the empirical Frequentist functional.
 
-Both explicit and accepted CPDAGs consume this fixture through every licensed
+Both explicit and accepted CPDAGs consume this fixture through every supported
 validation level (`none`, `cheap`, and `full`) in
 `crates/antecedent/tests/cpdag_ate_numeric_pins.rs`, which also pins prepared
 estimate and same-schema refresh reuse, and in

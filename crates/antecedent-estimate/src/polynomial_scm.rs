@@ -70,7 +70,7 @@ fn invalid(message: &str) -> EquilibriumError {
 }
 #[allow(
     clippy::float_cmp,
-    reason = "the selected maximum is an exact input; only exact x/x equality licenses the outward-bound shortcut"
+    reason = "the selected maximum is an exact input; only exact x/x equality supports the outward-bound shortcut"
 )]
 fn normalized(weights: &[f64]) -> Result<Vec<MassBounds>, EquilibriumError> {
     if weights.is_empty() || weights.iter().any(|v| !v.is_finite() || *v < 0.0) {

@@ -63,7 +63,7 @@ use std::sync::Arc;
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("{detail}: {message}"),
     }
 }
@@ -84,7 +84,7 @@ pub const LINEAR_ESTIMATOR: &str = "parent_set_split.pc_parcorr.total_effect_adj
 /// Calibration `estimator` value of a log-linear study.
 pub const LOG_LINEAR_ESTIMATOR: &str = "parent_set_split.pc_parcorr.log_linear_mean_ratio";
 /// The topologies the construction is measured on, each its own record. A table does not
-/// announce its topology, so a cell is licensed only when the record of every topology attests:
+/// announce its topology, so a cell is supported only when the record of every topology attests:
 /// the conservative intersection.
 pub const TOPOLOGIES: [&str; 3] = [
     "hub_confounded_multi_path",
@@ -100,10 +100,10 @@ pub fn governing_topologies(max_degree: u32) -> &'static [&'static str] {
 }
 /// Fewest searched variables measured.
 ///
-/// With [`MAX_VARIABLES`] and [`SUPPORTED_MAX_DEGREE`] this is the licence boundary of the
+/// With [`MAX_VARIABLES`] and [`SUPPORTED_MAX_DEGREE`] this is the support boundary of the
 /// calibration records, not a limit of the engine: the procedure runs on any table, but its
 /// coverage was measured only for these sizes and degrees, so any other is refused as
-/// `cell_not_licensed` (`parent_set_effect.variable_count_not_measured`,
+/// `not_supported` (`parent_set_effect.variable_count_not_measured`,
 /// `parent_set_effect.degree_above_supported`) until a record measures it.
 pub const MIN_VARIABLES: usize = 10;
 /// Most searched variables measured. See [`MIN_VARIABLES`].
@@ -992,7 +992,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         interval: (executed.reported.lower, executed.reported.upper),
         basis,
     };
-    // A table does not announce its topology: the cell is licensed only when every topology's
+    // A table does not announce its topology: the cell is supported only when every topology's
     // record attests this construction, so each topology's record is resolved here and a
     // missing, stale or boundary record of any one refuses the whole.
     for topology in governing_topologies(executed.max_degree) {

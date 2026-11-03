@@ -241,10 +241,7 @@ fn compact_out_of_support_queries_refuse_with_exact_details() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let expect = |query: ExportQuery, detail: &'static str, subject: &str| {
         let err = export.evaluate(&query).unwrap_err();
-        assert_eq!(
-            err,
-            ExportRefusal { code: "cell_not_licensed", detail, subject: subject.into() }
-        );
+        assert_eq!(err, ExportRefusal { code: "not_supported", detail, subject: subject.into() });
     };
     expect(xg_query(10.5, "a"), "compact_export.out_of_support", "x");
     expect(xg_query(-0.001, "a"), "compact_export.out_of_support", "x");
@@ -267,7 +264,7 @@ fn compact_out_of_support_queries_refuse_with_exact_details() {
 fn compact_masked_region_refuses_even_inside_the_support() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let masked = ExportRefusal {
-        code: "cell_not_licensed",
+        code: "not_supported",
         detail: "compact_export.masked_region",
         subject: "high_dose_group_c".into(),
     };
@@ -355,7 +352,7 @@ fn compact_tampered_support_refused_even_when_resealed() {
 #[test]
 fn compact_tampered_mask_refused_even_when_resealed() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
-    // Dropping the refusal region would silently license a refused query.
+    // Dropping the refusal region would silently support a refused query.
     assert_tamper_refused(
         &export,
         |body| body.mask.clear(),

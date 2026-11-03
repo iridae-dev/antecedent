@@ -27,7 +27,7 @@ accounted and is listed as unknown.
 
 ## Combinations
 
-| Operation | Needs | Licensed when |
+| Operation | Needs | Supported when |
 | --- | --- | --- |
 | Statistical pooling, independent | two or more sources | every pair is known and disjoint |
 | Statistical pooling, declared covariance | summaries and a full covariance | the covariance has cross terms (shared or unknown overlap), or the sources are known and disjoint |
@@ -57,7 +57,7 @@ the whole history.
 
 ## Summary-data numerics
 
-The synthesis numerics compute the numbers the ledger licenses:
+The synthesis numerics compute the numbers the ledger supports:
 
 - generalized least squares pooling with a full covariance, `1'S^-1 y / 1'S^-1 1`
   with variance `1 / 1'S^-1 1`; a non positive semidefinite covariance is
@@ -86,7 +86,7 @@ result that is no longer valid, so stale numbers are never served, and
 covers its exact construction and scope. Fixed-effect Wald and HKSJ
 intervals retain separate keys. Current HKSJ publication is restricted to the
 baseline-family measured counts 20, 25 and 30; a passing strong-heterogeneity
-five- or fifteen-study record cannot license an unknown study family.
+five- or fifteen-study record cannot support an unknown study family.
 
 For independent Gaussian study estimates sharing one marginal mean, use the
 equal-study Gaussian workflow: Rust `pool_gaussian_studies(...)`, followed by
@@ -105,7 +105,7 @@ Calling DL/REML `random_effects` without the Gaussian option selects the DL/REML
 construction; there is no automatic fallback between constructions.
 Fewer than 5 or more than 30 studies, a result with no numbers, a borrowing posterior,
 an assumption range, or a construction without a current matching record
-refuses `cell_not_licensed`.
+refuses `not_supported`.
 
 
 `refresh` with added or retired evidence:
@@ -140,7 +140,7 @@ that does not replay, including a consistently resealed edit.
 A refused request raises `EvidenceLedgerRefusal` with its registered
 `reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
 was; `pooled_interval` returns the measured interval and its coverage record,
-or raises `cell_not_licensed` when no record governs the construction.
+or raises `not_supported` when no record governs the construction.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
 
@@ -155,4 +155,4 @@ consumer. Retain the expectation separately from the container.
 A scalar `SynthesisOutcome` can use `outcome.as_mean_source(quantity=...)` for
 decision or inverse-query composition. Explicitly declare the pooled quantity's units,
 population and regime. Evidence and lineage remain attached; an assumption range without
-a point, or a pooled interval without a license, cannot become a mean or a law.
+a point, or a pooled interval without support, cannot become a mean or a law.

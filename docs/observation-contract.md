@@ -1,6 +1,6 @@
 # Static response observation contract
 
-This table is part of the licensed `ResponseCurve × Dag × explicit/accepted ×
+This table is part of the supported `ResponseCurve × Dag × explicit/accepted ×
 Frequentist × none` cell in the [support matrix](support-matrix.md).
 Observation is an additional contract, not another matrix axis. Every mechanism
 requires exactly one explicit compatible assumption. Available columns do not
@@ -17,7 +17,7 @@ imply independence.
 
 The historical `OutcomeIndependentGiven([])` marginal censoring alias remains
 accepted. Selected IPW remains an explicit lower-level correction option; AIPW
-is the default licensed response primitive. Unselected AIPW rows receive the
+is the default supported response primitive. Unselected AIPW rows receive the
 outcome-regression prediction `m(X)`, not a Horvitz–Thompson zero. Its double
 robustness requires a correct observation-propensity or outcome nuisance model,
 as well as positivity.
@@ -98,8 +98,8 @@ declared-Z-only nuisance needed that condition as well, plus selection that does
 not depend on the extra columns. Rows whose extra regressors would fall before the
 series start keep the declared-Z outcome model.
 
-Until a pair is licensed, `compile_logical_temporal_response` refuses
-non-`Complete` with `temporal response observation pair is not licensed`.
+Until a pair is supported, `compile_logical_temporal_response` refuses
+non-`Complete` with `temporal response observation pair is not supported`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
 When bootstrap replicates are requested, observation-adjusted temporal curves,
 single Set/Shift responses, and Sequence overlays report outer circular-block
@@ -121,7 +121,7 @@ scaled by the response family's fixed-b and HC1 factors (block length
 The same joint replicates give a simultaneous band over the whole surface
 (support diagnostics `response.simultaneous_band.*`). Sequence replicates
 refit at the intervention-tuple level; reordering the raw series is not the
-licensed band construction.
+supported band construction.
 Complete-data analytic bands and Bayesian IPCW/KM/Cox bands are not substituted.
 
 

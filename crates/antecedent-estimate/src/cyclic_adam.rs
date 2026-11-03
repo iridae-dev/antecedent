@@ -91,7 +91,7 @@ pub struct CyclicAdamFit {
 fn invalid(s: &str) -> EquilibriumError {
     EquilibriumError::Invalid(s.into())
 }
-fn licensed(
+fn supported(
     model: &EquilibriumModel,
     margin: f64,
     ctx: &ExecutionContext,
@@ -143,16 +143,16 @@ fn project(
             }
         }
     }
-    if licensed(&model, margin, ctx)? {
+    if supported(&model, margin, ctx)? {
         return Ok(model);
     }
     // Compositional parameters need not be linear coefficients. Bounded
-    // interpolation refuses unlicensed proposals without rewriting their meaning.
+    // interpolation refuses unsupported proposals without rewriting their meaning.
     let mut scale = 0.5;
     for _ in 0..48 {
         let values: Vec<_> = old.iter().zip(proposed).map(|(a, b)| a + scale * (b - a)).collect();
         let candidate = with_parameters(template, parameters, &values)?;
-        if licensed(&candidate, margin, ctx)? {
+        if supported(&candidate, margin, ctx)? {
             return Ok(candidate);
         }
         scale *= 0.5;
@@ -198,7 +198,7 @@ pub fn fit_cyclic_adam(
     {
         return Err(invalid("Adam data/work/stopping policy"));
     }
-    if !licensed(template, policy.contraction_margin, ctx)? {
+    if !supported(template, policy.contraction_margin, ctx)? {
         return Err(invalid("initial mechanisms do not meet the declared Adam contraction margin"));
     }
     let n = template.order();
@@ -379,7 +379,7 @@ mod tests {
         .unwrap();
         assert!((fit.model.equations[0].weights[1] - 0.7).abs() < 0.01);
         assert!(fit.validation_converged);
-        assert!(licensed(&fit.model, policy.contraction_margin, &ctx).unwrap());
+        assert!(supported(&fit.model, policy.contraction_margin, &ctx).unwrap());
         let replay = fit_cyclic_adam(
             &model,
             &[CyclicParameter::Weight { equation: 0, parent: 1 }],

@@ -21,7 +21,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Nothing in this record is a scientific guarantee about an external model. An external law, posterior or decision-value table is checked only for internal coherence (rows sum to one, the posterior averages back to the prior, the observation and state coordinates and the exact request fingerprint, candidate, prior and sample size match) and is never verified against the world; its trust label is externally_attested or exact_request_verified and is never native_licensed. A supplier claiming native trust, or an object that is not a signal declaration, refuses.",
+  "Nothing in this record is a scientific guarantee about an external model. An external law, posterior or decision-value table is checked only for internal coherence (rows sum to one, the posterior averages back to the prior, the observation and state coordinates and the exact request fingerprint, candidate, prior and sample size match) and is never verified against the world; its trust label is externally_attested or exact_request_verified and is never native_supported. A supplier claiming native trust, or an object that is not a signal declaration, refuses.",
   "The provider is asked for the observation law and update on a finite support only (finite observation values and finite decision-state draws or the two native conjugate families); a request above the declared sample-size or support limit refuses and nothing is approximated.",
   "The request's sample size is authoritative: native signals are wrapped so a candidate design's own sample size cannot override it. Conditional independence of the observations given the state is a declared identity that is carried and fingerprinted, not tested.",
   "ExternalPosterior and ExternalDecisionValues computations happen outside Antecedent: the receipt retains the exact request fingerprint, the provider object identity, the attestor and a digest of the supplied table, but Antecedent cannot replay the external computation.",
@@ -41,14 +41,14 @@ kind = "wrapper"
 rationale = "Typed candidate-signal provider contract: requests, receipts and validation of a supplied likelihood table and posterior update."
 no_independent_algorithm = "Validation of supplied tables. The only logarithm is the log of a supplied probability in the likelihood adapter and sampling is an inverse-CDF walk over a supplied table; the expected-information routines are other records."
 covered_by = ["design.evsi", "design.eig"]
-record_sha256 = "766bd72cec12c2096ea07a6f2d72837ee8d1a4b182db0e3a8d5228adcbe0cb00"
+record_sha256 = "d210bff0d8364c4d46f2f3bc46061f8db5c5dfb69bba36c2ef7737196a0f681b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/signal.rs"
-sha256 = "86fe7a1dad9bad07452a600c012fb0e9809bb9e13164abd417f7c5405903ee08"
+sha256 = "791ef3096b88ff817145908e7092ce2f336a754d1d309a4b38f01d5f4915adb4"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/signal_provider.rs"
-sha256 = "fffb3ae489df749a42c2ccd5cebcc7b403d850e5570811645368e7873f0f5152"
+sha256 = "62fe89087c324959edfd586f2357ef1f7040ef03ce4ca9b913b4bf2dc7c64390"

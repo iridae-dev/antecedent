@@ -110,7 +110,7 @@ pub fn invalid_reason_code() -> &'static str {
 /// `repeated_measures_paradigm_not_derived`).
 #[must_use]
 pub fn premise_reason_code() -> &'static str {
-    antecedent_core::reason_code!("cell_not_licensed")
+    antecedent_core::reason_code!("not_supported")
 }
 
 // -- Declaration ----------------------------------------------------------------------------------
@@ -807,7 +807,7 @@ impl CellLabel {
     ///
     /// # Errors
     /// [`Error::PremiseFailed`] unless every axis and the paradigm are equal:
-    /// a guarantee for two components never licenses their pairing, and the
+    /// a guarantee for two components never supports their pairing, and the
     /// evidence for one cell does not transfer to another.
     pub fn transfer_to(&self, other: &Self) -> Result<(), Error> {
         self.transfer_to_named(&other.id(), other.paradigm)

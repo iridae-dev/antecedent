@@ -55,7 +55,7 @@ fn decided() -> CountsWire {
 }
 
 fn in_process() -> RecalcCapabilities {
-    RecalcCapabilities::in_process(RetargetSupport::Licensed)
+    RecalcCapabilities::in_process(RetargetSupport::Supported)
 }
 
 /// A utility-only change: the decision is recomputed, nothing else runs.
@@ -192,7 +192,9 @@ fn artifact_round_trip_preserves_table_counts_and_identities() {
 fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities() {
     let caps = RecalcCapabilities {
         retarget: RetargetSupport::NotDeclared,
-        request: RequestSupport::OffGrid { licensed_route: Some("transport.smoothed_dose".into()) },
+        request: RequestSupport::OffGrid {
+            supported_route: Some("transport.smoothed_dose".into()),
+        },
         boundary: Boundary::InProcess,
     };
     let artifact = RecalcReceiptArtifact::seal(
@@ -207,7 +209,7 @@ fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities
         plan.first_refusal(),
         Some((
             Stage::TreatmentGrid,
-            RefusalReason::OffGrid { licensed_route: Some("transport.smoothed_dose".into()) }
+            RefusalReason::OffGrid { supported_route: Some("transport.smoothed_dose".into()) }
         ))
     );
     let loaded = RecalcReceiptArtifact::from_bytes(&artifact.to_bytes(ID).unwrap(), None).unwrap();
@@ -215,7 +217,7 @@ fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities
     // A changed capability declaration recomputes another plan and so refuses the old table.
     let mut meta = artifact.meta().clone();
     meta.capabilities.request = "on_grid".into();
-    meta.capabilities.licensed_route = None;
+    meta.capabilities.supported_route = None;
     assert!(matches!(consume(&reseal(meta)), Err(RecalcReceiptArtifactError::PlanMismatch { .. })));
 }
 
@@ -366,7 +368,7 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
 
     // Supplied data resumes by recomputing every derived stage, never by reuse.
     let supplied = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { supplied_data: true, ..ResumeContext::default() },
     );
     let resumed =
@@ -398,7 +400,7 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
     // Even portable scores, for which the planner would reuse the score artifact, cannot be
     // sealed: a loaded receipt recreates no score table.
     let portable = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { portable_scores: true, supplied_data: true, ..ResumeContext::default() },
     );
     let error = RecalcReceiptArtifact::seal(&previous, &requested, &portable, &BTreeMap::new())
@@ -410,7 +412,7 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
 
     // Nothing supplied: the specific unavailable results, not a reuse claim.
     let bare =
-        RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
+        RecalcCapabilities::fresh_process(RetargetSupport::Supported, ResumeContext::default());
     let artifact = RecalcReceiptArtifact::seal(
         &previous,
         &requested,
@@ -860,7 +862,7 @@ fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state() {
         let name = format!("custom.route_{i}");
         let caps = RecalcCapabilities {
             retarget: RetargetSupport::NotDeclared,
-            request: RequestSupport::OffGrid { licensed_route: Some(name.clone().into()) },
+            request: RequestSupport::OffGrid { supported_route: Some(name.clone().into()) },
             boundary: Boundary::InProcess,
         };
         let original = RecalcReceiptArtifact::seal(
@@ -880,7 +882,7 @@ fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state() {
             loaded.plan().first_refusal(),
             Some((
                 Stage::TreatmentGrid,
-                RefusalReason::OffGrid { licensed_route: Some(name.clone().into()) }
+                RefusalReason::OffGrid { supported_route: Some(name.clone().into()) }
             ))
         );
     }
@@ -888,13 +890,13 @@ fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state() {
     // global pool or prevent a later valid custom receipt from being accepted.
     for i in 0..80 {
         let mut meta = utility_only().meta().clone();
-        meta.capabilities.licensed_route = Some(format!("rejected.route_{i}"));
+        meta.capabilities.supported_route = Some(format!("rejected.route_{i}"));
         assert!(consume(&meta).is_err());
     }
     let caps = RecalcCapabilities {
         retarget: RetargetSupport::NotDeclared,
         request: RequestSupport::Unsupported {
-            licensed_route: Some("custom.after_rejections".into()),
+            supported_route: Some("custom.after_rejections".into()),
         },
         boundary: Boundary::InProcess,
     };

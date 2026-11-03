@@ -21,7 +21,7 @@ papers = [
 
 implementation_deviations = [
   "Implements the exact-integration EVSI as a point value only. For the finite enumeration and the Gaussian closed form there is no sampling error and no interval; the Gaussian closed form is evaluated with the same expected-maximum-of-affine-functions routine the artifact consumer reuses, so the two are not independent checks of one another (an independent oracle is the stated closed-form constant, EVSI 0.04165773529384315 and EVPI 0.19779655740130607 for prior N(1/2, 1), noise variance 12, n = 4, actions 0 and theta, to 1e-7).",
-  "The Monte Carlo route is NOT a licensed guarantee. It reports a standard error, replicate count, effective sample size (equal to the replicate count, because replicates are independent), a convergence flag against a caller tolerance and a rank-uncertainty flag from an unpaired z comparison at 1.96, all as diagnostics. Their coverage, the rank guarantee and the convergence rule are unmeasured (calibration coordinate 'unmeasured'); no coverage record is allocated or collected, and an estimate outside 0 <= EVSI <= EVPI beyond its error refuses.",
+  "The Monte Carlo route is NOT a supported guarantee. It reports a standard error, replicate count, effective sample size (equal to the replicate count, because replicates are independent), a convergence flag against a caller tolerance and a rank-uncertainty flag from an unpaired z comparison at 1.96, all as diagnostics. Their coverage, the rank guarantee and the convergence rule are unmeasured (calibration coordinate 'unmeasured'); no coverage record is allocated or collected, and an estimate outside 0 <= EVSI <= EVPI beyond its error refuses.",
   "The terminal action set is the same before and after information; a changed action set is a different decision problem and refuses. EVSI is not assumed non-negative or bounded by construction for a Monte Carlo estimate; the bound is checked against the reported error.",
   "Net value is EVSI minus the study cost in utility units and is produced only when a caller supplies a positive linear cost-to-utility map whose utility unit equals the decision's and whose cost unit equals every candidate's; a cost in another unit, or a missing map where net value is required, refuses. The map is declared, not estimated, and utility is not assumed monetary.",
   "Externally computed decision values and external posteriors are attested inputs: they are checked for coherence against the prior (branch values average back to the prior expected utility for every action) but are not verified or replayed. Source overlap is detected only through declared observation identities.",
@@ -45,17 +45,17 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "Neither cited book was retrieved for this review; the correspondence is between the product code and the standard definitions of EVSI and EVPI, verified numerically, not a page-level reading. The comparison covers eleven one-parameter cases (one to six actions, a dominated action, equal slopes with different intercepts, utility offsets of 1e9, information ratios n*tau^2/sigma^2 from 1e-12 to 1e12, a prior far from, at and tightly concentrated around the break-even state) at relative 1e-9 with an absolute floor of 1e-15 times the utility scale; it does not exercise vector states, non-affine utilities, correlated data or the other integration routes. The Monte Carlo route, its coverage and its rank guarantee are not examined here and stay unmeasured. The existing independent constant for the two-action case (EVSI 0.04165773529384315) is retained and is reproduced by the new reference."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found. The gross EVSI, prior and preposterior expected utilities and the posterior mean, variance and Bayes action agree with 60-digit quadrature across all eleven cases, including the small-information and large-offset regimes where a direct closed form subtracts nearly equal quantities (the product avoids that cancellation with gap lines and a preposterior-spread closed form, and the comparison confirms it).", "The deviation text said the Gaussian closed form had no independent check beyond one constant. It now has a general independent reference; the consumer-reuse caveat for the artifact path is unchanged.", "Net value equals gross EVSI minus the declared cost, and an absent cost gives no net value, asserted directly."]
-record_sha256 = "4ed3b7811714c8587a16f176a6b9c8908e6691608f5eaf9264c727b130c815e0"
+record_sha256 = "b08ba41d891736e505c186472c9e6f45ab9572d9ce9cfc5f021531bf9d6c3238"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/evsi.rs"
-sha256 = "06832dec33bc0ecfabe03855e6559b92c916f17d9212908594153d0337773aea"
+sha256 = "360444f2558e14e9360d5cf9549ccb10952622a3543e1fb7d3dedc03fd889d2f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/preposterior.rs"
-sha256 = "1e2d78331322c847ec419b4a69e487ca518657b232f4b6956f7804e993d3be1a"
+sha256 = "f7af3a81df1ff33379d6b0bb4e00e84aefdc44c7e55b1bf50737086a5bd371c9"
 
 [[method_review.artifacts]]
 role = "assertion"

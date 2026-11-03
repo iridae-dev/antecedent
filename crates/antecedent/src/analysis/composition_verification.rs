@@ -20,7 +20,7 @@
 //!
 //! # What each class means
 //!
-//! * `still_valid`: nothing it rests on changed and no license it states was
+//! * `still_valid`: nothing it rests on changed and no support it states was
 //!   lost. The earlier numbers and uncertainty stand.
 //! * `recompute`: data, evidence, a model or representation version or a
 //!   structural derivation it uses changed. The earlier fit and uncertainty
@@ -33,7 +33,7 @@
 //!   that no longer holds it, or a record established for another target, is
 //!   refused). A calibration withdrawal leaves the point value untouched.
 //!
-//! Stage reuse never proves a claim still licensed: support, provider trust
+//! Stage reuse never proves a claim still supported: support, provider trust
 //! and calibration are rechecked at the current coordinates.
 //!
 //! # Lifecycle
@@ -112,7 +112,7 @@ pub struct CompositionVerificationRefusal {
     pub detail: String,
     /// What was refused.
     pub message: String,
-    /// The declaration or evidence that would license the request.
+    /// The declaration or evidence that would support the request.
     pub remedy: Option<String>,
 }
 
@@ -150,7 +150,7 @@ impl CompositionVerificationRefusal {
             message.push_str(&format!("; {expected}"));
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; license lost: {supplied}"));
+            message.push_str(&format!("; support lost: {supplied}"));
         }
         Self {
             code: refusal.code,
@@ -619,9 +619,9 @@ impl CompositionVerification {
     /// The claim when it is usable as it stands.
     ///
     /// # Errors
-    /// The typed refusal of a claim that must be recomputed or whose license
+    /// The typed refusal of a claim that must be recomputed or whose support
     /// was withdrawn (calibration inherited from an object that no longer
-    /// holds it refuses with `cell_not_licensed`).
+    /// holds it refuses with `not_supported`).
     pub fn require_valid(
         &self,
         key: &str,

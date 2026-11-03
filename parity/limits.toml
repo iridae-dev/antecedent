@@ -3,7 +3,7 @@ version = 1
 # `documentation` cites the implementation place. Where that place is a `crate::`
 # path alias, or a literal the source no longer spells, it cites the bridge
 # constant the alias names. The public table is generated into
-# docs/supported-bounds.md from parity/promotion.toml [bounds]; it is not scraped.
+# docs/supported-bounds.md from parity/capability_records.toml [bounds]; it is not scraped.
 
 [[bound]]
 record = "distribution.joint_alignment"
@@ -355,7 +355,7 @@ implementation = [{ path = "crates/antecedent-core/src/recalc.rs", constant = "M
 documentation = [{ path = "crates/antecedent-core/src/recalc.rs", constant = "MAX_EXTERNAL_BRANCHES" }]
 guard = { path = "crates/antecedent-core/src/recalc.rs", pattern = "if\\ index\\ <\\ MAX_EXTERNAL_BRANCHES\\ \\{\\ Some\\(Self\\(index\\)\\)\\ \\}\\ else\\ \\{\\ None\\ \\}" }
 refusal = { path = "crates/antecedent-core/src/recalc.rs", pattern = "if index < MAX_EXTERNAL_BRANCHES \\{ Some\\(Self\\(index\\)\\) \\} else \\{ None \\}" }
-scope_fixture = { path = "crates/antecedent-core/tests/recalc_plan.rs", pattern = "\\brecalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route\\b" }
+scope_fixture = { path = "crates/antecedent-core/tests/recalc_plan.rs", pattern = "\\brecalc_off_grid_and_unsupported_requests_refuse_or_name_a_supported_route\\b" }
 
 [[bound]]
 record = "recalculation.receipt"

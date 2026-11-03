@@ -1,4 +1,4 @@
-//! Outcome functionals on licensed effect and response queries.
+//! Outcome functionals on supported effect and response queries.
 //!
 //! Identification is unchanged: the same adjustment set is applied to a
 //! transform of `Y` (`Y` itself, or `1{Y > c}`). Quantile treatment effects
@@ -16,7 +16,7 @@ use super::attribution::OrderedFloatBits;
 
 /// Functional of the interventional outcome law.
 ///
-/// [`Self::Mean`] is the licensed default. Exceedance functionals replace `Y`
+/// [`Self::Mean`] is the supported default. Exceedance functionals replace `Y`
 /// with an indicator of the upper tail; the adjustment set does not change.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]

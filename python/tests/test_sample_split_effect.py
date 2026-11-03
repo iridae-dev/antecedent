@@ -99,7 +99,7 @@ def test_an_unresolved_structure_reports_no_interval() -> None:
             execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "split_effect.structure_unresolved"
 
 
@@ -110,7 +110,7 @@ def test_a_table_outside_five_to_seven_variables_is_refused() -> None:
         sd.sample_split_effect(
             data, treatment="a", outcome="b", split_seed=1, execution=Execution(seed=SEED)
         )
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "split_effect.variable_count_not_measured"
 
 
@@ -136,7 +136,7 @@ def test_an_interval_outside_the_measured_row_range_is_never_attested() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         estimate.measure()
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "not_supported"
     assert info.value.detail == "measured_inference.record_not_attesting"
 
 
@@ -149,5 +149,5 @@ def test_reusing_the_rows_that_selected_is_still_refused() -> None:
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_licensed"
+    assert info.value.reason_code == "not_supported"
+    assert info.value.detail == "selective_discovery.downstream_interval_not_supported"

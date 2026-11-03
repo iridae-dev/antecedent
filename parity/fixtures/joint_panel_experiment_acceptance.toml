@@ -28,4 +28,4 @@ calibration_registration = "parity/joint_response_calibration.toml"
 calibration_owners = ["Q08", "E14"]
 calibration_status = "registered_unmeasured_candidate_bound"
 method_spec_review_status = "not_admitted"
-grants_release_license = false
+grants_release_support = false

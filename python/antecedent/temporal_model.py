@@ -14,7 +14,7 @@
   the ``path.step[..]`` quantities, for one simulated path per refit, whose summaries are the
   predictive law of a path (refit uncertainty plus the fitted innovation noise).
 
-Both are uncalibrated and unlicensed.
+Both are uncalibrated and unsupported.
 """
 
 from __future__ import annotations

@@ -115,7 +115,7 @@ fn horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_
         fixed.standard_error
     );
     assert!(rollout.diagnostic("block_length").is_some(), "the block length is recorded");
-    assert!(!rollout.licensed);
+    assert!(!rollout.supported);
 }
 
 const RD_ROWS: usize = 2000;

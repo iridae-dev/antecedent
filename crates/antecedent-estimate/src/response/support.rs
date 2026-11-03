@@ -63,7 +63,7 @@ fn winsorize(values: &[f64], p: f64) -> Vec<f64> {
 /// Outcome tail ratio for least-squares Kennedy / Riesz nuisances.
 ///
 /// Does not change [`SupportStatus`]: overlap can be honest while the outcome
-/// is outside the estimator's moment conditions. Matrix-cell licensing is
+/// is outside the estimator's moment conditions. Matrix-cell support is
 /// likewise untouched.
 pub(super) fn push_outcome_tail_diagnostic(support: &mut SupportReport, outcome: &[f64]) {
     let ratio = outcome_tail_ratio(outcome);

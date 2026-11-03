@@ -32,7 +32,7 @@ pub mod split_parent_set_effect;
 pub(crate) mod transport;
 
 /// A caller's immutable expected source and reported question. This is a
-/// declaration, never a license or a substitute for actual source replay.
+/// declaration, never support or a substitute for actual source replay.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MeasuredExpectation {
@@ -183,7 +183,7 @@ pub struct ScalarExecution {
 }
 fn refusal(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("{detail}: {message}"),
     }
 }
@@ -346,7 +346,7 @@ thread_local! {
 }
 
 /// Run `f` with `records` as the only coverage evidence, so tests exercise the
-/// licensed path without a measured record in the shipped table.
+/// supported path without a measured record in the shipped table.
 #[cfg(test)]
 pub(crate) fn with_test_records<R>(
     records: Vec<antecedent_io_core::coverage_records_data::CoverageRecord>,

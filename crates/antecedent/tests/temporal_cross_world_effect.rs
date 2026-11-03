@@ -112,7 +112,7 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                 let study = builder.clone().build().unwrap();
                 assert_eq!(
                     study.support_status(),
-                    Some(antecedent::support::CellStatus::Licensed),
+                    Some(antecedent::support::CellStatus::Supported),
                     "{key}"
                 );
                 let prepared = study.prepare(&ctx).unwrap();

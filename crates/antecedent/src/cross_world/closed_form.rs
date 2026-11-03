@@ -322,7 +322,7 @@ pub(super) fn closed_form_point(
     let rows_f = rows as f64;
     if antecedent_graph::error::refuse_directed_cycle(
         antecedent_graph::error::DagOperation::Identification,
-        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+        antecedent_graph::error::CyclicNextAttempt::Unsupported {
             consumer: "cross_world closed form",
             attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
                       this recomputation does not evaluate a cyclic contrast",

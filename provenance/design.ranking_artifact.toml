@@ -14,7 +14,7 @@ copied_tests = false
 # source-overlap diagnostic, source digests, RNG seed and rank/tie receipts, sealed by a
 # digest over the canonical body with candidates in semantic-id order. A structural
 # fallback keeps the existing order (verified sufficiency, then cost units, then sample
-# budget, then semantic id) when no probabilistic model is licensed.
+# budget, then semantic id) when no probabilistic model is supported.
 #
 # No primary paper is cited on purpose. This is a serialization, identity and replay
 # design, not an algorithm introduced by a publication; the quantities it carries (EVSI,
@@ -56,7 +56,7 @@ record_sha256 = "d71ae3588df4e73ee2768ed945550ff7af1b8da1b8c1e099d730a0becf14282
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/design_ranking_artifact.rs"
-sha256 = "4a5443b85b648163f58d754b364563e9e5be4c57ff48909788f060374a76e6a9"
+sha256 = "40a674170104612ffc4444237114808824c165ac3c8f21a784d76e99bf9897de"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -4,7 +4,7 @@
 //! its frequentist row: the net value of the fixed policy, of the fixed reference, and their
 //! paired difference, under the declared assignment probabilities. The posterior is the
 //! Bayesian-bootstrap functional of the per-subject augmented score. The declared probabilities
-//! identify the value; the prior on the subject law does not. The route is unlicensed and its
+//! identify the value; the prior on the subject law does not. The route is unsupported and its
 //! calibration is unmeasured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -63,12 +63,12 @@ pub(super) fn admit_bayesian_policy(
 }
 
 /// The standing diagnostic of every policy-value posterior.
-pub(super) fn unlicensed_diagnostic() -> Diagnostic {
+pub(super) fn unsupported_diagnostic() -> Diagnostic {
     Diagnostic::new(
-        "estimate.policy_value.bayesian.unlicensed",
+        "estimate.policy_value.bayesian.unsupported",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        "unlicensed and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of the \
+        "unsupported and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of the \
          augmented score has no coverage evidence, the declared assignment probabilities (not \
          the prior) identify the value, and outcome predictions must be subject-excluded",
     )

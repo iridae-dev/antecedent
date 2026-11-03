@@ -129,8 +129,8 @@ def test_derived_uncertainty_is_never_published() -> None:
     ):
         with pytest.raises(DR) as raised:
             require_success(derived.publish(route))
-        assert raised.value.reason_code == "cell_not_licensed"
-        assert raised.value.detail == "decision_reliability.cell_not_licensed"
+        assert raised.value.reason_code == "not_supported"
+        assert raised.value.detail == "decision_reliability.not_supported"
     with pytest.raises(DR) as raised:
         require_success(result.combined_uncertainty())
     assert raised.value.reason_code == "uncertainty_components_not_combined"
@@ -252,7 +252,7 @@ def _rollout(noise: str) -> dr.RolloutUtilityDraws:
     )
 
 
-def test_rollout_noise_decides_whether_ranking_is_licensed() -> None:
+def test_rollout_noise_decides_whether_ranking_is_supported() -> None:
     keyed = dr.reach_carrier(_rollout("implementation_keyed"))
     assert keyed.joint_law["standing"] == "marginal_only"
     derived = require_success(

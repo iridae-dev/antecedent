@@ -18,7 +18,7 @@ what a composition needs:
   an interval or a posterior and never a substitute for an aligned joint law -- and a declared
   correlation range has an ``assumption_range`` (:func:`correlation_range`).
 
-A value under a licensed route is a labelled ``point_only`` value. Its **spread** (a variance, a
+A value under a supported route is a labelled ``point_only`` value. Its **spread** (a variance, a
 Monte Carlo standard error, an exceedance probability with its Monte Carlo band and a verdict) is
 read through :func:`spread`, :func:`aligned_linear_spread`, :func:`linear_moments_spread`,
 :func:`composed_exceedance`, :func:`mixture_exceedance`, :func:`transported_spread` and
@@ -27,7 +27,7 @@ statement. A spread of a transported claim needs all three pieces (source sampli
 sampling, transport functional) and their dependence (an aligned law or a covariance).
 
 :meth:`PropagationClaim.interval` and :meth:`PropagationClaim.posterior` always raise
-``cell_not_licensed``. An interval at a composed coordinate is licensed only by
+``not_supported``. An interval at a composed coordinate is supported only by
 :meth:`PropagationClaim.check_composed_interval`, which resolves the claim's coordinate
 (:meth:`PropagationClaim.coordinate_id`), construction and declared evidence size against the
 shipped, currently attesting coverage records; the caller supplies no record, and without one it
@@ -105,9 +105,9 @@ class JointLawPropagationRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
     (``joint_law_required``, ``sampling_dependence_unknown``, ``evidence_double_counted``,
-    ``cell_not_licensed``, ``invalid_argument``, ``route_not_supported``) and a
+    ``not_supported``, ``invalid_argument``, ``route_not_supported``) and a
     ``joint_law_propagation.*`` ``detail``; ``remedy`` names the dependence information that would
-    license the request.
+    support the request.
     """
 
 
@@ -273,14 +273,14 @@ class MixtureDraws:
 
 @dataclass(repr=False, frozen=True)
 class ComposedInterval(ScientificResult):
-    """An interval licensed by a measured coverage record at its composed coordinate.
+    """An interval supported by a measured coverage record at its composed coordinate.
 
     ``lower`` and ``upper`` are present when the construction is built from the claim's own mean
-    and variance (``normal_approximation``); otherwise the licence names the construction the
+    and variance (``normal_approximation``); otherwise the support names the construction the
     caller builds from the aligned draws. The record, not this value, carries the coverage
     evidence; the interval holds at the record's ``nominal_level`` only.
     ``declared_evidence_rows`` is the caller's declared evidence size the record was resolved at;
-    the sealed claim does not authenticate it, so the licence holds only if it is true.
+    the sealed claim does not authenticate it, so the support holds only if it is true.
     """
 
     coordinate_id: str
@@ -352,7 +352,7 @@ class EnvelopeQuery:
 
 @dataclass(repr=False, frozen=True)
 class PropagationClaim(ScientificResult):
-    """A composed uncertain quantity: the licensed route, the labelled values and the artifact."""
+    """A composed uncertain quantity: the supported route, the labelled values and the artifact."""
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
@@ -424,7 +424,7 @@ class PropagationClaim(ScientificResult):
         return artifact_from_receipt(self, self._bytes)
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: a component interval does not cover the composition.
+        """Always raises ``not_supported``: a component interval does not cover the composition.
 
         An interval at the composed coordinate is read through :meth:`check_composed_interval`.
         """
@@ -441,15 +441,15 @@ class PropagationClaim(ScientificResult):
     def check_composed_interval(
         self, construction: str, *, evidence_rows: int, execution: Execution | None = None
     ) -> ComposedInterval:
-        """The interval reading, licensed only by an attesting registry record at this coordinate.
+        """The interval reading, supported only by an attesting registry record at this coordinate.
 
         The sealed artifact is verified and replayed first, then the claim's coordinate,
         ``construction`` and ``evidence_rows`` (the declared number of observations behind the
         least-supported input) are resolved against the shipped coverage records. The caller
         supplies no record. Without an attesting record the reading is closed
-        (``cell_not_licensed``, ``joint_law_propagation.interval_route_closed`` or
+        (``not_supported``, ``joint_law_propagation.interval_route_closed`` or
         ``joint_law_propagation.coverage_record_unmeasured``), and a claim whose dependence route
-        licenses no spread (an envelope) is refused with its own detail.
+        supports no spread (an envelope) is refused with its own detail.
         """
         if (
             isinstance(evidence_rows, bool)
@@ -458,15 +458,15 @@ class PropagationClaim(ScientificResult):
         ):
             raise CausalValueError("evidence_rows must be an integer of at least one")
         rows = evidence_rows
-        licence, refusal = _native.joint_law_check_composed_interval(
+        support, refusal = _native.joint_law_check_composed_interval(
             self._bytes,
             _text(construction, "construction"),
             rows,
             _cancel(execution),
         )
         _refuse(refusal)
-        assert licence is not None
-        info = json.loads(licence)
+        assert support is not None
+        info = json.loads(support)
         return ComposedInterval(
             coordinate_id=info["coordinate_id"],
             record_id=info["record_id"],
@@ -479,7 +479,7 @@ class PropagationClaim(ScientificResult):
         )
 
     def posterior(self) -> None:
-        """Always raises ``cell_not_licensed``: no composed coordinate has measured calibration."""
+        """Always raises ``not_supported``: no composed coordinate has measured calibration."""
         _refuse(_native.joint_law_closed_reading("posterior"))
 
 
@@ -916,7 +916,7 @@ def consume_joint_law_propagation_artifact(
 
     Raises:
         JointLawPropagationRefusal: an edited, truncated or foreign artifact, a retained
-            identity that differs, or a stored declaration the rule no longer licenses.
+            identity that differs, or a stored declaration the rule no longer supports.
     """
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):

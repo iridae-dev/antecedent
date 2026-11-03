@@ -492,9 +492,9 @@ fn external_response_refusals_and_verification() {
     assert_eq!(claim.trust(), BoundTrustLevel::ExactRequestVerified);
     assert!(!claim.is_native_estimation());
     assert_eq!(claim.verification().len(), 4);
-    // A native-licensed label can never be claimed by a provider.
+    // A native-supported label can never be claimed by a provider.
     let mut native = response();
-    native.header.trust = ExternalTrustState::NativeLicensed;
+    native.header.trust = ExternalTrustState::NativeSupported;
     assert_eq!(bind(native).unwrap_err(), ExternalBindingError::TrustMismatch);
 }
 

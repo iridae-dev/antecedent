@@ -8,7 +8,7 @@ identified and bound to evidence independently; the report keeps every scenario
 whatever its status, gives a structural envelope over the identified ones, and,
 only for declared weights, a report that never renormalizes over survivors. This
 is not equivalence-class (CPDAG/PAG) transport, and no inferential statement
-across scenarios is licensed.
+across scenarios is supported.
 
 With ``conditioned_on`` the question is the conditional ``P*(y | do(x), w)`` of
 the bounded ADMG conditional transport row: every scenario is decided by that
@@ -72,7 +72,7 @@ class TransportScenario:
         if isinstance(self.graph, Cpdag | Pag):
             raise CausalUnsupportedError(
                 "scenarios.equivalence_class_input: supply an explicit list of fixed "
-                "graphs; CPDAG/PAG-native transport is not licensed",
+                "graphs; CPDAG/PAG-native transport is not supported",
                 reason_code="route_not_supported",
             )
         if not isinstance(self.graph, Admg):
@@ -198,7 +198,7 @@ def prepare_transport_scenarios(
     with an inspection-only candidate, and ``structurally_unidentified`` only
     when the route's witness stage finds an exactly verified two-model witness.
     Exact laws only: ``StatisticalTransportData`` or counted laws refuse with
-    ``cell_not_licensed``. Its artifact is format version 2; a classical
+    ``not_supported``. Its artifact is format version 2; a classical
     question still exports version 1.
     """
     if not isinstance(scenarios, TransportScenarioSet):

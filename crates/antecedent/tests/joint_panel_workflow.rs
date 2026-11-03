@@ -510,7 +510,7 @@ fn a_panel_whose_channels_never_move_apart_is_refused_as_collinear() {
 }
 
 #[test]
-fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() {
+fn confounded_panel_does_not_acquire_a_causal_support_from_a_finite_mechanism() {
     use antecedent::analysis::joint_panel::{
         JointPanelDesignOutcome, declare_joint_panel_exogenous_context,
     };
@@ -536,7 +536,7 @@ fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() 
     assert!(matches!(observational.outcome, JointPanelDesignOutcome::Unsupported));
     assert!(observational.detail.contains("not identified through general ID"));
     assert!(observational.detail.contains("accepted point graph"));
-    // The fit runs, and a fitted mechanism earns no causal license.
+    // The fit runs, and a fitted mechanism earns no causal support.
     let fitted = prepared.estimate(&ctx).unwrap();
     assert!(fitted.require_identified().is_err());
     // The same family on the same panel gets none either.
@@ -1198,7 +1198,7 @@ fn broader_family() -> antecedent_estimate::joint_panel::PanelFamily {
 }
 
 #[test]
-fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unlicensed() {
+fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_panels_unsupported() {
     use antecedent::analysis::joint_panel::{
         JointPanelDesignOutcome, declare_joint_panel_exogenous_context,
     };
@@ -1244,7 +1244,7 @@ fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_pan
     assert_eq!(broader.estimate(&ctx).unwrap().point, result.point);
     assert_eq!(broader.fits_performed(), 1);
     // The same family on the confounded panel (channels driven by an unobserved context, moving
-    // separately) still earns no causal license from its fit.
+    // separately) still earns no causal support from its fit.
     let data = fixture::source_confounded_varied();
     let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
     request.family = broader_family();

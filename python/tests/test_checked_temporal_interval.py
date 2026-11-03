@@ -172,7 +172,7 @@ def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_closed(
     with pytest.raises(RecalcRefusal) as caught:
         Candidate.load(b"", expected=identity())
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
-        "cell_not_licensed",
+        "not_supported",
         "temporal_interval.route_frozen",
         "inference",
     )
@@ -363,7 +363,7 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
     with pytest.raises(RecalcRefusal) as caught:
         session.interval_candidate(config=Config(method="studentized"))
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
-        "cell_not_licensed",
+        "not_supported",
         "temporal_interval.route_frozen",
         "inference",
     )

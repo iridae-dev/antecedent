@@ -226,7 +226,7 @@ fn a_stopping_decision_is_the_contracts_rule_on_the_posterior() {
 }
 
 #[test]
-fn a_route_is_refused_for_the_wrong_outcome_or_an_unlicensed_paradigm() {
+fn a_route_is_refused_for_the_wrong_outcome_or_an_unsupported_paradigm() {
     let by_outcome =
         compute_choice_result(&contract(categorical(false)), &hierarchical(0), &ctx()).unwrap_err();
     assert_eq!(by_outcome.detail, "choice_inference.route_outcome_mismatch");
@@ -388,7 +388,7 @@ fn a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell() {
     let refused = Artifact::measure_interval(&bytes, &ctx()).expect_err("no record");
     let text = format!("{refused:?}");
     assert!(
-        text.contains("cell_not_licensed") || text.contains("not_measured"),
+        text.contains("not_supported") || text.contains("not_measured"),
         "an unmeasured cell refuses rather than reports an interval: {text}"
     );
 }

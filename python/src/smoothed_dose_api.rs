@@ -167,7 +167,7 @@ impl PreparedSmoothedDoseNative {
         Ok(payload)
     }
 
-    /// The unlicensed Bayesian posterior of the same smoothed dose response, under the declared
+    /// The unsupported Bayesian posterior of the same smoothed dose response, under the declared
     /// outcome model (`model` is its JSON): `(posterior json, framed artifact bytes)`.
     #[pyo3(signature=(model))]
     fn posterior(&self, py: Python<'_>, model: &str) -> PyResult<(String, Py<PyBytes>)> {
@@ -181,7 +181,7 @@ impl PreparedSmoothedDoseNative {
         Ok((payload, PyBytes::new(py, &framed).unbind()))
     }
 
-    /// The closed interval route: always refuses with `cell_not_licensed`.
+    /// The closed interval route: always refuses with `not_supported`.
     #[pyo3(signature=(cancel=None))]
     fn interval(&self, py: Python<'_>, cancel: Option<crate::PyCancellationToken>) -> PyResult<()> {
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);

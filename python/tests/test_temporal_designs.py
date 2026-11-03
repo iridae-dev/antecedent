@@ -2,7 +2,7 @@
 
 A two-arm micro-randomized panel with a known excursion effect, its Bayesian counterpart, a
 dose grid with a declared curvature bound, and the typed refusals of options a design does
-not read. Every result is unlicensed and uncalibrated.
+not read. Every result is unsupported and uncalibrated.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_the_two_arm_excursion_recovers_the_effect_in_both_modes() -> None:
         {"y": outcome}, outcome="y", units=unit, periods=period, design=design, lag=1
     )
     assert fit.estimator == "temporal_design.excursion"
-    assert not fit.licensed and fit.calibration == "unmeasured"
+    assert not fit.supported and fit.calibration == "unmeasured"
     estimate, lower, upper = fit.coordinate("excursion_effect")
     assert lower < estimate < upper
     assert abs(estimate - 1.2) < 4 * fit.standard_error[0]

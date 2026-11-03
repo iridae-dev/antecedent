@@ -148,7 +148,7 @@ never from a provenance label. A result counts each observation once (declared
 slots, distinct observations and repeated slots are all reported). A source
 with no declared observations is unknown, not independent: independent
 pooling and a diagonal covariance refuse, and only a covariance with cross
-terms or an explicit assumption range is licensed. A transported claim is
+terms or an explicit assumption range is supported. A transported claim is
 never counted as native target data, even with a declared covariance. A
 provenance or lineage label proves bookkeeping, not independence.
 

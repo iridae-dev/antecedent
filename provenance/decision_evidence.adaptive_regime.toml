@@ -10,7 +10,7 @@ papers = []
 implementation_deviations = [
   "Finite discrete state and action histories use a prespecified complete deterministic action table; the g-formula integrates empirical full-history transitions under each adaptive policy, including treatment-affected states.",
   "Source population, state and action identities, all policy rules, original episode data and assumptions remain in the native compiler recipe. The method requires sequential exchangeability, consistency, complete follow-up, isolation and observed support of every policy history.",
-  "A joint delete-subject jackknife retains failures and withholds covariance if any deletion loses support. Its derived normal interval is unlicensed and uncalibrated; a distinct coverage experiment is registered without attesting its results.",
+  "A joint delete-subject jackknife retains failures and withholds covariance if any deletion loses support. Its derived normal interval is unsupported and uncalibrated; a distinct coverage experiment is registered without attesting its results.",
   "An independent two-period hand calculation verifies the exact policy means and shared outcome covariance; it does not establish calibrated coverage or scientific authority.",
 ]
 

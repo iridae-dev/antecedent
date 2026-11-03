@@ -44,4 +44,4 @@ sha256 = "621d73dcbdbc5478655f5fb6dc777941a7808681c5c400af70f90e9e50a8e8bd"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/joint_response.rs"
-sha256 = "df7f44ea41388c452b4c29cbd429984074059a2a6367a077c7958dab94a4beb2"
+sha256 = "3caed53c5b66316bf912725b0d8daadb73e22c26349349df7e8208755f768ea3"

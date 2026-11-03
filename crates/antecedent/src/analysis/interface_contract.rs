@@ -17,7 +17,7 @@
 //!    composition** ([`check_interface_composition`]) from the declarations
 //!    alone, before any numerical execution. Every defect is reported as a
 //!    registered reason code with an `interface_contract.*` detail and the
-//!    declaration that would license the connection. A feedback cycle among
+//!    declaration that would support the connection. A feedback cycle among
 //!    components is refused with its path named.
 //! 3. **Export** ([`export_interface_contract`]) writes `interface_contract_v1`
 //!    (layout and identity rules: `spec/`), and **consume**
@@ -34,7 +34,7 @@
 //! unmeasured interval stays unmeasured, and a consumer that relies on
 //! measured calibration is refused rather than served an unmeasured interval.
 //! Calibration of a component is not calibration of a composition, and no
-//! interval or posterior is licensed by declaring one. Cyclic scientific
+//! interval or posterior is supported by declaring one. Cyclic scientific
 //! composition is refused, not unrolled.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -63,7 +63,7 @@ use antecedent_model::cyclic_component::{
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `interface_contract.*` detail, the coordinates involved and what would
-/// license the request.
+/// support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InterfaceContractRefusal {
     /// Registered runtime reason code.
@@ -76,9 +76,9 @@ pub struct InterfaceContractRefusal {
     pub expected: Option<String>,
     /// What the producer declares, when a comparison failed.
     pub supplied: Option<String>,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
-    /// The declaration that would license the request, when known.
+    /// The declaration that would support the request, when known.
     pub remedy: Option<String>,
 }
 
@@ -181,7 +181,7 @@ impl InterfaceContractRefusal {
 ///
 /// # Errors
 /// Every defect found, each a coded refusal with an `interface_contract.*`
-/// detail and the declaration that would license the connection.
+/// detail and the declaration that would support the connection.
 pub fn check_interface_connection(
     producer: &InterfaceContract,
     produced_port: &str,

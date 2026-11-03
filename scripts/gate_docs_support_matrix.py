@@ -24,8 +24,8 @@ for rel in DOCS:
 
 # The current release notes are part of the 0.9 public contract, not an
 # optional changelog paraphrase.  Verify that their refusal section accounts
-# for every root query with zero licensed cells; otherwise a newly added root
-# query (or a removed license) can leave the release notes silently stale.
+# for every root query with zero supported cells; otherwise a newly added root
+# query (or a removed supported route) can leave the release notes silently stale.
 with open(root / "Cargo.toml", "rb") as handle:
     cargo = tomllib.load(handle)
 version = cargo["workspace"]["package"]["version"]
@@ -53,10 +53,10 @@ else:
         refusal_text = notes.split(refusal_heading, 1)[1].split("\n## ", 1)[0]
         with open(root / "parity/support_axes.toml", "rb") as handle:
             axes = tomllib.load(handle)
-        with open(root / "parity/support_licensed.toml", "rb") as handle:
-            licensed = tomllib.load(handle).get("cell", [])
-        licensed_queries = {row["query"] for row in licensed}
-        zero_cell_queries = set(axes["queries"]) - licensed_queries
+        with open(root / "parity/support_cells.toml", "rb") as handle:
+            supported = tomllib.load(handle).get("cell", [])
+        supported_queries = {row["query"] for row in supported}
+        zero_cell_queries = set(axes["queries"]) - supported_queries
         for query in sorted(zero_cell_queries):
             if f"`{query}`" not in refusal_text:
                 fail.append(

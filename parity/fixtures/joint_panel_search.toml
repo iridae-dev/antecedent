@@ -17,4 +17,4 @@ artifacts = "Version-one numerical and full-panel certificates recompute the bou
 python = "antecedent.joint_panel.PanelResult.certify_program/search_program, consume_program_certificate, prepare_randomized_selection, select_instrumented_program, consume_randomized_selection, consume_instrumented_selection"
 tests = ["crates/antecedent-design/src/program_search/certified.rs", "crates/antecedent-design/src/program_search/certified/shape.rs", "crates/antecedent-design/src/program_search/certified/separable.rs", "crates/antecedent-design/src/program_search/certified/artifact.rs", "crates/antecedent-design/src/program_search/selection.rs", "crates/antecedent-design/src/program_search/selection/procedure.rs", "crates/antecedent/src/analysis/joint_panel/selection.rs", "crates/antecedent/src/analysis/joint_panel/selection/instrumented.rs", "crates/antecedent/tests/joint_panel_workflow.rs", "python/tests/test_joint_panel.py"]
 calibration = "parity/joint_response_calibration.toml#randomized_selected_program_value and #continuous_structural_selected_program_value"
-grants_release_license = false
+grants_release_support = false

@@ -24,12 +24,12 @@ What is claimed, and what is not:
 * **No per-dataset recovery guarantee.** The discovered structure is an estimate. Whether it is
   the true graph rests on faithfulness and causal sufficiency, which cannot be tested from the
   table discovery ran on, so no recovery, false-discovery or error-control statement is made
-  about one dataset, and none can be licensed: :meth:`SelectiveDiscovery.request_recovery_claim`
-  refuses with ``cell_not_licensed``. How often the method recovers the graph over a family of
-  generating processes is a measured table in the documentation, not a license.
+  about one dataset, and none can be supported: :meth:`SelectiveDiscovery.request_recovery_claim`
+  refuses with ``not_supported``. How often the method recovers the graph over a family of
+  generating processes is a measured table in the documentation, not support.
 * **A reused row cannot carry an interval.**
-  :meth:`SelectiveDiscovery.request_downstream_interval` refuses with ``cell_not_licensed``;
-  the interval that can be licensed is the one :func:`sample_split_effect` computes on rows
+  :meth:`SelectiveDiscovery.request_downstream_interval` refuses with ``not_supported``;
+  the interval that can be supported is the one :func:`sample_split_effect` computes on rows
   discovery never saw.
 * **A discovered structure is not a selection diagram.**
   :meth:`SelectiveDiscovery.request_selection_diagram` refuses and names every unresolved edge
@@ -39,7 +39,7 @@ What is claimed, and what is not:
   :class:`PerPopulationDiscovery`, nothing pooled and no invariance claimed.
 * **Discovery then analysis.** :func:`discover_on_split` partitions exchangeable rows into a
   discovery part and an analysis part by a declared rule, discovers on the first only and binds
-  the second to the discovery through a receipt. The binding licenses a statement conditional on
+  the second to the discovery through a receipt. The binding supports a statement conditional on
   the selected graph. :func:`sample_split_effect` runs the one construction whose whole-method
   coverage of the true effect is measured (a seeded half split, PC with the partial-correlation
   test, a resolved structure, parent adjustment on the analysis half) and its
@@ -153,9 +153,9 @@ class SelectiveDiscoveryRefusal(StructuredRefusal):
     """A typed refusal of selective discovery.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``invalid_argument``, ``route_not_supported``, ``cell_not_licensed``,
+    (``invalid_argument``, ``route_not_supported``, ``not_supported``,
     ``discovery_statistics_invalid``, ``discovered_structure_unresolved``) and a
-    ``selective_discovery.*`` ``detail``; ``remedy`` names what would license the request.
+    ``selective_discovery.*`` ``detail``; ``remedy`` names what would support the request.
     """
 
 
@@ -759,7 +759,7 @@ class SelectiveDiscovery(ScientificResult):
     def request_recovery_claim(self) -> None:
         """Ask for a recovery or error-control statement about the retained structure.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``): matching a full
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``): matching a full
         run is an algorithmic fact, not a statement about the true graph.
         """
         _raise(self._handle.request_recovery_claim())
@@ -767,7 +767,7 @@ class SelectiveDiscovery(ScientificResult):
     def request_downstream_interval(self) -> None:
         """Ask for an interval on a downstream estimate resting on the retained structure.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``).
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``).
         """
         _raise(self._handle.request_downstream_interval())
 
@@ -1150,8 +1150,8 @@ class SplitReceipt:
 class AnalysisBinding:
     """What an analysis table passed the split's check under.
 
-    The binding licenses a statement conditional on the selected graph, and no more: the
-    probability that discovery returned a graph that licenses the question is not controlled.
+    The binding supports a statement conditional on the selected graph, and no more: the
+    probability that discovery returned a graph that supports the question is not controlled.
     """
 
     receipt_identity: str
@@ -1392,7 +1392,7 @@ class SampleSplit(ScientificResult):
     def request_unsplit_interval(self) -> None:
         """Ask for an interval on account of discovery for an analysis that reused its rows.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``).
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``).
         """
         _raise(self._handle.request_unsplit_interval())
 
@@ -1504,7 +1504,7 @@ class SplitEffect:
             governing record.
 
         Raises:
-            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
+            SelectiveDiscoveryRefusal: ``not_supported`` when no current attesting,
                 non-boundary record measured this construction at this analysis row count.
         """
         from ._measured_inference import MeasuredInference
@@ -1643,7 +1643,7 @@ class ParentSetEffect:
             acceptance reason, the unresolved edges and the governing record.
 
         Raises:
-            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
+            SelectiveDiscoveryRefusal: ``not_supported`` when no current attesting,
                 non-boundary record measured this construction at this variable count, degree
                 and analysis row count.
         """

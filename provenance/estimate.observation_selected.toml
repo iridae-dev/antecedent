@@ -17,7 +17,7 @@ papers = [
 # The IPW path deliberately keeps its in-sample
 # maximum-likelihood propensity, which is the published estimator for that correction.
 # Cross-fitting separates nuisance training from pseudo-value evaluation; it does not by
-# itself license an interval,
+# itself support an interval,
 # and no standard error is published from this path (`estimate_mean_curve` reports
 # `ResponseUncertainty::None`).
 cross_fitted = "aipw_only"

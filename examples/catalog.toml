@@ -145,7 +145,7 @@ topic = "Tutorials"
 level = "intermediate"
 dependencies = ["numpy"]
 runtime = "up to 1 min"
-claim = "Average effect of quitting on weight change under a declared no-unmeasured-confounding graph and a declared complete-case policy for 63 missing outcomes; multiple imputation and other estimators are cross-checks. On the verified real file the estimates are not known causal truth, and the published analysis is close to but not the same computation. Offline runs use a synthetic stand-in with a stated fixture effect. See examples/data/nhefs.toml for provenance and licence."
+claim = "Average effect of quitting on weight change under a declared no-unmeasured-confounding graph and a declared complete-case policy for 63 missing outcomes; multiple imputation and other estimators are cross-checks. On the verified real file the estimates are not known causal truth, and the published analysis is close to but not the same computation. Offline runs use a synthetic stand-in with a stated fixture effect. See examples/data/nhefs.toml for provenance and support."
 
 [[example]]
 id = "analysis_workflow"
@@ -161,13 +161,13 @@ claim = "Average-effect execution, immutable branch history, and saved-result ac
 [[example]]
 id = "refusal_recipes"
 title = "Read a refusal and change the question"
-summary = "Refuse changed design assignments and an unlicensed interval, then use valid neighboring routes."
+summary = "Refuse changed design assignments and an unsupported interval, then use valid neighboring routes."
 python = "examples/python/refusal_recipes.py"
 topic = "Start here"
 level = "beginner"
 dependencies = []
 runtime = "up to 1 min"
-claim = "Changed randomized-design bindings and an unlicensed composed interval; explicit repreparation preserves the preceding result."
+claim = "Changed randomized-design bindings and an unsupported composed interval; explicit repreparation preserves the preceding result."
 
 [[example]]
 id = "ate_quickstart"
@@ -508,7 +508,7 @@ topic = "Structural models and feedback"
 level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
-claim = "Typed value programs and batch callbacks executed on declared mechanisms; routes are licensed separately and a runtime callback is not portable."
+claim = "Typed value programs and batch callbacks executed on declared mechanisms; routes are supported separately and a runtime callback is not portable."
 
 [[example]]
 id = "intrinsic_influence"

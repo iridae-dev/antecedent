@@ -31,7 +31,7 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
     )
 
     assert result.estimate.estimator_id == "bayesian.basis.gcomp"
-    assert result.evidence_status == "licensed"
+    assert result.evidence_status == "supported"
     assert result.posterior is not None
     assert result.posterior.n_draws == 256
     assert result.posterior.backend

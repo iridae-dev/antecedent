@@ -431,11 +431,11 @@ fn refuses_dag_only_identifier_on_pag() {
 }
 
 #[test]
-fn compile_temporal_response_refuses_unlicensed_observation() {
+fn compile_temporal_response_refuses_unsupported_observation() {
     use antecedent_core::{
         CausalSchemaBuilder, ContinuousDomain, GridSpec, MeasurementSpec, ObservationAssumption,
         ObservationSpec, ResponseFunctional, ResponseQuery, RoleHint, SmallRoleSet,
-        TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, ValueType,
+        TEMPORAL_OBSERVATION_UNSUPPORTED, TemporalPolicy, TemporalResponseSpec, ValueType,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -509,5 +509,5 @@ fn compile_temporal_response_refuses_unlicensed_observation() {
     let Some(message) = err.compile_message() else {
         panic!("expected a compile refusal, got {err:?}");
     };
-    assert!(message.contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {message}");
+    assert!(message.contains(TEMPORAL_OBSERVATION_UNSUPPORTED), "stable refuse, got {message}");
 }

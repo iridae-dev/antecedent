@@ -309,7 +309,7 @@ impl CheckedStaticDagResponseOperation {
         // A Bayesian intervention level publishes a posterior; its cheap/full suites run
         // the Bayesian refuter state (plugin-level suite on the posterior-mean level plus
         // the predictive checks and, under full, level-native prior sensitivity), which
-        // executes unlicensed.
+        // executes unsupported.
         let admissible_refuter = match query.functional {
             ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
             ResponseFunctional::InterventionResponse { .. } => {
@@ -710,7 +710,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
+                    "contrast-shaped refuters are not supported for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
                 ));
             }
             RefutationRun {

@@ -95,14 +95,14 @@ pub struct BridgedClaimInterval {
     pub mapping: MappingKind,
     /// Construction label.
     pub construction: &'static str,
-    /// What licenses the interval: `coverage_record` (a current attesting record measured
+    /// What supports the interval: `coverage_record` (a current attesting record measured
     /// the construction) or `exact_transform_of_declared_source_interval` (an identity or
     /// declared affine map of the source interval: the bridge adds no uncertainty and
     /// no estimation, so the interval's level is the declared source interval's own).
-    pub licensed_by: &'static str,
-    /// Governing coverage record (empty on an unlicensed construction or an exact transform).
+    pub supported_by: &'static str,
+    /// Governing coverage record (empty on an unsupported construction or an exact transform).
     pub coverage_record: String,
-    /// Commit the governing record was measured at (empty on an unlicensed construction or an
+    /// Commit the governing record was measured at (empty on an unsupported construction or an
     /// exact transform).
     pub calibration_sha: String,
     /// Stated assumptions, [`BRIDGE_INTERVAL_ASSUMPTIONS`].
@@ -110,7 +110,7 @@ pub struct BridgedClaimInterval {
 }
 
 /// An interval built from the bridged claim with the calibration basis a coverage record
-/// would have to match. Unlicensed: `coverage_record` is empty, and the value is not a
+/// would have to match. Unsupported: `coverage_record` is empty, and the value is not a
 /// published claim; [`bridged_claim_interval`] is the only route that publishes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConstructedBridgeInterval {
@@ -120,13 +120,13 @@ pub struct ConstructedBridgeInterval {
     pub basis: CalibrationBasisWire,
 }
 
-fn bridge_interval_not_licensed(detail: &str, remedy: &'static str) -> ExternalRefusal {
-    ExternalRefusal::new(reason_code!("cell_not_licensed"), BRIDGE_INTERVAL_STAGE, detail)
+fn bridge_interval_not_supported(detail: &str, remedy: &'static str) -> ExternalRefusal {
+    ExternalRefusal::new(reason_code!("not_supported"), BRIDGE_INTERVAL_STAGE, detail)
         .with_remedy(remedy)
 }
 
 fn bridge_interval_scope_refusal(message: String) -> ExternalRefusal {
-    bridge_interval_not_licensed(
+    bridge_interval_not_supported(
         BRIDGE_INTERVAL_DETAIL_OUTSIDE_MEASURED,
         "ask for the interval inside a measured design: a bridge kind and mapping with a \
          current attesting coverage record, a validated trial count, rates with a Youden index \
@@ -165,8 +165,8 @@ fn bridge_interval_trial_moments(trials: &[TrialEffectPair]) -> (f64, f64, f64, 
 /// [`bridged_claim_interval`].
 ///
 /// # Errors
-/// `cell_not_licensed` with `scientific_bridge.interval_source_uncertainty_required` when
-/// the source standard error is absent; `cell_not_licensed` with
+/// `not_supported` with `scientific_bridge.interval_source_uncertainty_required` when
+/// the source standard error is absent; `not_supported` with
 /// `scientific_bridge.interval_scope_outside_measured` for a level outside
 /// `[0.5, 0.9999]`, a negative or non-finite standard error, a Youden index or declared
 /// rate standard error outside the measured range, or a degenerate trial-level fit.
@@ -202,7 +202,7 @@ pub fn construct_bridged_claim_interval(
         )));
     }
     let Some(se) = source_standard_error else {
-        return Err(bridge_interval_not_licensed(
+        return Err(bridge_interval_not_supported(
             BRIDGE_INTERVAL_DETAIL_SOURCE_UNCERTAINTY,
             "supply the source claim's standard error with its own provenance: a bridged \
              interval carries the source estimate's sampling uncertainty, which the declared \
@@ -221,7 +221,7 @@ pub fn construct_bridged_claim_interval(
             "level {level} is outside [{BRIDGE_INTERVAL_MIN_LEVEL}, {BRIDGE_INTERVAL_MAX_LEVEL}]"
         )));
     }
-    let licensing = bridged.contract.check_licensing()?;
+    let support = bridged.contract.check_support()?;
     let tail = 1.0 - (1.0 - level) / 2.0;
     let x0 = bridged.source_value;
     let value = bridged.value;
@@ -307,7 +307,7 @@ pub fn construct_bridged_claim_interval(
                          standard errors at most {BRIDGE_INTERVAL_MAX_RATE_SD})"
                     )));
                 }
-                let (variance, label) = match licensing.direction {
+                let (variance, label) = match support.direction {
                     MeasurementDirection::MeasuredToLatent => (
                         (se * se + value * value * var_se + (1.0 - value) * (1.0 - value) * var_sp)
                             / (j * j),
@@ -373,7 +373,7 @@ pub fn construct_bridged_claim_interval(
             degrees_of_freedom,
             mapping,
             construction,
-            licensed_by: "coverage_record",
+            supported_by: "coverage_record",
             coverage_record: String::new(),
             calibration_sha: String::new(),
             assumptions: BRIDGE_INTERVAL_ASSUMPTIONS,
@@ -389,7 +389,7 @@ pub fn construct_bridged_claim_interval(
 /// when a current attesting non-boundary record measured exactly this construction.
 ///
 /// # Errors
-/// As [`construct_bridged_claim_interval`], and `cell_not_licensed` with
+/// As [`construct_bridged_claim_interval`], and `not_supported` with
 /// `scientific_bridge.interval_scope_outside_measured` when no current attesting coverage
 /// record measured this bridge kind, mapping, direction, level and validated trial count.
 #[allow(clippy::result_large_err, reason = "the refusal is the shared external refusal type")]
@@ -403,7 +403,7 @@ pub fn bridged_claim_interval(
     if matches!(interval.mapping, MappingKind::Identity | MappingKind::Affine) {
         // An exact monotone map of the declared source interval estimates nothing: its
         // coverage is the source interval's by construction, so there is nothing to measure.
-        interval.licensed_by = "exact_transform_of_declared_source_interval";
+        interval.supported_by = "exact_transform_of_declared_source_interval";
         return Ok(interval);
     }
     let slot = calibration_slot(&basis);

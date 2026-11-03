@@ -153,8 +153,8 @@ CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
 
 
 def _posterior_row_detail(estimator: Any) -> str:
-    """The answer detail of an unlicensed Bayesian randomized-design posterior."""
-    return f"unlicensed_posterior_{str(estimator).replace('.', '_')}"
+    """The answer detail of an unsupported Bayesian randomized-design posterior."""
+    return f"unsupported_posterior_{str(estimator).replace('.', '_')}"
 
 
 def _scalar_bounds(value: Any) -> tuple[float, float] | None:
@@ -181,7 +181,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind != "unavailable" and isinstance(rollout, Mapping):
         return Answer(
             "structured",
-            detail="unlicensed_quasi_rollout_" + str(rollout.get("uncertainty")),
+            detail="unsupported_quasi_rollout_" + str(rollout.get("uncertainty")),
             structured=canonical_from_wire("quasi_rollout", rollout),
         )
     if kind is None:
@@ -240,7 +240,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "point" and isinstance(contrast, Mapping):
         return Answer(
             "structured",
-            detail="unlicensed_sequential_contrast_" + str(contrast.get("uncertainty")),
+            detail="unsupported_sequential_contrast_" + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
     bounds_section = payload.get("iv_bounds")
@@ -248,21 +248,21 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer(
             "bounds",
             bounds=(float(bounds_section["lower"]), float(bounds_section["upper"])),
-            detail="unlicensed_iv_bounds_" + str(bounds_section.get("uncertainty")),
+            detail="unsupported_iv_bounds_" + str(bounds_section.get("uncertainty")),
             structured=canonical_from_wire("iv_bounds", bounds_section),
         )
     design = payload.get("temporal_design")
     if kind != "unavailable" and isinstance(design, Mapping):
         return Answer(
             "structured",
-            detail="unlicensed_temporal_design_" + str(design.get("uncertainty")),
+            detail="unsupported_temporal_design_" + str(design.get("uncertainty")),
             structured=canonical_from_wire("temporal_design", design),
         )
     matched = payload.get("history_match")
     if kind == "point" and isinstance(matched, Mapping):
         return Answer(
             "structured",
-            detail="unlicensed_period_history_match_standard_error_no_interval",
+            detail="unsupported_period_history_match_standard_error_no_interval",
             structured=canonical_from_wire("history_match", matched),
         )
     regime = payload.get("longitudinal_regime")
@@ -475,7 +475,7 @@ class ResultAPI:
         if contrast is not None:
             return Answer(
                 "structured",
-                detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
+                detail="unsupported_sequential_contrast_" + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
         association = getattr(self, "association", None)
@@ -490,28 +490,28 @@ class ResultAPI:
             return Answer(
                 "bounds",
                 bounds=(float(iv_bounds.lower), float(iv_bounds.upper)),
-                detail="unlicensed_iv_bounds_" + str(iv_bounds.uncertainty),
+                detail="unsupported_iv_bounds_" + str(iv_bounds.uncertainty),
                 structured=canonical_from_live("iv_bounds", iv_bounds),
             )
         design = getattr(self, "temporal_design", None)
         if design is not None:
             return Answer(
                 "structured",
-                detail="unlicensed_temporal_design_" + str(design.uncertainty),
+                detail="unsupported_temporal_design_" + str(design.uncertainty),
                 structured=canonical_from_live("temporal_design", design),
             )
         rollout = getattr(self, "quasi_rollout", None)
         if rollout is not None:
             return Answer(
                 "structured",
-                detail="unlicensed_quasi_rollout_" + str(rollout.uncertainty),
+                detail="unsupported_quasi_rollout_" + str(rollout.uncertainty),
                 structured=canonical_from_live("quasi_rollout", rollout),
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return Answer(
                 "structured",
-                detail="unlicensed_period_history_match_standard_error_no_interval",
+                detail="unsupported_period_history_match_standard_error_no_interval",
                 structured=canonical_from_live("history_match", matched),
             )
         regime = getattr(self, "longitudinal_regime", None)
@@ -622,7 +622,7 @@ class ResultAPI:
                 )
             )
             return (
-                f"Unlicensed Bayesian posterior ({posterior_row.estimator}) for "
+                f"Unsupported Bayesian posterior ({posterior_row.estimator}) for "
                 f"{posterior_row.target}: {coordinates}. Equal-tailed 95% credible intervals "
                 "under the declared likelihood and prior; calibration is unmeasured and the "
                 "prior supplies no identifying premise."
@@ -637,7 +637,7 @@ class ResultAPI:
             return (
                 f"Observational sequential contrast {contrast.contrast:g} of regime "
                 f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
-                "Unlicensed; repeated-sampling calibration is unmeasured."
+                "Unsupported; repeated-sampling calibration is unmeasured."
             )
         design = getattr(self, "temporal_design", None)
         if design is not None:
@@ -659,7 +659,7 @@ class ResultAPI:
             )
             return (
                 f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
-                f"({rollout.uncertainty}). Unlicensed; calibration is unmeasured."
+                f"({rollout.uncertainty}). Unsupported; calibration is unmeasured."
             )
         association = getattr(self, "association", None)
         if association is not None:
@@ -678,13 +678,13 @@ class ResultAPI:
             return (
                 f"Average effect under a binary instrument is partially identified: "
                 f"[{iv_bounds.lower:g}, {iv_bounds.upper:g}], a set and not a point."
-                f"{spread} Unlicensed, calibration unmeasured."
+                f"{spread} Unsupported, calibration unmeasured."
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return (
                 f"Within-period history-matched contrast {matched.contrast:g} on the matched "
-                "treated units. Abadie-Imbens standard error only; no interval, unlicensed, "
+                "treated units. Abadie-Imbens standard error only; no interval, unsupported, "
                 "calibration unmeasured."
             )
         regime = getattr(self, "longitudinal_regime", None)

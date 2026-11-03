@@ -116,7 +116,7 @@ def test_admissible_identity_ignores_order_and_changes_with_rules() -> None:
         ),
         declared_exclusions=(
             decision_robust.DeclaredExclusion("A", "legal"),
-            decision_robust.DeclaredExclusion("B", "not licensed"),
+            decision_robust.DeclaredExclusion("B", "not supported"),
         ),
         uncertainty="structural_envelope",
     )

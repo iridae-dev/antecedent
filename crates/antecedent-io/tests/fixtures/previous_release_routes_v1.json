@@ -1,22 +1,22 @@
 {
  "routes": [
   {
-   "id": "licensed.AverageEffect.Dag",
-   "status": "licensed",
+   "id": "supported.AverageEffect.Dag",
+   "status": "supported",
    "design_time_model": "static; structure=explicit,accepted,graph_posterior",
    "inference": "Frequentist,Bayesian"
   },
   {
-   "id": "licensed.AnomalyAttribution.TemporalDag",
-   "status": "licensed",
+   "id": "supported.AnomalyAttribution.TemporalDag",
+   "status": "supported",
    "design_time_model": "temporal; structure=explicit",
    "inference": "Frequentist,Bayesian"
   },
   {
-   "id": "licensed.InterventionResponse.CoDetermined",
-   "status": "licensed",
+   "id": "supported.InterventionResponse.CoDetermined",
+   "status": "supported",
    "design_time_model": "static; structure=explicit",
-   "inference": "Frequentist,Bayesian (executing unlicensed)"
+   "inference": "Frequentist,Bayesian (executing unsupported)"
   },
   {
    "id": "closed.AnomalyAttribution.Admg",

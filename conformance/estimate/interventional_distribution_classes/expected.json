@@ -38,7 +38,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/interventional_distribution_class_route_evidence.rs",
-          "sha256": "07d78f414a26b8df43059f0882501a5c339ef4a12d2dfaaf2cc6ab0f5e4ae71f"
+          "sha256": "238e23536ad1770e87a75052b5068bda4e4339f45e8d5bb0fac24da1a4799f0d"
         }
       ],
       "fixture_payload_sha256": "556837e934fb024186f87984d8932ed9259e7cb38315694bdd7b70d5ea35f7de"

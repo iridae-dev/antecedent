@@ -43,7 +43,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_history_fit.rs",
-          "sha256": "c5430da7c596a270d5adc31569592d4149060f95f47d4422cbb0dabe3b4ba987"
+          "sha256": "154c5d1b7253e1963c8dfbf6d0a9b9e6da8b91890490840e4f3b229255ba3ee8"
         }
       ],
       "fixture_payload_sha256": "5cb250f33597c7c4ef405392ef7c6fd2e94fe72cabac03ec796b535cf4384b1e"

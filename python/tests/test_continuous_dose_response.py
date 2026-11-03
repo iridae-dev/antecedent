@@ -53,7 +53,7 @@ def test_stratified_continuous_dose_response_recovers_known_linear_truth():
     assert all(point.minimum_dose_density == pytest.approx(0.5) for point in result.points)
     assert result.policy_value_estimated is False
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "no interference" in " ".join(result.assumptions).lower()
 
 
@@ -142,7 +142,7 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
         antecedent.load(bytes(outcome.export(artifact_id="continuous-dose-study")))
     )
     assert loaded.answer == result.answer
-    assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
+    assert loaded.answer.structured["graphless_support_status"] == "unsupported_point_utility"
     assert loaded.answer.kind == "structured"
     assert loaded.answer.structured["points"][3]["response"] == pytest.approx(11.0)
 

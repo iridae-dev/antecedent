@@ -3,7 +3,7 @@
 //! the declared prior.
 //!
 //! Nothing here is measured at implementation time: every test is `#[ignore]`d and runs only at
-//! the final measurement step, and no interval is licensed until its record exists.
+//! the final measurement step, and no interval is supported until its record exists.
 //!
 //! * Pooled (`choice_dirichlet_share_*`): one choice per respondent, the uniform Dirichlet
 //!   prior, shares drawn from it, one final analysis. Axis: options {2, 3, 5}, respondents on

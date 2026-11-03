@@ -39,7 +39,7 @@ record_sha256 = "7e32193bb14249c0e49f0714c0ac7e59b44c7427e25c27c9b7562206ac2eded
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/transported_policy.rs"
-sha256 = "7ffea30d2c61563e20516ad4744365f6d02559d659ca0072ec217840f933ef3c"
+sha256 = "f45a1aa7d57e358fe6656ebd533917e0043c44e869122fd9246eb44fb56db4db"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -49,4 +49,4 @@ sha256 = "46e468f0053554b6420753f08b4611efefa7cb68fef5f032b31d24b6e2d3af1e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transported_evaluation.rs"
-sha256 = "07d1203a50f0390fddfb81a9aa65586e6116434e6de25edd2fb2436e9bd2598e"
+sha256 = "a407a21ae0b77c0bf73a7b7a1ccf5f12623d7c0b3b8a25b12b10f9a904e34195"

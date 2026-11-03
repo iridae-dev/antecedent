@@ -328,7 +328,7 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
         "not_retained_by_original_external_claim_format"
     );
     assert_eq!(summary["native_authority_issued"], false);
-    assert_eq!(summary["calibration_license_issued"], false);
+    assert_eq!(summary["calibration_support_issued"], false);
     assert_eq!(evidence.diagnostics_at(&evidence.coordinates()[0]).unwrap(), serde_json::json!([]));
     let means = antecedent_design::composition_verifiers::mean_source_of(&original).unwrap();
     evidence.require_mean_source(&means).unwrap();

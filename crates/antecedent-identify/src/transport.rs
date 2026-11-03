@@ -556,7 +556,7 @@ fn target_g_formula(
             rule: Arc::from("transport.sid.target_g_formula"),
             selection_targets: diagram.selection_targets().to_vec().into(),
             premises: Arc::from([Arc::from(
-                "causal sufficiency licenses the target observational truncated factorization",
+                "causal sufficiency supports the target observational truncated factorization",
             )]),
         },
     })

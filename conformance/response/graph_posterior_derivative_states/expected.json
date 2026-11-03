@@ -56,7 +56,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs",
-          "sha256": "4f46a8ce1e4c21aad58f62c6980f2ad030c844adbdb9f196e6d52906857e9ebe"
+          "sha256": "b342981f51a6adc6c9260995ff880413e09a4573132f6a05f7e4240753c3567d"
         }
       ],
       "fixture_payload_sha256": "26a8cc79672d7b22fe4b495b568dca176fab17aa1c00270c074a22eb235096ea"

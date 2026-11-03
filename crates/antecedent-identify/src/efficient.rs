@@ -495,7 +495,7 @@ mod tests {
             e.method_kind(),
             Ok(EstimandMethod::BackdoorAdjustment | EstimandMethod::BackdoorEfficient)
         )));
-        // A pre-treatment common cause remains a licensed conditioning variable.
+        // A pre-treatment common cause remains a supported conditioning variable.
         let mut common = Dag::with_variables(3);
         for (a, b) in [(2, 0), (2, 1), (0, 1)] {
             common.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();

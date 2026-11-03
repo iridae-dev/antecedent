@@ -24,13 +24,13 @@ def test_unmodeled_serial_dependence_refuses_the_ordinary_reading():
     with pytest.raises(CausalError) as caught:
         require_ordinary_temporal_curve_posterior("unmodeled")
     error = caught.value
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     text = str(error)
-    assert "temporal_curve.ordinary_posterior_not_licensed" in text
+    assert "temporal_curve.ordinary_posterior_not_supported" in text
     assert "next attempt" in text and "autoregressive innovation law" in text
 
 
-def test_attested_independent_innovations_license_the_ordinary_reading():
+def test_attested_independent_innovations_support_the_ordinary_reading():
     assert require_ordinary_temporal_curve_posterior("independent_innovations") is None
     with pytest.raises(ValueError, match="serial_error_model must be"):
         require_ordinary_temporal_curve_posterior("nonsense")  # type: ignore[arg-type]
@@ -81,14 +81,14 @@ def test_credible_interval_always_refuses_and_names_the_missing_likelihood():
     with pytest.raises(CausalError) as caught:
         trajectory_hazard_credible_interval(**data)
     error = caught.value
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     text = str(error)
-    assert "trajectory_survival.credible_interval_not_licensed" in text
+    assert "trajectory_survival.credible_interval_not_supported" in text
     assert "joint likelihood" in text and "g-formula" in text and "next attempt" in text
     # Invalid trajectories are a data error, not the boundary.
     with pytest.raises(CausalError) as invalid:
         trajectory_hazard_credible_interval(**{**data, "active": [False], "control": [False]})
-    assert getattr(invalid.value, "reason_code", None) != "cell_not_licensed"
+    assert getattr(invalid.value, "reason_code", None) != "not_supported"
 
 
 def test_survival_contrast_and_bootstrap_refuse_trajectories_that_follow_no_one():
@@ -101,4 +101,4 @@ def test_survival_contrast_and_bootstrap_refuse_trajectories_that_follow_no_one(
             **nobody, replicates=50, execution=antecedent.Execution(seed=1)
         )
     for error in (contrast.value, bootstrap.value):
-        assert getattr(error, "reason_code", None) != "cell_not_licensed"
+        assert getattr(error, "reason_code", None) != "not_supported"

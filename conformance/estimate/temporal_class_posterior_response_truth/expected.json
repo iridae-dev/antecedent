@@ -44,12 +44,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "6513e6004f747315a4b38c212f13670bff0670526d220fb7a1dcbe4c0b162aa6"
+          "sha256": "e41ca1d3c5a081315017a94f62c913e659a7fa19c9692280b6124f12a8b8877b"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs",
-          "sha256": "89e95a6b9f6dff0266f4e32c56c7a81fe439f54d87f51d3c99215c3a653a459c"
+          "sha256": "7b32e9adfe9d5bfc5bb674f7f60492370dd7a256c7eb6cdf705098cff3f99ae6"
         }
       ],
       "fixture_payload_sha256": "19a839c1604c4b1ec90aac0ab56f18fcd1d198c70be1c71810b6f2c576755b8b"

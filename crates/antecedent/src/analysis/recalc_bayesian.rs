@@ -506,7 +506,7 @@ fn bayesian_plan(
             request: if supported {
                 antecedent_core::recalc::RequestSupport::OnGrid
             } else {
-                antecedent_core::recalc::RequestSupport::Unsupported { licensed_route: None }
+                antecedent_core::recalc::RequestSupport::Unsupported { supported_route: None }
             },
             boundary,
         },

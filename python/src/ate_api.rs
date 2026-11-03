@@ -823,8 +823,6 @@ pub(crate) fn ate_result_from_analysis(
         modality,
         refutations,
         evidence_status,
-        allowlist_reason,
-        allowlist_parent,
         structural_weight_basis,
         structural_identified_mass,
         structural_unidentified_mass,
@@ -1122,8 +1120,6 @@ pub(crate) fn ate_result_from_analysis(
                 .with_compiled_study_origin()
         }),
         evidence_status,
-        allowlist_reason,
-        allowlist_parent,
         effect_authority,
     })
 }
@@ -1335,7 +1331,7 @@ fn structure_query(
                 if !matches!(query.policy, TemporalPolicy::Sustained { .. }) {
                     return Err(crate::value_err("window requires a sustained policy"));
                 }
-                if treatment_lag != crate::temporal_license::DEFAULT_TREATMENT_LAG {
+                if treatment_lag != crate::temporal_support::DEFAULT_TREATMENT_LAG {
                     return Err(crate::value_err(
                         "treatment_lag does not apply with a window: the window states the policy's own span",
                     ));
@@ -1356,7 +1352,7 @@ fn structure_query(
                 ),
             });
             let temporal_policy =
-                crate::temporal_license::policy_at_lag(policy.unwrap_or("pulse"), treatment_lag)?;
+                crate::temporal_support::policy_at_lag(policy.unwrap_or("pulse"), treatment_lag)?;
             query.temporal = Some(
                 TemporalResponseSpec::new(vec![horizon_steps.max(1)], temporal_policy, None)
                     .map_err(|error| crate::value_err(error.to_string()))?,

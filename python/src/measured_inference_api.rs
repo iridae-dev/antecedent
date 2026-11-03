@@ -74,7 +74,7 @@ impl NativeMeasuredInference {
             return Ok(report.to_string());
         }
         // Reading the unchanged original report is inspection only; it never fits,
-        // licenses posterior quantities or constructs another native authority.
+        // supports posterior quantities or constructs another native authority.
         let report = crate::detach_catch(py, || {
             if let NativeAuthority::Checked(value) = &self.authority {
                 return serde_json::to_string(

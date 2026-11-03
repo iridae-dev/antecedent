@@ -25,14 +25,14 @@
 //! declaration's own projection, recomputes the declaration identity, the
 //! request identity and the output digest, re-runs the output check
 //! (finite, supported, a law) and recomputes the standing. A stored trust level
-//! of `native_licensed` is refused, not downgraded. A stored standing of
-//! `licensed_external` for a declaration that is not eligible is refused.
+//! of `native_supported` is refused, not downgraded. A stored standing of
+//! `supported_external` for a declaration that is not eligible is refused.
 //!
 //! Every decoded collection is bounded before it is used: total bytes, section
 //! sizes (by the container), operations, inputs, dependencies, evidence
 //! sources, draws and points. No CBOR value is evaluated as code.
 //!
-//! No interval, posterior guarantee, joint law or identification licence is
+//! No interval, posterior guarantee, joint law or identification evidence is
 //! carried.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -356,7 +356,7 @@ pub struct CallbackResultMeta {
     pub request_identity: String,
     /// The stage.
     pub stage: StageWire,
-    /// `diagnostic` or `licensed_external`, best case under the declaration.
+    /// `diagnostic` or `supported_external`, best case under the declaration.
     pub standing: String,
     /// Digest (hex) of the output values, bit-exact.
     pub output_digest: String,
@@ -578,8 +578,8 @@ fn trust_from_wire(wire: &TrustWire) -> Result<CallbackTrust, Failure> {
         ("verified_extension", None, Some(receipt_digest)) => {
             Ok(CallbackTrust::ExactRequestVerified { receipt_digest: receipt_digest.clone() })
         }
-        // Metadata never confers native licence.
-        ("native_licensed", _, _) => Err(refused(native_trust_claimed())),
+        // Metadata never confers native support.
+        ("native_supported", _, _) => Err(refused(native_trust_claimed())),
         _ => Err(Failure::UnsupportedSemantics("trust level")),
     }
 }

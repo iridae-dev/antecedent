@@ -4,7 +4,7 @@
 //! are independent subjects. The reference is computed here from the raw first rows: the Newton
 //! logistic maximum-likelihood fit, the probability-scale contrast averaged over the observed
 //! lag, its Fisher delta-method standard error, and for the Bayesian route the Newton mode and a
-//! Laplace sample under the stated Gaussian prior. The routes are unlicensed estimators with
+//! Laplace sample under the stated Gaussian prior. The routes are unsupported estimators with
 //! calibration unmeasured; a single dependent series is refused with its next attempt.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -254,7 +254,7 @@ fn the_frequentist_contrast_matches_newton_and_the_delta_method() {
     // The contrast is a probability difference, not the link-scale treatment coefficient.
     assert!((estimate.ate - beta[1]).abs() > 0.1);
     assert!(result.posterior.is_none());
-    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 #[test]

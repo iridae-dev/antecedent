@@ -41,7 +41,7 @@ record_sha256 = "4bfb952fa6488dc835381370c22f6c5ab363532e5dc27975109c0f7820727da
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract.rs"
-sha256 = "ed245a63118da8eb1886fbb78cc0c64837ad2867dbc820cfe52ef675edbd855c"
+sha256 = "34cd3e74db7ddbc8ed35e40bb8f1fea7e4e63895b8f4b64f252d6ad9b6eb3171"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -51,4 +51,4 @@ sha256 = "6b6e67566702c9e05591df53385b6a046ed85bc7be42933d1d5e4db4343157e4"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_robustness.rs"
-sha256 = "996b8079225191dad95354c5efef3b5fc2176f10a2bd665f5cf7f00bcadd4755"
+sha256 = "0bc02064272e1fcaa00895bb49300f01386da59810cfe6952639f7abb00a164e"

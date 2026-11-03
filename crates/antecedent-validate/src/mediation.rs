@@ -336,7 +336,7 @@ fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, Val
 
 /// Static mediation-native suite. Cheap tests a placebo mediator, an exogenous
 /// random nuisance, and binary mediator range overlap. Full adds random subsets.
-/// All numeric refits use the same static DAG estimator as the licensed cell.
+/// All numeric refits use the same static DAG estimator as the supported cell.
 ///
 /// # Errors
 /// Invalid refit data, regression failure, or cancellation.

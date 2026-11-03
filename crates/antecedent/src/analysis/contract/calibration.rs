@@ -142,7 +142,7 @@ impl StudyResult {
                 cell.validation.as_str()
             }
             // These two checked graphless routes refuse a validation suite at
-            // preparation. Only an exact execution stamp and the licensed,
+            // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
             // merely inspected result remains unknown.
             (Some(executed), None)
@@ -151,7 +151,7 @@ impl StudyResult {
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
                     && contract.reasoning.support.as_ref().is_some_and(|slot| {
-                        slot.matrix_status.as_ref() == "licensed"
+                        slot.matrix_status.as_ref() == "supported"
                             && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                                 match (&self.payload, &contract.body.query) {
                                     (ResultPayload::PanelDid(_), antecedent_io::CausalQueryWire::PanelDid(_)) =>

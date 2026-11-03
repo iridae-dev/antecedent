@@ -151,7 +151,7 @@ fn the_bayesian_augmented_panel_posterior_matches_the_arm_regression_reference_a
     assert!((mean - EFFECT).abs() < 0.05, "posterior mean {mean} vs truth {EFFECT}");
     assert!(sd > 0.015 && sd < 0.04, "posterior sd {sd}");
     assert!(lower < EFFECT && EFFECT < upper, "[{lower}, {upper}]");
-    assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian design route is unsupported");
 }
 
 #[test]

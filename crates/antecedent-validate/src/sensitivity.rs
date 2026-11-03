@@ -490,7 +490,7 @@ impl SensitivityGram {
         u: &[f64],
     ) -> Result<Option<Self>, ValidationError> {
         if !problem.query.effect_modifiers.is_empty() {
-            // Fast path is β_T · Δ on [1, T, Z]; the licensed conditional scalar is
+            // Fast path is β_T · Δ on [1, T, Z]; the supported conditional scalar is
             // (β_T + β_{T×W} Ē[W]) · Δ. Fall back to the data pass, which refits the
             // interaction model.
             return Ok(None);

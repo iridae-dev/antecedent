@@ -13,7 +13,7 @@ implementation_deviations = [
  "Finite-catalog binding uses deterministic bounded alternatives. Search exhaustion and catalog gaps are inconclusive, never obstruction proofs.",
  "Common typed rules retain historical single-source identifiers; the Figure 5 mapping is documented in docs/architecture/transport-meta-grid.md.",
  "Negative claims require independently checked common nested forests against every declared source. Positive checking replays local premises without rerunning identification.",
- "Numerical SCM validation and bounded sampling fixtures do not license new coverage. Hours-long multi-source/grid calibration remains deferred.",
+ "Numerical SCM validation and bounded sampling fixtures do not support new coverage. Hours-long multi-source/grid calibration remains deferred.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -33,7 +33,7 @@ redistribution = "The references are repository-authored under MIT OR Apache-2.0
 limitations = "The primary paper (Bareinboim and Pearl 2013, meta-transportability) was not retrieved; the Figure 5 line mapping documented in docs/architecture/transport-meta-grid.md is taken as stated, and completeness rests on the paper plus common-s-hedge verification, not on numerics. Binary three-node ordered ADMGs over seven selection patterns with outcomes one and two nodes wide, and a four-node family, are enumerated; the mechanism probabilities stay between 0.07 and 0.83, so extreme-probability regimes (which the single-source review adds) are not exercised for the meta search, and larger graphs, more than two sources and non-binary domains are not enumerated. The unit tests inside meta.rs cover complementary sources and common-witness rejection by hand-built cases only. Calibration remains deferred."
 sources = ["Bareinboim and Pearl (2013), Meta-Transportability of Causal Effects: A Formal Approach, AISTATS (https://proceedings.mlr.press/v31/bareinboim13a.pdf; title as listed, text not retrieved)"]
 findings_resolved = ["On every ordered three-node ADMG, seven selection pairs for two sources and outcome sets of one and two nodes, each identified diagram's formula matches the enumerated target atoms and contrast, every proof replays under verify_meta_transport, and every non-transportable verdict carries a common s-hedge that verify_meta_s_hedge accepts; the four-node family leaves no unchecked obstruction.", "No defect was found and no product code changed."]
-record_sha256 = "b2175340e347098e85125de2379d53b251d801a4d5c82da7b00458f4aaa74f39"
+record_sha256 = "fd25fbca7e553b6d21f4485336ce5d95880be20968dce0929b313dd7f254e834"
 
 [[method_review.artifacts]]
 role = "implementation"

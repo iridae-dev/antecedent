@@ -418,7 +418,7 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
     let spiked = report.claims[1].outcome.as_ref().unwrap_err();
     assert!(spiked.support_refused);
     assert_eq!(spiked.detail.as_deref(), Some("batch_retarget.weighted_overlap_failed"));
-    assert_eq!(spiked.reason_code.as_deref(), Some("cell_not_licensed"));
+    assert_eq!(spiked.reason_code.as_deref(), Some("not_supported"));
     let short = report.claims[2].outcome.as_ref().unwrap_err();
     assert_eq!(short.detail.as_deref(), Some("batch_retarget.incompatible_target"));
     assert_eq!(short.reason_code.as_deref(), Some("invalid_argument"));
@@ -431,7 +431,7 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
     assert_eq!(report.covariance.as_ref().unwrap().names, ["good"]);
     let refusal = report.complete_family().unwrap_err();
     assert_eq!(refusal.detail, "batch_retarget.partial_family");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "not_supported");
     assert!(refusal.message.contains("spiked") && refusal.message.contains("short"));
 
     // The tidy export lists every member, the failed ones with their typed refusal.
@@ -447,8 +447,8 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
     assert_eq!(row("good").status, "ok");
     assert_eq!(row("good").support_status, "supported");
     assert_eq!(row("spiked").status, "failed");
-    assert_eq!(row("spiked").support_status, "refused");
-    assert_eq!(row("spiked").refusal_code.as_deref(), Some("cell_not_licensed"));
+    assert_eq!(row("spiked").support_status, "not_supported");
+    assert_eq!(row("spiked").refusal_code.as_deref(), Some("not_supported"));
     assert_eq!(row("short").refusal_detail.as_deref(), Some("batch_retarget.incompatible_target"));
     assert_eq!(row("good_minus_spiked").kind, TidyKind::Contrast);
     assert_eq!(row("good_minus_spiked").status, "failed");
@@ -765,8 +765,5 @@ fn the_simultaneous_interval_is_the_max_t_band_of_a_complete_family() {
     )
     .unwrap();
     let refused = partial.simultaneous_interval(0.95, 9, 20_000, &ctx).unwrap_err();
-    assert_eq!(
-        (refused.code, refused.detail),
-        ("cell_not_licensed", "batch_retarget.partial_family")
-    );
+    assert_eq!((refused.code, refused.detail), ("not_supported", "batch_retarget.partial_family"));
 }

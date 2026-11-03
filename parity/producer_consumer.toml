@@ -233,8 +233,8 @@ status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, verification identity digest)` declared by the caller; the plan reads the digest only"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`decision_reliability.cell_not_licensed`"
+code = "`not_supported`"
+detail = "`decision_reliability.not_supported`"
 where = "`DecisionReliability.publish` and `decision_reliability.publish` for a ranking probability, confidence set or interval"
 
 [[refusal]]
@@ -248,22 +248,22 @@ detail = "`decision_reliability.search_record_required`"
 where = "`decision_reliability.assess` and `decision_reliability.rank` over adaptively generated candidates without a `CandidateSearchRecord`"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`cohort_decision.interval_not_licensed`"
+code = "`not_supported`"
+detail = "`cohort_decision.interval_not_supported`"
 where = "`CohortDecisionSource.interval` (an interval, band or posterior for the cohort mean)"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`cohort_decision.interval_requires_native_fit`"
 where = "`CohortDecisionSource.interval` (an interval for a declared compact export)"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`cohort_decision.support_contract_absent`"
 where = "`FittedEffectModel.decision_source` for a model that retains no fitted-row support contract"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`cohort_decision.outside_support`"
 where = "`FittedEffectModel.decision_source` for a cohort row outside the retained support contract"
 
@@ -700,7 +700,7 @@ detail = "`CausalTypeError` (not a `design.StatePrior`)"
 producer = "sensitivity_artifact"
 consumer = "sensitivity_decision"
 status = "DIRECT"
-detail = "`sensitivity_decision.decide(artifact.contract(), artifact)` (assumption-dependent switch, exact tie at 1); a composed sampling interval REFUSED `cell_not_licensed`"
+detail = "`sensitivity_decision.decide(artifact.contract(), artifact)` (assumption-dependent switch, exact tie at 1); a composed sampling interval REFUSED `not_supported`"
 
 [[cell]]
 producer = "sensitivity_artifact"
@@ -1072,7 +1072,7 @@ detail = "`Contract.evaluate(source)` (or `source.mean_source`): one `mean_diffe
 producer = "cohort_decision_source"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "`source.forward_claim()` (a `MeanClaim`) into `InverseQuery.evaluate` (target mean 5 keeps `treat`); the source itself is rejected (`CausalTypeError`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a source built under a declared covariate shift REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`"
+detail = "`source.forward_claim()` (a `MeanClaim`) into `InverseQuery.evaluate` (target mean 5 keeps `treat`); the source itself is rejected (`CausalTypeError`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a source built under a declared covariate shift REFUSED `not_supported` `inverse_forward_source.transported_not_accepted`"
 
 [[cell]]
 producer = "cohort_decision_source"
@@ -1300,8 +1300,8 @@ detail = "`scenario_decision.no_native_run`"
 where = "`decide_from_cpdag_completions` over anything that is not a native CPDAG run"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`sensitivity_decision_composition.composition_not_licensed`"
+code = "`not_supported`"
+detail = "`sensitivity_decision_composition.composition_not_supported`"
 where = "a sampling interval composed with an assumption range"
 
 [[refusal]]
@@ -1315,28 +1315,28 @@ detail = "`design_ranking.cost_units_mismatch`"
 where = "`design.consume` under a different cost map"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`measurement_model.interval_closed`"
 where = "`MeasurementEstimate.interval` and `PreparedMeasurementModel.interval`"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`measurement_model.operation_not_licensed`"
+code = "`not_supported`"
+detail = "`measurement_model.operation_not_supported`"
 where = "`PreparedMeasurementModel.check_operation` for an operation the route card refuses (`condition_on_construct`)"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`mechanism_composition.interval_route_closed`"
 where = "`PreparedMechanismComposition.interval`"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`evidence_ledger.interval_not_measured`"
 where = "`EvidenceLedger.pooled_interval`"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`counterfactual_transport_sampled.interval_not_licensed`"
+code = "`not_supported`"
+detail = "`counterfactual_transport_sampled.interval_not_supported`"
 where = "the interval of a sampled counterfactual transport estimate"
 
 [[producer]]
@@ -1393,12 +1393,12 @@ status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, claim identity)` declared by the caller"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`observation_query.declared_model_has_no_sampling_interval`"
 where = "`ObservationClaim.interval` (an interval for an observation-conditioned value)"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`observation_query.calibrated_probability_closed`"
 where = "`ObservationClaim.calibrated_probability` (a calibration claim for a posterior or decision probability)"
 
@@ -1423,7 +1423,7 @@ detail = "`observation_query.levels_for_continuous_model`"
 where = "`observation_query.condition_on` with level strings on a linear-Gaussian composition (state the evidence as typed real values with `condition_on_values`)"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`joint_law_propagation.interval_route_closed`"
 where = "`ObservationClaim.parameter_interval` for redrawn parameters without a currently attesting coverage record at the composed coordinate (the spread of the draws is the labelled `uncalibrated_spread`)"
 
@@ -1486,8 +1486,8 @@ status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, assessment identity digest)` declared by the caller; the plan reads the digest only"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`predictive_assessment.interval_not_licensed`"
+code = "`not_supported`"
+detail = "`predictive_assessment.interval_not_supported`"
 where = "`PredictiveAssessment.score_interval` and an `assess(..., score_interval=)` request for an interval on a score or a score difference"
 
 [[refusal]]
@@ -1509,7 +1509,7 @@ built_from = "`scientific_bridge.prepare_scientific_bridge(contract).derive(sour
 producer = "scientific_bridge_claim"
 consumer = "decision"
 status = "DIRECT"
-detail = "`Contract.evaluate(claim)` accepts a mean-valued bridge claim with retained compatible scientific quantity; `claim.as_mean_source()` exposes the same canonical `results.MeanSource` carrying the point (0.796 from a validated surrogate effect 0.8), identity, evidence and lineage; an affine utility only (act 2.184, hold 1.592), with no variance or export license; incompatible coordinates refuse; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; a law, posterior, identified set or joint law REFUSED `scientific_bridge.value_kind_substitution`; a prepared bridge or export envelope is not a mean producer"
+detail = "`Contract.evaluate(claim)` accepts a mean-valued bridge claim with retained compatible scientific quantity; `claim.as_mean_source()` exposes the same canonical `results.MeanSource` carrying the point (0.796 from a validated surrogate effect 0.8), identity, evidence and lineage; an affine utility only (act 2.184, hold 1.592), with no variance or export support; incompatible coordinates refuse; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; a law, posterior, identified set or joint law REFUSED `scientific_bridge.value_kind_substitution`; a prepared bridge or export envelope is not a mean producer"
 
 [[cell]]
 producer = "scientific_bridge_claim"
@@ -1554,8 +1554,8 @@ status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, bridge artifact identity)` declared by the caller"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`scientific_bridge.interval_not_licensed`"
+code = "`not_supported`"
+detail = "`scientific_bridge.interval_not_supported`"
 where = "`BridgedClaim.interval` and `ConsumedBridge.interval`"
 
 [[refusal]]
@@ -1617,8 +1617,8 @@ status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, evaluation identity)` declared by the caller"
 
 [[refusal]]
-code = "`cell_not_licensed`"
-detail = "`sequential_evaluation.interval_not_licensed`"
+code = "`not_supported`"
+detail = "`sequential_evaluation.interval_not_supported`"
 where = "`sequential_evaluation.request_interval`: any interval, posterior or coverage statement for a policy value"
 
 [[refusal]]
@@ -1643,7 +1643,7 @@ where = "`sequential_evaluation.check_request` and `compare` for another populat
 
 [[producer]]
 key = "propagated_claim"
-object = "a composed uncertain quantity under a licensed dependence route (labelled point-only)"
+object = "a composed uncertain quantity under a supported dependence route (labelled point-only)"
 built_from = "`joint_law_propagation.aligned_functional(...)`, `aligned_linear(...)`, `linear_moments(...)` or `mixture(...)` (`PropagationClaim`) and its `joint_law_propagation_v1` export"
 
 [[producer]]
@@ -1753,22 +1753,22 @@ detail = "`composition_verification.recompute_required`"
 where = "`CompositionVerification.require_valid` and the consumed verification for a claim whose data, evidence, version or structural derivation changed"
 
 [[refusal]]
-code = "`claim_license_withdrawn`"
+code = "`claim_support_withdrawn`"
 detail = "`composition_verification.provider_trust_withdrawn`"
 where = "`CompositionVerification.require_valid` for a claim resting on a provider whose trust no longer holds"
 
 [[refusal]]
-code = "`claim_license_withdrawn`"
+code = "`claim_support_withdrawn`"
 detail = "`composition_verification.support_withdrawn`"
 where = "`CompositionVerification.require_valid` for a claim answering coordinates outside a support it rests on"
 
 [[refusal]]
-code = "`claim_license_withdrawn`"
+code = "`claim_support_withdrawn`"
 detail = "`composition_verification.input_retired`"
 where = "`CompositionVerification.require_valid` for a claim whose input was retired, replaced or removed"
 
 [[refusal]]
-code = "`cell_not_licensed`"
+code = "`not_supported`"
 detail = "`composition_verification.calibration_not_held`"
 where = "`CompositionVerification.require_valid` for calibration inherited from an object that no longer holds it or established at another coordinate"
 
@@ -1789,7 +1789,7 @@ built_from = "`cross_world_execution.seal(...)` (`CrossWorldExecution`) and `Cro
 
 [[producer]]
 key = "callback_result"
-object = "an executed callback result (a provider's mean, draws, distribution or quantile function or posterior update accepted as a well-formed law of a declared quantity; external, diagnostic or licensed-external, never native; no interval)"
+object = "an executed callback result (a provider's mean, draws, distribution or quantile function or posterior update accepted as a well-formed law of a declared quantity; external, diagnostic or supported-external, never native; no interval)"
 built_from = "`provider_callbacks.CallbackSession.execute(...)` (`CallbackExecution`), its `export` and `consume_callback_result`"
 
 [[producer]]
@@ -2008,13 +2008,13 @@ detail = "`stage_identity(Stage.EVIDENCE, artifact identity)` declared by the ca
 producer = "transported_response"
 consumer = "decision"
 status = "DIRECT"
-detail = "`Contract.evaluate_transported(response, analysis=, support_policy=)`: a transported point decides by the affine expected utility of its mean and carries its receipt and identity into the bound decision (treat 6.5, wait 0 at a transported mean of 2.0); the default support policy REFUSES the extrapolative label `transported_decision.transported_not_accepted`, a law or probability REFUSED `decision_contract_unsatisfied` `transported_decision.law_not_supplied`, an interval REFUSED `cell_not_licensed`; `Contract.evaluate` rejects the object (`CausalTypeError`)"
+detail = "`Contract.evaluate_transported(response, analysis=, support_policy=)`: a transported point decides by the affine expected utility of its mean and carries its receipt and identity into the bound decision (treat 6.5, wait 0 at a transported mean of 2.0); the default support policy REFUSES the extrapolative label `transported_decision.transported_not_accepted`, a law or probability REFUSED `decision_contract_unsatisfied` `transported_decision.law_not_supplied`, an interval REFUSED `not_supported`; `Contract.evaluate` rejects the object (`CausalTypeError`)"
 
 [[cell]]
 producer = "transported_response"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "`inverse_sources.transported_forward_source(response, accepts_transported=True).evaluate(query)` (target mean 5 keeps `treat`, the result carries the origin and receipt); a native-only input REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`; a quantile REFUSED `inverse_forward_source.point_only_law_requested`; `InverseQuery.evaluate` rejects the object (`CausalTypeError`)"
+detail = "`inverse_sources.transported_forward_source(response, accepts_transported=True).evaluate(query)` (target mean 5 keeps `treat`, the result carries the origin and receipt); a native-only input REFUSED `not_supported` `inverse_forward_source.transported_not_accepted`; a quantile REFUSED `inverse_forward_source.point_only_law_requested`; `InverseQuery.evaluate` rejects the object (`CausalTypeError`)"
 
 [[cell]]
 producer = "transported_response"
@@ -2056,7 +2056,7 @@ detail = "`stage_identity(Stage.EVIDENCE, response.identity)` declared by the ca
 producer = "discretized_composition"
 consumer = "decision"
 status = "REFUSED"
-detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (a mean contrast is a point with a computed error bound; an interval or posterior is REFUSED `cell_not_licensed` `discretized_scm.point_only`)"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (a mean contrast is a point with a computed error bound; an interval or posterior is REFUSED `not_supported` `discretized_scm.point_only`)"
 
 [[cell]]
 producer = "discretized_composition"
@@ -2104,7 +2104,7 @@ detail = "`stage_identity(Stage.EVIDENCE, discretized.identity)` declared by the
 producer = "whole_path_account"
 consumer = "decision"
 status = "REFUSED"
-detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (an uncalibrated spread is not an interval or posterior: `cell_not_licensed` `cross_world_execution.interval_route_closed`)"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.interval_route_closed`)"
 
 [[cell]]
 producer = "whole_path_account"
@@ -2209,7 +2209,7 @@ evidence_assertion = "a_transported_point_decides_by_the_utility_of_the_mean_and
 producer = "transported_response"
 consumer = "decision"
 status = "REFUSED"
-detail = "a law-valued criterion, a probability, quantile or hard constraint of a point is `decision_contract_unsatisfied` `transported_decision.law_not_supplied`; an interval is `cell_not_licensed`; the default policy refuses the label `transported_decision.transported_not_accepted`"
+detail = "a law-valued criterion, a probability, quantile or hard constraint of a point is `decision_contract_unsatisfied` `transported_decision.law_not_supplied`; an interval is `not_supported`; the default policy refuses the label `transported_decision.transported_not_accepted`"
 evidence_test = "crates/antecedent/tests/transported_decision_facade.rs"
 evidence_assertion = "a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label"
 
@@ -2217,7 +2217,7 @@ evidence_assertion = "a_point_refuses_laws_and_intervals_and_the_default_policy_
 producer = "transported_response"
 consumer = "inverse_query"
 status = "DIRECT"
-detail = "under an input policy that accepts a transported input (target mean 2 keeps `xb`); a native-only policy is REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`; a quantile is REFUSED `inverse_forward_source.point_only_law_requested`"
+detail = "under an input policy that accepts a transported input (target mean 2 keeps `xb`); a native-only policy is REFUSED `not_supported` `inverse_forward_source.transported_not_accepted`; a quantile is REFUSED `inverse_forward_source.point_only_law_requested`"
 evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
 evidence_assertion = "a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"
 
@@ -2257,7 +2257,7 @@ evidence_assertion = "a_linear_gaussian_composition_supplies_a_replayed_point_pe
 producer = "composed_model"
 consumer = "inverse_query"
 status = "REFUSED"
-detail = "a quantile or probability of a Gaussian composition is `decision_contract_unsatisfied` `inverse_forward_source.composed_law_not_materialized`; an interval is `cell_not_licensed` `inverse_forward_source.interval_not_licensed`"
+detail = "a quantile or probability of a Gaussian composition is `decision_contract_unsatisfied` `inverse_forward_source.composed_law_not_materialized`; an interval is `not_supported` `inverse_forward_source.interval_not_supported`"
 evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
 evidence_assertion = "a_point_composition_refuses_laws_intervals_and_the_wrong_family"
 
@@ -2289,7 +2289,7 @@ evidence_assertion = "a_cohort_contrast_is_a_point_source_with_its_own_law_refus
 producer = "cohort_decision_source"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "a cohort from another population under a declared shift is a transported source only when accepted; a native-only policy refuses `inverse_forward_source.transported_not_accepted` (replacing `cohort_decision.inverse_shift_not_licensed`)"
+detail = "a cohort from another population under a declared shift is a transported source only when accepted; a native-only policy refuses `inverse_forward_source.transported_not_accepted` (replacing `cohort_decision.inverse_shift_not_supported`)"
 evidence_test = "crates/antecedent-design/tests/inverse_forward_source.rs"
 evidence_assertion = "a_shifted_cohort_is_a_transported_source_only_when_accepted"
 
@@ -2297,9 +2297,9 @@ evidence_assertion = "a_shifted_cohort_is_a_transported_source_only_when_accepte
 producer = "transported_response"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "a transported policy value (7.5 - 10 p, 5.5 at p = 0.2) is a licensed inverse source that keeps its selection diagram and keeps the feasible action `inspect`"
+detail = "a transported policy value (7.5 - 10 p, 5.5 at p = 0.2) is a supported inverse source that keeps its selection diagram and keeps the feasible action `inspect`"
 evidence_test = "crates/antecedent-design/tests/inverse_forward_source.rs"
-evidence_assertion = "a_transported_policy_value_is_a_licensed_inverse_source_with_its_diagram"
+evidence_assertion = "a_transported_policy_value_is_a_supported_inverse_source_with_its_diagram"
 
 [[rust_cell]]
 producer = "transported_response"
@@ -2329,7 +2329,7 @@ evidence_assertion = "observational_scenarios_are_associational_and_re_derive"
 producer = "discretized_composition"
 consumer = "decision"
 status = "REFUSED"
-detail = "a discretized value is a point with a computed mean-error bound: an interval or posterior is `cell_not_licensed` `discretized_scm.point_only`"
+detail = "a discretized value is a point with a computed mean-error bound: an interval or posterior is `not_supported` `discretized_scm.point_only`"
 evidence_test = "crates/antecedent/tests/discretized_composition_facade.rs"
 evidence_assertion = "a_discretized_contrast_carries_its_closed_form_and_a_computed_bound"
 
@@ -2337,7 +2337,7 @@ evidence_assertion = "a_discretized_contrast_carries_its_closed_form_and_a_compu
 producer = "whole_path_account"
 consumer = "decision"
 status = "REFUSED"
-detail = "an uncalibrated spread is not an interval or posterior: `cell_not_licensed` `cross_world_execution.interval_route_closed` and `cross_world_execution.posterior_route_closed`"
+detail = "an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.interval_route_closed` and `cross_world_execution.posterior_route_closed`"
 evidence_test = "crates/antecedent/tests/whole_path_account_facade.rs"
 evidence_assertion = "the_account_is_the_enumerated_spread_bound_to_its_execution"
 
@@ -2448,7 +2448,7 @@ evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifac
 producer = "composed_spread_claim"
 consumer = "published_route"
 status = "REFUSED"
-detail = "a composed interval opens only with a measured coverage record at its own coordinate and construction; no record is measured, so `cell_not_licensed` with the specific mismatch"
+detail = "a composed interval opens only with a measured coverage record at its own coordinate and construction; no record is measured, so `not_supported` with the specific mismatch"
 evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
 evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 
@@ -2472,7 +2472,7 @@ evidence_assertion = "a_fresh_consumer_rederives_from_the_carried_draws"
 producer = "derived_decision_uncertainty"
 consumer = "published_route"
 status = "REFUSED"
-detail = "every published route refuses `cell_not_licensed` `decision_reliability.cell_not_licensed`, and the components are never combined (`uncertainty_components_not_combined`)"
+detail = "every published route refuses `not_supported` `decision_reliability.not_supported`, and the components are never combined (`uncertainty_components_not_combined`)"
 evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
 evidence_assertion = "derived_uncertainty_is_never_published_or_combined"
 
@@ -2488,9 +2488,9 @@ evidence_assertion = "the_decision_source_is_the_existing_surface_with_the_same_
 producer = "transported_cohort_effect"
 consumer = "decision"
 status = "REFUSED"
-detail = "an interval or a law of the transported cohort mean is refused with the licensing evidence"
+detail = "an interval or a law of the transported cohort mean is refused with the support evidence"
 evidence_test = "crates/antecedent/tests/transported_cohort_facade.rs"
-evidence_assertion = "interval_and_law_requests_are_refused_with_the_licensing_evidence"
+evidence_assertion = "interval_and_law_requests_are_refused_with_the_support_evidence"
 
 [[rust_cell]]
 producer = "transported_measurement_estimate"
@@ -2512,7 +2512,7 @@ evidence_assertion = "the_sealed_artifact_is_the_existing_one_and_replays_to_the
 producer = "transported_mechanism_composition"
 consumer = "published_route"
 status = "REFUSED"
-detail = "the variance is parameter-only and scoped, and an interval of the carried contrast is closed `cell_not_licensed`"
+detail = "the variance is parameter-only and scoped, and an interval of the carried contrast is closed `not_supported`"
 evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs"
 evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_closed"
 
@@ -2546,7 +2546,7 @@ consumer = "analysis_interval"
 status = "REFUSED"
 detail = "an interval on the rows that selected the graph is refused; only the analysis part passes the check"
 evidence_test = "crates/antecedent/tests/sample_split_analysis_facade.rs"
-evidence_assertion = "only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_licenses"
+evidence_assertion = "only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_supports"
 
 [[rust_cell]]
 producer = "transported_spread_claim"

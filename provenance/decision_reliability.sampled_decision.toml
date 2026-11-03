@@ -42,12 +42,12 @@ record_sha256 = "b3f5ecd2adbe2017791da172b0805e8c6c56bb59222a64ea0080d6bfb7a3f6a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
-sha256 = "5cc944acb9be378d4da08cfd979571c649bfd702bcc6ca45b8323e14b375f3d5"
+sha256 = "f54d1d36153f1cd8cf2039783e84d1cbb0ad54b760bbc6012e6b61cff4de3811"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
-sha256 = "2b3403b216ecfd4241c5a1d6c91b3a0b42ec4863e05d37d844c301381a014005"
+sha256 = "4177dfefe54de8216399f2ad5f4c20e4481b106b199caec104dcedf63439d5a5"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -30,7 +30,7 @@ implementation_deviations = [
  "The posterior has no closed form; it is sampled and is reported only when split R-hat and effective sample size pass their gates, otherwise the fit is refused rather than reported.",
  "Placebo-in-space and placebo-in-time permutation inference of the paper is not performed; the interval is an equal-tailed credible interval and carries no repeated-sampling guarantee.",
  "A treated path outside the donor hull is reported as a diagnostic, not repaired by extrapolation; the difference-in-differences synthetic variant is not given a posterior and is refused naming the frequentist route.",
- "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+ "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval.",
 ]
 
 upstream_implementations_observed = []
@@ -51,7 +51,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One three-donor, eight-pre-period, three-post-period panel with a uniform Dirichlet prior and with a concentration of 20 (40,000 draws over four chains): weight means within six effective-sample-size standard errors, weight and effect sds within 8% and 5% relative error, pre-fit RMSE within 2%. The reference rule is converged to 1e-9 between 10 and 16 sub-intervals per axis and reproduces the values previously hard-coded in the module test (2.0155 against 2.01577; weights 0.5767, 0.3625, 0.0609). The sampler's agreement is statistical; its tolerance is set from the reported effective sample size, so a small bias well inside that tolerance is not excluded. More donors, a short pre-period, the AR(1) variant and a treated path outside the donor hull are not covered by the reference."
 sources = ["https://doi.org/10.1198/jasa.2009.ap08746", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The posterior mean and sd of every donor weight, the effect mean and sd and the pre-fit RMSE equal the simplex quadrature for both the uniform and the concentrated Dirichlet prior, so the likelihood exponent, the variance integration and the counterfactual-error variance are right.", "The retained quadrature reproduces the previously pinned numbers, replacing them with a regenerable computation.", "No product defect was found in this record."]
-record_sha256 = "85513742edf56bc7f8697ff98849986e12248d78ae3625b7d079ad02f2634bf4"
+record_sha256 = "3c9b30f50cc2c01d1aa6c9d261bac25e3939f204059c4a335fe3877f404b3d09"
 
 [[method_review.artifacts]]
 role = "implementation"

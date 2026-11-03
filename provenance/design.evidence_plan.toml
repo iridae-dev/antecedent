@@ -53,7 +53,7 @@ sha256 = "70c6a2f53628d8a23074d2d411b66f85040b092803653a57cce08bbcd43ccff9"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/candidate_generation.rs"
-sha256 = "70e0defb51303bb19d49eb37375f2ee2146e5f717ec207a8922c201d0e55066c"
+sha256 = "b84ca0f6ae79b0c8652fc96a10e0509adf3369cf7a12a4909d4b03cd5db3e0a2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

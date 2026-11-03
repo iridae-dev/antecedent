@@ -35,4 +35,4 @@ record_sha256 = "1a16cb2ae2b51107d5a29abcca101879bc5d9cc24f3630b7d0b779f374a4413
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/experiment_regime.rs"
-sha256 = "1662b52b7d64d73ff08bb9dbd11433b69f6b51a09c6828cd9d8f00cf0cf2ebb6"
+sha256 = "3d01a7fc265b5c92533562d710689c3e450cfab63f6c18a751aee7eb846cca42"

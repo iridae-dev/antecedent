@@ -2,7 +2,7 @@
 
 Combine native results, external claims and independently fitted mechanisms into one decision, recalculate only what a change affects, and export the result as one portable bundle. The routes join [decisions, design and repair](decisions.md#routes-at-a-glance) with the
 external claims of [external scientific objects](guides/build/scientific-interfaces.md). Every route here is **point-only**. Nothing on this page is an interval,
-a coverage statement or a probability license. Uncertainty carried inside a composed artifact keeps its source standing.
+a coverage statement or probability support. Uncertainty carried inside a composed artifact keeps its source standing.
 Composition supplies no additional calibration or interval guarantee.
 
 Each route below gives the question it answers, its scope bounds, claim label, Python
@@ -57,7 +57,7 @@ entry point and refusal namespace. The measured-spread routes are in
   compared; all actions unsupported is a state, not an error. Independent
   pooling and paired draws are refused when inputs share data, a prior or a
   fitted model, when dependence is unknown, or when inputs declared independent
-  carry one snapshot, unless a licensed covariance or joint-law route names one
+  carry one snapshot, unless a supported covariance or joint-law route names one
   of the pair. Conflicting atoms are not averaged.
 - **Claim.** Point-only. Relations and dependence routes are caller declarations
   the checks read; nothing is estimated or pooled.
@@ -76,7 +76,7 @@ entry point and refusal namespace. The measured-spread routes are in
   that determined it. Reuse is proven by counted cross-fitted fold fits: a first
   run does 10 fold fits (5 folds, 2 nuisance sets), a utility-only change does
   0, and a compatible target-weight change under a declared retarget does 0.
-  Without a declared retarget licence the change refits. In a fresh process no
+  Without a declared retarget support the change refits. In a fresh process no
   derived stage is reused unless the caller supplies a portable artifact. The
   per-call cache is not a persistent fit cache, and a second session fits
   again. The `RecalcSession` example uses cross-fitted AIPW with a net-benefit
@@ -155,7 +155,7 @@ of bytes. A bundle never claims that a serialized result recreates an executable
 
 ## Read where an imported source came from
 
-A decision input that carries an imported claim keeps the original evidence behind it. `input.source_evidence` (and `Contract.evaluate(...)` results' `source_evidence`) returns an `antecedent.source_evidence.SourceEvidence`, or `None` for a metadata-only source. It exposes what the producer reported and nothing it could mint: imported evidence keeps its original claim and supplies no executable state, no provider trust upgrade, no transformed local support value and no calibration licence.
+A decision input that carries an imported claim keeps the original evidence behind it. `input.source_evidence` (and `Contract.evaluate(...)` results' `source_evidence`) returns an `antecedent.source_evidence.SourceEvidence`, or `None` for a metadata-only source. It exposes what the producer reported and nothing it could mint: imported evidence keeps its original claim and supplies no executable state, no provider trust upgrade, no transformed local support value and no calibration support.
 
 ```python
 evidence = claim.source_evidence      # `claim` is a bound native claim from the steps above
@@ -257,7 +257,7 @@ a declared latent adds `loading^2` to the total residual variance and
 
 Each defect is a finding with a closed kind, a `mechanism_composition.<slot>`
 detail, the offending subject, expected and supplied semantics, and the
-declaration that would license the composition.
+declaration that would support the composition.
 
 - **Variable identity**: one mechanism per variable; every parent has a mechanism.
 - **Causal parents / conditioning set**: a mechanism's parents equal the declared
@@ -290,7 +290,7 @@ declaration that would license the composition.
 Composition is exact given the declared mechanisms. The delta-method variance is
 a parameter-covariance variance only: it omits second-order terms, holds residual
 scales fixed and carries no coverage claim. The interval route is closed with
-`cell_not_licensed` until whole-method coverage is measured.
+`not_supported` until whole-method coverage is measured.
 
 ### Prepare, refresh and export
 
@@ -330,7 +330,7 @@ declared and need `admit_declared_mechanisms=True`), `Dependence` and
 `finite_law`, refreshes with `refresh_mechanisms`, exports one query with
 `export` and is consumed by `consume_mechanism_composition_artifact`. A refusal
 is a `MechanismCompositionRefusal` listing every defect (`refusals`,
-`details`); `interval()` raises `cell_not_licensed`.
+`details`); `interval()` raises `not_supported`.
 
 The `composed_model` producer is a row of
 [the producer and consumer matrix](producer-consumer-matrix.md): a composed model

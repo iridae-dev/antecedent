@@ -29,7 +29,7 @@ def _static_edges(
     if isinstance(graph, Cpdag):
         # Compatibility normalization for fixed-DAG query families: a fully
         # oriented CPDAG has a unique DAG and reports that Dag coordinate.
-        # Incomplete CPDAGs refuse; this does not license class execution.
+        # Incomplete CPDAGs refuse; this does not support class execution.
         return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]
 

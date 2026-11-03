@@ -112,7 +112,7 @@ impl PySourceEvidence {
             Ok(Self {
                 inner: self.inner.clone(),
                 resolution: Some(
-                    serde_json::json!({"kind":"original_native_response_reexecution","execution_id":execution.to_hex(),"data_snapshot_id":executed.identities.data_snapshot.to_hex(),"program_id":executed.identities.program.map(|id|id.to_hex()),"resolved_dependencies":self.inner.unresolved().iter().map(AsRef::as_ref).collect::<Vec<_>>(),"native_authority_issued":false,"calibration_license_issued":false}),
+                    serde_json::json!({"kind":"original_native_response_reexecution","execution_id":execution.to_hex(),"data_snapshot_id":executed.identities.data_snapshot.to_hex(),"program_id":executed.identities.program.map(|id|id.to_hex()),"resolved_dependencies":self.inner.unresolved().iter().map(AsRef::as_ref).collect::<Vec<_>>(),"native_authority_issued":false,"calibration_support_issued":false}),
                 ),
             })
         })

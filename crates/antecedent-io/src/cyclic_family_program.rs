@@ -143,7 +143,7 @@ impl FrozenFit {
     }
 }
 /// One immutable scientific request, compiled family schedules and synchronized statistical products.
-/// Specified models remain model conditional; compilation grants no scientific license.
+/// Specified models remain model conditional; compilation grants no scientific support.
 #[derive(Clone, Debug)]
 pub struct CompiledCyclicFamilyProgram {
     request: Arc<R>,
@@ -1039,7 +1039,7 @@ fn recovered_plans(
 /// Execute interventions from the retained recovered law.
 ///
 /// Preparation has already retained that law. This does not fit. Specified
-/// models remain model-conditional; compilation grants no scientific license.
+/// models remain model-conditional; compilation grants no scientific support.
 pub(super) fn execute_recovered_linear(
     nodes: &[u32],
     draws: &[super::RecoveredDrawWire],

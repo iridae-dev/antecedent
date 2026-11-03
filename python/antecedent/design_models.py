@@ -14,7 +14,7 @@ identity, and a prior alone never identifies a contrast, so none is defaulted.
 ``SwitchbackModel``
     Gaussian outcomes within independent switchback sequences with a declared carryover and a
     declared within-sequence dependence (``bayesian.switchback_effect``). Unrestricted carryover and
-    an unspecified dependence are refused with ``cell_not_licensed``, naming the next attempt.
+    an unspecified dependence are refused with ``not_supported``, naming the next attempt.
 
 ``PiecewiseHazards``
     The hazard partition and Gamma prior of the piecewise-exponential survival posterior of a

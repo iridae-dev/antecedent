@@ -43,7 +43,7 @@ sha256 = "70e8fe1facd5d19335e381a5a59f4100dc678be568d8da6dc5c3efa18e53974d"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-sha256 = "9918dadc1ba0df7aaab50019ba02568ae8782a82cd2f50e8a0b47ca2e600c245"
+sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
 
 [[method_review.artifacts]]
 role = "assertion"

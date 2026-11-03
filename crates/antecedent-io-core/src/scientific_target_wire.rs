@@ -1,7 +1,7 @@
 //! Versioned scientific targets shared by artifacts and language bindings.
 //!
 //! Decoding rebuilds the validated domain constructors and checks the complete target
-//! identity. This transports a question; it grants no identification or execution license.
+//! identity. This transports a question; it grants no identification or execution support.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

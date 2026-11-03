@@ -1,5 +1,5 @@
 //! Python bindings for exact binary observation recovery:
-//! graph-licensed recovery, not MAR/IPCW.
+//! graph-supported recovery, not MAR/IPCW.
 use crate::graphs::Admg;
 use crate::transport_common::{
     execution_context, frame_named_artifact, resolve, unframe_named_artifact,
@@ -34,8 +34,8 @@ const RECOVERY_PREFIX: &[u8] = b"ANTECEDENT-OBSERVATION-RECOVERY\x01";
 #[cfg(feature = "calibration-internal")]
 const MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES: usize = 2 * crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
-/// Graph-licensed recovery of the full law, exact laws, point only.
-const SCOPE: &str = "graph_licensed_observation_recovery_not_mar_ipcw";
+/// Graph-supported recovery of the full law, exact laws, point only.
+const SCOPE: &str = "graph_supported_observation_recovery_not_mar_ipcw";
 
 fn recovery_err(error: &RecoveryError) -> PyErr {
     crate::refusal(error.reason_code(), error.to_string())
@@ -60,7 +60,7 @@ fn derivation_json(derivation: &RecoveryDerivation, names: &[String]) -> serde_j
     let record = derivation.record();
     serde_json::json!({
         "outcome": "recovered",
-        "route": "graph-licensed recovery, not MAR/IPCW",
+        "route": "graph-supported recovery, not MAR/IPCW",
         "rule_version": record.rule_version,
         "population": record.population,
         "premises": record.premises,
@@ -473,7 +473,7 @@ impl ObservationRecoveryStage {
             || interval_method != "bootstrap_bca"
             || !(1000..=4000).contains(&rows.len())
         {
-            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("cell_not_licensed"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
+            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("not_supported"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
         }
         if self.catalog.bindings.iter().any(|binding| {
             binding.regime == self.query.observed_regime
@@ -481,7 +481,7 @@ impl ObservationRecoveryStage {
                     || binding.sampling != antecedent_core::SamplingDesign::Independent)
         }) {
             return Err(crate::transport_common::error(IoError::Refused {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
+                code: antecedent_core::reason_code!("not_supported"),
                 message: "sampled_recovery.protocol_not_measured: measured whole-row recovery requires an unweighted independent observation binding".into(),
             }));
         }
@@ -618,7 +618,7 @@ impl ObservationRecoveryStage {
         })
     }
 
-    /// Counted laws are not licensed on this route (a sampled provider is not licensed):
+    /// Counted laws are not supported on this route (a sampled provider is not supported):
     /// preparation refuses.
     #[pyo3(signature=(law, requests=None, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
@@ -632,8 +632,8 @@ impl ObservationRecoveryStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedObservationRecoveryStage> {
         Err(recovery_err(&RecoveryError::new(
-            RecoveryDetail::EmpiricalNotLicensed,
-            "counted laws are not licensed on the recovery route: it publishes exact-law points only",
+            RecoveryDetail::EmpiricalNotSupported,
+            "counted laws are not supported on the recovery route: it publishes exact-law points only",
         )))
     }
 }

@@ -11,7 +11,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "Licensed for complete cluster randomization on a fixed partial-interference network. The contrast is the (0,0) to (1,1) total effect of assigning a cluster, not a direct-versus-spillover decomposition.",
+ "Supported for complete cluster randomization on a fixed partial-interference network. The contrast is the (0,0) to (1,1) total effect of assigning a cluster, not a direct-versus-spillover decomposition.",
  "The interval is a pointwise Welch interval from between-cluster Neyman variation. It is not Aronow and Samii's joint-exposure-probability variance.",
  "Cluster totals are scaled by K/n so the contrast is the unit-weighted mean total effect; the Welch t interval with an eight-clusters-per-arm gate is a repository policy, not a result of either cited paper.",
  "Partial interference and the exposure mapping are declared. Bernoulli and observational designs do not inherit this estimator.",
@@ -33,14 +33,14 @@ redistribution = "Primary papers are linked, not redistributed. The unit tests a
 limitations = "The generic exposure estimator now checks complete and cluster realized assignments against their declared randomization support; this separate guard is outside this review. Establishes exact finite-population unbiasedness and the exact conservativeness gap on one six-cluster unequal-size population by full enumeration, plus the retained 2000-replicate coverage simulation. It does not prove the nominal coverage of the Welch interval at 8 clusters per arm, which is a repository support policy; it does not cover non-complete cluster designs, interference across clusters, or misspecified exposure mappings. Neyman's original Section 9 text was not accessible and was not read: the variance result was instead derived from first principles and checked by enumeration. The enumeration and coverage tests live in the bound implementation file and were not executed by the reviewer in this session (no build); the identity was independently checked in a separate Python enumeration that is not retained. Calibration remains deferred."
 sources = ["https://arxiv.org/abs/1305.6156", "https://doi.org/10.1214/16-AOAS1005", "https://doi.org/10.1214/ss/1177012031"]
 findings_resolved = ["Verified against code that scaling cluster totals by K/n makes the mean-of-clusters difference equal the unit-weighted mean contrast, including unequal sizes, and that the point estimate equals Y(1,1)-Y(0,0) means under the checked design assumptions.", "Verified the variance S_t^2/m + S_c^2/(K-m) over scaled totals is the Neyman estimator whose expectation exceeds the exact variance by S_tau^2/K (cluster-effect heterogeneity) and corrected the record's claim of a source section: the paper-side exposure-mapping reference is Section 3 / Condition 1, not definitions 1-2.", "Added an executing exact-enumeration assertion over all 20 complete allocations of 3 of 6 unequal clusters with heterogeneous effects: mean estimate equals tau, enumerated variance equals the closed form, and the variance-estimator bias equals S_tau^2/K to 1e-10.", "Recorded the Welch interval's 8-cluster-per-arm gate and df formula as a repository policy rather than a cited result."]
-record_sha256 = "fc311f76f695c5e5e9c1634ab145fe358f5183fd2861ff84999fb7ab002369e5"
+record_sha256 = "a66b80be2b05f980227d405e34f59f6633d50fd62db4add896be392b7bf2ec28"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference.rs"
-sha256 = "8ad2bde13cd8ff2000cf6b880bc1c0e085ccca95b4a5820b07132d133594eb3a"
+sha256 = "c0f6109a74e91195861e83e8bf168a5cabe79abc033860917e9eb0971b6b936a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "0be6112eb9b4ffdfced25a6e52ea0604317ae9a6c4ae54d826174794b6c080ba"
+sha256 = "68cc6f0b32eb664fc36fee835230efb08e48739b82b7a5e30ced25044eb2d537"

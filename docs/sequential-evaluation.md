@@ -15,7 +15,7 @@ The value is conditional on the declared model and on three premises the data ca
 | Evidence | each action and observation recorded once in the evidence ledger | a repeat, a partly overlapping log, a repeated trajectory identity (`evidence_double_counted`) |
 | Positivity | an action in a reachable history needs declared support, and a logged-data route needs logging-policy probability above zero | `history_support_violated`; no extrapolation across an unsupported history |
 | Transport | none: values are for the model's own population and period | another population or period: a typed refusal naming the missing selection-diagram and invariance contract |
-| Uncertainty | a point value; uncalibrated diagnostics | any interval, posterior or coverage statement (`cell_not_licensed`) |
+| Uncertainty | a point value; uncalibrated diagnostics | any interval, posterior or coverage statement (`not_supported`) |
 
 ## The model
 
@@ -150,7 +150,7 @@ also refuses a consistently resealed artifact of another evaluation.
   time-homogeneous within its horizon by construction; carrying them to
   another period is an invariance claim across periods that is not declared
   or checked here.
-- **Uncertainty.** The value is a point. The off-policy standard error and the rollout standard error are uncalibrated diagnostics; no interval, posterior or coverage statement is offered (`cell_not_licensed`) because no coverage record exists.
+- **Uncertainty.** The value is a point. The off-policy standard error and the rollout standard error are uncalibrated diagnostics; no interval, posterior or coverage statement is offered (`not_supported`) because no coverage record exists.
 
 ## Facade
 

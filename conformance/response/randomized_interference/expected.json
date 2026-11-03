@@ -89,7 +89,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/interference.rs",
-          "sha256": "8ad2bde13cd8ff2000cf6b880bc1c0e085ccca95b4a5820b07132d133594eb3a"
+          "sha256": "c0f6109a74e91195861e83e8bf168a5cabe79abc033860917e9eb0971b6b936a"
         }
       ],
       "sources": [],

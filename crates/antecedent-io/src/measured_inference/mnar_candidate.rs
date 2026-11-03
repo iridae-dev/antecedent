@@ -363,7 +363,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(7);
         let bytes = encoded(&at_sd(0.8, rows((30, 24), (40, 28))), &ctx);
         let refusal = with_test_records(Vec::new(), || measure_source(&bytes, &ctx)).unwrap_err();
-        assert!(matches!(&refusal, IoError::Refused { code: "cell_not_licensed", message }
+        assert!(matches!(&refusal, IoError::Refused { code: "not_supported", message }
             if message.contains("record_not_attesting")));
         assert!(matches!(
             with_test_records(Vec::new(), || measure_source(b"untrusted", &ctx)),
@@ -372,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn an_attesting_record_covering_the_scope_licenses_the_measurement() {
+    fn an_attesting_record_covering_the_scope_supports_the_measurement() {
         let ctx = ExecutionContext::for_tests(8);
         let source = at_sd(0.8, rows((30, 24), (40, 28)));
         let bytes = encoded(&source, &ctx);
@@ -393,14 +393,14 @@ mod tests {
     }
 
     #[test]
-    fn a_record_for_another_scope_does_not_license_the_execution() {
+    fn a_record_for_another_scope_does_not_support_the_execution() {
         let ctx = ExecutionContext::for_tests(9);
         let source = at_sd(0.8, rows((30, 24), (40, 28)));
         let bytes = encoded(&source, &ctx);
         let refuses = |records: Vec<CoverageRecord>| {
             matches!(
                 with_test_records(records, || measure_source(&bytes, &ctx)),
-                Err(IoError::Refused { code: "cell_not_licensed", .. })
+                Err(IoError::Refused { code: "not_supported", .. })
             )
         };
         let own = source.scope_functional();

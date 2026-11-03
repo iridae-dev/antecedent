@@ -154,7 +154,7 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
 
 /// The refusal of a request to the closed joint Bayesian transport route: the pilot's
 /// scope refusal when the request is outside it, otherwise
-/// `cell_not_licensed` / `bayesian_transport.route_frozen`.
+/// `not_supported` / `bayesian_transport.route_frozen`.
 #[must_use]
 pub fn joint_bayesian_transport_refusal(request: &JointBayesianRequest<'_>) -> ClosedPilotRefusal {
     joint_scope_refusal(request).unwrap_or_else(|| from_joint(&joint::route_frozen_refusal()))
@@ -203,7 +203,7 @@ fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
 /// The refusal of a request to the closed binary nested-Markov route: the pilot's scope
 /// refusal (`route_not_supported` / `nested_markov.outside_binary_pilot`, or a count
 /// refusal) when the graph, regime or domain is outside the one selected pilot, otherwise
-/// `cell_not_licensed` / `nested_markov.route_frozen`. Never a nonidentification claim.
+/// `not_supported` / `nested_markov.route_frozen`. Never a nonidentification claim.
 #[must_use]
 pub fn nested_markov_refusal(request: &NestedMarkovRequest) -> ClosedPilotRefusal {
     let input = nested::NestedMarkovInput {
@@ -348,7 +348,7 @@ fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedP
 /// pilot's scope refusal (`route_not_supported` /
 /// `sampled_recovery.unrecoverable_pattern` or `bounds_exceeded`, or an invalid-input
 /// detail) when the m-graph, bounds or observation patterns violate the exact recovery
-/// formula, otherwise `cell_not_licensed` / `sampled_recovery.route_frozen`.
+/// formula, otherwise `not_supported` / `sampled_recovery.route_frozen`.
 #[must_use]
 pub fn sampled_recovery_refusal(request: &SampledRecoveryRequest<'_>) -> ClosedPilotRefusal {
     sampled_scope_refusal(request).unwrap_or_else(|| {
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn joint_route_is_frozen_and_scope_refusals_come_first() {
         let frozen = joint_bayesian_transport_refusal(&joint_request());
-        assert_eq!(frozen.code, "cell_not_licensed");
+        assert_eq!(frozen.code, "not_supported");
         assert_eq!(frozen.detail, joint::DETAIL_ROUTE_FROZEN);
         let admg = joint_bayesian_transport_refusal(&JointBayesianRequest {
             graph_class: "admg",
@@ -398,7 +398,7 @@ mod tests {
             rows: &rows,
         };
         let frozen = sampled_recovery_refusal(&request);
-        assert_eq!(frozen.code, "cell_not_licensed");
+        assert_eq!(frozen.code, "not_supported");
         assert_eq!(frozen.detail, "sampled_recovery.route_frozen");
         let missing = [(0_u64, 1_u8, 0_u8, 0_u8), (1, 1, 0, 0)];
         let zero = sampled_recovery_refusal(&SampledRecoveryRequest { rows: &missing, ..request });

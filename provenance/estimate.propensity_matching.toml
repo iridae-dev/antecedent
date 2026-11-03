@@ -43,7 +43,7 @@ record_sha256 = "3ebae7c4ab0991fd3f63c88a2953f7aa02612222cf5077c586cb69939fd92e1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "88fedc34bddf96041cc964019a9a8cebe8377cd3c6cac88df9b8efb1f40d7dbb"
+sha256 = "1c83542bfff721d9d767671869ca147cd6c84f525279d9d9eaacfcc482a5b085"
 
 [[method_review.artifacts]]
 role = "assertion"

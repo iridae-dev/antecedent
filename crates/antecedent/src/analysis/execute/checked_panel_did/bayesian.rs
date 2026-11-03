@@ -64,7 +64,7 @@ fn premise_diagnostic() -> Diagnostic {
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         "parallel untreated trends and no anticipation stay declared identifying premises; the \
-         prior supplies neither and the posterior neither tests nor licenses them",
+         prior supplies neither and the posterior neither tests nor supports them",
     )
 }
 
@@ -384,7 +384,7 @@ fn event_study_posterior(
         format!(
             "{} pre-adoption lead posteriors are descriptive and pointwise, {covering_zero} with a \
              95% interval covering zero; contrasts share never-treated subjects so no joint or \
-             simultaneous claim is made, and a lead near zero does not license parallel \
+             simultaneous claim is made, and a lead near zero does not support parallel \
              untreated trends after adoption",
             leads.len()
         ),

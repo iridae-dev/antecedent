@@ -2,7 +2,7 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalEffectExecution`]) and the
 //! one-shot route (`Study::execute_temporal`) both resolve a proof, gate their
-//! own licence, and call [`fit_temporal_effect`]; the estimator, the refuters,
+//! own support, and call [`fit_temporal_effect`]; the estimator, the refuters,
 //! the diagnostics and the provenance names live here only. Callers own what
 //! they admit (the sealed operation admits no split, custom validator or
 //! Bayesian fit, the one-shot route admits them), never how an admitted fit is
@@ -361,14 +361,14 @@ fn fit_conditional(
     }
     if inputs.refute != RefuteSuite::None {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+            message: "temporal conditional effect is point-only; cheap/full refuters are not supported",
         });
     }
     let prior_scale = match inputs.inference {
         InferenceMode::Bayesian(cfg) => {
             if has_mapped_prior(cfg) {
                 return Err(CausalError::Unsupported {
-                    message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
                 });
             }
             Some(cfg.prior_scale)

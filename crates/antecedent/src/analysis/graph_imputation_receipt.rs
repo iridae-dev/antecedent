@@ -12,9 +12,9 @@ const TAG: &str = "antecedent.graph_imputation.composite_receipt.v1";
 pub(crate) enum AtomStatus {
     Identified,
     Unidentified,
-    #[allow(dead_code, reason = "failure receipts are reserved for a later licensed execution")]
+    #[allow(dead_code, reason = "failure receipts are reserved for a later supported execution")]
     Failed,
-    #[allow(dead_code, reason = "subsampling is not licensed in the bounded candidate")]
+    #[allow(dead_code, reason = "subsampling is not supported in the bounded candidate")]
     Subsampled,
 }
 

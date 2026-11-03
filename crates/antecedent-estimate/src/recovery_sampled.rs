@@ -111,7 +111,7 @@ impl SampledRecoveryDetail {
     pub const fn reason_code(self) -> &'static str {
         match self {
             Self::RouteFrozen | Self::ComponentVarianceOnly => {
-                antecedent_core::reason_code!("cell_not_licensed")
+                antecedent_core::reason_code!("not_supported")
             }
             Self::UnrecoverablePattern | Self::TooManyFailedReplicates | Self::BoundsExceeded => {
                 antecedent_core::reason_code!("route_not_supported")

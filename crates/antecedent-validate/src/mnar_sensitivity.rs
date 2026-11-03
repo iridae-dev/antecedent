@@ -97,7 +97,7 @@ pub const MNAR_EMPIRICAL_STATUS: &str = "not_empirically_established";
 /// What the per-point sampling interval is conditional on.
 pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter is withheld pending calibration; distinct from the assumption range and never combined with it";
 /// Detail for the withheld pointwise sampling interval and derived conclusions.
-pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_not_licensed";
+pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_not_supported";
 /// Stable id of the untestable departure assumption.
 pub const MNAR_DEPARTURE_ASSUMPTION_ID: &str = "outcome_missingness_departure_from_mar";
 /// Status of the departure assumption.
@@ -725,10 +725,10 @@ fn prepare(
 fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
-            reason_code!("cell_not_licensed"),
-            "mnar_sensitivity.composition_not_licensed",
+            reason_code!("not_supported"),
+            "mnar_sensitivity.composition_not_supported",
             format!(
-                "composing a sampling interval with the assumption range by `{method}` is not licensed"
+                "composing a sampling interval with the assumption range by `{method}` is not supported"
             ),
         ));
     }
@@ -1094,7 +1094,7 @@ fn tipping_of(
 /// (`mnar_sensitivity.mechanism_not_declared`), an unsupported estimator
 /// (`mnar_sensitivity.unsupported_estimator`, from [`MnarEstimator::from_name`]), an
 /// unbounded or MAR-excluding range (`unbounded_range`, `range_excludes_mar`), a
-/// requested sampling composition (`composition_not_licensed`), malformed data, loadings,
+/// requested sampling composition (`composition_not_supported`), malformed data, loadings,
 /// level, decisions or tolerance, or exceeded bounds.
 #[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
 pub fn mnar_sensitivity(
@@ -1104,7 +1104,7 @@ pub fn mnar_sensitivity(
     mnar_sensitivity_impl(data, spec, false)
 }
 
-/// Evaluate the unlicensed candidate solely for a registered calibration study.
+/// Evaluate the unsupported candidate solely for a registered calibration study.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn mnar_sensitivity_calibration_candidate(
@@ -1287,7 +1287,7 @@ fn mnar_sensitivity_impl(
         sampling_status: if calibration_candidate {
             "calibration_candidate"
         } else {
-            reason_code!("cell_not_licensed")
+            reason_code!("not_supported")
         },
         sampling_detail: MNAR_SAMPLING_DETAIL,
     })

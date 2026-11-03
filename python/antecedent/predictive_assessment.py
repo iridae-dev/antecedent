@@ -36,7 +36,7 @@ What is decided here, and what is not:
   and ``unmeasured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
   expected score or difference only for a held-out or unfitted predictor under a declared
   dependence where a current coverage record measured the construction, and raises
-  ``cell_not_licensed`` elsewhere; a score is not causal validity
+  ``not_supported`` elsewhere; a score is not causal validity
   (:meth:`PredictiveAssessment.causal_validity`) and not the probability of a claim
   (:meth:`PredictiveAssessment.score_as_probability`).
 * **Artifact.** :meth:`PredictiveAssessment.export` writes ``predictive_assessment_v1``;
@@ -117,8 +117,8 @@ class PredictiveAssessmentRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``quantity_semantics_mismatch``, ``sampling_dependence_unknown``,
-    ``evidence_double_counted``, ``cell_not_licensed``) and a ``predictive_assessment.*``
-    ``detail`` that says what would license the request.
+    ``evidence_double_counted``, ``not_supported``) and a ``predictive_assessment.*``
+    ``detail`` that says what would support the request.
     """
 
 
@@ -888,7 +888,7 @@ class ScoreInterval(ScientificResult):
 
     ``mean`` is the mean of the case scores (or paired differences) and ``lower``/``upper`` the
     Student-t interval at ``level`` with ``standard_error`` under the declared ``dependence``.
-    ``coverage_record`` names the current coverage record that licensed it. The interval is a
+    ``coverage_record`` names the current coverage record that supported it. The interval is a
     statement about the expected score under the declared sampling design, not about the
     assessed cases alone and not about causal validity; ``assumptions`` states what it rests on.
     """
@@ -1117,10 +1117,10 @@ class PredictiveAssessment(ScientificResult):
         designs cover ``iid`` 400 to 102,400 in contiguous grids, ``cluster`` 800 to 3,200 and
         ``serial`` 1,600 to 6,400, and the shipped records cover ``iid`` 400 to 1,600 until the
         larger grids are measured. There is no extrapolation beyond the shipped range. With no
-        predictor and score named the request is unscoped and raises ``cell_not_licensed``.
+        predictor and score named the request is unscoped and raises ``not_supported``.
 
         Raises:
-            PredictiveAssessmentRefusal: ``cell_not_licensed`` outside a measured design,
+            PredictiveAssessmentRefusal: ``not_supported`` outside a measured design,
                 ``sampling_dependence_unknown`` with no declared dependence,
                 ``evidence_double_counted`` or ``evidence_overlap_unknown`` for an in-sample or
                 unverified predictor.
@@ -1183,7 +1183,7 @@ def assess(
             (``quantity_semantics_mismatch``), a callback law (``route_not_supported``), an iid
             declaration for a temporal or clustered design (``sampling_dependence_unknown``), an
             unmet held-out requirement (``evidence_double_counted`` / ``evidence_overlap_unknown``)
-            or a requested interval (``cell_not_licensed``).
+            or a requested interval (``not_supported``).
     """
     execution = resolve_execution(execution)
     if not isinstance(observations, Observations):

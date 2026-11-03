@@ -162,7 +162,7 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                 "ConditionalEffect:Dag:{}:Bayesian:{label}",
                 if accepted { "accepted" } else { "explicit" }
             );
-            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
             assert_eq!(
                 prepared.structure_source(),
                 if accepted { StructureSource::Accepted } else { StructureSource::Explicit }

@@ -234,7 +234,7 @@ class PreparedProvider:
         return (
             f"Provider {self._query.provider!r} ({report.stage})\n\n"
             "Provider-declared requirements only. Output remains externally classified; "
-            "no native licensed causal claim is created."
+            "no native supported causal claim is created."
         )
 
 

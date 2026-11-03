@@ -41,7 +41,7 @@ record_sha256 = "00c679ec2b98ebbae955917a1d9f4d2d3ff2eb1e3ba4845925e43c3f1d3aab3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/ancova.rs"
-sha256 = "60dd0785cbb77ec9049c308b0500b4944abf9485189b1d9550b6686f3a431caf"
+sha256 = "3f7a01015ac72ccb782a57e930fe7a775c7041e8aa76281a3f4f79f961f4b355"
 
 [[method_review.artifacts]]
 role = "implementation"

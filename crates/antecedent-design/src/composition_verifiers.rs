@@ -119,8 +119,8 @@ pub const TRUST_ATTESTED: &str = "externally_attested";
 /// Fact value of [`FACT_TRUST`]: the exact request passed object-level
 /// verification and the artifact retains the receipt.
 pub const TRUST_VERIFIED: &str = "verified_extension";
-/// Fact value of [`FACT_TRUST`]: a natively licensed route.
-pub const TRUST_NATIVE: &str = "native_licensed";
+/// Fact value of [`FACT_TRUST`]: a natively supported route.
+pub const TRUST_NATIVE: &str = "native_supported";
 /// Fact value of [`FACT_TRUST`]: no provider verification claim.
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
@@ -368,7 +368,7 @@ fn push_value(values: &mut Vec<(String, f64)>, key: String, value: f64) {
 
 fn trust_label(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => TRUST_NATIVE,
+        DistributionTrust::NativeSupported => TRUST_NATIVE,
         DistributionTrust::ExternalAttested => TRUST_ATTESTED,
         DistributionTrust::VerifiedExtension => TRUST_VERIFIED,
         DistributionTrust::Unverified => TRUST_UNVERIFIED,
@@ -749,7 +749,7 @@ fn inspect_ranking(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let trust =
         if consumed.candidates.iter().any(|c| c.trust == SignalTrustLabel::ExternallyAttested) {
             TRUST_ATTESTED
-        } else if consumed.candidates.iter().all(|c| c.trust == SignalTrustLabel::NativeLicensed) {
+        } else if consumed.candidates.iter().all(|c| c.trust == SignalTrustLabel::NativeSupported) {
             TRUST_NATIVE
         } else {
             TRUST_VERIFIED
@@ -1020,7 +1020,7 @@ fn bridge_failure(error: &ScientificBridgeArtifactError) -> NodeFailure {
     failure(stage, error.to_string())
 }
 
-/// A scientific bridge is replayed: the contract is licensed again and the value
+/// A scientific bridge is replayed: the contract is supported again and the value
 /// (or, for a bridge of draws, every mapped draw) is derived again and required to
 /// equal the stored one bit for bit. A bridge of draws publishes the bridged
 /// aligned table, so a decision over it rests on this node; a bridged mean
@@ -1182,7 +1182,7 @@ pub fn projection_node_description(
             if artifact.is_native() { TRUST_UNVERIFIED.into() } else { report.trust.clone() },
         ),
         ("source_authentication_issued".into(), "false".into()),
-        ("calibration_license_issued".into(), "false".into()),
+        ("calibration_support_issued".into(), "false".into()),
     ]);
     publish_coordinates(&mut facts, &coordinate_ids(&report.quantities), true);
     let mut values = Vec::new();

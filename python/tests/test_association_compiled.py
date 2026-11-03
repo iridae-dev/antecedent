@@ -5,7 +5,7 @@ conditional law, the log-odds ratio of a two-by-two table, and the Pearson corre
 symmetric quadratic. The selection rule is a deterministic function of the outcome scale and the
 functional, a series resamples circular blocks under the declared dependent-series design, and
 every result is associational: identification not claimed, never an intervention effect, ranking
-no action, unlicensed and uncalibrated.
+no action, unsupported and uncalibrated.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() ->
     hc1 = np.sqrt(n / (n - 2) * np.sum(centered**2 * residual**2) / np.sum(centered**2) ** 2)
     assert section.terms[1].standard_error == pytest.approx(hc1, rel=1e-9)
     assert section.terms[1].standard_error_method == "sandwich_hc1"
-    assert section.licensed is False and section.calibration == "unmeasured"
+    assert section.supported is False and section.calibration == "unmeasured"
     assert section.ranks_actions is False and section.is_intervention_effect is False
     assert section.refused_after is None
     assert any(premise.startswith("descriptive_only") for premise in section.assumptions)

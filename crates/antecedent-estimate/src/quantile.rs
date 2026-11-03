@@ -10,7 +10,7 @@
 
 use crate::error::EstimationError;
 
-/// Minimum finite-difference density licensed for inversion, in units of the
+/// Minimum finite-difference density supported for inversion, in units of the
 /// uniform-on-the-grid density.
 ///
 /// The bracket's density `ΔF/Δy` has units `1/[Y]`, so it is compared after

@@ -95,7 +95,7 @@ An explicit `NamedParameters` map now also carries the source correlation when
 it is a complete one-to-one map of named coefficient columns. The covariance
 is permuted into target coefficient order; duplicate source or target names
 refuse. This preserves the existing dense hydration path under a changed column
-order, but does not license general posterior transfer or a new interval.
+order, but does not support general posterior transfer or a new interval.
 
 Three cases stay **diagonal** and drop posterior correlation between
 coefficients:

@@ -17,7 +17,7 @@
 //!    proof of non-identifiability; `transport_budget_cancel` with a receipt;
 //!    `route_not_supported` outside the contract (`path_specific_deferred` for
 //!    a world that routes edges, `bounds_exceeded` over a bound);
-//!    `cell_not_licensed` for a structure outside the graph contract,
+//!    `not_supported` for a structure outside the graph contract,
 //!    `estimator_inference_mismatch` for an interval request.
 //! 2. [`PreparedCounterfactualId::evaluate`] evaluates the derivation on a law
 //!    without re-identifying; call it again with another law of the same
@@ -132,7 +132,7 @@ pub fn prepare_counterfactual_id(
             })?,
         _ => {
             return Err(refusal_error(&CounterfactualIdRefusal::graph(
-                "only a supplied explicit ADMG or DAG is licensed; accepted, uncertain, \
+                "only a supplied explicit ADMG or DAG is supported; accepted, uncertain, \
                  equivalence-class and temporal structures are refused",
             )));
         }

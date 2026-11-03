@@ -67,14 +67,14 @@ pub use antecedent_validate::predictive_assessment::{
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `predictive_assessment.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PredictiveAssessmentRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `predictive_assessment.<rule>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -421,7 +421,7 @@ impl PreparedPredictiveAssessment {
     /// level and number of cases; the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// `cell_not_licensed` outside a measured design, an undeclared dependence, an
+    /// `not_supported` outside a measured design, an undeclared dependence, an
     /// in-sample or unverified predictor, or a degenerate sample variance.
     pub fn expected_score_interval(
         &self,
@@ -439,7 +439,7 @@ impl PreparedPredictiveAssessment {
     /// score or level named); ask [`Self::expected_score_interval`] for a scoped one.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`.
+    /// Always `not_supported`.
     pub fn request_score_interval(
         &self,
     ) -> Result<std::convert::Infallible, PredictiveAssessmentRefusal> {

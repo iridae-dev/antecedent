@@ -32,7 +32,7 @@ What this is, and is not:
   always ``False``. A consumer that accepts only native target data refuses the response.
 * **A point answers an affine expected utility and nothing else.** A law, a probability, a
   quantile, a hard constraint or an interval of a transported point is refused with its own
-  reason; an interval is never licensed for a transported value.
+  reason; an interval is never supported for a transported value.
 * **The support label is at most ``extrapolative``.** The default support policy (``supported``)
   refuses it; a policy that accepts ``extrapolative`` states that the decision rests on a
   declared transport.
@@ -349,12 +349,12 @@ class TransportedResponse(ScientificResult):
         return cls._of(handle)
 
     def interval(self) -> None:
-        """Always refuses: no interval is licensed for a transported value."""
+        """Always refuses: no interval is supported for a transported value."""
         raise TransportedResponseRefusal(
             {
-                "code": "cell_not_licensed",
+                "code": "not_supported",
                 "stage": "transported_decision",
-                "detail": "transported_decision.interval_not_licensed",
+                "detail": "transported_decision.interval_not_supported",
                 "message": "a transported value is a point under a declared transport",
                 "offending": None,
                 "remedy": "decide on native target evidence of the required representation",
@@ -451,7 +451,7 @@ def evaluate_transported(
 
     Raises:
         ~antecedent.decision.DecisionRefusal: an interval or a law the value cannot supply
-            (``transported_decision.interval_not_licensed``, ``.law_not_supplied``), a support
+            (``transported_decision.interval_not_supported``, ``.law_not_supplied``), a support
             label below the policy (``.transported_not_accepted``) or below a rule
             (``.support_rule_unmet``), an uncertainty requirement a point cannot meet
             (``.uncertainty_requirement``), exclusions that leave no comparison, and any

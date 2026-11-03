@@ -30,7 +30,7 @@
 //! # What is outside
 //!
 //! The same rows used both to discover and to estimate are a different construction and are
-//! never licensed ([`super::sample_split_analysis::SplitDiscovery::request_unsplit_interval`]
+//! never supported ([`super::sample_split_analysis::SplitDiscovery::request_unsplit_interval`]
 //! refuses). Weak or near-cancelling edges, a misspecified test, a declared completion, other
 //! tests or thresholds, other levels and tables outside five to seven variables are outside
 //! the measured construction.
@@ -205,7 +205,7 @@ impl SplitEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_effect_on_split`], and `cell_not_licensed`
+    /// The refusals of [`estimate_effect_on_split`], and `not_supported`
     /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
     /// record measured this construction at this analysis row count.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {

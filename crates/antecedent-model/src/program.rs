@@ -90,7 +90,7 @@ impl From<PolicyRefusal> for ModelError {
 fn refusal_circular(subject: String) -> PolicyRefusal {
     let _refusal = antecedent_graph::error::CyclicDagRefusal::new(
         antecedent_graph::error::DagOperation::Simulation,
-        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+        antecedent_graph::error::CyclicNextAttempt::Unsupported {
             consumer: "this topological executor",
             attempt: "schedule the dependency feedback with CyclicDigraph::condensation, which \
                       does not execute the policies",
@@ -221,7 +221,7 @@ fn refusal_budget(subject: String) -> PolicyRefusal {
 
 fn refusal_route(subject: String) -> PolicyRefusal {
     PolicyRefusal {
-        code: reason_code!("policy_route_not_licensed"),
+        code: reason_code!("policy_route_not_supported"),
         detail: "intervention_program.identification_requires_hard_level",
         subject,
         remedy: "simulate or execute the counterfactual, or state a hard level (a constant \
@@ -1300,7 +1300,7 @@ fn describe_cycle(
     }
 }
 
-/// An execution route a policy can be licensed for.
+/// An execution route a policy can be supported for.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PolicyRoute {
     /// Forward simulation of the intervened model.
@@ -1311,15 +1311,15 @@ pub enum PolicyRoute {
     ObservationalIdentification,
 }
 
-/// Licensing decision for one route.
+/// Support decision for one route.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RouteDecision {
     /// The route may run the policy.
-    Licensed,
+    Supported,
     /// The route may run the policy provided a stated assumption holds; the assumption
-    /// is part of the licence and is reported with every result.
-    LicensedUnder {
-        /// The assumption the licence rests on.
+    /// is part of the support and is reported with every result.
+    SupportedUnder {
+        /// The assumption the support rests on.
         assumption: String,
     },
     /// The route refuses the policy.
@@ -1334,17 +1334,17 @@ pub enum RouteDecision {
 }
 
 impl RouteDecision {
-    /// Whether the route is licensed.
+    /// Whether the route is supported.
     #[must_use]
-    pub fn is_licensed(&self) -> bool {
-        matches!(self, Self::Licensed | Self::LicensedUnder { .. })
+    pub fn is_supported(&self) -> bool {
+        matches!(self, Self::Supported | Self::SupportedUnder { .. })
     }
 
-    /// The assumption a conditional licence rests on.
+    /// The assumption a conditional support rests on.
     #[must_use]
     pub fn assumption(&self) -> Option<&str> {
         match self {
-            Self::LicensedUnder { assumption } => Some(assumption),
+            Self::SupportedUnder { assumption } => Some(assumption),
             _ => None,
         }
     }
@@ -1365,7 +1365,7 @@ impl RouteDecision {
     }
 }
 
-/// A separate licensing decision per route for one set of interventions.
+/// A separate support decision per route for one set of interventions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PolicySupport {
     /// Forward simulation.
@@ -1388,19 +1388,19 @@ impl PolicySupport {
     }
 }
 
-/// License a set of interventions for each execution route.
+/// Support a set of interventions for each execution route.
 ///
-/// *Simulation* and *counterfactual execution* are licensed when the interventions
+/// *Simulation* and *counterfactual execution* are supported when the interventions
 /// compile into a valid overlay: a program is deterministic in its reads, so replaying
 /// abduced noise through it is as well defined as drawing fresh noise. *Observational
-/// identification* is licensed only for interventions that reduce to the identification
+/// identification* is supported only for interventions that reduce to the identification
 /// layer's hard levels: a `Set`, or an `Assign` that folds to a constant. A transform of
 /// the generated value depends on each unit's own noise, and an assignment from other
 /// variables is a function, not a level, so both stay simulation-only.
 ///
-/// A batch callback is licensed for simulation. Counterfactual execution replays abduced
+/// A batch callback is supported for simulation. Counterfactual execution replays abduced
 /// noise through the callback, which is well defined only if its output depends on its
-/// declared inputs alone (no hidden state, clock or randomness), so that licence is
+/// declared inputs alone (no hidden state, clock or randomness), so that support is
 /// conditional and says so. A callback is a function, not a level, so it is never
 /// identified observationally.
 #[must_use]
@@ -1410,7 +1410,7 @@ pub fn policy_support(
 ) -> PolicySupport {
     let overlay = crate::overlay::InterventionOverlay::from_interventions(model, interventions);
     let execution = match &overlay {
-        Ok(_) => RouteDecision::Licensed,
+        Ok(_) => RouteDecision::Supported,
         Err(error) => RouteDecision::from_error(error),
     };
     let identification = if let Err(error) = &overlay {
@@ -1419,7 +1419,7 @@ pub fn policy_support(
         identification_decision(interventions)
     };
     let counterfactual = match (&execution, callback_names(interventions)) {
-        (RouteDecision::Licensed, names) if !names.is_empty() => RouteDecision::LicensedUnder {
+        (RouteDecision::Supported, names) if !names.is_empty() => RouteDecision::SupportedUnder {
             assumption: format!(
                 "callback {} returns a function of its declared inputs alone: replaying abduced \
                  noise through it is counterfactual only if it holds no hidden state, clock or \
@@ -1471,7 +1471,7 @@ fn identification_decision(interventions: &[Intervention]) -> RouteDecision {
             return RouteDecision::from_error(&refusal.into_error());
         }
     }
-    RouteDecision::Licensed
+    RouteDecision::Supported
 }
 
 #[cfg(test)]

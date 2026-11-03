@@ -245,7 +245,7 @@ fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
         assess(&original.draws, original.validation.as_ref(), &original.request, &ctx()).unwrap();
     original.verify(&DecisionReliabilityExpectation::default(), &ctx()).unwrap();
     // Historical refusals remain conservative whether current calibration is
-    // pending or has earned additional licenses. No new license is assumed here.
+    // pending or has earned additional supports. No new support is assumed here.
     for closed in &current.closed_routes {
         assert!(original.report.closed_routes.iter().any(|old| old.route == closed.route));
     }
@@ -272,7 +272,7 @@ fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
     changed.report.closed_routes[0].coordinate.push_str("/foreign");
     rejected(changed);
     let mut changed = original.clone();
-    changed.report.closed_routes[0].remedy = "this route is licensed".into();
+    changed.report.closed_routes[0].remedy = "this route is supported".into();
     rejected(changed);
     let mut changed = original.clone();
     changed.report.closed_routes[0].code = "invalid_argument".into();

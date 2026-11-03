@@ -6,7 +6,7 @@
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
 //! canonical order. Its [`RankingRecord::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
-//! cost mapping, value or order. When no probabilistic model is licensed the structural
+//! cost mapping, value or order. When no probabilistic model is supported the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
 //! units, then lower sample budget, then semantic id.
 //!
@@ -293,7 +293,7 @@ impl RankingRecord {
         })
     }
 
-    /// The probabilistic ranking when a licensed model produced `probabilistic`,
+    /// The probabilistic ranking when a supported model produced `probabilistic`,
     /// otherwise the preserved structural ranking.
     ///
     /// # Errors

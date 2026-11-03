@@ -2,7 +2,7 @@
 //! which mapping, for which population and regime, and with which
 //! transportability premise.
 //!
-//! [`BridgeContract::check_licensing`] runs the checks in a fixed order, so the
+//! [`BridgeContract::check_support`] runs the checks in a fixed order, so the
 //! refusal a request receives is the first defect it has:
 //!
 //! 1. the declaration is well formed;
@@ -100,7 +100,7 @@ pub const BRIDGE_TARGET_PORT: &str = "target";
 /// The operations of the two ports come from the declared value kinds. A
 /// value kind that names no operation (an identified set, a joint outcome
 /// law) projects to a port with none and is refused by the connection check
-/// as a port with no operations, as the licensing check refuses it as not
+/// as a port with no operations, as the support check refuses it as not
 /// carried.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BridgeInterfaceBasis {
@@ -160,7 +160,7 @@ pub struct BridgeAssumption {
 impl BridgeAssumption {
     /// The measurement-model assumption of a bridge through `model`: it names
     /// the model's own six-part identity as its evidence, so the bridge's
-    /// licensing check can require that the mapping uses exactly that model.
+    /// support check can require that the mapping uses exactly that model.
     #[must_use]
     pub fn for_measurement_model(
         id: impl Into<String>,
@@ -235,9 +235,9 @@ pub struct BridgeContract {
     pub estimand_bridge: Option<EstimandBridge>,
 }
 
-/// What a licensed contract determined.
+/// What a supported contract determined.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Licensing {
+pub struct Support {
     /// The bridge carries evidence established elsewhere than the claim's
     /// population or regime, under a declared premise.
     pub transported: bool,
@@ -303,19 +303,19 @@ impl BridgeContract {
         Ok(())
     }
 
-    /// Check the contract licenses its bridge, without a source claim.
+    /// Check the contract supports its bridge, without a source claim.
     ///
     /// # Errors
     /// The first defect, in the order described in the module documentation,
-    /// as a coded refusal with the declaration that would license it.
-    pub fn check_licensing(&self) -> Result<Licensing, BridgeRefusal> {
-        self.check_licensing_carrying(false)
+    /// as a coded refusal with the declaration that would support it.
+    pub fn check_support(&self) -> Result<Support, BridgeRefusal> {
+        self.check_support_carrying(false)
     }
 
-    /// Check the contract licenses its bridge when the source value is a
+    /// Check the contract supports its bridge when the source value is a
     /// distribution carried as aligned draws.
     ///
-    /// The checks are those of [`Self::check_licensing`] in the same order,
+    /// The checks are those of [`Self::check_support`] in the same order,
     /// except that the value kinds may be a posterior or a predictive law (and
     /// then must agree), and that the declaration of the mapping's uncertainty
     /// and of its dependence on the source is checked for the draws it
@@ -325,14 +325,14 @@ impl BridgeContract {
     /// outcome law is still not carried.
     ///
     /// # Errors
-    /// As [`Self::check_licensing`], and the refusals of the draws declaration.
-    pub fn check_draws_licensing(&self) -> Result<Licensing, BridgeRefusal> {
-        let licensing = self.check_licensing_carrying(true)?;
+    /// As [`Self::check_support`], and the refusals of the draws declaration.
+    pub fn check_draws_support(&self) -> Result<Support, BridgeRefusal> {
+        let support = self.check_support_carrying(true)?;
         draws::check_draws_declaration(self)?;
-        Ok(licensing)
+        Ok(support)
     }
 
-    fn check_licensing_carrying(&self, draws: bool) -> Result<Licensing, BridgeRefusal> {
+    fn check_support_carrying(&self, draws: bool) -> Result<Support, BridgeRefusal> {
         self.validate()?;
         let pair = (self.source.class, self.target.class);
         if !self.kind.endpoint_pairs().contains(&pair) {
@@ -387,7 +387,7 @@ impl BridgeContract {
         } else {
             MeasurementDirection::MeasuredToLatent
         };
-        Ok(Licensing { transported, direction })
+        Ok(Support { transported, direction })
     }
 
     fn check_mapping_binding(&self, principal: &BridgeAssumption) -> Result<(), BridgeRefusal> {
@@ -525,16 +525,16 @@ impl BridgeContract {
     /// Check an explicitly finite joint law of affine mapping and source draws.
     ///
     /// Every original slot is retained; the declared finite-law moments and dependence
-    /// must agree. This check grants no posterior or causal permission beyond licensing.
+    /// must agree. This check grants no posterior or causal permission beyond support.
     /// # Errors
-    /// Native licensing, missing/failed slots, unsupported mapping or conflicting moments.
+    /// Native support, missing/failed slots, unsupported mapping or conflicting moments.
     pub fn validate_finite_affine_mapping(
         &self,
         intercepts: &[f64],
         slopes: &[f64],
         source: &[f64],
     ) -> Result<(), BridgeRefusal> {
-        self.check_licensing()?;
+        self.check_support()?;
         propagation::validate_finite_affine_mapping(self, intercepts, slopes, source)
     }
 
@@ -549,7 +549,7 @@ impl BridgeContract {
         source_mean: f64,
         source_variance: f64,
     ) -> Result<PropagatedUncertainty, BridgeRefusal> {
-        self.check_licensing()?;
+        self.check_support()?;
         propagation::propagate_affine(self, source_mean, source_variance)
     }
 
@@ -563,7 +563,7 @@ impl BridgeContract {
         map: SupportMap,
         source: ValueInterval,
     ) -> Result<PreservedSupport, BridgeRefusal> {
-        self.check_licensing()?;
+        self.check_support()?;
         preserved_support(self, map, source)
     }
 
@@ -590,7 +590,7 @@ impl BridgeContract {
         if imported.source_dependence.is_some() {
             candidate.source_dependence.clone_from(&imported.source_dependence);
         }
-        candidate.check_licensing()?;
+        candidate.check_support()?;
         *self = candidate;
         Ok(imported)
     }
@@ -600,9 +600,9 @@ impl BridgeContract {
     /// port, so the one connection check decides what feeds and what is fed by
     /// a bridge.
     ///
-    /// Licensing stays [`Self::check_licensing`] (the principal assumption,
+    /// Support stays [`Self::check_support`] (the principal assumption,
     /// the mapping, the transportability premise); the projection states only
-    /// the two ports and licenses nothing a connection does not.
+    /// the two ports and supports nothing a connection does not.
     #[must_use]
     pub fn interface_contract(
         &self,

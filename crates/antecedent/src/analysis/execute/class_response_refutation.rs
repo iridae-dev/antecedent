@@ -7,7 +7,7 @@
 //! as the graph-posterior cells of these classes do. Reports are mixed into one verdict
 //! only when every atom answers the same level; otherwise each atom's reports are kept.
 //! A disagreement diagnostic states how far the completions' levels spread. The state
-//! executes and is unlicensed.
+//! executes and is unsupported.
 
 use super::atom_mix::{ScalarRefuterMix, finish_atom_refutations};
 use super::response_path::response_scalar_summary;
@@ -180,7 +180,7 @@ pub(super) fn refute_class_intervention_atoms<G>(
         DiagnosticSeverity::Info,
         "class-aware intervention-level refuter state: plugin-level overlap (cheap) and \
          overlap plus per-completion sampling stability (full) on each completion's own \
-         level and estimand. It executes unlicensed: no coverage or evidence record names it, \
+         level and estimand. It executes unsupported: no coverage or evidence record names it, \
          and the verdicts are checks, not a calibration claim.",
     ));
     Ok(finish_atom_refutations(

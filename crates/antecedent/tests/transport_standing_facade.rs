@@ -9,7 +9,7 @@
 //! Oracles (hand-classified):
 //!
 //! - a library route has no provider (trust not applicable); a declared route holds the trust
-//!   level its provider was verified at, and states none as undeclared, which is not a license;
+//!   level its provider was verified at, and states none as undeclared, which is not support;
 //! - nothing moved: every claim is `still_valid`;
 //! - one claim's trust held then withdrawn: that claim is `withdrawn` for provider trust, its
 //!   sibling stays `still_valid`;
@@ -290,7 +290,7 @@ fn a_record_from_another_target_is_withdrawn_and_its_heir_is_refused_the_record(
 }
 
 #[test]
-fn a_declared_claim_with_no_stated_trust_is_not_a_license_in_a_scene() {
+fn a_declared_claim_with_no_stated_trust_is_not_a_support_in_a_scene() {
     let scene = TransportSceneBuilder::new("clinic_b", digest(1))
         .source("trial", digest(10))
         .transported_claim(

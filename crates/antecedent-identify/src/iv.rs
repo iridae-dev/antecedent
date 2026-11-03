@@ -158,7 +158,7 @@ impl InstrumentalVariableIdentifier {
             ));
         }
 
-        // What the graph cannot certify: d-connection licenses a first stage but not a
+        // What the graph cannot certify: d-connection supports a first stage but not a
         // non-zero one, and the Wald ratio is the average effect only under a constant
         // linear structural effect (with heterogeneous effects it is the complier local
         // average effect, and only under monotonicity).

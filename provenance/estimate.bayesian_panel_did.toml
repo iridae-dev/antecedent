@@ -29,7 +29,7 @@ implementation_deviations = [
  "The augmented form fits per-arm Gaussian regressions on the supplied covariates and forms the two-arm contrast; it is a model-based outcome-regression posterior, not the doubly robust estimator analysed in the paper, and no propensity model is used.",
  "Event-time contrasts are pointwise marginal posteriors that share the never-treated subjects; nothing is claimed simultaneously across the curve, and pre-adoption leads are descriptive posteriors, not a test of parallel trends.",
  "Prior scale and the Inverse-Gamma variance prior are caller-declared with a diffuse default; no prior sensitivity or calibration of the credible interval is claimed.",
- "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+ "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval.",
 ]
 
 upstream_implementations_observed = []
@@ -37,7 +37,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/src/bayesian_panel_did/tests.rs (cross_section_posterior_matches_the_analytic_normal_inverse_gamma_posterior, panel_posterior_matches_the_analytic_change_score_posterior, augmented_posterior_matches_the_analytic_two_arm_regression_posterior, dependent_units_and_thin_designs_are_refused_with_the_next_attempt, invalid_priors_and_non_finite_outcomes_are_refused)",
  "crates/antecedent/tests/bayesian_design_routes.rs (panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared, panel_did_refuses_shared_clusters_and_foreign_backends_with_next_attempts)",
- "python/tests/test_bayesian_design_routes.py (test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed)",
+ "python/tests/test_bayesian_design_routes.py (test_bayesian_panel_did_matches_the_closed_form_and_stays_unsupported)",
  "closed-form Normal-Inverse-Gamma posterior computed by counting and sums of squares inside the tests, independent of the library",
  "crates/antecedent-estimate/tests/bayesian_panel_did_reference.rs (40-digit Student-t references for the cross-section, change-score and augmented forms under a diffuse and an informative prior; the augmented difference of two independent t variables by numerical convolution)",
 ]
@@ -48,15 +48,15 @@ scope = "fit_bayesian_cross_section_did, fit_bayesian_panel_did and fit_bayesian
 assumptions = ["Gaussian errors with one common variance within each fit, independent units, parallel untreated trends (conditional on the supplied covariates for the augmented form) and no anticipation are declared premises the prior does not supply.", "The prior is b | s2 ~ N(0, s2 c^2 I) with s2 ~ InvGamma(a0, b0) so every coefficient has an exact Student-t marginal with 2(a0 + n/2) degrees of freedom; the augmented effect is the difference of two independent Student-t variables.", "Accuracy is stated against exact 40-digit posterior summaries; the sampler is compared at Monte Carlo tolerances."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with 40-digit exact Normal-Inverse-Gamma references (Student-t marginals; numerical convolution for the augmented contrast) written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
-limitations = "Two priors (diffuse 100/1e-3/1e-3 and informative 0.8/3/2) on one 24-row cross-section, one 24-subject panel and the same panel with two covariates, 300,000 draws at one seed. The sampler mean is within five Monte Carlo standard errors, the sd within 2% and the interval ends within 3% of the exact sd of the reference. These are statistical agreements at one seed, not exact equality. The informative-prior case pins that the declared scale reaches the posterior (the diffuse and informative means differ by more than 0.05). Not exercised: unbalanced arms near the support limits, many covariates, heavy-tailed outcomes, or coverage of the credible interval (the route is unlicensed and uncalibrated). The convolution quantile of the augmented reference is accurate to about 1e-20.  The cited publications were not retrieved."
+limitations = "Two priors (diffuse 100/1e-3/1e-3 and informative 0.8/3/2) on one 24-row cross-section, one 24-subject panel and the same panel with two covariates, 300,000 draws at one seed. The sampler mean is within five Monte Carlo standard errors, the sd within 2% and the interval ends within 3% of the exact sd of the reference. These are statistical agreements at one seed, not exact equality. The informative-prior case pins that the declared scale reaches the posterior (the diffuse and informative means differ by more than 0.05). Not exercised: unbalanced arms near the support limits, many covariates, heavy-tailed outcomes, or coverage of the credible interval (the route is unsupported and uncalibrated). The convolution quantile of the augmented reference is accurate to about 1e-20.  The cited publications were not retrieved."
 sources = ["https://doi.org/10.1016/j.jeconom.2020.12.001", "https://doi.org/10.1016/j.jeconom.2020.06.003", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No defect was found: the design columns, the interaction/arm-coefficient choice, the treated-covariate-mean evaluation and the independence of the two arm fits agree with the exact posterior under both priors.", "The record lacked an executing high-precision reference for the augmented difference of two arm posteriors; the exact mean, sd and convolution interval now bound the sampler."]
-record_sha256 = "ba9030a9bdb2e00df97b01046334139065c99a7a178342f8c9d29410c8605f2f"
+record_sha256 = "606769db41e28f42307e759d575d443eb17525c74537066aa0236fd1012b5aa2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
-sha256 = "7aa16ef1efbce3cf222813b0f4909b99457bb96a775a73c15aeaa87f06318d41"
+sha256 = "f408cf86927cbf5a8a151a44e9b91d97ac8a851fd48fd4c1ef35e2c58f1daec8"
 
 [[method_review.artifacts]]
 role = "assertion"

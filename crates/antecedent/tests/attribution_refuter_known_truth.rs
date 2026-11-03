@@ -149,7 +149,7 @@ fn states_body() {
                         .refute(suite)
                         .build()
                         .unwrap();
-                    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+                    assert_eq!(study.support_status(), Some(CellStatus::Supported));
                     study.run(&ExecutionContext::for_tests(31)).unwrap()
                 };
                 let clean = run(false);
@@ -240,7 +240,7 @@ fn temporal_states_body() {
                         .refute(suite)
                         .build()
                         .unwrap();
-                    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+                    assert_eq!(study.support_status(), Some(CellStatus::Supported));
                     study.run(&ExecutionContext::for_tests(31)).unwrap()
                 };
                 let clean = run(false);
@@ -303,7 +303,7 @@ fn a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation
             let message = match built {
                 Err(error) => error.to_string(),
                 Ok(study) => {
-                    assert_eq!(study.support_status(), Some(CellStatus::Refused));
+                    assert_eq!(study.support_status(), Some(CellStatus::NotSupported));
                     study.run(&ExecutionContext::for_tests(31)).unwrap_err().to_string()
                 }
             };

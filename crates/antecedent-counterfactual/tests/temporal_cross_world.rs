@@ -369,8 +369,8 @@ fn factor(role: PopulationRole, regime: &str) -> RegimeFactorKey {
 
 fn all_gates() -> TransportedCounterfactualPrerequisites {
     TransportedCounterfactualPrerequisites {
-        transport_license: true,
-        fixed_population_license: true,
+        transport_support: true,
+        fixed_population_support: true,
         cross_population_assumptions: true,
     }
 }
@@ -386,25 +386,25 @@ fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
     assert_eq!(
         refusal.missing_gates,
         vec![
-            TransportedCounterfactualGate::TransportLicenseMissing,
-            TransportedCounterfactualGate::FixedPopulationTemporalLicenseMissing,
+            TransportedCounterfactualGate::TransportSupportMissing,
+            TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing,
             TransportedCounterfactualGate::CrossPopulationAssumptionsMissing,
         ]
     );
-    assert_eq!(refusal.refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.refusal.code, "not_supported");
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
-    assert_eq!(refusal.refusal.offending.as_deref(), Some("transport_license_missing"));
+    assert_eq!(refusal.refusal.offending.as_deref(), Some("transport_support_missing"));
     assert!(refusal.refusal.validate().is_ok());
 
     let neighbour_only = TransportedCounterfactualPrerequisites {
-        transport_license: true,
-        fixed_population_license: false,
+        transport_support: true,
+        fixed_population_support: false,
         cross_population_assumptions: true,
     };
     let refusal = refuse_transported_counterfactual(&neighbour_only, &required, &supplied);
     assert_eq!(
         refusal.missing_gates,
-        vec![TransportedCounterfactualGate::FixedPopulationTemporalLicenseMissing]
+        vec![TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing]
     );
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
 
@@ -412,7 +412,7 @@ fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
     let refusal = refuse_transported_counterfactual(&all_gates(), &required, &supplied);
     assert!(refusal.missing_gates.is_empty());
     assert!(refusal.missing_factors.is_empty());
-    assert_eq!(refusal.refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.refusal.code, "not_supported");
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
 }
 
@@ -430,7 +430,7 @@ fn transported_gate_absent_regime_factor_is_factor_missing() {
     assert!(refusal.refusal.validate().is_ok());
 
     // A missing gate takes precedence, with the missing factor still retained.
-    let gated = TransportedCounterfactualPrerequisites { transport_license: false, ..all_gates() };
+    let gated = TransportedCounterfactualPrerequisites { transport_support: false, ..all_gates() };
     let refusal = refuse_transported_counterfactual(&gated, &required, &supplied);
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
     assert_eq!(refusal.missing_factors, vec![required[1].clone()]);

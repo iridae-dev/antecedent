@@ -203,7 +203,7 @@ pub struct ScientificDecisionSource {
 /// An actual decision result with the scientific scope that authorized its consumption.
 #[derive(Clone, Debug)]
 pub struct ScopedDecisionResult {
-    /// Actual evaluated decision, without an additional calibration license.
+    /// Actual evaluated decision, without an additional calibration support.
     pub result: DecisionResult,
     /// Explicit requested scientific standing; conditional use never becomes causal use.
     pub scope: ScientificConsumptionScope,

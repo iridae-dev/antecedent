@@ -184,7 +184,7 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
     ]:
         with pytest.raises(RecalcRefusal) as refused:
             session.dependent_interval(config=config)
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == "not_supported"
         assert refused.value.detail == "temporal_interval.route_frozen"
         assert "checked_temporal.protocol_not_measured" in str(refused.value)
     for args in [
@@ -203,7 +203,7 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
         else:
             with pytest.raises(Exception, match="measured_interval.protocol_not_measured") as no:
                 temporal_dependent_interval(panel(), **options)
-            assert no.value.reason_code == "cell_not_licensed"
+            assert no.value.reason_code == "not_supported"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError):
@@ -266,5 +266,5 @@ def test_checked_duplicate_history_cells_cannot_borrow_measured_protocol(method)
     require_success(session.execute(changed, execution=Execution(seed=41)))
     with pytest.raises(RecalcRefusal) as refused:
         session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "not_supported"
     assert refused.value.detail == "temporal_interval.route_frozen"

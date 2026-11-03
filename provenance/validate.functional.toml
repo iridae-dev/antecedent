@@ -41,7 +41,7 @@ sha256 = "7437ad67413ed4c4987596ec3d337fbffa3ee67a926719b83078d02327499dc4"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "769e627628db990293b5e1eb95a2ab8ab9d7d31f2b459827ff884f94d2495eb6"
+sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
 
 [[method_review.artifacts]]
 role = "assertion"

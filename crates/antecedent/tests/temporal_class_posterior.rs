@@ -93,7 +93,7 @@ fn pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
 }
 
-fn licensed_pulse() -> TemporalEffectQuery {
+fn supported_pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
@@ -126,7 +126,7 @@ fn series_lagged_coefficient(adjust_z: bool) -> f64 {
 fn queries_for(kind: GraphPosteriorAtomKind) -> Vec<TemporalEffectQuery> {
     let mut queries = vec![pulse(), sustained()];
     if kind == GraphPosteriorAtomKind::Cpdag {
-        queries.push(licensed_pulse());
+        queries.push(supported_pulse());
     }
     queries
 }
@@ -369,17 +369,17 @@ fn visible_pag_contemp() -> u64 {
 }
 
 #[test]
-fn temporal_pag_graph_posterior_licensed_pulse_runs() {
+fn temporal_pag_graph_posterior_supported_pulse_runs() {
     let gp = class_posterior(
         GraphPosteriorAtomKind::Pag,
         &[1.0],
         &[visible_pag_contemp()],
         &[lag_bit(3, 0, 1)],
     );
-    let result = run(gp, licensed_pulse(), InferenceMode::Frequentist, RefuteSuite::None);
+    let result = run(gp, supported_pulse(), InferenceMode::Frequentist, RefuteSuite::None);
     assert!(
         result.structural_response.is_some(),
-        "licensed pulse(-1) TemporalPag GP must identify"
+        "supported pulse(-1) TemporalPag GP must identify"
     );
     let ate = result.estimate().as_effect().unwrap().ate;
     // The atom keeps only t@-1 -> y, so the identified adjustment is empty and the effect is the
@@ -387,7 +387,7 @@ fn temporal_pag_graph_posterior_licensed_pulse_runs() {
     let reference = series_lagged_coefficient(false);
     assert!(
         (ate - reference).abs() < 1e-6,
-        "licensed TemporalPag pulse {ate} vs unOLS slope {reference}"
+        "supported TemporalPag pulse {ate} vs unOLS slope {reference}"
     );
 }
 
@@ -429,7 +429,7 @@ fn temporal_class_graph_posterior_pulse_and_sustained_run() {
                         query.policy
                     );
                 } else {
-                    // The unlicensed at-0 forms are only required to run to a scalar here.
+                    // The unsupported at-0 forms are only required to run to a scalar here.
                     assert!(ate.is_finite(), "{kind:?} {:?}: scalar expected", query.policy);
                 }
             }
@@ -666,7 +666,7 @@ fn temporal_class_graph_posterior_numeric_pins() {
             ] {
                 let result =
                     run_on(&data, gp.clone(), query.clone(), inference, RefuteSuite::None, 0);
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
                 assert!(
                     (result.estimate().as_effect().unwrap().ate - truth).abs() < band,
                     "{kind:?} {:?}: effect {} vs {truth}",
@@ -849,7 +849,7 @@ fn temporal_class_graph_posterior_mediation_envelope() {
         RefuteSuite::None,
         40,
     );
-    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert!(
         (result.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
         "mediated {} vs truth {effect_truth}",
@@ -878,7 +878,7 @@ fn temporal_class_graph_posterior_mediation_envelope() {
         RefuteSuite::None,
         0,
     );
-    assert_eq!(bayesian.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(bayesian.support_status().unwrap().as_str(), "supported");
     assert!(
         (bayesian.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
         "Bayesian mediated {} vs truth {effect_truth}",
@@ -907,7 +907,7 @@ fn temporal_class_graph_posterior_mediation_cheap_and_full_run() {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result =
                 run_mediation(&series, gp.clone(), mediation_query(), inference.clone(), suite, 0);
-            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "refute.envelope.temporal_class_mediation_posterior"
@@ -1084,7 +1084,7 @@ fn temporal_class_graph_posterior_response_mixes() {
                 [(InferenceMode::Frequentist, None), (flat_bayesian(400), Some(400))]
             {
                 let result = run_response(gp.clone(), query.clone(), inference, RefuteSuite::None);
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     query_kind,
@@ -1124,7 +1124,7 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let result =
                     run_response(gp.clone(), intervention_response(), inference.clone(), suite);
-                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     "set",

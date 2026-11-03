@@ -317,12 +317,12 @@ impl RetainedExperiment {
     }
 }
 
-/// One evidence component and its licensed translation to a retained response functional.
+/// One evidence component and its supported translation to a retained response functional.
 #[derive(Clone, Debug)]
 pub struct JointEvidenceComponent {
     /// Name of the evidence outcome component.
     pub component: String,
-    /// Licensed translation; its source must be [`RetainedExperiment::component_quantity`].
+    /// Supported translation; its source must be [`RetainedExperiment::component_quantity`].
     pub bridge: BridgeContract,
     /// Time functional of the retained worlds that the bridge targets.
     pub functional: JointPanelResponseFunctional,

@@ -16,7 +16,7 @@ and then asserts the five things retention has to mean:
    dropped all but the first would produce the single-partition answer, which
    the dedicated tests below pin as *different*.
 
-Each `[[refusal]]` row pins a combination the study builder does not license,
+Each `[[refusal]]` row pins a combination the study builder does not support,
 by its reason code.
 """
 
@@ -338,7 +338,7 @@ def _execute_discovery(
     """Run the declared discovery explicitly; preparation only accepts its executed result."""
     if structure == "graph_posterior":
         # A posterior is fitted on the flat observations; the partitioned frame is
-        # what the prepared study is then bound to (and refused on, where unlicensed).
+        # what the prepared study is then bound to (and refused on, where unsupported).
         flat = frame if data in {"tabular", "series"} else _frame(kind, "series", temporal)
         kwargs["discovery"] = kwargs["discovery"].run(flat, execution=ant.Execution(seed=1))
     elif structure.startswith("discovered."):
@@ -445,13 +445,13 @@ def test_every_route_retains():
         assert row.get("retains") is True, row
 
 
-#: Graph classes the Rust licensing table covers that `analyze` cannot be handed: a
+#: Graph classes the Rust support table covers that `analyze` cannot be handed: a
 #: `TemporalAdmg` is a native-only graph object (the contemporaneous-projection twin of the
 #: static latent-graph analyses), not an edge list, so no Python route exists to carry a row.
 RUST_ONLY_GRAPH_CLASSES = frozenset({"TemporalAdmg"})
 
 
-#: Static query kinds whose temporal cores the Rust table licenses through the temporal
+#: Static query kinds whose temporal cores the Rust table supports through the temporal
 #: effect wrapper, which Python has no surface for: its static derivative, counterfactual,
 #: distribution and path-specific classes take no lag or horizon, and handing them panel or
 #: event data is refused (pinned by the refusal rows). The Python-reachable temporal
@@ -471,10 +471,10 @@ RUST_ONLY_TEMPORAL_KINDS = frozenset(
 )
 
 
-def test_every_licensed_combination_has_a_route_row():
-    licensed = tomllib.loads(read_text(ROOT / "parity" / "support_licensed.toml"))
+def test_every_supported_combination_has_a_route_row():
+    supported = tomllib.loads(read_text(ROOT / "parity" / "support_cells.toml"))
     expected: set[tuple[str, str, str]] = set()
-    for cell in licensed.get("cell", []):
+    for cell in supported.get("cell", []):
         kind = QUERY_KIND.get(cell["query"])
         if kind is None:
             continue
@@ -489,7 +489,7 @@ def test_every_licensed_combination_has_a_route_row():
         if graph.startswith("Temporal"):
             expected.add((kind, "event", structure))
             # Panel and multi-environment carry the modalities the Rust study
-            # builder licenses for this query, and nothing else; the refused
+            # builder supports for this query, and nothing else; the refused
             # combinations are pinned as refusals below.
             if structure != "graph_posterior" and kind != "temporal_mediation":
                 expected.add((kind, "panel", structure))
@@ -522,11 +522,11 @@ def test_every_licensed_combination_has_a_route_row():
         if not row.get("options")
     }
     missing = sorted(expected - present - unreachable - refused)
-    assert not missing, f"licensed combinations missing product rows: {missing}"
+    assert not missing, f"supported combinations missing product rows: {missing}"
     # Each Rust-only combination is pinned by a refusal below (not a registry row).
     registered = {(row["kind"], row["data"], row["structure"]) for row in PRODUCTS["refusal"]}
     unpinned = sorted(refused - unreachable - set(RUST_ONLY_REFUSALS) - registered)
-    assert not unpinned, f"Rust-only licensed combinations without a pinned refusal: {unpinned}"
+    assert not unpinned, f"Rust-only supported combinations without a pinned refusal: {unpinned}"
 
 
 def test_every_signature_parameter_has_a_row():
@@ -577,11 +577,11 @@ PYTHON_WITHOUT_GRAPH_POSTERIOR = frozenset(
     }
 )
 
-#: The combinations the facade refuses although the Rust table licenses them, with their codes.
+#: The combinations the facade refuses although the Rust table supports them, with their codes.
 RUST_ONLY_REFUSALS = {
-    ("average", "event", "explicit"): "data_modality_not_licensed",
-    ("average", "event", "accepted"): "data_modality_not_licensed",
-    ("average", "panel", "accepted"): "data_modality_not_licensed",
+    ("average", "event", "explicit"): "data_modality_not_supported",
+    ("average", "event", "accepted"): "data_modality_not_supported",
+    ("average", "panel", "accepted"): "data_modality_not_supported",
     **{
         (kind, "tabular", "graph_posterior"): "option_not_applicable"
         for kind in sorted(PYTHON_WITHOUT_GRAPH_POSTERIOR)
@@ -742,7 +742,7 @@ def test_refusal_rows_are_reason_coded(kind, data, structure, reason):
     sorted(RUST_ONLY_REFUSALS.items()),
     ids=[f"{kind}_{data}_{structure}" for kind, data, structure in sorted(RUST_ONLY_REFUSALS)],
 )
-def test_rust_only_licensed_combinations_are_refused_with_their_reason(combination, reason):
+def test_rust_only_supported_combinations_are_refused_with_their_reason(combination, reason):
     assert _refusal_code(*combination) == reason
 
 

@@ -222,7 +222,7 @@ fn counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope() {
                     .unwrap_or_else(|error| panic!("{coordinate}: {error}"))
                 };
                 let clean = run(2.0);
-                assert_eq!(clean.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(clean.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 let mean = clean.counterfactual().unwrap().mean_ite;
                 assert!((mean - truth).abs() < tolerance, "{coordinate}: {mean} vs {truth}");
                 // The validation never moves the answer.
@@ -301,7 +301,7 @@ fn nested_dag_validation_refutes_the_structural_direct_effect() {
                         .unwrap_or_else(|error| panic!("{coordinate}: {error}"))
                 };
                 let clean = run(0.0);
-                assert_eq!(clean.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(clean.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 assert!((nde(&clean) - direct).abs() < tolerance, "{coordinate}: {}", nde(&clean));
                 if suite == RefuteSuite::None {
                     assert!(clean.refutations.is_empty(), "{coordinate}");
@@ -377,7 +377,7 @@ fn counterfactual_dag_validation_executes_from_the_retained_plan_without_the_bui
                 };
                 assert_eq!(plan.graph().node_count(), 3, "{coordinate}");
                 let result = prepared.estimate(&data, &ctx).unwrap();
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 assert!(
                     (result.counterfactual().unwrap().mean_ite - 3.0).abs() < 0.05,
                     "{coordinate}"
@@ -413,7 +413,7 @@ fn nested_dag_validation_executes_from_the_retained_plan_without_the_builder() {
                 };
                 assert_eq!(plan.graph().node_count(), 3, "{coordinate}");
                 let result = prepared.estimate(&data, &ctx).unwrap();
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 assert!((nde(&result) - 0.3).abs() < 0.02, "{coordinate}: {}", nde(&result));
                 assert_eq!(
                     result

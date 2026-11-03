@@ -271,7 +271,7 @@ pub enum LawOrigin {
         /// Identity of the artifact that produced it.
         artifact: Arc<str>,
     },
-    /// A law derived by graph-licensed observation recovery from an
+    /// A law derived by graph-supported observation recovery from an
     /// observed pattern law: a derived law with provenance, never an observed
     /// table. It never supplies a population law (by `origin == Measured` in
     /// [`EvidenceRegime::supplies_population_law`]), so it satisfies no
@@ -585,7 +585,7 @@ impl EvidenceRegime {
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidTransport`] when the projection is not licensed.
+    /// [`QueryError::InvalidTransport`] when the projection is not supported.
     #[allow(
         clippy::needless_pass_by_value,
         reason = "Stable public signature; the projection is read, not stored"
@@ -601,14 +601,14 @@ impl EvidenceRegime {
     }
 }
 
-/// Measured set, conditioning set and availability after a licensed projection.
+/// Measured set, conditioning set and availability after a supported projection.
 pub(crate) struct ProjectedLaw {
     pub(crate) measured: Arc<[VariableId]>,
     pub(crate) conditioned_on: Arc<[VariableId]>,
     pub(crate) distribution: DistributionAvailability,
 }
 
-/// The one owner of licensed projection semantics, shared by regimes and catalog
+/// The one owner of supported projection semantics, shared by regimes and catalog
 /// distribution descriptors.
 pub(crate) fn project_law(
     measured: &Arc<[VariableId]>,
@@ -618,7 +618,7 @@ pub(crate) fn project_law(
 ) -> Result<ProjectedLaw, QueryError> {
     match projection {
         EvidenceProjection::Deintervene { .. } => {
-            Err(QueryError::InvalidTransport(TransportFault::DeinterventionNotLicensed))
+            Err(QueryError::InvalidTransport(TransportFault::DeinterventionNotSupported))
         }
         EvidenceProjection::Marginalize { drop } => {
             if drop.iter().any(|v| !measured.contains(v) || conditioned_on.contains(v)) {
@@ -665,7 +665,7 @@ pub(crate) fn project_law(
     }
 }
 
-/// Licensed projection of an evidence regime.
+/// Supported projection of an evidence regime.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EvidenceProjection {
     /// Drop measured variables. The intervention set is unchanged.
@@ -753,9 +753,9 @@ impl SamplingDesign {
     }
 }
 
-/// Licensed weights attached to a regime binding.
+/// Supported weights attached to a regime binding.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LicensedWeights {
+pub struct SupportedWeights {
     /// Snapshot identity the weights were written for.
     pub snapshot_identity: Arc<str>,
 }
@@ -774,13 +774,13 @@ pub struct RegimeBinding {
     pub schema_names: Arc<[Arc<str>]>,
     /// Sampling design.
     pub sampling: SamplingDesign,
-    /// Optional licensed weights.
-    pub weights: Option<LicensedWeights>,
+    /// Optional supported weights.
+    pub weights: Option<SupportedWeights>,
     /// Unit / cluster / dependence group.
     pub dependence: DependenceGroup,
 }
 
-impl CanonicalEncode for LicensedWeights {
+impl CanonicalEncode for SupportedWeights {
     fn encode(&self, writer: &mut CanonicalWriter) {
         writer.text(&self.snapshot_identity);
     }
@@ -810,8 +810,8 @@ pub enum TargetSampling {
     SuppliedPopulationLaw,
     /// Representative target sample.
     RepresentativeSample,
-    /// Explicitly licensed weighted design.
-    LicensedWeightedDesign,
+    /// Explicitly supported weighted design.
+    SupportedWeightedDesign,
     /// Convenience sample. Not automatically representative.
     ConvenienceSample,
 }
@@ -821,7 +821,7 @@ impl CanonicalEncode for TargetSampling {
         let tag = match self {
             Self::SuppliedPopulationLaw => 1,
             Self::RepresentativeSample => 2,
-            Self::LicensedWeightedDesign => 3,
+            Self::SupportedWeightedDesign => 3,
             Self::ConvenienceSample => 4,
         };
         writer.word(tag);
@@ -835,7 +835,7 @@ impl TargetSampling {
         match self {
             Self::SuppliedPopulationLaw => "supplied_population_law",
             Self::RepresentativeSample => "representative_sample",
-            Self::LicensedWeightedDesign => "licensed_weighted_design",
+            Self::SupportedWeightedDesign => "supported_weighted_design",
             Self::ConvenienceSample => "convenience_sample",
         }
     }
@@ -845,7 +845,9 @@ impl TargetSampling {
     pub const fn represents_target_law(self) -> bool {
         matches!(
             self,
-            Self::SuppliedPopulationLaw | Self::RepresentativeSample | Self::LicensedWeightedDesign
+            Self::SuppliedPopulationLaw
+                | Self::RepresentativeSample
+                | Self::SupportedWeightedDesign
         )
     }
 }

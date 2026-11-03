@@ -1,6 +1,6 @@
 # Identity and coupling contract
 
-This contract applies to new scientific claims and artifacts. A digest of one field never substitutes for another. Each promoted route must name the subset it consumes and carry those values through its public producer and independent consumer. Existing wire formats keep their identities.
+This contract applies to new scientific claims and artifacts. A digest of one field never substitutes for another. Each supported route must name the subset it consumes and carry those values through its public producer and independent consumer. Existing wire formats keep their identities.
 
 | Identity | Required meaning | Invalidation |
 | --- | --- | --- |
@@ -21,6 +21,6 @@ The canonical claim identity binds the scientific fields above and its estimand.
 - **Repeated units through time:** all periods from one unit stay in one fitting fold and one resampling unit. A time extension preserves unit lineage but changes time and observation identities. Its old posterior/interval cannot be relabeled for the new period.
 - **Aligned posterior or sampling draws:** draw `i` is one joint realization only when every coordinate shares the same declared draw-set ID, draw meaning, seed/chain or replicate ID, provider and source snapshot. Independently generated marginal arrays never become a joint law by equal length or row order. Posterior parameter, posterior predictive, bootstrap and structural scenario draws have distinct meanings.
 - **Cross-world histories:** both potential-outcome worlds for one unit read one abduced exogenous history. The unit and exogenous-draw IDs stay identical across worlds; interventions and world IDs differ. A transported counterfactual additionally binds the target-population and selection proof rather than relabeling a source-world draw.
-- **Evidence and inference:** a structural envelope stores completion status and mass separately from any posterior weight. Unidentified and unevaluated mass remain visible; normalization over successful atoms would change the claim. A sampling interval binds its own design and calibration coordinate. An external value retains attested or exact-request-verified trust; neither state becomes native licensing.
+- **Evidence and inference:** a structural envelope stores completion status and mass separately from any posterior weight. Unidentified and unevaluated mass remain visible; normalization over successful atoms would change the claim. A sampling interval binds its own design and calibration coordinate. An external value retains attested or exact-request-verified trust; neither state becomes native support.
 
-Every artifact consumer must compare the expected identity fields before using values, enforce size and work bounds before decoding or replay, and refuse a resealed semantic mutation. The initial frozen promotion cells in `promotion.toml` name their relevant identity inputs; this contract adds no public license by itself.
+Every artifact consumer must compare the expected identity fields before using values, enforce size and work bounds before decoding or replay, and refuse a resealed semantic mutation. The initial frozen capability cells in `capability_records.toml` name their relevant identity inputs; this contract adds no public support by itself.

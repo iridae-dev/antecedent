@@ -231,7 +231,7 @@ fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth() {
                 let builder = study(gp, &functional, bayesian, suite)
                     .build()
                     .unwrap_or_else(|e| panic!("{label}: {e}"));
-                assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
                 let context = ExecutionContext::for_tests(818);
                 let prepared =
                     builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -243,7 +243,7 @@ fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth() {
                 let result = prepared
                     .estimate(&table(), &context)
                     .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 assert_eq!(
                     result.logical_plan.estimator.as_deref(),
                     Some(expected_estimator(key)),
@@ -350,7 +350,7 @@ fn graph_posterior_derivative_lost_mass_is_stated_and_the_identified_mixture_is_
         let gp = posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES, &CYCLIC_EDGES], &weights);
         let functional = point(DerivativeScale::Identity, number(&pin, "at"));
         let builder = study(gp, &functional, bayesian, RefuteSuite::None).build().unwrap();
-        assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+        assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
         let result = builder.run(&ExecutionContext::for_tests(819)).unwrap();
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!((mixture.identified_mass - identified).abs() < 1e-9, "{label}");

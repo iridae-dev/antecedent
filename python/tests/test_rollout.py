@@ -139,7 +139,7 @@ def test_rollout_consumer_requires_full_independent_scientific_expectation(field
     if field == "state":
         expected["state"]["units"] = "another-unit"
     elif field in ("trust", "calibration"):
-        expected["source"][field] = "native_licensed" if field == "trust" else "measured"
+        expected["source"][field] = "native_supported" if field == "trust" else "measured"
     elif field == "admissible":
         expected["decision"][field][0] = False
     elif field == "utility":

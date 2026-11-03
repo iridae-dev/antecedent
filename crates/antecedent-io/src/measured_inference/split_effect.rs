@@ -11,7 +11,7 @@
 //! It is a statement about the method, never about one dataset: faithfulness and causal
 //! sufficiency of a given table are untestable, so a given discovered graph is never
 //! certified. A construction that reuses the discovery rows for the analysis is a different
-//! construction ([`REUSE_STRUCTURE`]) and no record can license it here.
+//! construction ([`REUSE_STRUCTURE`]) and no record can support it here.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
@@ -52,9 +52,9 @@ pub const DISCOVERY_FRACTION: f64 = 0.5;
 pub const LEVEL: f64 = 0.95;
 /// Fewest searched variables measured.
 ///
-/// With [`MAX_VARIABLES`] this is the licence boundary of the calibration record, not a limit of
+/// With [`MAX_VARIABLES`] this is the support boundary of the calibration record, not a limit of
 /// the engine: the procedure runs on any table, but its coverage was measured only for these
-/// sizes, so any other size is refused as `cell_not_licensed`
+/// sizes, so any other size is refused as `not_supported`
 /// (`split_effect.variable_count_not_measured`) until a record measures it.
 pub const MIN_VARIABLES: usize = 5;
 /// Most searched variables measured. See [`MIN_VARIABLES`].
@@ -64,7 +64,7 @@ const FORMAT_VERSION: u32 = 1;
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("not_supported"),
         message: format!("{detail}: {message}"),
     }
 }

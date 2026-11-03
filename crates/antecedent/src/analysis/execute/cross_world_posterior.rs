@@ -380,7 +380,7 @@ fn require_a_fit(
 
 impl super::Study {
     /// Refusals every execution of a cross-world graph posterior shares.
-    fn ensure_cross_world_posterior_licensed(
+    fn ensure_cross_world_posterior_supported(
         &self,
         gp: &GraphPosterior,
     ) -> Result<(), CausalError> {
@@ -394,7 +394,7 @@ impl super::Study {
             (&self.query, gp.atom_kind() == GraphPosteriorAtomKind::Dag)
         {
             // A mixed graph or a class reads an unconditional finite-discrete table.
-            super::static_path::ensure_admg_distribution_licensed(query, self.settings.refute)?;
+            super::static_path::ensure_admg_distribution_supported(query, self.settings.refute)?;
         }
         Ok(())
     }
@@ -730,7 +730,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        self.ensure_cross_world_posterior_licensed(gp)?;
+        self.ensure_cross_world_posterior_supported(gp)?;
         let kind = CrossWorldKind::of(&self.query)?;
         let (keys, runs) = self.run_cross_world_atoms(data, gp, kind, physical, ctx)?;
         let rerun = |atoms: &[(u64, f64)]| {

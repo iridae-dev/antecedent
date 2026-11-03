@@ -3,7 +3,7 @@
 //! A bounded, checksummed container holding one revalidation of a claim-level
 //! dependency graph so that a consumer in a fresh process can see, for every
 //! claim, whether it is still valid, must be recomputed or is no longer
-//! licensed, and the lineage behind it:
+//! supported, and the lineage behind it:
 //!
 //! * the earlier and the current graph: every node with its kind, content
 //!   identity, structural identity, representation version, coordinate,

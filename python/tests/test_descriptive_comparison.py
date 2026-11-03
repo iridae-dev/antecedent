@@ -56,7 +56,7 @@ def test_the_raw_contrast_and_the_gap_match_the_hand_computation():
     assert result.interpretation == "descriptive_not_causal_decomposition"
     # The gap has no interval: the typed reason is carried, never a standard error.
     assert result.gap_interval_unavailable == (
-        "cell_not_licensed",
+        "not_supported",
         "descriptive_comparison.gap_interval_unavailable",
     )
 
@@ -195,14 +195,14 @@ def test_a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero
 
 def test_an_interval_on_a_transformed_scale_is_a_typed_refusal():
     error = refusal(lambda: transform_mean_pair(0.4, 0.2, level=0.95))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
     assert "descriptive_comparison.interval_withheld" in str(error)
     error = refusal(
         lambda: raw_reporting_transform(
             outcome=BINARY_OUTCOME, treatment=BINARY_TREATMENT, level=0.95
         )
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "not_supported"
 
 
 def test_a_mean_pair_outside_a_scales_domain_or_a_bad_covariance_is_refused():

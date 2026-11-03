@@ -1,4 +1,4 @@
-//! Public lifecycle evidence for the two licensed explicit-DAG interference routes.
+//! Public lifecycle evidence for the two supported explicit-DAG interference routes.
 #![allow(clippy::float_cmp, reason = "integration test asserts exact deterministic estimates")]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -232,7 +232,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     assert_eq!(plan.network_edge_count, 2);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     let estimated = result.interference().expect("design-based contrast");
     let truth = &fixture["expected"];
     let tolerance = fixture["tolerance"]["atol"].as_f64().unwrap();
@@ -336,7 +336,7 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     assert_eq!(plan.network_edge_count, 4);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     assert_eq!(
         result.identification.status,
         antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions

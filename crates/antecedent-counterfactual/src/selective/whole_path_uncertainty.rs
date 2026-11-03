@@ -191,7 +191,7 @@ pub struct WholePathUncertainty {
     pub unit_mean_sampling_variance: Option<f64>,
     /// Every source and its treatment, in [`UncertaintySource::ALL`] order.
     pub sources: Vec<SourceAccount>,
-    /// The joint-law routes the rule licensed for the spread (within-unit,
+    /// The joint-law routes the rule supported for the spread (within-unit,
     /// then between-unit when applicable).
     pub routes: Vec<&'static str>,
     /// Work observed in this derivation.
@@ -234,7 +234,7 @@ fn rule_failure(request: &PropagationRequest) -> Result<&'static str, CrossWorld
 /// # Errors
 /// A typed refusal ([`CrossWorldExecutionError::Refused`]): undeclared unit
 /// sampling, a sampled or transported request, a coupling the joint-law rule
-/// does not license for the within-unit spread, units with shared evidence
+/// does not support for the within-unit spread, units with shared evidence
 /// declared independent, invalid declarations, a result that does not match
 /// the request, or an exceeded bound; or cancellation.
 #[allow(clippy::too_many_lines, reason = "one sequential derivation of the four named sources")]
@@ -256,8 +256,8 @@ pub fn derive_whole_path_uncertainty(
     }
     if request.exogenous == ExogenousInference::PosteriorSampling {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "cross_world_uncertainty.sampled_path_not_licensed",
+            antecedent_core::reason_code!("not_supported"),
+            "cross_world_uncertainty.sampled_path_not_supported",
             Some("posterior_sampling".to_owned()),
             "a sampled exogenous posterior adds Monte Carlo and mixing error whose coverage for the \
              whole path is not measured; use exact enumeration, whose posterior has no estimation \
@@ -266,7 +266,7 @@ pub fn derive_whole_path_uncertainty(
     }
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("not_supported"),
             "cross_world_uncertainty.transported_path_closed",
             request.target_population.clone(),
             "the uncertainty of a transported cross-world quantity composes the transport \

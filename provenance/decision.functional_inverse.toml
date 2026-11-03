@@ -42,7 +42,7 @@ record_sha256 = "41d6a52b4e1f5dc5b9b94c8c9cced6e8c0451f328af2bf03ae6441fc98e398d
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/inverse_query.rs"
-sha256 = "bcf11dba71f82845c996cadcf3045250ba67fb7842ef8fa038456a96de27a2e1"
+sha256 = "6b582d2cff7ee56572d8d23ac0111684c84ad65475fcac0d4e50c460fce39a6d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

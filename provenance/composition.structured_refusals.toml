@@ -26,7 +26,7 @@ record_sha256 = "5192fb0e35aca3e25fbd1fdb9e150e96c090b25bafb48fadb35d8ac6ff1fab4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/external_refusal.rs"
-sha256 = "978502edb9fda049f6ab125757cb3b4376fb4669393fa1d730f95c494f9efb25"
+sha256 = "4de9f5f48c6456960e3d90f4542737fbd7166f77d4a6b15da3d63b5b04b280d3"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -1,4 +1,4 @@
-"""Options the Rust study honours reach it on every route that licenses them.
+"""Options the Rust study honours reach it on every route that supports them.
 
 A query field or ``estimator_config`` key that one prepare route forwards and
 another drops (or refuses although Rust would honour it) is a capability the

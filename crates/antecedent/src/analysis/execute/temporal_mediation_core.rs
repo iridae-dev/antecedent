@@ -2,7 +2,7 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalMediationOperation`]) and the
 //! one-shot route both resolve their per-horizon proofs, gate their own
-//! licence, and call [`fit_temporal_mediation`]. The linear mechanism fits, the
+//! support, and call [`fit_temporal_mediation`]. The linear mechanism fits, the
 //! block bootstrap, the Gaussian posterior composition, the refuters and the
 //! result envelope live here only, so a route cannot drift from the other in
 //! seeds, diagnostics or provenance.
@@ -46,7 +46,7 @@ pub(super) fn require_isotropic_mediation_prior(
 ) -> Result<(), CausalError> {
     if config.has_transfer() {
         return Err(CausalError::Unsupported {
-            message: "Bayesian temporal mediation supports isotropic mechanism priors; shared or transferred coefficient priors are not licensed",
+            message: "Bayesian temporal mediation supports isotropic mechanism priors; shared or transferred coefficient priors are not supported",
         });
     }
     Ok(())
@@ -396,7 +396,7 @@ fn mediation_preamble_diagnostics(
             "estimate.mediation.bayesian",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; NaturalDirect and NaturalIndirect use the licensed additive linear no-treatment-mediator-interaction alias",
+            "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; NaturalDirect and NaturalIndirect use the supported additive linear no-treatment-mediator-interaction alias",
         ));
     }
     diagnostics

@@ -88,7 +88,7 @@ pub struct SequentialInference<'a> {
     pub bayesian: Option<&'a BayesianGComputationAte>,
 }
 
-/// One intervened unfolded node and the licensed overlay applied there.
+/// One intervened unfolded node and the supported overlay applied there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SequentialNodeOverlay {
     /// Template variable.

@@ -414,7 +414,7 @@ def test_export_needs_an_estimate_first():
         bytes(prepare().export())
 
 
-# Checked execution: each licensed Python route runs from the retained, frozen plan
+# Checked execution: each supported Python route runs from the retained, frozen plan
 # with no builder alive, and the test inspects that retained plan.
 
 

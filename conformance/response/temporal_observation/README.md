@@ -1,6 +1,6 @@
 # Temporal response observation pairs
 
-Licensed `ObservationSpec` × `ObservationAssumption` pairs riding temporal
+Supported `ObservationSpec` × `ObservationAssumption` pairs riding temporal
 `ResponseCurve` / `InterventionResponse` on `TemporalDag` (Frequentist `none`).
 Each pair consumes this fixture, not `conformance/response/observation_primitives`.
 

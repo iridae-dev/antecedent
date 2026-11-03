@@ -13,7 +13,7 @@ papers = [
   { title = "A note on data-splitting for the evaluation of significance levels", citation_note = "Previously recorded title and bibliographic detail: A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
 ]
 implementation_deviations = [
-  "No error rate or coverage is measured. The split removes a dependence; it licenses an interval for the effect given the selected graph only. Unconditional coverage needs a measured bound on P(selected graph not adequate), which the whole-method calibration design (recorded in the module, unmeasured) is to supply.",
+  "No error rate or coverage is measured. The split removes a dependence; it supports an interval for the effect given the selected graph only. Unconditional coverage needs a measured bound on P(selected graph not adequate), which the whole-method calibration design (recorded in the module, unmeasured) is to supply.",
   "Reuse of the same rows for selection and analysis is refused for an interval: no selective-inference correction is implemented because the event 'PC with these tests returned g' has no tractable truncated law.",
   "Rows are assumed exchangeable. Temporal, panel, clustered, weighted or masked rows are refused; a gap-separated temporal window is a different design not covered here.",
   "The split fraction is declared, enters the identity, and has no free default.",
@@ -36,17 +36,17 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "One 70-row table of three searched columns and one unsearched column with four missing searched cells, four masked rows (one also incomplete, where the mask wins), six exact zero weights and weights spread over about two orders of magnitude; seeded and explicit rules; one weighted run (29 rows of positive weight, Kish size 18.4, interval degrees of freedom 15.4) and one unweighted run, with the interval at levels 0.9, 0.95 and 0.99. Part rows, exclusions, carried weights (bitwise), Kish sizes (1e-12 relative), effect and sandwich standard error (1e-9 relative) and interval endpoints (1e-7 relative, set by the quantile solver's tolerance) agree with the references. Not covered: clustered analysis parts, the historical HC1 entry point, many adjustment columns, extreme weight spread, near-singular analysis designs (the shared regression kernel refuses by its own rule), interval levels near 0 or 1, a mask that removes a whole part, or any coverage claim (the weighted whole-method calibration is explicitly unmeasured in the code). The Cox (1975) note on data splitting was not retrieved in this review; it is cited as context for the single-split idea and the executed check is of the stated conventions."
 sources = ["crates/antecedent/tests/sample_split_analysis_reference.rs", "crates/antecedent/tests/oracle_data/sample_split_analysis_reference.py", "https://mpmath.org/"]
 findings_resolved = ["No defect found: the split, the carried weights, the Kish sizes, the weighted and unweighted HC3 effects and the effective-size Student interval agree with the exact references.", "The existing floating-point weighted-least-squares oracle in sample_split_weighted_acceptance.rs is now complemented by an exact rational reference with a masked, incomplete and zero-weight table."]
-record_sha256 = "255eb28c9aa30ac7b4ebb505799284ddda621eae659d88072d5477f815cd560f"
+record_sha256 = "0fe584ffb23dbb341a77897ddbfe1117000959e4590c96c6a1037cbd714083ee"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
-sha256 = "8254582cd4a341f7bc0b920f5b27d01d81062f53136df53f9228ae6349f97511"
+sha256 = "7c22d254aa7cfbd346dfbac14c713b561b23f8d9b4acfe15290e9710f4888c14"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/reuse.rs"
-sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
+sha256 = "71cd5769c0eb2513da35599ff8916a8fdc5107bc87feb8484ea8565259e0930c"
 
 [[method_review.artifacts]]
 role = "assertion"

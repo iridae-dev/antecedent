@@ -111,7 +111,7 @@ def test_logistic_calibration_recovers_the_slope_reproducibly():
     assert again == first
     with pytest.raises(MeasurementModelRefusal) as raised:
         first.interval()
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"
 
 
 def test_outcome_error_under_an_identity_link_needs_no_correction():
@@ -153,7 +153,7 @@ def test_unidentified_error_variance_and_binary_outcome_error_are_refused():
     # The nonlinear operation itself stays refused and names this entry point.
     with pytest.raises(MeasurementModelRefusal) as raised:
         prepared.check_operation("nonlinear_outcome_model")
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.reason_code == "not_supported"
 
 
 def test_declaration_errors_are_input_errors():

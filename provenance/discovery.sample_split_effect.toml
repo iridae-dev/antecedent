@@ -44,17 +44,17 @@ record_sha256 = "092611d59e3df9f8a8dbea360e2c119f4672cb1096e8e9ffff8e109de0db94a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
-sha256 = "7f45565f67b6926e135c2548dfd39a60af7cf093c4eb0d3384a950763f297258"
+sha256 = "cf9991868caa34235ce2c4d5d7ea88dd630544dd67998026d61406f63851dfd5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/reuse.rs"
-sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
+sha256 = "71cd5769c0eb2513da35599ff8916a8fdc5107bc87feb8484ea8565259e0930c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/sample_split_effect_reference.rs"
-sha256 = "635e0f943e785053cb5f56636ccf67ddcff3f5234a55e12b4500e44b1f5f27dd"
+sha256 = "0ae81e5123bb596126884a1166215c1ffeed086fbe4d44f441a760987ec8aa39"
 
 [[method_review.artifacts]]
 role = "assertion"

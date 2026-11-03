@@ -5,7 +5,7 @@ adjustment cannot identify the effect, a lagged cause of the treatment can. The 
 certifies the instrument on the unfolded window graph, never from a time column; relevance is
 checked by the first-stage F. References are numpy: the closed-form Wald ratio with its
 homoskedastic standard error, and a numpy Gaussian reduced-form posterior for the ratio.
-Both estimators are unlicensed with calibration unmeasured.
+Both estimators are unsupported with calibration unmeasured.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def test_the_frequentist_route_matches_the_wald_ratio() -> None:
     assert result.ate == pytest.approx(effect, abs=1e-8)
     assert result.estimate.se_analytic == pytest.approx(se, abs=1e-8)
     assert abs(result.ate - 2.0) < 3 * se
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status != "supported"
 
 
 def test_the_bayesian_route_matches_a_numpy_reduced_form_posterior() -> None:

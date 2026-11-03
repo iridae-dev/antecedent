@@ -113,12 +113,12 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
   `fold_seed=` (the config seed of the fold plan) and `ctx_seed=` (the execution context seed
   the learners draw from). The same declaration, seeds and data replay bit-identically.
 - **Point only.** The result keeps the aligned `ScoreTable` and the family contrasts, but no
-  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage license
-  and none is granted. A requested interval refuses `ml_nuisance_not_licensed`
+  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage support
+  and none is granted. A requested interval refuses `ml_nuisance_not_supported`
   (`joint_cells.ml_interval_withheld`).
 
 Other machine-learning names (`ml`, `neural_network`, `gradient_boosting`, ...) are not declared
-learners and refuse `ml_nuisance_not_licensed` (`joint_cells.ml_learner_not_declared`). The
+learners and refuse `ml_nuisance_not_supported` (`joint_cells.ml_learner_not_declared`). The
 default ridge route is unchanged by the option. The tests recover a known effect with OLS and
 logistic learners and, in a build with the forest provider, a random forest; no coverage or
 calibration of the learner route is claimed.
@@ -176,11 +176,11 @@ supported) has per-row scores. Point contrasts are the difference of the cell me
 table's provenance carries the ridge tag (or the learner marker, see above), so the
 established rule applies: **no interval or joint covariance is published** for a penalized
 propensity (see [penalized AIPW](penalized-aipw.md)) or a learner-supplied nuisance. A requested interval
-refuses `penalized_interval_not_licensed` (`joint_cells.interval_withheld`) on the ridge route
-and `ml_nuisance_not_licensed` (`joint_cells.ml_interval_withheld`) with a declared learner. This route has no calibration measurement.
+refuses `penalized_interval_not_supported` (`joint_cells.interval_withheld`) on the ridge route
+and `ml_nuisance_not_supported` (`joint_cells.ml_interval_withheld`) with a declared learner. This route has no calibration measurement.
 
-Lasso is closed (`selection_inference_not_licensed`); a machine-learning name that is not a
-declared learner refuses `ml_nuisance_not_licensed`; an unknown provider name is an invalid
+Lasso is closed (`selection_inference_not_supported`); a machine-learning name that is not a
+declared learner refuses `ml_nuisance_not_supported`; an unknown provider name is an invalid
 argument.
 
 ## Limits

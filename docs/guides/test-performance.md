@@ -147,7 +147,7 @@ host at a load of roughly 10 to 30, optimized test binaries; wall seconds:
 
 | Test | Before | After | Change |
 | --- | ---: | ---: | --- |
-| `every_licensed_cell_completes_the_compiler_path` (723 cells) | 132 | 20-29 | Cells run on scoped threads; outcomes are read back in inventory order, so the route file comparison is unchanged. |
+| `every_supported_cell_completes_the_compiler_path` (723 cells) | 132 | 20-29 | Cells run on scoped threads; outcomes are read back in inventory order, so the route file comparison is unchanged. |
 | `all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs` | 99 | 24-39 | The 24 graph, horizon, source and suite cases run on scoped threads. |
 | `all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs` | 38 | 12 | Same. |
 | `block_bootstrap_is_the_same_for_any_thread_budget` | 96 | 52 | The serial and the parallel-budget run overlap. |

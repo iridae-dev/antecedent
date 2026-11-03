@@ -21,7 +21,7 @@
 //! confusion columns, posterior draws), not only downstream sampling
 //! variance. No interval is produced: the whole measurement-plus-estimation
 //! method has no measured coverage record, so the interval route is closed
-//! (`cell_not_licensed`) and the result carries a point and an *uncalibrated*
+//! (`not_supported`) and the result carries a point and an *uncalibrated*
 //! standard error.
 //!
 //! The pure numerics are in [`antecedent_stats::measurement_error`].
@@ -69,7 +69,7 @@ pub struct MeasurementError {
     pub code: &'static str,
     /// Namespaced detail, `measurement_model.<slot>`.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -336,12 +336,12 @@ pub(crate) fn counts_as_reals(counts: &[u32]) -> Vec<f64> {
     counts.iter().map(|&c| f64::from(c)).collect()
 }
 
-/// The refusal for a requested interval: `cell_not_licensed`. No interval
+/// The refusal for a requested interval: `not_supported`. No interval
 /// route is open.
 #[must_use]
-pub fn interval_not_licensed() -> MeasurementError {
+pub fn interval_not_supported() -> MeasurementError {
     MeasurementError::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("not_supported"),
         "measurement_model.interval_closed",
         "no coverage record measures the whole measurement-plus-estimation method; the point and an uncalibrated standard error are the result",
     )

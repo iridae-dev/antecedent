@@ -39,4 +39,4 @@ record_sha256 = "4bfcf069314563edb89e6d334aaa170b7cc2e6122612ee447fe29056da29f88
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/inference_realization.rs"
-sha256 = "8ecbac8c74c7f64a87482aa5c94801a66acb1f30412f88a3de08119357708c05"
+sha256 = "e35bc1e5457a50a759f73b6e17ce4e546e3ba88289511038a31816904d4171a8"

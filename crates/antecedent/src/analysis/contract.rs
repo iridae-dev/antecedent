@@ -118,19 +118,19 @@ pub(crate) fn failure_evidence_needs(
 ) -> (Arc<[antecedent_contract::EvidenceObligation]>, Arc<[antecedent_contract::NextAction]>) {
     evidence_needs::derive(study, Some(result))
 }
-use result_wire::{LicensedWire, distribution_wire};
+use result_wire::{SupportedWire, distribution_wire};
 
-/// Bind an executed graphless license onto the contract's support reasoning.
+/// Bind an executed graphless support onto the contract's support reasoning.
 ///
 /// Every graphless family sets the same fields once the realized support
 /// status is known: the contract-level `support_status`, then the support
 /// slot's `matrix_status` and `matrix_coordinate`. A result carrying none of
 /// those families leaves the contract untouched. The coordinate is derived
-/// only when the row is actually licensed.
+/// only when the row is actually supported.
 ///
 /// # Errors
 ///
-/// [`CausalError::Conflict`] when a licensed result's payload does not match
+/// [`CausalError::Conflict`] when a supported result's payload does not match
 /// the handle's query, which the contract identity comparison upstream rules
 /// out for any result this handle executed.
 fn bind_graphless_reasoning(
@@ -151,7 +151,7 @@ fn bind_graphless_reasoning(
         return Ok(());
     }
     let support_status = result.support_status;
-    let coordinate = if support_status == Some(CellStatus::Licensed) {
+    let coordinate = if support_status == Some(CellStatus::Supported) {
         Some(graphless_coordinate(result, query)?)
     } else {
         None
@@ -164,15 +164,15 @@ fn bind_graphless_reasoning(
     Ok(())
 }
 
-/// Matrix coordinate of a licensed graphless result.
+/// Matrix coordinate of a supported graphless result.
 ///
 /// The coordinate is a function of the query's facets, shared with the
-/// execute-side licence so the published coordinate is the key the design was
-/// licensed under. A payload whose query facet is absent, or a calibrated
-/// route that cannot be licensed, is a typed conflict rather than a panic.
+/// execute-side support so the published coordinate is the key the design was
+/// supported under. A payload whose query facet is absent, or a calibrated
+/// route that cannot be supported, is a typed conflict rather than a panic.
 ///
 /// Interference and `local_polynomial_ratio` are deliberately absent. They
-/// carry their licence on the per-fit `graphless_support_status`, rechecked
+/// carry their support on the per-fit `graphless_support_status`, rechecked
 /// by `validate_result` against the published interval, and stay off the
 /// matrix axis so calibration verification is not broken by a coordinate no
 /// route expects.
@@ -186,7 +186,7 @@ fn graphless_coordinate(
 ) -> Result<Arc<str>, CausalError> {
     const MISMATCH: CausalError = CausalError::Conflict {
         what: "result",
-        detail: "licensed graphless result does not match this handle's query",
+        detail: "supported graphless result does not match this handle's query",
     };
     let mut coordinate = None;
     if let crate::result::ResultPayload::PosteriorRow(row) = &result.payload {
@@ -230,7 +230,7 @@ fn graphless_coordinate(
         ));
     }
     if result.survival().is_some() {
-        // The licensed scalar route is fixed by the query's entry and
+        // The supported scalar route is fixed by the query's entry and
         // censoring facets. Cumulative incidence never reaches this arm; only
         // the paired RMST + horizon survival scalar intervals carry a
         // graphless matrix coordinate. The simultaneous band is a separate
@@ -252,7 +252,7 @@ fn graphless_coordinate(
     }
     if result.randomized_effect().is_some() {
         // Preparation cannot know the realized outcome variance, so the
-        // executed graphless license binds in the result-specific reasoning
+        // executed graphless support binds in the result-specific reasoning
         // and claim only after estimation. The Wald complier effect is its
         // own graphless family; a Bernoulli assignment design does not fold
         // it into ITT.
@@ -290,7 +290,7 @@ fn graphless_coordinate(
                 "stabilized_ipw_cr1_scores",
                 "intercept_and_period_effects_pointwise_95_normal_intervals",
             ),
-            // Only calibrated graphless rows carry a licence.
+            // Only calibrated graphless rows carry support.
             Method::Ipw => return Err(MISMATCH),
         };
         coordinate = Some(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"));
@@ -339,7 +339,7 @@ pub struct CausalContract {
     pub modality: Arc<str>,
     /// Inference family used to compile the program (`frequentist` / `bayesian`).
     pub inference: Arc<str>,
-    /// Licensed query name used for calibration matching.
+    /// Supported query name used for calibration matching.
     pub query_kind: Arc<str>,
     /// Score-reuse identity this handle exports, when it holds a score table.
     pub score_reuse: Option<antecedent_core::SemanticDigest>,
@@ -971,13 +971,13 @@ impl PreparedStudy {
         bind_graphless_reasoning(&mut contract, result, self.query())?;
         // Interference is on the geometric support axis: its contract keeps the
         // geometric `InterferenceQuery` coordinate and calibration basis. The
-        // off-axis exposure-contrast interval license is carried instead in
+        // off-axis exposure-contrast interval support is carried instead in
         // `interference_inference.graphless_support_status`, wired to the
         // artifact and revalidated by `validate_result`, so it is never a
         // separate matrix coordinate that would break calibration verification.
         //
         // `local_polynomial_ratio` is deliberately treated the same way and has
-        // no arm here. Its execute license surfaces on the per-fit
+        // no arm here. Its execute support surfaces on the per-fit
         // `LocalPolynomialRatioWire.graphless_support_status` field, which
         // `validate_result` independently rechecks against the published
         // interval, mirroring the interference precedent. It carries no
@@ -1377,7 +1377,7 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// Unlicensed support, missing identification product, or a width ranking
+    /// Unsupported support, missing identification product, or a width ranking
     /// across incomparable estimands.
     pub fn preview_rank_designs<A, O>(
         &self,
@@ -1403,7 +1403,7 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// Unlicensed support, missing identification product, incomparable width
+    /// Unsupported support, missing identification product, incomparable width
     /// targets, or ranker failure.
     pub fn rank_designs<A, O>(
         &self,
@@ -1427,7 +1427,7 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// Unlicensed support, missing identification product, incomparable width
+    /// Unsupported support, missing identification product, incomparable width
     /// targets, or ranker failure.
     pub fn rank_designs_bound<A, O>(
         &self,

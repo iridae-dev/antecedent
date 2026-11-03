@@ -5,7 +5,7 @@ Every method child has exactly one specification in parity/method_specs/specs.to
 carries its scientific fields (identifying result, assumptions, sampling units, estimator,
 diagnostics, failure policy) and an explicit review decision:
 
-  admission   licensed | executing_unlicensed | refused | not_admitted
+  admission   supported | not_supported | refused | not_admitted
   review_status  admitted | specification_only | blocked_research | not_admitted
   decision_basis the evidence behind the decision: the counterpart status, the executing
                  fixture, the artifact consumer, the uncertainty procedure and its basis
@@ -44,7 +44,7 @@ SPECS = "parity/method_specs/specs.toml"
 CHILDREN = "parity/method_children/children.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
 REVIEW_STATUSES = ("admitted", "specification_only", "blocked_research", "not_admitted")
-ADMISSIONS = ("licensed", "executing_unlicensed", "refused", "not_admitted")
+ADMISSIONS = ("supported", "not_supported", "refused", "not_admitted")
 SCIENTIFIC = (
     "identifying_result",
     "assumptions",
@@ -158,10 +158,10 @@ def spec_review(existing: str, status: str, gap: str) -> tuple[str, str]:
     """(review_status, admission) from the counterpart status; an explicit not_admitted is kept."""
     if existing == "not_admitted":
         return "not_admitted", "not_admitted"
-    if status == "licensed":
-        return "admitted", "licensed"
-    if status == "executing_unlicensed":
-        return "admitted", "executing_unlicensed"
+    if status == "supported":
+        return "admitted", "supported"
+    if status == "not_supported":
+        return "admitted", "not_supported"
     if status == "not_applicable_with_theory_reason":
         return "specification_only", "refused"
     kept = existing if existing in ("blocked_research", "specification_only") else ""
@@ -217,11 +217,11 @@ STALE_STATUSES = ("blocked_research", "specification_only")
 
 
 class Claims:
-    """The claim text of the licensed cells that back a method: the support limitations."""
+    """The claim text of the supported cells that back a method: the support limitations."""
 
     def __init__(self, ev: Evidence) -> None:
         self.groups: dict[tuple[str, str, str, str], list[str]] = {}
-        for cell in tomllib.loads(ev.text("parity/support_licensed.toml"))["cell"]:
+        for cell in tomllib.loads(ev.text("parity/support_cells.toml"))["cell"]:
             for estimator in cell["estimators"]:
                 key = (cell["query"], cell["graph_class"], estimator, cell["inference"].lower())
                 self.groups.setdefault(key, []).append(cell["limitations"])
@@ -250,13 +250,13 @@ def derive_fields(
 ) -> dict:
     """Fill the unlisted (or, for a record written under an earlier gap, the superseded) fields.
 
-    Sources, in order: the claim text of the licensed cells that back the method, the implementing
+    Sources, in order: the claim text of the supported cells that back the method, the implementing
     module's own header, and the child's recorded boundary. A filled field is a sentence one of
     them states, so the check can find it there.
     """
     module = child["module"].split(";")[0].strip().split(" ")[0]
     header = module_header(ev, module) if module not in UNLISTED and ev.repo.exists(module) else []
-    claim = claims.sentences([m for m in methods if m["kind"] == "licensed_estimator"])
+    claim = claims.sentences([m for m in methods if m["kind"] == "supported_estimator"])
     used: set[str] = set()
     out = dict(spec)
     temporal = ".temporal." in child["id"] or child["id"].split(".")[-2] == "temporal"
@@ -279,7 +279,7 @@ def derive_fields(
     designs = [m["design_time_model"] for m in methods if m["design_time_model"] not in UNLISTED]
     informative = next((d for d in designs if len(d) > 30 and not GENERIC_COORDINATE.match(d)), "")
     identifiers = sorted(
-        {i for m in methods if m["kind"] == "licensed_estimator" for i in m["identifier"]}
+        {i for m in methods if m["kind"] == "supported_estimator" for i in m["identifier"]}
     )
     if audit_like:
         fill(
@@ -330,7 +330,7 @@ def derive_fields(
     if suites:
         fill(
             "diagnostics",
-            f"validation suites {', '.join(suites)} on the licensed cells; refusals asserted by {tests_named(ev, child, REFUSAL_TEST)}",
+            f"validation suites {', '.join(suites)} on the supported cells; refusals asserted by {tests_named(ev, child, REFUSAL_TEST)}",
         )
     fill(
         "diagnostics",
@@ -359,7 +359,7 @@ def review_links(
 ) -> tuple[list[str], str]:
     """The provenance records and the public-API review behind an admitted method."""
     module = child["module"].split(";")[0].strip().split(" ")[0]
-    if admission not in ("licensed", "executing_unlicensed"):
+    if admission not in ("supported", "not_supported"):
         return ["not_applicable: no method executes on this axis"], "none: no executing module"
     if module in provenance_links.NOT_AN_ALGORITHM:
         return [
@@ -506,7 +506,7 @@ def verify(ev: Evidence, specs: list[dict]) -> list[str]:
 def review_problems(ev: Evidence, spec: dict) -> list[str]:
     """An admitted method links clean-room provenance and a reviewed public surface."""
     sid = spec["id"]
-    if spec["admission"] not in ("licensed", "executing_unlicensed"):
+    if spec["admission"] not in ("supported", "not_supported"):
         return []
     out: list[str] = []
     links = spec["provenance"]
@@ -540,12 +540,12 @@ def report(specs: list[dict]) -> str:
 
 
 def self_test() -> int:
-    assert spec_review("", "licensed", "none") == ("admitted", "licensed")
-    assert spec_review("", "executing_unlicensed", "validation") == (
+    assert spec_review("", "supported", "none") == ("admitted", "supported")
+    assert spec_review("", "not_supported", "validation") == (
         "admitted",
-        "executing_unlicensed",
+        "not_supported",
     )
-    assert spec_review("not_admitted", "executing_unlicensed", "none") == (
+    assert spec_review("not_admitted", "not_supported", "none") == (
         "not_admitted",
         "not_admitted",
     )

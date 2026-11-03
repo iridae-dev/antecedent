@@ -629,7 +629,7 @@ pub(crate) fn rank_table(
             if exact {
                 "the source is an exact finite law, so values carry no sampling error".to_owned()
             } else {
-                "point ranking of the supplied empirical law only; Monte Carlo error and ranking guarantees are not licensed".to_owned()
+                "point ranking of the supplied empirical law only; Monte Carlo error and ranking guarantees are not supported".to_owned()
             },
         ],
     })

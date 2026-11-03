@@ -21,7 +21,7 @@ What the answer is **not**:
 * Failing to reject (:attr:`ConstancyConclusion.NOT_REJECTED`) never proves the effect is
   constant. It is the absence of evidence against the null at the stated level.
 * The test's Type I error and power are **unmeasured** (``calibration == "unmeasured"``): no
-  false-positive or power claim is made, and the result grants no causal or interval license.
+  false-positive or power claim is made, and the result grants no causal or interval support.
   The claim is a point (``inference_claim == "point_only"``).
 * The null (the effect is equal across all declared partitions) is frozen; it is not a
   parameter.
@@ -79,11 +79,11 @@ def require_ordinary_temporal_curve_posterior(
     working likelihood is divided by a long-run-variance factor so serially dependent
     innovations do not make the interval too narrow. It is not the posterior of a joint law of
     the series. With ``"unmodeled"`` serial dependence this refuses
-    (``cell_not_licensed``, ``temporal_curve.ordinary_posterior_not_licensed``) and names the
+    (``not_supported``, ``temporal_curve.ordinary_posterior_not_supported``) and names the
     next attempt: attest independent innovations given the modelled history, add an explicit
     autoregressive innovation law to the likelihood, or read the tempered posterior as a
     generalized posterior. ``"independent_innovations"`` is the caller's attestation that
-    licenses the ordinary reading; it is never inferred.
+    supports the ordinary reading; it is never inferred.
     """
     _native.require_ordinary_temporal_curve_posterior_native(serial_error_model)
 

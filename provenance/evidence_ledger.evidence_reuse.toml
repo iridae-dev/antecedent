@@ -27,7 +27,7 @@ record_sha256 = "65bc937346a0807d7dadeea790d365f3aa9dea3059da384bf91d1587518d16f
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
-sha256 = "f5ae60629a19ef9b3aabda2835d9a4208e2b01410ecff58c443aaa5e4bca9456"
+sha256 = "7ff6a63e8696df9cab9133c55d855adee807b3cf352afe6725d5cd7fec4c8c10"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -37,9 +37,9 @@ sha256 = "ae372d36e48c7548c37f6791e85ae986692621fca3dec9820bd743bd80bb15f7"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/operation.rs"
-sha256 = "46d1412a934028d2cbd2ddc26c52a0335471800fac45966644aa274f4c152bd2"
+sha256 = "cbb9c297f4417deea28956b4a42760234f4291b99c9a9567ad4221296c239d28"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/evidence_ledger.rs"
-sha256 = "4e3a7547b2542d7d8c1f83166c4a64969993b57087b218c1fed50cea771bd1e5"
+sha256 = "51749cc651acc9a5364cf14fe2aa36d3c842bd6ac45e1dc92cc2ef46eac03e27"

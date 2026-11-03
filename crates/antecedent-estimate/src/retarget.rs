@@ -724,7 +724,7 @@ mod tests {
         let t = table();
         let w = [1.0, 1.0, 1.0, 1.0];
         let (out, failed) = retarget(&t, &w, &[], None, Some(&[0.0, 1.0, 0.0, 1.0]), None).unwrap();
-        // Four rows cannot meet the licensed Kish-arm floor; the means still retarget.
+        // Four rows cannot meet the supported Kish-arm floor; the means still retarget.
         let _ = failed;
         assert!((out.summary.means[1] - 2.0).abs() < 1e-12);
         assert!((out.contrast.unwrap().value - 2.0).abs() < 1e-12);

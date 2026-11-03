@@ -609,7 +609,7 @@ fn prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
     assert_eq!(refusal.code, "transport_missing_evidence");
     // The route-level refusal of the closed interval route.
     let frozen = route_frozen_refusal();
-    assert_eq!(frozen.code, "cell_not_licensed");
+    assert_eq!(frozen.code, "not_supported");
     assert_eq!(frozen.detail, DETAIL_ROUTE_FROZEN);
     // Covariates that are not the certified standardizers are refused.
     let mut m = model();

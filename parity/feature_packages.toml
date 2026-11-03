@@ -1,4 +1,4 @@
-# Scientific feature packages. Each names one promotion record.
+# Scientific feature packages. Each names one capability record.
 version = 1
 
 [[feature]]
@@ -501,14 +501,14 @@ record_state = "frozen"
 
 [[feature]]
 id = "adaptive_inference.analysis_contract"
-purpose = "Is the retained analysis contract of an adaptive experiment complete and consistent enough to license any inference, and which element is missing when it is not"
+purpose = "Is the retained analysis contract of an adaptive experiment complete and consistent enough to support any inference, and which element is missing when it is not"
 depends_on = ["evidence_ledger.repeated_observation_use"]
 record = "adaptive_inference.analysis_contract"
 record_state = "frozen"
 
 [[feature]]
 id = "adaptive_inference.procedure_matrix"
-purpose = "For a given assignment policy, outcome structure, monitoring strategy and stopping rule, does the engine license inference, refuse it, or carry it forward with an owner"
+purpose = "For a given assignment policy, outcome structure, monitoring strategy and stopping rule, does the engine support inference, refuse it, or carry it forward with an owner"
 depends_on = ["adaptive_inference.analysis_contract"]
 record = "adaptive_inference.procedure_matrix"
 record_state = "frozen"
@@ -564,7 +564,7 @@ record_state = "frozen"
 
 [[feature]]
 id = "composition_verification.claim_revalidation"
-purpose = "Which downstream claims are still valid, must be recomputed or are no longer licensed when an upstream object changes, with a per-claim lineage report"
+purpose = "Which downstream claims are still valid, must be recomputed or are no longer supported when an upstream object changes, with a per-claim lineage report"
 depends_on = ["evidence_ledger.overlap_accounting"]
 record = "composition_verification.claim_revalidation"
 record_state = "frozen"
@@ -697,7 +697,7 @@ record_state = "frozen"
 
 [[feature]]
 id = "provider_callback.closed_claims"
-purpose = "closed: interval, posterior guarantee, native trust, identification licence or joint law supplied by a callback"
+purpose = "closed: interval, posterior guarantee, native trust, identification evidence or joint law supplied by a callback"
 depends_on = ["provider_callback.law_posterior_protocol"]
 record = "provider_callback.closed_claims"
 record_state = "frozen"

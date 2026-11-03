@@ -83,7 +83,7 @@ impl StudyBuilder {
         Ok(PreparedTemporalTransport { inner, catalog })
     }
 
-    /// Decide the licensed two-step horizon against a scientific target that
+    /// Decide the supported two-step horizon against a scientific target that
     /// carries the observational law over history-indexed experiments.
     ///
     /// The law is read from `target` and checked against the observational
@@ -111,7 +111,7 @@ impl StudyBuilder {
     ) -> Result<PreparedTemporalTransport, IoError> {
         if spec.horizon() != 2 {
             return Err(temporal_refusal(TemporalRefusal::horizon(format!(
-                "horizon {} is outside the licensed horizon of 2",
+                "horizon {} is outside the supported horizon of 2",
                 spec.horizon()
             ))));
         }
@@ -119,7 +119,7 @@ impl StudyBuilder {
             Some(2) => {}
             Some(horizon) => {
                 return Err(temporal_refusal(TemporalRefusal::horizon(format!(
-                    "horizon {horizon} is outside the licensed horizon of 2"
+                    "horizon {horizon} is outside the supported horizon of 2"
                 ))));
             }
             None => {
@@ -183,7 +183,7 @@ impl PreparedTemporalTransport {
         Ok(Self { inner, catalog: self.catalog.clone() })
     }
 
-    /// An interval is not licensed: temporal sampling and initial-state
+    /// An interval is not supported: temporal sampling and initial-state
     /// uncertainty are not part of this route. This always refuses with
     /// `estimator_inference_mismatch`.
     ///

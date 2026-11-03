@@ -50,9 +50,11 @@ These words name different checks. Each applies to a particular object, and none
 | Executes | The declared request can run |
 | Identified | Stated assumptions and evidence determine the target within the named identification scope |
 | Model conditional | The result follows from the specified or fitted model |
-| Licensed | The named combination of question, structure, evidence, inference and estimator has executing support evidence. The word is unrelated to a software license |
+| Supported | The named combination of question, structure, evidence, inference and estimator has provenance and independent scientific checks, so it runs. A route that is not supported refuses in release builds |
+| Scientific refusal | A typed refusal because the combination is outside what the route can support; the result carries the reason code |
+| Development build | A build that runs a route that is not supported and reports `would_refuse` beside the result |
 | Independently checked | A named calculation or proposition was compared with an appropriate independent reference |
-| Calibrated | A matching measured construction and scope still applies to the executing code |
+| Calibration status | An annotation on an interval: `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`. It never decides whether a route runs |
 | Replayed | A specified calculation was reproduced under the consumer's procedure |
 | Accepted artifact | Specified identity, interpretation or replay checks passed for a saved result |
 | Current authority | A supported workflow checked the current standing of its sources for present use |
@@ -64,7 +66,7 @@ For a worked account of the evidence behind these distinctions, read [How Antece
 
 ## Successful execution does not upgrade the claim
 
-A route can execute and still be outside licensed support, still model-conditional, still uncalibrated. In those cases the result keeps that status in its report and in exported artifacts. When you build on a result, read the status of the route that actually ran. The [support matrix](../support-matrix.md) and [support lookup](../support-lookup.md) say which combinations have executing evidence; [assurance](assurance.md) says what each kind of evidence establishes.
+A route that runs can still be model-conditional, and its interval can still be outside its measured scope or not measured. In those cases the result keeps that status in its report and in exported artifacts. A route that is not supported does not run in a release build; a development build runs it and reports `would_refuse`. When you build on a result, read the status of the route that actually ran. The [support matrix](../support-matrix.md) and [support lookup](../support-lookup.md) say which combinations are supported; [assurance](assurance.md) says what each kind of evidence establishes.
 
 ## What a claim is not
 

@@ -32,7 +32,7 @@ mod prepare_posterior;
 mod prepare_query;
 mod prepare_response;
 mod prepare_temporal_design;
-mod prepare_unlicensed_design;
+mod prepare_unsupported_design;
 mod routing;
 #[path = "../temporal_query_api.rs"]
 mod temporal_query_api;

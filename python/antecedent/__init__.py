@@ -114,7 +114,7 @@ object changes, and reports the lineage and calibration standing behind each cla
 ``provider_callbacks`` declares an arbitrary law, posterior or nested callback you supply, negotiates
 mean, draws, distribution function, quantile and posterior update separately, reuses a stored answer
 only under its declared replay contract and accepts an answer only as a well-formed law; a callback
-supplies no interval, native trust, joint law or identification licence.
+supplies no interval, native trust, joint law or identification evidence.
 
 ``observation_query`` asks what an observation says: the outcome probability given a recorded
 signal kept distinct from the probability under an intervention on the same model, a measured

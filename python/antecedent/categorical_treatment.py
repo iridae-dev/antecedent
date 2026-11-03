@@ -242,10 +242,10 @@ class PosteriorContrast:
 
     @property
     def interval(self) -> tuple[float, float]:
-        """Refuse the posterior interval until its construction is licensed."""
+        """Refuse the posterior interval until its construction is supported."""
         raise CausalUnsupportedError(
-            "categorical_treatment.posterior_interval_not_licensed: categorical posterior credible intervals are not licensed",
-            reason_code="cell_not_licensed",
+            "categorical_treatment.posterior_interval_not_supported: categorical posterior credible intervals are not supported",
+            reason_code="not_supported",
         )
 
 
@@ -269,7 +269,7 @@ class CategoricalPosterior:
 
     The estimand is the superpopulation dummy-coefficient contrast of the stated linear model
     (Gaussian homoskedastic errors), not the finite-population average of the rows' effects.
-    It is unlicensed (``licensed`` is ``False``) and its calibration is ``"unmeasured"``; the
+    It is unsupported (``supported`` is ``False``) and its calibration is ``"unmeasured"``; the
     covariance kind of the frequentist fit is not read. The artifact recomputes it from the stored
     design when it is consumed.
     """
@@ -278,7 +278,7 @@ class CategoricalPosterior:
     likelihood: str
     estimand: str
     calibration: str
-    licensed: bool
+    supported: bool
     variance_shape: float
     variance_scale: float
     coefficient_means: tuple[float, ...]
@@ -597,7 +597,7 @@ def _posterior(raw: Mapping[str, Any] | None) -> CategoricalPosterior | None:
         likelihood=raw["likelihood"],
         estimand=raw["estimand"],
         calibration=raw["calibration"],
-        licensed=bool(raw["licensed"]),
+        supported=bool(raw["supported"]),
         variance_shape=float(raw["variance_shape"]),
         variance_scale=float(raw["variance_scale"]),
         coefficient_means=tuple(float(v) for v in raw["coefficient_means"]),
@@ -769,7 +769,7 @@ def categorical_effects(
     ``posterior`` declares a prior and attaches the Bayesian counterpart
     (:attr:`CategoricalEffects.posterior`): a Student-t posterior of every level and requested
     pair under Gaussian homoskedastic errors, sealed in the artifact and recomputed on
-    consumption. It is unlicensed with unmeasured calibration; its estimand is the
+    consumption. It is unsupported with unmeasured calibration; its estimand is the
     superpopulation coefficient contrast of the stated linear model, not the finite-population
     average of the rows' effects, and the covariance kind of the frequentist fit is not read.
 
@@ -988,10 +988,10 @@ class PreparedCategoricalPosteriorCandidate:
 
     def inspect(self) -> dict[str, Any]:
         """Inspect the actual retained program and source identities."""
-        route, licensed, source, program = self._execution._call(self._handle.inspect)
+        route, supported, source, program = self._execution._call(self._handle.inspect)
         return {
             "route": route,
-            "licensed": licensed,
+            "supported": supported,
             "source": bytes(source),
             "program": bytes(program),
         }
@@ -1029,7 +1029,7 @@ class PreparedCategoricalPosteriorCandidate:
     def measured_interval(self) -> MeasuredInference:
         """Replay the retained source for a calibrated credible interval per level.
 
-        Refuses with ``cell_not_licensed`` unless a current attesting coverage record
+        Refuses with ``not_supported`` unless a current attesting coverage record
         covers this construction, the declared level count and the row count.
         """
         from ._measured_inference import MeasuredInference
@@ -1038,7 +1038,7 @@ class PreparedCategoricalPosteriorCandidate:
         return MeasuredInference._from_native(native)
 
     def interval(self) -> MeasuredInference:
-        """The calibrated interval; the same licensed route as ``measured_interval``."""
+        """The calibrated interval; the same supported route as ``measured_interval``."""
         from ._measured_inference import MeasuredInference
 
         native = self._execution._call(self._handle.interval, self._execution.seed)

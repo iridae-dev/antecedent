@@ -11,7 +11,7 @@
 //!
 //! - `CellSessionHandle`: the cell-AIPW route (discrete joint binary treatments).
 //! - `CrossfitSessionHandle`: the cross-fitted AIPW route, so its frozen scores can be exported.
-//! - `ScoreResumeHandle`: built only from artifact bytes; one licensed operation, a retarget of
+//! - `ScoreResumeHandle`: built only from artifact bytes; one supported operation, a retarget of
 //!   the frozen scores, with zero fits.
 #![allow(clippy::too_many_arguments)]
 
@@ -143,7 +143,7 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
     CapabilitiesWire {
         retarget: name.to_owned(),
         request: "on_grid".to_owned(),
-        licensed_route: None,
+        supported_route: None,
         boundary: "in_process".to_owned(),
         resume: None,
     }
@@ -418,7 +418,7 @@ fn cell_request(
 impl PyCellSession {
     /// An empty in-process session.
     #[new]
-    #[pyo3(signature = (retarget="licensed"))]
+    #[pyo3(signature = (retarget="supported"))]
     fn new(retarget: &str) -> PyResult<Self> {
         let retarget = retarget_of(retarget)?;
         let mut inner = CellSession::new();
@@ -426,7 +426,7 @@ impl PyCellSession {
         Ok(Self { inner, retarget })
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     fn set_retarget_support(&mut self, retarget: &str) -> PyResult<()> {
         self.retarget = retarget_of(retarget)?;
         self.inner.set_retarget_support(self.retarget);
@@ -583,11 +583,11 @@ pub struct PyCrossfitSession {
 
 #[pymethods]
 impl PyCrossfitSession {
-    /// An empty in-process session with a licensed retarget.
+    /// An empty in-process session with a supported retarget.
     #[new]
     fn new() -> Self {
         let mut inner = RecalcSession::new();
-        inner.set_retarget_support(RetargetSupport::Licensed);
+        inner.set_retarget_support(RetargetSupport::Supported);
         Self { inner, input_rows: None }
     }
 
@@ -640,7 +640,7 @@ impl PyCrossfitSession {
         drop(columns);
         drop(target_weights);
         let capabilities = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary: Boundary::InProcess,
         };
@@ -672,7 +672,7 @@ impl PyCrossfitSession {
                 ));
             }
         };
-        match freeze_crossfit_scores(&self.inner, rows, RetargetSupport::Licensed) {
+        match freeze_crossfit_scores(&self.inner, rows, RetargetSupport::Supported) {
             Ok(table) => export_bytes(&table),
             Err(error) => export_refusal(error),
         }
@@ -887,7 +887,7 @@ impl PyScoreResume {
             })
         };
         let capabilities = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary,
         };

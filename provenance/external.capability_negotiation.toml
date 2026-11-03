@@ -8,7 +8,7 @@ copied_tests = false
 # Exact-operation set membership at an independently retained request identity; no numerics.
 papers = []
 implementation_deviations = [
-  "A missing operation is never inferred from another operation or a provider label. A sampling approximation of a CDF or quantile needs its own licensed method and error/replicate receipt, which this route does not grant.",
+  "A missing operation is never inferred from another operation or a provider label. A sampling approximation of a CDF or quantile needs its own supported method and error/replicate receipt, which this route does not grant.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -21,24 +21,24 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Typed declarations, negotiation, verification receipts and binding of externally supplied scientific objects to a checked causal contract. This record's slice: capability negotiation."
 no_independent_algorithm = "The modules state what an object can supply and bind it by identity; they do not verify numerical truth, identify an estimand or compute an estimate."
-record_sha256 = "9e15ef735cdbda8f43a4a89233c72489753417dd2eba79efb7813b725582deed"
+record_sha256 = "1de20d556a39d04f92986cd6f15ed0700fba68f9ced788cfa92182728988d368"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/external.rs"
-sha256 = "dae8aac24e3f6f4b216b065627b2ac07a1ac1c32af7f595d479740219706a8de"
+sha256 = "493f1909f54584541698c0043e673651e10ec2d0adfed394994158a429c67fea"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/external_binding.rs"
-sha256 = "4f423963e08d429fe75bd53dfe799cbcc05d9f2c1f44410ba31113abdffce65a"
+sha256 = "8626a38fe3ae8e4e2d7bc45df5faa1230e985469045ac8089a4d612b9cfdf9bc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/provider_verification.rs"
-sha256 = "de64baf04674edd74bca90f5e5de0e861d688f332c809f73e5a5854475f2f52f"
+sha256 = "054ebe483707ae53022df03339fd2d6981ccb758fea1e88389b005759cad1b43"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/external_binding_wire.rs"
-sha256 = "d5ecb527d12997747deeda03b8ac9bbf3ee6153675210412eb11757f674f6605"
+sha256 = "0014d13eee762dbc13bdf4d80838cda118cfe23871d5d9ee81f1ae879742b7c6"

@@ -202,22 +202,22 @@ def test_an_encoded_program_round_trips_and_a_tampered_one_is_refused():
         decode_policy_program(NAMES, bytes(tampered))
 
 
-def test_policy_support_licenses_each_execution_route_separately(gcm):
+def test_policy_support_supports_each_execution_route_separately(gcm):
     model, _ = gcm
     # A transform of the generated value is a function of each unit's noise, not a level:
     # simulation and counterfactual execution run it, observational identification refuses it.
     floor = policy_support(model, [_floor()])
-    assert floor.simulation.licensed and floor.counterfactual.licensed
-    assert not floor.identification.licensed
-    assert floor.identification.reason_code == "policy_route_not_licensed"
+    assert floor.simulation.supported and floor.counterfactual.supported
+    assert not floor.identification.supported
+    assert floor.identification.reason_code == "policy_route_not_supported"
     assert floor.simulation.reason_code is None and floor.counterfactual.reason_code is None
-    # A hard level is a point of the identification layer's vocabulary: licensed on every route.
+    # A hard level is a point of the identification layer's vocabulary: supported on every route.
     hard = policy_support(model, [assign("price", 12.0)])
-    assert hard.simulation.licensed and hard.counterfactual.licensed
-    assert hard.identification.licensed and hard.identification.reason_code is None
+    assert hard.simulation.supported and hard.counterfactual.supported
+    assert hard.identification.supported and hard.identification.reason_code is None
     # A program reading a variable is a function, not a level.
     reads = policy_support(model, [assign("demand", 2.0 * var("price"))])
-    assert reads.simulation.licensed and not reads.identification.licensed
+    assert reads.simulation.supported and not reads.identification.supported
 
 
 def test_start_beyond_horizon_refused(gcm):

@@ -200,7 +200,6 @@ impl antecedent_core::CanonicalEncode for antecedent_core::IntrinsicInfluenceTar
 impl antecedent_core::CanonicalEncode for antecedent_core::IvBoundsQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::KnownCensoringSurvival
 impl antecedent_core::CanonicalEncode for antecedent_core::LawOrigin
-impl antecedent_core::CanonicalEncode for antecedent_core::LicensedWeights
 impl antecedent_core::CanonicalEncode for antecedent_core::LocalPolynomialRatioQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::LocalRatioOptions
 impl antecedent_core::CanonicalEncode for antecedent_core::LongitudinalRegimeMethod
@@ -243,6 +242,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::SimulateQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::SimulationTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::StochasticPolicy
 impl antecedent_core::CanonicalEncode for antecedent_core::StructuralAction
+impl antecedent_core::CanonicalEncode for antecedent_core::SupportedWeights
 impl antecedent_core::CanonicalEncode for antecedent_core::SurvivalFunctional
 impl antecedent_core::CanonicalEncode for antecedent_core::SurvivalQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::SyntheticControlQuery
@@ -486,7 +486,6 @@ impl core::clone::Clone for antecedent_core::KnownCensoringSurvival
 impl core::clone::Clone for antecedent_core::Lag
 impl core::clone::Clone for antecedent_core::LawOrigin
 impl core::clone::Clone for antecedent_core::LearningRate
-impl core::clone::Clone for antecedent_core::LicensedWeights
 impl core::clone::Clone for antecedent_core::LikelihoodModel
 impl core::clone::Clone for antecedent_core::LocalBandwidthRule
 impl core::clone::Clone for antecedent_core::LocalPolynomialRatioFault
@@ -648,6 +647,7 @@ impl core::clone::Clone for antecedent_core::SupportDiagnostic
 impl core::clone::Clone for antecedent_core::SupportRegion
 impl core::clone::Clone for antecedent_core::SupportReport
 impl core::clone::Clone for antecedent_core::SupportStatus
+impl core::clone::Clone for antecedent_core::SupportedWeights
 impl core::clone::Clone for antecedent_core::SurvivalFault
 impl core::clone::Clone for antecedent_core::SurvivalFunctional
 impl core::clone::Clone for antecedent_core::SurvivalQuery
@@ -672,8 +672,8 @@ impl core::clone::Clone for antecedent_core::TemporalMaterializationLimits
 impl core::clone::Clone for antecedent_core::TemporalNodeKey
 impl core::clone::Clone for antecedent_core::TemporalPolicy
 impl core::clone::Clone for antecedent_core::TemporalRegimeMethod
-impl core::clone::Clone for antecedent_core::TemporalResponseLicense
 impl core::clone::Clone for antecedent_core::TemporalResponseSpec
+impl core::clone::Clone for antecedent_core::TemporalResponseSupport
 impl core::clone::Clone for antecedent_core::TheoremFamily
 impl core::clone::Clone for antecedent_core::TheoremScope
 impl core::clone::Clone for antecedent_core::TimeFrame
@@ -707,6 +707,7 @@ impl core::clone::Clone for antecedent_core::WorldCollection
 impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
+impl core::clone::Clone for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 impl core::clone::Clone for antecedent_core::device_reservation::ArithmeticPath
 impl core::clone::Clone for antecedent_core::device_reservation::ComputeSelection
 impl core::clone::Clone for antecedent_core::device_reservation::CpuAdmission
@@ -746,6 +747,10 @@ impl core::clone::Clone for antecedent_core::execution_facts::MeasuredExecution
 impl core::clone::Clone for antecedent_core::execution_facts::OutputRetention
 impl core::clone::Clone for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::clone::Clone for antecedent_core::execution_facts::PlannedResources
+impl core::clone::Clone for antecedent_core::graph_imputation_contract::AtomOperation
+impl core::clone::Clone for antecedent_core::graph_imputation_contract::GraphImputationParts
+impl core::clone::Clone for antecedent_core::graph_imputation_contract::GraphImputationSource
+impl core::clone::Clone for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::clone::Clone for antecedent_core::identity::DependencyAxis
 impl core::clone::Clone for antecedent_core::identity::ReusableProduct
 impl core::clone::Clone for antecedent_core::inspect::EstimatedResources
@@ -793,6 +798,13 @@ impl core::clone::Clone for antecedent_core::measurement_record::PeakRss
 impl core::clone::Clone for antecedent_core::measurement_record::PeakRssSummary
 impl core::clone::Clone for antecedent_core::measurement_record::StageTime
 impl core::clone::Clone for antecedent_core::measurement_record::StageVariability
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::FixedShiftProgram
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::FixedShiftSource
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::SourceError
+impl core::clone::Clone for antecedent_core::mnar_fixed_shift::SourceRow
 impl core::clone::Clone for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
 impl core::clone::Clone for antecedent_core::physical_choice::AlternativeQuote
@@ -993,7 +1005,6 @@ impl core::cmp::Eq for antecedent_core::KernelPolicy
 impl core::cmp::Eq for antecedent_core::Lag
 impl core::cmp::Eq for antecedent_core::LawOrigin
 impl core::cmp::Eq for antecedent_core::LearningRate
-impl core::cmp::Eq for antecedent_core::LicensedWeights
 impl core::cmp::Eq for antecedent_core::LikelihoodModel
 impl core::cmp::Eq for antecedent_core::LocalBandwidthRule
 impl core::cmp::Eq for antecedent_core::LocalPolynomialRatioFault
@@ -1125,6 +1136,7 @@ impl core::cmp::Eq for antecedent_core::StreamDomain
 impl core::cmp::Eq for antecedent_core::StreamRequest
 impl core::cmp::Eq for antecedent_core::StructuralAction
 impl core::cmp::Eq for antecedent_core::SupportStatus
+impl core::cmp::Eq for antecedent_core::SupportedWeights
 impl core::cmp::Eq for antecedent_core::SurvivalFault
 impl core::cmp::Eq for antecedent_core::SurvivalFunctional
 impl core::cmp::Eq for antecedent_core::SyntheticInterval
@@ -1141,7 +1153,7 @@ impl core::cmp::Eq for antecedent_core::TemporalMaterializationLimits
 impl core::cmp::Eq for antecedent_core::TemporalNodeKey
 impl core::cmp::Eq for antecedent_core::TemporalPolicy
 impl core::cmp::Eq for antecedent_core::TemporalRegimeMethod
-impl core::cmp::Eq for antecedent_core::TemporalResponseLicense
+impl core::cmp::Eq for antecedent_core::TemporalResponseSupport
 impl core::cmp::Eq for antecedent_core::TheoremFamily
 impl core::cmp::Eq for antecedent_core::TheoremScope
 impl core::cmp::Eq for antecedent_core::TimeFrame
@@ -1208,6 +1220,8 @@ impl core::cmp::Eq for antecedent_core::execution_facts::MeasuredExecution
 impl core::cmp::Eq for antecedent_core::execution_facts::OutputRetention
 impl core::cmp::Eq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::cmp::Eq for antecedent_core::execution_facts::PlannedResources
+impl core::cmp::Eq for antecedent_core::graph_imputation_contract::AtomOperation
+impl core::cmp::Eq for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::cmp::Eq for antecedent_core::identity::DependencyAxis
 impl core::cmp::Eq for antecedent_core::identity::ReusableProduct
 impl core::cmp::Eq for antecedent_core::inspect::EstimatedResources
@@ -1249,6 +1263,11 @@ impl core::cmp::Eq for antecedent_core::measurement_record::PeakRss
 impl core::cmp::Eq for antecedent_core::measurement_record::PeakRssSummary
 impl core::cmp::Eq for antecedent_core::measurement_record::StageTime
 impl core::cmp::Eq for antecedent_core::measurement_record::StageVariability
+impl core::cmp::Eq for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::cmp::Eq for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::cmp::Eq for antecedent_core::mnar_fixed_shift::FixedShiftProgram
+impl core::cmp::Eq for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::cmp::Eq for antecedent_core::mnar_fixed_shift::SourceError
 impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelAxis
 impl core::cmp::Eq for antecedent_core::physical_choice::AlternativeQuote
 impl core::cmp::Eq for antecedent_core::physical_choice::AvailableCapabilities
@@ -1519,7 +1538,6 @@ impl core::cmp::PartialEq for antecedent_core::KnownCensoringSurvival
 impl core::cmp::PartialEq for antecedent_core::Lag
 impl core::cmp::PartialEq for antecedent_core::LawOrigin
 impl core::cmp::PartialEq for antecedent_core::LearningRate
-impl core::cmp::PartialEq for antecedent_core::LicensedWeights
 impl core::cmp::PartialEq for antecedent_core::LikelihoodModel
 impl core::cmp::PartialEq for antecedent_core::LocalBandwidthRule
 impl core::cmp::PartialEq for antecedent_core::LocalPolynomialRatioFault
@@ -1679,6 +1697,7 @@ impl core::cmp::PartialEq for antecedent_core::SupportDiagnostic
 impl core::cmp::PartialEq for antecedent_core::SupportRegion
 impl core::cmp::PartialEq for antecedent_core::SupportReport
 impl core::cmp::PartialEq for antecedent_core::SupportStatus
+impl core::cmp::PartialEq for antecedent_core::SupportedWeights
 impl core::cmp::PartialEq for antecedent_core::SurvivalFault
 impl core::cmp::PartialEq for antecedent_core::SurvivalFunctional
 impl core::cmp::PartialEq for antecedent_core::SurvivalQuery
@@ -1702,8 +1721,8 @@ impl core::cmp::PartialEq for antecedent_core::TemporalMaterializationLimits
 impl core::cmp::PartialEq for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialEq for antecedent_core::TemporalPolicy
 impl core::cmp::PartialEq for antecedent_core::TemporalRegimeMethod
-impl core::cmp::PartialEq for antecedent_core::TemporalResponseLicense
 impl core::cmp::PartialEq for antecedent_core::TemporalResponseSpec
+impl core::cmp::PartialEq for antecedent_core::TemporalResponseSupport
 impl core::cmp::PartialEq for antecedent_core::TheoremFamily
 impl core::cmp::PartialEq for antecedent_core::TheoremScope
 impl core::cmp::PartialEq for antecedent_core::TimeFrame
@@ -1771,6 +1790,8 @@ impl core::cmp::PartialEq for antecedent_core::execution_facts::MeasuredExecutio
 impl core::cmp::PartialEq for antecedent_core::execution_facts::OutputRetention
 impl core::cmp::PartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::cmp::PartialEq for antecedent_core::execution_facts::PlannedResources
+impl core::cmp::PartialEq for antecedent_core::graph_imputation_contract::AtomOperation
+impl core::cmp::PartialEq for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::cmp::PartialEq for antecedent_core::identity::DependencyAxis
 impl core::cmp::PartialEq for antecedent_core::identity::ReusableProduct
 impl core::cmp::PartialEq for antecedent_core::inspect::EstimatedResources
@@ -1817,6 +1838,13 @@ impl core::cmp::PartialEq for antecedent_core::measurement_record::PeakRss
 impl core::cmp::PartialEq for antecedent_core::measurement_record::PeakRssSummary
 impl core::cmp::PartialEq for antecedent_core::measurement_record::StageTime
 impl core::cmp::PartialEq for antecedent_core::measurement_record::StageVariability
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::FixedShiftProgram
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::FixedShiftSource
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::SourceError
+impl core::cmp::PartialEq for antecedent_core::mnar_fixed_shift::SourceRow
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelAxis
 impl core::cmp::PartialEq for antecedent_core::physical_choice::AlternativeQuote
 impl core::cmp::PartialEq for antecedent_core::physical_choice::AvailableCapabilities
@@ -2066,6 +2094,7 @@ impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::intervention::AdmitError
 impl core::error::Error for antecedent_core::intervention::CapabilityRefusal
 impl core::error::Error for antecedent_core::measurement_model::ParameterFault
+impl core::error::Error for antecedent_core::mnar_fixed_shift::SourceError
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::error::Error for antecedent_core::physical_choice::RouteChoiceError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
@@ -2252,7 +2281,6 @@ impl core::fmt::Debug for antecedent_core::KnownCensoringSurvival
 impl core::fmt::Debug for antecedent_core::Lag
 impl core::fmt::Debug for antecedent_core::LawOrigin
 impl core::fmt::Debug for antecedent_core::LearningRate
-impl core::fmt::Debug for antecedent_core::LicensedWeights
 impl core::fmt::Debug for antecedent_core::LikelihoodModel
 impl core::fmt::Debug for antecedent_core::LocalBandwidthRule
 impl core::fmt::Debug for antecedent_core::LocalPolynomialRatioFault
@@ -2415,6 +2443,7 @@ impl core::fmt::Debug for antecedent_core::SupportDiagnostic
 impl core::fmt::Debug for antecedent_core::SupportRegion
 impl core::fmt::Debug for antecedent_core::SupportReport
 impl core::fmt::Debug for antecedent_core::SupportStatus
+impl core::fmt::Debug for antecedent_core::SupportedWeights
 impl core::fmt::Debug for antecedent_core::SurvivalFault
 impl core::fmt::Debug for antecedent_core::SurvivalFunctional
 impl core::fmt::Debug for antecedent_core::SurvivalQuery
@@ -2439,8 +2468,8 @@ impl core::fmt::Debug for antecedent_core::TemporalMaterializationLimits
 impl core::fmt::Debug for antecedent_core::TemporalNodeKey
 impl core::fmt::Debug for antecedent_core::TemporalPolicy
 impl core::fmt::Debug for antecedent_core::TemporalRegimeMethod
-impl core::fmt::Debug for antecedent_core::TemporalResponseLicense
 impl core::fmt::Debug for antecedent_core::TemporalResponseSpec
+impl core::fmt::Debug for antecedent_core::TemporalResponseSupport
 impl core::fmt::Debug for antecedent_core::TheoremFamily
 impl core::fmt::Debug for antecedent_core::TheoremScope
 impl core::fmt::Debug for antecedent_core::TimeFrame
@@ -2475,6 +2504,7 @@ impl core::fmt::Debug for antecedent_core::WorldCollection
 impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
+impl core::fmt::Debug for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 impl core::fmt::Debug for antecedent_core::device_reservation::ArithmeticPath
 impl core::fmt::Debug for antecedent_core::device_reservation::ComputeSelection
 impl core::fmt::Debug for antecedent_core::device_reservation::CpuAdmission
@@ -2518,6 +2548,10 @@ impl core::fmt::Debug for antecedent_core::execution_facts::MeasuredExecution
 impl core::fmt::Debug for antecedent_core::execution_facts::OutputRetention
 impl core::fmt::Debug for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::fmt::Debug for antecedent_core::execution_facts::PlannedResources
+impl core::fmt::Debug for antecedent_core::graph_imputation_contract::AtomOperation
+impl core::fmt::Debug for antecedent_core::graph_imputation_contract::GraphImputationParts
+impl core::fmt::Debug for antecedent_core::graph_imputation_contract::GraphImputationSource
+impl core::fmt::Debug for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::fmt::Debug for antecedent_core::identity::DependencyAxis
 impl core::fmt::Debug for antecedent_core::identity::ReusableProduct
 impl core::fmt::Debug for antecedent_core::inspect::EstimatedResources
@@ -2565,6 +2599,13 @@ impl core::fmt::Debug for antecedent_core::measurement_record::PeakRss
 impl core::fmt::Debug for antecedent_core::measurement_record::PeakRssSummary
 impl core::fmt::Debug for antecedent_core::measurement_record::StageTime
 impl core::fmt::Debug for antecedent_core::measurement_record::StageVariability
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::FixedShiftProgram
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::FixedShiftSource
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::SourceError
+impl core::fmt::Debug for antecedent_core::mnar_fixed_shift::SourceRow
 impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelAxis
 impl core::fmt::Debug for antecedent_core::physical_choice::AlternativeQuote
 impl core::fmt::Debug for antecedent_core::physical_choice::AvailableCapabilities
@@ -2742,6 +2783,7 @@ impl core::fmt::Display for antecedent_core::intervention::CapabilityRefusal
 impl core::fmt::Display for antecedent_core::intervention::CyclicFamily
 impl core::fmt::Display for antecedent_core::intervention::ExecutionSurface
 impl core::fmt::Display for antecedent_core::measurement_model::ParameterFault
+impl core::fmt::Display for antecedent_core::mnar_fixed_shift::SourceError
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
 impl core::fmt::Display for antecedent_core::physical_choice::DeclaredCost
 impl core::fmt::Display for antecedent_core::physical_choice::OperatorCapability
@@ -3256,7 +3298,7 @@ impl core::marker::Copy for antecedent_core::TemporalDesignFunctional
 impl core::marker::Copy for antecedent_core::TemporalMaterializationLimits
 impl core::marker::Copy for antecedent_core::TemporalNodeKey
 impl core::marker::Copy for antecedent_core::TemporalRegimeMethod
-impl core::marker::Copy for antecedent_core::TemporalResponseLicense
+impl core::marker::Copy for antecedent_core::TemporalResponseSupport
 impl core::marker::Copy for antecedent_core::TheoremFamily
 impl core::marker::Copy for antecedent_core::ToleranceClass
 impl core::marker::Copy for antecedent_core::ToleranceError
@@ -3297,6 +3339,7 @@ impl core::marker::Copy for antecedent_core::execution_facts::ExecutionResources
 impl core::marker::Copy for antecedent_core::execution_facts::OutputRetention
 impl core::marker::Copy for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::marker::Copy for antecedent_core::execution_facts::PlannedResources
+impl core::marker::Copy for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::marker::Copy for antecedent_core::identity::DependencyAxis
 impl core::marker::Copy for antecedent_core::identity::ReusableProduct
 impl core::marker::Copy for antecedent_core::inspect::EstimatedResources
@@ -3318,6 +3361,11 @@ impl core::marker::Copy for antecedent_core::measurement_record::CountVariabilit
 impl core::marker::Copy for antecedent_core::measurement_record::HostProbe
 impl core::marker::Copy for antecedent_core::measurement_record::PeakRss
 impl core::marker::Copy for antecedent_core::measurement_record::PeakRssSummary
+impl core::marker::Copy for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::marker::Copy for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::marker::Copy for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::marker::Copy for antecedent_core::mnar_fixed_shift::SourceError
+impl core::marker::Copy for antecedent_core::mnar_fixed_shift::SourceRow
 impl core::marker::Copy for antecedent_core::parallel_axis::ParallelAxis
 impl core::marker::Copy for antecedent_core::physical_choice::AlternativeQuote
 impl core::marker::Copy for antecedent_core::physical_choice::AvailableCapabilities
@@ -3550,7 +3598,6 @@ impl core::marker::Freeze for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Freeze for antecedent_core::Lag [auto]
 impl core::marker::Freeze for antecedent_core::LawOrigin [auto]
 impl core::marker::Freeze for antecedent_core::LearningRate [auto]
-impl core::marker::Freeze for antecedent_core::LicensedWeights [auto]
 impl core::marker::Freeze for antecedent_core::LikelihoodModel [auto]
 impl core::marker::Freeze for antecedent_core::LocalBandwidthRule [auto]
 impl core::marker::Freeze for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -3712,6 +3759,7 @@ impl core::marker::Freeze for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Freeze for antecedent_core::SupportRegion [auto]
 impl core::marker::Freeze for antecedent_core::SupportReport [auto]
 impl core::marker::Freeze for antecedent_core::SupportStatus [auto]
+impl core::marker::Freeze for antecedent_core::SupportedWeights [auto]
 impl core::marker::Freeze for antecedent_core::SurvivalFault [auto]
 impl core::marker::Freeze for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Freeze for antecedent_core::SurvivalQuery [auto]
@@ -3736,8 +3784,8 @@ impl core::marker::Freeze for antecedent_core::TemporalMaterializationLimits [au
 impl core::marker::Freeze for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Freeze for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Freeze for antecedent_core::TemporalRegimeMethod [auto]
-impl core::marker::Freeze for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Freeze for antecedent_core::TemporalResponseSpec [auto]
+impl core::marker::Freeze for antecedent_core::TemporalResponseSupport [auto]
 impl core::marker::Freeze for antecedent_core::TheoremFamily [auto]
 impl core::marker::Freeze for antecedent_core::TheoremScope [auto]
 impl core::marker::Freeze for antecedent_core::TimeFrame [auto]
@@ -3772,6 +3820,7 @@ impl core::marker::Freeze for antecedent_core::WorldCollection [auto]
 impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
+impl core::marker::Freeze for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -3810,6 +3859,10 @@ impl core::marker::Freeze for antecedent_core::execution_facts::MeasuredExecutio
 impl core::marker::Freeze for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Freeze for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::marker::Freeze for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::marker::Freeze for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::marker::Freeze for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::marker::Freeze for antecedent_core::identity::DependencyAxis [auto]
 impl core::marker::Freeze for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EstimatedResources [auto]
@@ -3857,6 +3910,13 @@ impl core::marker::Freeze for antecedent_core::measurement_record::PeakRss [auto
 impl core::marker::Freeze for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::marker::Freeze for antecedent_core::measurement_record::StageTime [auto]
 impl core::marker::Freeze for antecedent_core::measurement_record::StageVariability [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::marker::Freeze for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -4101,7 +4161,6 @@ impl core::marker::Send for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Send for antecedent_core::Lag [auto]
 impl core::marker::Send for antecedent_core::LawOrigin [auto]
 impl core::marker::Send for antecedent_core::LearningRate [auto]
-impl core::marker::Send for antecedent_core::LicensedWeights [auto]
 impl core::marker::Send for antecedent_core::LikelihoodModel [auto]
 impl core::marker::Send for antecedent_core::LocalBandwidthRule [auto]
 impl core::marker::Send for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -4264,6 +4323,7 @@ impl core::marker::Send for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Send for antecedent_core::SupportRegion [auto]
 impl core::marker::Send for antecedent_core::SupportReport [auto]
 impl core::marker::Send for antecedent_core::SupportStatus [auto]
+impl core::marker::Send for antecedent_core::SupportedWeights [auto]
 impl core::marker::Send for antecedent_core::SurvivalFault [auto]
 impl core::marker::Send for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Send for antecedent_core::SurvivalQuery [auto]
@@ -4288,8 +4348,8 @@ impl core::marker::Send for antecedent_core::TemporalMaterializationLimits [auto
 impl core::marker::Send for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Send for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Send for antecedent_core::TemporalRegimeMethod [auto]
-impl core::marker::Send for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Send for antecedent_core::TemporalResponseSpec [auto]
+impl core::marker::Send for antecedent_core::TemporalResponseSupport [auto]
 impl core::marker::Send for antecedent_core::TheoremFamily [auto]
 impl core::marker::Send for antecedent_core::TheoremScope [auto]
 impl core::marker::Send for antecedent_core::TimeFrame [auto]
@@ -4324,6 +4384,7 @@ impl core::marker::Send for antecedent_core::WorldCollection [auto]
 impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
+impl core::marker::Send for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Send for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Send for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::marker::Send for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -4366,6 +4427,10 @@ impl core::marker::Send for antecedent_core::execution_facts::MeasuredExecution 
 impl core::marker::Send for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Send for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Send for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Send for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::marker::Send for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::marker::Send for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::marker::Send for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::marker::Send for antecedent_core::identity::DependencyAxis [auto]
 impl core::marker::Send for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Send for antecedent_core::inspect::EstimatedResources [auto]
@@ -4413,6 +4478,13 @@ impl core::marker::Send for antecedent_core::measurement_record::PeakRss [auto]
 impl core::marker::Send for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::marker::Send for antecedent_core::measurement_record::StageTime [auto]
 impl core::marker::Send for antecedent_core::measurement_record::StageVariability [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::marker::Send for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::marker::Send for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Send for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -4648,7 +4720,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::KnownCensoringSurviv
 impl core::marker::StructuralPartialEq for antecedent_core::Lag
 impl core::marker::StructuralPartialEq for antecedent_core::LawOrigin
 impl core::marker::StructuralPartialEq for antecedent_core::LearningRate
-impl core::marker::StructuralPartialEq for antecedent_core::LicensedWeights
 impl core::marker::StructuralPartialEq for antecedent_core::LikelihoodModel
 impl core::marker::StructuralPartialEq for antecedent_core::LocalBandwidthRule
 impl core::marker::StructuralPartialEq for antecedent_core::LocalPolynomialRatioFault
@@ -4804,6 +4875,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::SupportDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_core::SupportRegion
 impl core::marker::StructuralPartialEq for antecedent_core::SupportReport
 impl core::marker::StructuralPartialEq for antecedent_core::SupportStatus
+impl core::marker::StructuralPartialEq for antecedent_core::SupportedWeights
 impl core::marker::StructuralPartialEq for antecedent_core::SurvivalFault
 impl core::marker::StructuralPartialEq for antecedent_core::SurvivalFunctional
 impl core::marker::StructuralPartialEq for antecedent_core::SurvivalQuery
@@ -4827,8 +4899,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::TemporalMaterializat
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalNodeKey
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalPolicy
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalRegimeMethod
-impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseLicense
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseSpec
+impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseSupport
 impl core::marker::StructuralPartialEq for antecedent_core::TheoremFamily
 impl core::marker::StructuralPartialEq for antecedent_core::TheoremScope
 impl core::marker::StructuralPartialEq for antecedent_core::TimeFrame
@@ -4895,6 +4967,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::Mea
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::OutputRetention
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::PlannedResources
+impl core::marker::StructuralPartialEq for antecedent_core::graph_imputation_contract::AtomOperation
+impl core::marker::StructuralPartialEq for antecedent_core::graph_imputation_contract::GraphSupport
 impl core::marker::StructuralPartialEq for antecedent_core::identity::DependencyAxis
 impl core::marker::StructuralPartialEq for antecedent_core::identity::ReusableProduct
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EstimatedResources
@@ -4941,6 +5015,13 @@ impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::PeakRssSummary
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::StageTime
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_record::StageVariability
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::FixedShiftOperation
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::FixedShiftProgram
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::FixedShiftSource
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::SamplingPremise
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::SourceError
+impl core::marker::StructuralPartialEq for antecedent_core::mnar_fixed_shift::SourceRow
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelAxis
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AlternativeQuote
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AvailableCapabilities
@@ -5183,7 +5264,6 @@ impl core::marker::Sync for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Sync for antecedent_core::Lag [auto]
 impl core::marker::Sync for antecedent_core::LawOrigin [auto]
 impl core::marker::Sync for antecedent_core::LearningRate [auto]
-impl core::marker::Sync for antecedent_core::LicensedWeights [auto]
 impl core::marker::Sync for antecedent_core::LikelihoodModel [auto]
 impl core::marker::Sync for antecedent_core::LocalBandwidthRule [auto]
 impl core::marker::Sync for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -5346,6 +5426,7 @@ impl core::marker::Sync for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Sync for antecedent_core::SupportRegion [auto]
 impl core::marker::Sync for antecedent_core::SupportReport [auto]
 impl core::marker::Sync for antecedent_core::SupportStatus [auto]
+impl core::marker::Sync for antecedent_core::SupportedWeights [auto]
 impl core::marker::Sync for antecedent_core::SurvivalFault [auto]
 impl core::marker::Sync for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Sync for antecedent_core::SurvivalQuery [auto]
@@ -5370,8 +5451,8 @@ impl core::marker::Sync for antecedent_core::TemporalMaterializationLimits [auto
 impl core::marker::Sync for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Sync for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Sync for antecedent_core::TemporalRegimeMethod [auto]
-impl core::marker::Sync for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Sync for antecedent_core::TemporalResponseSpec [auto]
+impl core::marker::Sync for antecedent_core::TemporalResponseSupport [auto]
 impl core::marker::Sync for antecedent_core::TheoremFamily [auto]
 impl core::marker::Sync for antecedent_core::TheoremScope [auto]
 impl core::marker::Sync for antecedent_core::TimeFrame [auto]
@@ -5406,6 +5487,7 @@ impl core::marker::Sync for antecedent_core::WorldCollection [auto]
 impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
+impl core::marker::Sync for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -5448,6 +5530,10 @@ impl core::marker::Sync for antecedent_core::execution_facts::MeasuredExecution 
 impl core::marker::Sync for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Sync for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::marker::Sync for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::marker::Sync for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::marker::Sync for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::marker::Sync for antecedent_core::identity::DependencyAxis [auto]
 impl core::marker::Sync for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Sync for antecedent_core::inspect::EstimatedResources [auto]
@@ -5495,6 +5581,13 @@ impl core::marker::Sync for antecedent_core::measurement_record::PeakRss [auto]
 impl core::marker::Sync for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::marker::Sync for antecedent_core::measurement_record::StageTime [auto]
 impl core::marker::Sync for antecedent_core::measurement_record::StageVariability [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::marker::Sync for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -5739,7 +5832,6 @@ impl core::marker::Unpin for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Unpin for antecedent_core::Lag [auto]
 impl core::marker::Unpin for antecedent_core::LawOrigin [auto]
 impl core::marker::Unpin for antecedent_core::LearningRate [auto]
-impl core::marker::Unpin for antecedent_core::LicensedWeights [auto]
 impl core::marker::Unpin for antecedent_core::LikelihoodModel [auto]
 impl core::marker::Unpin for antecedent_core::LocalBandwidthRule [auto]
 impl core::marker::Unpin for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -5902,6 +5994,7 @@ impl core::marker::Unpin for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Unpin for antecedent_core::SupportRegion [auto]
 impl core::marker::Unpin for antecedent_core::SupportReport [auto]
 impl core::marker::Unpin for antecedent_core::SupportStatus [auto]
+impl core::marker::Unpin for antecedent_core::SupportedWeights [auto]
 impl core::marker::Unpin for antecedent_core::SurvivalFault [auto]
 impl core::marker::Unpin for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Unpin for antecedent_core::SurvivalQuery [auto]
@@ -5926,8 +6019,8 @@ impl core::marker::Unpin for antecedent_core::TemporalMaterializationLimits [aut
 impl core::marker::Unpin for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Unpin for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Unpin for antecedent_core::TemporalRegimeMethod [auto]
-impl core::marker::Unpin for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Unpin for antecedent_core::TemporalResponseSpec [auto]
+impl core::marker::Unpin for antecedent_core::TemporalResponseSupport [auto]
 impl core::marker::Unpin for antecedent_core::TheoremFamily [auto]
 impl core::marker::Unpin for antecedent_core::TheoremScope [auto]
 impl core::marker::Unpin for antecedent_core::TimeFrame [auto]
@@ -5962,6 +6055,7 @@ impl core::marker::Unpin for antecedent_core::WorldCollection [auto]
 impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
+impl core::marker::Unpin for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -6004,6 +6098,10 @@ impl core::marker::Unpin for antecedent_core::execution_facts::MeasuredExecution
 impl core::marker::Unpin for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::marker::Unpin for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::marker::Unpin for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::marker::Unpin for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::marker::Unpin for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::marker::Unpin for antecedent_core::identity::DependencyAxis [auto]
 impl core::marker::Unpin for antecedent_core::identity::ReusableProduct [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EstimatedResources [auto]
@@ -6051,6 +6149,13 @@ impl core::marker::Unpin for antecedent_core::measurement_record::PeakRss [auto]
 impl core::marker::Unpin for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::marker::Unpin for antecedent_core::measurement_record::StageTime [auto]
 impl core::marker::Unpin for antecedent_core::measurement_record::StageVariability [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::marker::Unpin for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -6300,7 +6405,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::KnownCensoring
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Lag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LawOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LearningRate [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LicensedWeights [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LikelihoodModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LocalBandwidthRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -6463,6 +6567,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportDiagnos
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportRegion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportedWeights [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SurvivalFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SurvivalFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SurvivalQuery [auto]
@@ -6487,8 +6592,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalMateri
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseLicense [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TheoremFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TheoremScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TimeFrame [auto]
@@ -6523,6 +6628,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldCollectio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -6565,6 +6671,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_fact
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::identity::DependencyAxis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::identity::ReusableProduct [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
@@ -6612,6 +6722,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::StageTime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_record::StageVariability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -6855,7 +6972,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::KnownCensoringSur
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Lag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LawOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LearningRate [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LicensedWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LikelihoodModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LocalBandwidthRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LocalPolynomialRatioFault [auto]
@@ -7018,6 +7134,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportDiagnostic
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportRegion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportedWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SurvivalFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SurvivalFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SurvivalQuery [auto]
@@ -7042,8 +7159,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalMateriali
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseLicense [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TheoremFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TheoremScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TimeFrame [auto]
@@ -7078,6 +7195,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldCollection [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::CpuAdmission [auto]
@@ -7120,6 +7238,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::PlannedResources [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::graph_imputation_contract::AtomOperation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::graph_imputation_contract::GraphImputationParts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::graph_imputation_contract::GraphImputationSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::graph_imputation_contract::GraphSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::identity::DependencyAxis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::identity::ReusableProduct [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
@@ -7167,6 +7289,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_recor
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::PeakRssSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::StageTime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_record::StageVariability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftOperation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::FixedShiftSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::SamplingPremise [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::SourceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::mnar_fixed_shift::SourceRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AlternativeQuote [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
@@ -7367,6 +7496,7 @@ pub const antecedent_core::GOLDEN_GAMMA: u64
 pub const antecedent_core::IDENTIFICATION_ATTEMPTS: [antecedent_core::NextAttempt; 2]
 pub const antecedent_core::IDENTITY_FORMAT: u16
 pub const antecedent_core::IDENTITY_FORMAT_TAG: &str
+pub const antecedent_core::INDEX_GAMMA: u64
 pub const antecedent_core::MAX_EXPR_DEPTH: usize
 pub const antecedent_core::MAX_EXPR_NODES: usize
 pub const antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM: usize
@@ -7383,8 +7513,24 @@ pub const antecedent_core::SCIENTIFIC_TARGET_FORMAT: u16
 pub const antecedent_core::SCIENTIFIC_TARGET_IDENTITY_TAG: &str
 pub const antecedent_core::SCORE_FREQUENTIST_TAG: &str
 pub const antecedent_core::STRUCTURAL_ENVELOPE_LABEL: &str
-pub const antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED: &str
+pub const antecedent_core::TEMPORAL_OBSERVATION_UNSUPPORTED: &str
 pub const antecedent_core::VERSION: &str
+pub const antecedent_core::categorical_candidate_contract::CREDIBLE_LEVEL: f64
+pub const antecedent_core::categorical_candidate_contract::LEVEL_PRECISION: f64
+pub const antecedent_core::categorical_candidate_contract::MAX_TEXT_BYTES: usize
+pub const antecedent_core::categorical_candidate_contract::MIN_LEVELS: usize
+pub const antecedent_core::categorical_candidate_contract::MIN_LEVEL_ROWS: usize
+pub const antecedent_core::categorical_candidate_contract::NUISANCE_PRECISION: f64
+pub const antecedent_core::categorical_candidate_contract::PRIOR_NAME: &str
+pub const antecedent_core::categorical_candidate_contract::VARIANCE_SCALE: f64
+pub const antecedent_core::categorical_candidate_contract::VARIANCE_SHAPE: f64
+pub const antecedent_core::graph_imputation_contract::MAX_NAME_BYTES: usize
+pub const antecedent_core::graph_imputation_contract::MAX_VARIABLES: usize
+pub const antecedent_core::graph_imputation_contract::MIN_IMPUTATIONS: u32
+pub const antecedent_core::graph_imputation_contract::MIN_ITERATIONS: u32
+pub const antecedent_core::graph_imputation_contract::MIN_POSTERIOR_DRAWS: u32
+pub const antecedent_core::graph_imputation_contract::MIN_ROWS: usize
+pub const antecedent_core::graph_imputation_contract::SUPPORT_RULE: &str
 pub const antecedent_core::inference_realization::RESTRICTED_POSTERIOR_TAG: &str
 pub const antecedent_core::intervention::CYCLIC_CONTINUOUS_TIME_ATTEMPT: antecedent_core::NextAttempt
 pub const antecedent_core::intervention::CYCLIC_DRIFT_INPUT_ATTEMPT: antecedent_core::NextAttempt
@@ -7398,12 +7544,17 @@ pub const antecedent_core::measurement_record::PEAK_RSS_INCOMPLETE: &str
 pub const antecedent_core::measurement_record::PEAK_RSS_NEEDS_LIBC: &str
 pub const antecedent_core::measurement_record::PEAK_RSS_NOT_SAMPLED: &str
 pub const antecedent_core::measurement_record::PEAK_RSS_NO_REPEATS: &str
+pub const antecedent_core::mnar_fixed_shift::MISSING_BAND_WIDTH: f64
+pub const antecedent_core::mnar_fixed_shift::SHIFT_BAND_WIDTH: f64
 pub const antecedent_core::physical_choice::DEFAULT_STREAM_BATCH_ROWS: u64
+pub const antecedent_core::query::MAX_CATEGORICAL_CARDINALITY: u32
 pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
 pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
+pub const antecedent_core::temporal::MAX_UNFOLDED_NODES: u32
+pub const antecedent_core::treatment_indicator::TREATED_THRESHOLD: f64
 pub const fn antecedent_core::derive_stream(master: u64, stream_id: u64) -> u64
 pub const fn antecedent_core::device_reservation::nested_thread_request(free_threads: u32) -> u32
 pub const fn antecedent_core::device_reservation::neural_baseline() -> antecedent_core::device_reservation::ArithmeticPath
@@ -7530,11 +7681,16 @@ pub enum antecedent_core::execution::PipelineStep
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::execution_attempt::PhysicalEvent
 pub enum antecedent_core::execution_facts::OutputRetention
+pub enum antecedent_core::graph_imputation_contract::GraphSupport
 pub enum antecedent_core::intervention::ExecutionSurface
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
 pub enum antecedent_core::measurement_record::PeakRss
 pub enum antecedent_core::measurement_record::PeakRssSummary
+pub enum antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+pub enum antecedent_core::mnar_fixed_shift::FixedShiftOperation
+pub enum antecedent_core::mnar_fixed_shift::SamplingPremise
+pub enum antecedent_core::mnar_fixed_shift::SourceError
 pub enum antecedent_core::parallel_axis::ParallelAxis
 pub enum antecedent_core::physical_choice::OperatorCapability
 pub enum antecedent_core::physical_choice::PhysicalAlternative
@@ -7792,7 +7948,6 @@ pub field antecedent_core::KernelPolicy::force_scalar: bool
 pub field antecedent_core::KnownCensoringSurvival::columns: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::KnownCensoringSurvival::minimum_probability: f64
 pub field antecedent_core::KnownCensoringSurvival::times: alloc::sync::Arc<[f64]>
-pub field antecedent_core::LicensedWeights::snapshot_identity: alloc::sync::Arc<str>
 pub field antecedent_core::LocalPolynomialRatioQuery::bandwidth: f64
 pub field antecedent_core::LocalPolynomialRatioQuery::cutoff: f64
 pub field antecedent_core::LocalPolynomialRatioQuery::kink: bool
@@ -7945,7 +8100,7 @@ pub field antecedent_core::RegimeBinding::regime: antecedent_core::RegimeId
 pub field antecedent_core::RegimeBinding::sampling: antecedent_core::SamplingDesign
 pub field antecedent_core::RegimeBinding::schema_names: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_core::RegimeBinding::snapshot_identity: alloc::sync::Arc<str>
-pub field antecedent_core::RegimeBinding::weights: core::option::Option<antecedent_core::LicensedWeights>
+pub field antecedent_core::RegimeBinding::weights: core::option::Option<antecedent_core::SupportedWeights>
 pub field antecedent_core::RequestIdentity::contract: antecedent_core::ContractIdentities
 pub field antecedent_core::RequestIdentity::execution: antecedent_core::SemanticDigest
 pub field antecedent_core::RequestIdentity::idempotency_key: antecedent_core::SemanticDigest
@@ -8016,6 +8171,7 @@ pub field antecedent_core::SupportReport::point_status: core::option::Option<all
 pub field antecedent_core::SupportReport::query_region: antecedent_core::SupportRegion
 pub field antecedent_core::SupportReport::status: antecedent_core::SupportStatus
 pub field antecedent_core::SupportReport::warnings: alloc::vec::Vec<antecedent_core::Diagnostic>
+pub field antecedent_core::SupportedWeights::snapshot_identity: alloc::sync::Arc<str>
 pub field antecedent_core::SurvivalQuery::delayed_entry: core::option::Option<antecedent_core::VariableId>
 pub field antecedent_core::SurvivalQuery::duration: antecedent_core::VariableId
 pub field antecedent_core::SurvivalQuery::event: antecedent_core::VariableId
@@ -8062,15 +8218,15 @@ pub field antecedent_core::TemporalMaterializationLimits::max_offsets: u64
 pub field antecedent_core::TemporalMaterializationLimits::max_work: u64
 pub field antecedent_core::TemporalNodeKey::offset: i32
 pub field antecedent_core::TemporalNodeKey::variable: antecedent_core::VariableId
-pub field antecedent_core::TemporalResponseLicense::allowed_policies: &'static [&'static str]
-pub field antecedent_core::TemporalResponseLicense::default_policy: &'static str
-pub field antecedent_core::TemporalResponseLicense::default_treatment_lag: u32
-pub field antecedent_core::TemporalResponseLicense::max_cells: usize
-pub field antecedent_core::TemporalResponseLicense::max_horizons: usize
 pub field antecedent_core::TemporalResponseSpec::feedback: core::option::Option<antecedent_core::FeedbackDeclaration>
 pub field antecedent_core::TemporalResponseSpec::horizons: alloc::sync::Arc<[u32]>
 pub field antecedent_core::TemporalResponseSpec::max_history_lag: core::option::Option<u32>
 pub field antecedent_core::TemporalResponseSpec::policy: antecedent_core::TemporalPolicy
+pub field antecedent_core::TemporalResponseSupport::allowed_policies: &'static [&'static str]
+pub field antecedent_core::TemporalResponseSupport::default_policy: &'static str
+pub field antecedent_core::TemporalResponseSupport::default_treatment_lag: u32
+pub field antecedent_core::TemporalResponseSupport::max_cells: usize
+pub field antecedent_core::TemporalResponseSupport::max_horizons: usize
 pub field antecedent_core::TheoremScope::allowed_experiments: antecedent_core::query::ExperimentFamily
 pub field antecedent_core::TheoremScope::computation_limits: antecedent_core::query::ComputationLimits
 pub field antecedent_core::TheoremScope::distribution_family: antecedent_core::query::TransportDistributionFamily
@@ -8133,6 +8289,24 @@ pub field antecedent_core::execution_facts::PlannedResources::copy_bytes: core::
 pub field antecedent_core::execution_facts::PlannedResources::peak_memory_bytes: core::option::Option<u64>
 pub field antecedent_core::execution_facts::PlannedResources::worker_threads: core::option::Option<u64>
 pub field antecedent_core::execution_facts::PlannedResources::workspace_bytes: core::option::Option<u64>
+pub field antecedent_core::graph_imputation_contract::AtomOperation::adjustment: alloc::vec::Vec<u32>
+pub field antecedent_core::graph_imputation_contract::AtomOperation::mask: u64
+pub field antecedent_core::graph_imputation_contract::AtomOperation::status: antecedent_core::IdentificationStatus
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::atoms: alloc::vec::Vec<antecedent_core::graph_imputation_contract::AtomOperation>
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::data_digest: [u8; 32]
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::domains: alloc::vec::Vec<u8>
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::excluded: u32
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::execution_seed: u64
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::imputation_seed: u64
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::imputations: u32
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::iterations: u32
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::outcome: u32
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::posterior_draws: u32
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::prior_scale: f64
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::support: antecedent_core::graph_imputation_contract::GraphSupport
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::treatment: u32
 pub field antecedent_core::intervention::CapabilityRefusal::operation: &'static str
 pub field antecedent_core::intervention::CapabilityRefusal::reason: &'static str
 pub field antecedent_core::intervention::CapabilityRefusal::surface: antecedent_core::intervention::ExecutionSurface
@@ -8236,6 +8410,9 @@ pub field antecedent_core::measurement_record::StageTime::name: alloc::string::S
 pub field antecedent_core::measurement_record::StageTime::nanos: u64
 pub field antecedent_core::measurement_record::StageVariability::name: alloc::string::String
 pub field antecedent_core::measurement_record::StageVariability::nanos: antecedent_core::measurement_record::CountVariability
+pub field antecedent_core::mnar_fixed_shift::SourceRow::outcome: core::option::Option<f64>
+pub field antecedent_core::mnar_fixed_shift::SourceRow::subject_id: u64
+pub field antecedent_core::mnar_fixed_shift::SourceRow::treated: bool
 pub field antecedent_core::query::ComputationLimits::max_standardizer_candidates: u32
 pub field antecedent_core::query::ComputationLimits::multi_node_c_component_recursion: bool
 pub field antecedent_core::query::TheoremReference::citation: alloc::sync::Arc<str>
@@ -8648,6 +8825,7 @@ pub fn <antecedent_core::ExecutionContext>::fn pulse_extrapolation_ranges(&self)
 pub fn <antecedent_core::ExecutionContext>::fn randomization_test_limits(&self) -> antecedent_core::RandomizationTestLimits
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn set_memory_limit(&mut self, limit: core::option::Option<u64>)
+pub fn <antecedent_core::ExecutionContext>::fn set_shared_memory_limit(&mut self, limit: core::option::Option<u64>)
 pub fn <antecedent_core::ExecutionContext>::fn temporal_materialization_limits(&self) -> antecedent_core::TemporalMaterializationLimits
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
@@ -8658,6 +8836,7 @@ pub fn <antecedent_core::ExecutionContext>::fn with_imputation_bootstrap(&self, 
 pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_pulse_extrapolation_ranges(&self, ranges: f64) -> core::option::Option<Self>
 pub fn <antecedent_core::ExecutionContext>::fn with_randomization_test_limits(&self, limits: antecedent_core::RandomizationTestLimits) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_shared_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_temporal_materialization_limits(&self, limits: antecedent_core::TemporalMaterializationLimits) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
@@ -9014,7 +9193,7 @@ pub fn <antecedent_core::ResponseFunctional>::fn primary_pair(&self) -> core::op
 pub fn <antecedent_core::ResponseFunctional>::fn treatment_ids(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
 pub fn <antecedent_core::ResponseQuery>::const fn is_temporal(&self) -> bool
 pub fn <antecedent_core::ResponseQuery>::fn new(functional: antecedent_core::ResponseFunctional) -> Self
-pub fn <antecedent_core::ResponseQuery>::fn require_licensed_temporal_observation(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::ResponseQuery>::fn require_supported_temporal_observation(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::ResponseQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::ResponseQuery>::fn with_observation(self, observation: antecedent_core::ObservationSpec, assumptions: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ObservationAssumption]>>) -> Self
 pub fn <antecedent_core::ResponseQuery>::fn with_outcome_functional(self, functional: antecedent_core::OutcomeFunctional) -> Self
@@ -9248,7 +9427,7 @@ pub fn <antecedent_core::TemporalPolicy>::fn offsets(&self) -> core::result::Res
 pub fn <antecedent_core::TemporalPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_core::InterventionError>
 pub fn <antecedent_core::TemporalRegimeMethod>::const fn name(self) -> &'static str
 pub fn <antecedent_core::TemporalRegimeMethod>::fn from_name(name: &str) -> core::option::Option<Self>
-pub fn <antecedent_core::TemporalResponseSpec>::const fn license() -> antecedent_core::TemporalResponseLicense
+pub fn <antecedent_core::TemporalResponseSpec>::const fn support() -> antecedent_core::TemporalResponseSupport
 pub fn <antecedent_core::TemporalResponseSpec>::fn max_horizon(&self) -> u32
 pub fn <antecedent_core::TemporalResponseSpec>::fn new(horizons: impl core::convert::Into<alloc::sync::Arc<[u32]>>, policy: antecedent_core::TemporalPolicy, max_history_lag: core::option::Option<u32>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::TemporalResponseSpec>::fn parse_policy(tag: &str, at: i32) -> core::result::Result<antecedent_core::TemporalPolicy, antecedent_core::QueryError>
@@ -9382,6 +9561,19 @@ pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: anteced
 pub fn <antecedent_core::WorldSpec>::fn interventions(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::VariableId, f64)> + '_
 pub fn <antecedent_core::WorldSpec>::fn new(interventions: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, f64)>, routes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::EdgeRoute>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::EdgeRoute]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn program_identity(&self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn query_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn source_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn declared_levels(&self) -> &[alloc::string::String]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn decode(bytes: &[u8]) -> core::result::Result<Self, &'static str>
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn encode(&self) -> alloc::vec::Vec<u8>
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn levels(&self) -> &[alloc::string::String]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn new(outcomes: alloc::vec::Vec<f64>, levels: alloc::vec::Vec<alloc::string::String>, declared_levels: alloc::vec::Vec<alloc::string::String>, subject_ids: alloc::vec::Vec<alloc::string::String>, snapshot: alloc::string::String, design: antecedent_core::DeclaredSamplingDesign) -> core::result::Result<Self, &'static str>
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn outcomes(&self) -> &[f64]
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn reference(&self) -> &str
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn rows(&self) -> usize
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn snapshot(&self) -> &str
+pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::fn subject_ids(&self) -> &[alloc::string::String]
 pub fn <antecedent_core::device_reservation::CpuAdmission>::fn reserve_nothing(self, pool: &antecedent_core::device_reservation::DeviceReservationPool) -> antecedent_core::device_reservation::DeviceReservationRemainder
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child(&self, device_bytes: u64, spill_bytes: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child_product(&self, device_count: u64, device_width: u64, spill_count: u64, spill_width: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
@@ -9447,6 +9639,7 @@ pub fn <antecedent_core::execution::AdmissionPool>::fn available(&self) -> antec
 pub fn <antecedent_core::execution::AdmissionPool>::fn blocked_waiters(&self) -> usize
 pub fn <antecedent_core::execution::AdmissionPool>::fn byte_budget(&self) -> u64
 pub fn <antecedent_core::execution::AdmissionPool>::fn fixed(threads: u32, bytes: u64) -> Self
+pub fn <antecedent_core::execution::AdmissionPool>::fn process_shared(threads: u32, bytes: u64) -> Self
 pub fn <antecedent_core::execution::AdmissionPool>::fn thread_budget(&self) -> u32
 pub fn <antecedent_core::execution::AdmissionRemainder>::const fn bytes(self) -> u64
 pub fn <antecedent_core::execution::AdmissionRemainder>::const fn new(threads: u32, bytes: u64) -> Self
@@ -9536,6 +9729,19 @@ pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::execution_facts::PhysicalExecutionIdentity>::const fn digest(self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn contract_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn rows(&self) -> usize
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn source_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn validate(&self) -> core::result::Result<(), &'static str>
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationSource>::const fn parts(&self) -> &antecedent_core::graph_imputation_contract::GraphImputationParts
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationSource>::const fn program(&self) -> [u8; 32]
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationSource>::fn decode(bytes: &[u8]) -> core::result::Result<Self, &'static str>
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationSource>::fn encode(&self) -> alloc::vec::Vec<u8>
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationSource>::fn new(parts: antecedent_core::graph_imputation_contract::GraphImputationParts, program: [u8; 32]) -> core::result::Result<Self, &'static str>
+pub fn <antecedent_core::graph_imputation_contract::GraphSupport>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::graph_imputation_contract::GraphSupport>::const fn from_tag(tag: u8) -> core::option::Option<Self>
+pub fn <antecedent_core::graph_imputation_contract::GraphSupport>::const fn tag(self) -> u8
+pub fn <antecedent_core::graph_imputation_contract::GraphSupport>::fn from_label(label: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::identity::ReusableProduct>::const fn required_axes(self) -> &'static [antecedent_core::identity::DependencyAxis]
 pub fn <antecedent_core::identity::ReusableProduct>::fn omitted_axes(self, covered: &[antecedent_core::identity::DependencyAxis]) -> alloc::vec::Vec<antecedent_core::identity::DependencyAxis>
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory_limit_bytes: core::option::Option<u64>, estimated_bytes: u64) -> Self
@@ -9624,6 +9830,25 @@ pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn set_threads(
 pub fn <antecedent_core::measurement_record::MeasurementRecord>::fn to_json(&self) -> alloc::string::String
 pub fn <antecedent_core::measurement_record::MeasurementSummary>::fn from_repeats(samples: &[antecedent_core::measurement_record::MeasurementRecord]) -> Self
 pub fn <antecedent_core::measurement_record::MeasurementSummary>::fn to_json(&self) -> alloc::string::String
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::const fn identification(&self) -> antecedent_core::mnar_fixed_shift::FixedShiftIdentification
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::const fn identity(&self) -> &[u8; 32]
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::fn compile(source: &antecedent_core::mnar_fixed_shift::FixedShiftSource) -> core::result::Result<Self, antecedent_core::OperatorError>
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::fn operations(&self) -> &[antecedent_core::mnar_fixed_shift::FixedShiftOperation; 4]
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::fn operators(&self) -> &[antecedent_core::Operator; 2]
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftProgram>::fn verifies(&self, source: &antecedent_core::mnar_fixed_shift::FixedShiftSource) -> bool
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::const fn outcome(&self) -> u32
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::const fn treated_shift(&self) -> f64
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::const fn treatment(&self) -> u32
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn lowered_identity(&self) -> core::result::Result<antecedent_core::SemanticDigest, antecedent_core::OperatorError>
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn max_missing_fraction(&self) -> f64
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn new(population: alloc::string::String, treatment: u32, outcome: u32, premise: antecedent_core::mnar_fixed_shift::SamplingPremise, treated_shift: f64, rows: alloc::vec::Vec<antecedent_core::mnar_fixed_shift::SourceRow>) -> core::result::Result<Self, antecedent_core::mnar_fixed_shift::SourceError>
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn pooled_outcome_sd(&self) -> f64
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn population(&self) -> &str
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn program_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn rows(&self) -> &[antecedent_core::mnar_fixed_shift::SourceRow]
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn scope_functional(&self) -> alloc::string::String
+pub fn <antecedent_core::mnar_fixed_shift::FixedShiftSource>::fn source_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::mnar_fixed_shift::SourceError>::const fn detail(self) -> &'static str
 pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn capture() -> Self
 pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn execute<T>(&self, ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn all() -> [Self; 6]
@@ -9786,6 +10011,7 @@ pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn new(memor
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self) -> u64
 pub fn antecedent_core::admit_temporal_intervention_validation<'a>(interventions: impl core::iter::traits::collect::IntoIterator<Item = &'a antecedent_core::Intervention>, budget: &mut antecedent_core::TemporalBudget, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::TemporalMaterializationError>
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
+pub fn antecedent_core::categorical_candidate_contract::admission_bytes(rows: usize, levels: usize) -> u64
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
 pub fn antecedent_core::derive_key_digest(context: &str, parts: &[&[u8]]) -> [u8; 32]
@@ -9798,12 +10024,15 @@ pub fn antecedent_core::execution::splitmix64(state: &mut u64) -> u64
 pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::execution_attempt::observe_with_context<T, E>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
+pub fn antecedent_core::graph_imputation_contract::admission_bytes(rows: usize, variables: usize) -> u64
+pub fn antecedent_core::graph_imputation_contract::labeled_dag_count(n: usize) -> u64
 pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::inspect::inspect(inputs: antecedent_core::inspect::InspectionInputs) -> core::result::Result<antecedent_core::inspect::PlanInspection, antecedent_core::inspect::InspectionRefusal>
 pub fn antecedent_core::is_blank(text: &str) -> bool
 pub fn antecedent_core::measurement_model::measurement_data_digest(parts: &[(&str, &[f64])]) -> antecedent_core::SemanticDigest
 pub fn antecedent_core::measurement_record::measure<T, E>(ctx: &antecedent_core::ExecutionContext, probe: &dyn antecedent_core::measurement_record::ResourceProbe, work: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> (core::result::Result<T, E>, antecedent_core::measurement_record::MeasurementRecord)
 pub fn antecedent_core::measurement_record::sample_peak_rss() -> antecedent_core::measurement_record::PeakRss
+pub fn antecedent_core::mnar_fixed_shift::scope_functional(shift_band: usize, missing_band: usize) -> alloc::string::String
 pub fn antecedent_core::policy_assignment_cost_within_budget(total: f64, budget: f64) -> bool
 pub fn antecedent_core::policy_graphless_coordinate(multi: bool, ipw: bool, uplift: bool, cate: bool, regret: bool, crossfit: bool) -> (&'static str, &'static str, &'static str)
 pub fn antecedent_core::query::randomized_graphless_coordinate(design: &antecedent_core::RandomizationDesign, estimand: antecedent_core::RandomizedEstimand, received_treatment: bool, fixed_cuped: bool, has_ancova: bool) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
@@ -9815,16 +10044,19 @@ pub fn antecedent_core::same_intervention_level(left: &antecedent_core::Value, r
 pub fn antecedent_core::scientific_target::composition_assumptions_identity(records: &antecedent_core::AssumptionSet) -> antecedent_core::SemanticDigest
 pub fn antecedent_core::scientific_target::quote_composition_assumptions(records: &antecedent_core::AssumptionSet, limits: &antecedent_core::scientific_target::CompositionQuoteLimits, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::scientific_target::CompositionTargetQuote, &'static str>
 pub fn antecedent_core::scientific_target::quote_composition_target(target: &antecedent_core::ScientificTarget, limits: &antecedent_core::scientific_target::CompositionQuoteLimits, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::scientific_target::CompositionTargetQuote, &'static str>
+pub fn antecedent_core::treatment_indicator::is_treated_indicator(indicator: f64) -> bool
 pub mod antecedent_core::assumption
 pub mod antecedent_core::calibration_basis
 pub mod antecedent_core::callback
 pub mod antecedent_core::canonical_encode
+pub mod antecedent_core::categorical_candidate_contract
 pub mod antecedent_core::device_reservation
 pub mod antecedent_core::diagnostic
 pub mod antecedent_core::error
 pub mod antecedent_core::execution
 pub mod antecedent_core::execution_attempt
 pub mod antecedent_core::execution_facts
+pub mod antecedent_core::graph_imputation_contract
 pub mod antecedent_core::identification
 pub mod antecedent_core::identity
 pub mod antecedent_core::ids
@@ -9834,6 +10066,7 @@ pub mod antecedent_core::interval
 pub mod antecedent_core::intervention
 pub mod antecedent_core::measurement_model
 pub mod antecedent_core::measurement_record
+pub mod antecedent_core::mnar_fixed_shift
 pub mod antecedent_core::node
 pub mod antecedent_core::operator
 pub mod antecedent_core::parallel_axis
@@ -9857,6 +10090,7 @@ pub mod antecedent_core::search_budget
 pub mod antecedent_core::temporal
 pub mod antecedent_core::text
 pub mod antecedent_core::tolerance
+pub mod antecedent_core::treatment_indicator
 pub mod antecedent_core::value
 pub mod antecedent_core::value_expr
 pub struct antecedent_core::AdaptiveBootstrapBudget
@@ -10015,7 +10249,6 @@ pub struct antecedent_core::Lag
 pub struct antecedent_core::Lag has private fields
 pub struct antecedent_core::LearningRate
 pub struct antecedent_core::LearningRate has private fields
-pub struct antecedent_core::LicensedWeights
 pub struct antecedent_core::LikelihoodModel
 pub struct antecedent_core::LikelihoodModel has private fields
 pub struct antecedent_core::LocalPolynomialRatioQuery
@@ -10165,6 +10398,7 @@ pub struct antecedent_core::StructuralAction has private fields
 pub struct antecedent_core::SupportDiagnostic
 pub struct antecedent_core::SupportRegion
 pub struct antecedent_core::SupportReport
+pub struct antecedent_core::SupportedWeights
 pub struct antecedent_core::SurvivalQuery
 pub struct antecedent_core::SyntheticControlQuery
 pub struct antecedent_core::SyntheticRollout
@@ -10176,8 +10410,8 @@ pub struct antecedent_core::TemporalIndexer
 pub struct antecedent_core::TemporalIndexer has private fields
 pub struct antecedent_core::TemporalMaterializationLimits
 pub struct antecedent_core::TemporalNodeKey
-pub struct antecedent_core::TemporalResponseLicense
 pub struct antecedent_core::TemporalResponseSpec
+pub struct antecedent_core::TemporalResponseSupport
 pub struct antecedent_core::TheoremScope
 pub struct antecedent_core::TimeFrame
 pub struct antecedent_core::TimeFrame has private fields
@@ -10212,6 +10446,8 @@ pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
 pub struct antecedent_core::WorldSpec
 pub struct antecedent_core::WorldSpec has private fields
+pub struct antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
+pub struct antecedent_core::categorical_candidate_contract::CategoricalCandidateSource has private fields
 pub struct antecedent_core::device_reservation::CpuAdmission
 pub struct antecedent_core::device_reservation::DeviceReservationLease
 pub struct antecedent_core::device_reservation::DeviceReservationLease has private fields
@@ -10263,6 +10499,10 @@ pub struct antecedent_core::execution_facts::MeasuredExecution has private field
 pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity
 pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity has private fields
 pub struct antecedent_core::execution_facts::PlannedResources
+pub struct antecedent_core::graph_imputation_contract::AtomOperation
+pub struct antecedent_core::graph_imputation_contract::GraphImputationParts
+pub struct antecedent_core::graph_imputation_contract::GraphImputationSource
+pub struct antecedent_core::graph_imputation_contract::GraphImputationSource has private fields
 pub struct antecedent_core::inspect::EstimatedResources
 pub struct antecedent_core::inspect::EstimatedResources has private fields
 pub struct antecedent_core::inspect::EvidenceTransformation
@@ -10297,6 +10537,11 @@ pub struct antecedent_core::measurement_record::MeasurementRecord
 pub struct antecedent_core::measurement_record::MeasurementSummary
 pub struct antecedent_core::measurement_record::StageTime
 pub struct antecedent_core::measurement_record::StageVariability
+pub struct antecedent_core::mnar_fixed_shift::FixedShiftProgram
+pub struct antecedent_core::mnar_fixed_shift::FixedShiftProgram has private fields
+pub struct antecedent_core::mnar_fixed_shift::FixedShiftSource
+pub struct antecedent_core::mnar_fixed_shift::FixedShiftSource has private fields
+pub struct antecedent_core::mnar_fixed_shift::SourceRow
 pub struct antecedent_core::numerical_admission::NumericalAdmissionToken has private fields
 pub struct antecedent_core::physical_choice::AlternativeQuote
 pub struct antecedent_core::physical_choice::AlternativeQuote has private fields
@@ -10421,6 +10666,7 @@ pub use antecedent_core::execution::ExecutionContext = antecedent_core::Executio
 pub use antecedent_core::execution::ExecutionReceipt = antecedent_core::ExecutionReceipt
 pub use antecedent_core::execution::ExecutionRequestState = antecedent_core::ExecutionRequestState
 pub use antecedent_core::execution::GOLDEN_GAMMA = antecedent_core::GOLDEN_GAMMA
+pub use antecedent_core::execution::INDEX_GAMMA = antecedent_core::INDEX_GAMMA
 pub use antecedent_core::execution::KernelPolicy = antecedent_core::KernelPolicy
 pub use antecedent_core::execution::MonteCarloBudget = antecedent_core::MonteCarloBudget
 pub use antecedent_core::execution::MonteCarloError = antecedent_core::MonteCarloError
@@ -10621,7 +10867,6 @@ pub use antecedent_core::query::IvBoundsFault = antecedent_core::IvBoundsFault
 pub use antecedent_core::query::IvBoundsQuery = antecedent_core::IvBoundsQuery
 pub use antecedent_core::query::KnownCensoringSurvival = antecedent_core::KnownCensoringSurvival
 pub use antecedent_core::query::LawOrigin = antecedent_core::LawOrigin
-pub use antecedent_core::query::LicensedWeights = antecedent_core::LicensedWeights
 pub use antecedent_core::query::LocalBandwidthRule = antecedent_core::LocalBandwidthRule
 pub use antecedent_core::query::LocalPolynomialRatioFault = antecedent_core::LocalPolynomialRatioFault
 pub use antecedent_core::query::LocalPolynomialRatioQuery = antecedent_core::LocalPolynomialRatioQuery
@@ -10684,6 +10929,7 @@ pub use antecedent_core::query::SimulateQuery = antecedent_core::SimulateQuery
 pub use antecedent_core::query::SimulationTarget = antecedent_core::SimulationTarget
 pub use antecedent_core::query::SmoothedDoseTransportQuery = antecedent_core::SmoothedDoseTransportQuery
 pub use antecedent_core::query::SmoothingKernel = antecedent_core::SmoothingKernel
+pub use antecedent_core::query::SupportedWeights = antecedent_core::SupportedWeights
 pub use antecedent_core::query::SurvivalFault = antecedent_core::SurvivalFault
 pub use antecedent_core::query::SurvivalFunctional = antecedent_core::SurvivalFunctional
 pub use antecedent_core::query::SurvivalQuery = antecedent_core::SurvivalQuery
@@ -10691,7 +10937,7 @@ pub use antecedent_core::query::SyntheticControlQuery = antecedent_core::Synthet
 pub use antecedent_core::query::SyntheticInterval = antecedent_core::SyntheticInterval
 pub use antecedent_core::query::SyntheticPanelMethod = antecedent_core::SyntheticPanelMethod
 pub use antecedent_core::query::SyntheticRollout = antecedent_core::SyntheticRollout
-pub use antecedent_core::query::TEMPORAL_OBSERVATION_UNLICENSED = antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED
+pub use antecedent_core::query::TEMPORAL_OBSERVATION_UNSUPPORTED = antecedent_core::TEMPORAL_OBSERVATION_UNSUPPORTED
 pub use antecedent_core::query::TargetPopulation = antecedent_core::TargetPopulation
 pub use antecedent_core::query::TargetSampling = antecedent_core::TargetSampling
 pub use antecedent_core::query::TemporalAssignment = antecedent_core::TemporalAssignment
@@ -10702,8 +10948,8 @@ pub use antecedent_core::query::TemporalDoseTarget = antecedent_core::TemporalDo
 pub use antecedent_core::query::TemporalEffectQuery = antecedent_core::TemporalEffectQuery
 pub use antecedent_core::query::TemporalPolicy = antecedent_core::TemporalPolicy
 pub use antecedent_core::query::TemporalRegimeMethod = antecedent_core::TemporalRegimeMethod
-pub use antecedent_core::query::TemporalResponseLicense = antecedent_core::TemporalResponseLicense
 pub use antecedent_core::query::TemporalResponseSpec = antecedent_core::TemporalResponseSpec
+pub use antecedent_core::query::TemporalResponseSupport = antecedent_core::TemporalResponseSupport
 pub use antecedent_core::query::TheoremFamily = antecedent_core::TheoremFamily
 pub use antecedent_core::query::TheoremScope = antecedent_core::TheoremScope
 pub use antecedent_core::query::TransportEvaluateSupport = antecedent_core::TransportEvaluateSupport
@@ -11608,7 +11854,7 @@ pub variant antecedent_core::ResponseFault::MediationHorizonsOrder
 pub variant antecedent_core::ResponseFault::NoIntervention
 pub variant antecedent_core::ResponseFault::PointDerivative
 pub variant antecedent_core::ResponseFault::SmoothedDoseDeclaration
-pub variant antecedent_core::ResponseFault::TemporalObservationUnlicensed
+pub variant antecedent_core::ResponseFault::TemporalObservationUnsupported
 pub variant antecedent_core::ResponseFault::UniformWeightBounds
 pub variant antecedent_core::ResponseFault::UnsupportedPolicy { got: alloc::string::String }
 pub variant antecedent_core::ResponseFunctional::AverageDerivative { outcome: antecedent_core::VariableId, treatment: antecedent_core::VariableId, weighting: antecedent_core::DerivativeWeighting }
@@ -11801,9 +12047,9 @@ pub variant antecedent_core::TargetPopulation::RowWeights { weights: [u8; 32], d
 pub variant antecedent_core::TargetPopulation::Treated
 pub variant antecedent_core::TargetPopulation::Untreated
 pub variant antecedent_core::TargetSampling::ConvenienceSample
-pub variant antecedent_core::TargetSampling::LicensedWeightedDesign
 pub variant antecedent_core::TargetSampling::RepresentativeSample
 pub variant antecedent_core::TargetSampling::SuppliedPopulationLaw
+pub variant antecedent_core::TargetSampling::SupportedWeightedDesign
 pub variant antecedent_core::TemporalAssignment::Dose { dose: alloc::sync::Arc<[f64]>, density: alloc::sync::Arc<[f64]>, bandwidth: f64, target: antecedent_core::TemporalDoseTarget }
 pub variant antecedent_core::TemporalAssignment::Factorial { first: alloc::sync::Arc<[bool]>, first_probability: alloc::sync::Arc<[f64]>, second: alloc::sync::Arc<[bool]>, second_probability: alloc::sync::Arc<[f64]> }
 pub variant antecedent_core::TemporalAssignment::Interference { assignment: alloc::sync::Arc<[bool]>, probability: alloc::sync::Arc<[f64]>, clusters: alloc::sync::Arc<[alloc::sync::Arc<str>]> }
@@ -11884,7 +12130,7 @@ pub variant antecedent_core::TransportFault::ConditioningNeedsCoordinates
 pub variant antecedent_core::TransportFault::ConditioningNeedsJointLaw
 pub variant antecedent_core::TransportFault::ConditioningNeedsMeasured
 pub variant antecedent_core::TransportFault::CoordinatesNotUnique
-pub variant antecedent_core::TransportFault::DeinterventionNotLicensed
+pub variant antecedent_core::TransportFault::DeinterventionNotSupported
 pub variant antecedent_core::TransportFault::DeltaRegimesNotDistinct
 pub variant antecedent_core::TransportFault::DerivationIdentityEmpty
 pub variant antecedent_core::TransportFault::EnvironmentIdentitiesNotDistinct
@@ -12041,6 +12287,8 @@ pub variant antecedent_core::execution_facts::OutputRetention::DiskBacked
 pub variant antecedent_core::execution_facts::OutputRetention::FullReusable
 pub variant antecedent_core::execution_facts::OutputRetention::SummaryOnly
 pub variant antecedent_core::execution_facts::OutputRetention::Unmeasured
+pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentDirectEffect
+pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentRootDirectEffect
 pub variant antecedent_core::identity::DependencyAxis::Design
 pub variant antecedent_core::identity::DependencyAxis::Folds
 pub variant antecedent_core::identity::DependencyAxis::Inference
@@ -12150,6 +12398,18 @@ pub variant antecedent_core::measurement_record::PeakRss::Bytes(u64)
 pub variant antecedent_core::measurement_record::PeakRss::Unsupported { reason: &'static str }
 pub variant antecedent_core::measurement_record::PeakRssSummary::Bytes(antecedent_core::measurement_record::CountVariability)
 pub variant antecedent_core::measurement_record::PeakRssSummary::Unsupported { reason: &'static str }
+pub variant antecedent_core::mnar_fixed_shift::FixedShiftIdentification::ConditionalOnDeclaredDesignAndMissingness
+pub variant antecedent_core::mnar_fixed_shift::FixedShiftOperation::ApplyTreatedShift
+pub variant antecedent_core::mnar_fixed_shift::FixedShiftOperation::EvaluateConditionalDelta
+pub variant antecedent_core::mnar_fixed_shift::FixedShiftOperation::ReadObservedArms
+pub variant antecedent_core::mnar_fixed_shift::FixedShiftOperation::ReportMeasuredInterval
+pub variant antecedent_core::mnar_fixed_shift::SamplingPremise::IndependentRandomizedArms
+pub variant antecedent_core::mnar_fixed_shift::SourceError::ConstantOutcome
+pub variant antecedent_core::mnar_fixed_shift::SourceError::DuplicateSubject
+pub variant antecedent_core::mnar_fixed_shift::SourceError::InsufficientObservations
+pub variant antecedent_core::mnar_fixed_shift::SourceError::InvalidDeclaration
+pub variant antecedent_core::mnar_fixed_shift::SourceError::InvalidOutcome
+pub variant antecedent_core::mnar_fixed_shift::SourceError::InvalidShift
 pub variant antecedent_core::parallel_axis::ParallelAxis::Chain
 pub variant antecedent_core::parallel_axis::ParallelAxis::Fold
 pub variant antecedent_core::parallel_axis::ParallelAxis::GraphTest
@@ -12205,16 +12465,16 @@ pub variant antecedent_core::recalc::ProviderStandingInput::Revoked
 pub variant antecedent_core::recalc::ProviderStandingInput::Unverified
 pub variant antecedent_core::recalc::ProviderStandingInput::Verified { level: alloc::string::String, receipt: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::RefusalReason::Blocked { by: antecedent_core::recalc::Stage }
-pub variant antecedent_core::recalc::RefusalReason::OffGrid { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_core::recalc::RefusalReason::OffGrid { supported_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RefusalReason::RetargetIncompatible
 pub variant antecedent_core::recalc::RefusalReason::Unavailable { missing: antecedent_core::recalc::MissingDependency }
-pub variant antecedent_core::recalc::RefusalReason::Unsupported { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
-pub variant antecedent_core::recalc::RequestSupport::OffGrid { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_core::recalc::RefusalReason::Unsupported { supported_route: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_core::recalc::RequestSupport::OffGrid { supported_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RequestSupport::OnGrid
-pub variant antecedent_core::recalc::RequestSupport::Unsupported { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_core::recalc::RequestSupport::Unsupported { supported_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RetargetSupport::Incompatible
-pub variant antecedent_core::recalc::RetargetSupport::Licensed
 pub variant antecedent_core::recalc::RetargetSupport::NotDeclared
+pub variant antecedent_core::recalc::RetargetSupport::Supported
 pub variant antecedent_core::recalc::Revalidation::Recompute
 pub variant antecedent_core::recalc::Revalidation::StillValid
 pub variant antecedent_core::recalc::Revalidation::Withdrawn

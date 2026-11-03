@@ -5,7 +5,7 @@
 //! The identifier certifies the instrument on the unfolded window graph (not from a time column);
 //! the data checks relevance by the first-stage F. The reference is the closed-form Wald ratio of
 //! covariances and its homoskedastic standard error on the lag-aligned rows, computed here from
-//! the raw series. Both estimators are unlicensed with calibration unmeasured.
+//! the raw series. Both estimators are unsupported with calibration unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
@@ -152,7 +152,7 @@ fn the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_fro
     // The structural effect is 2; the confounded regression coefficient is not.
     assert!((estimate.ate - 2.0).abs() < 3.0 * se, "{} vs 2", estimate.ate);
     assert!(result.posterior.is_none());
-    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     // Exclusion is a recorded premise of the identification, taken from the graph.
     assert!(
         result.identification.required_assumptions.entries.iter().any(|a| matches!(

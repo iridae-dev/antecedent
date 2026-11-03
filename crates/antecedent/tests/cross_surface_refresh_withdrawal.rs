@@ -165,8 +165,8 @@ fn refreshed_summary_reloads_and_withdrawal_drops_permission() {
                 .err()
                 .expect("a withdrawn claim is not valid")
                 .to_string(),
-            "reason=claim_license_withdrawn: composition_verification.input_retired: refused at \
-             stage `revalidate`; claim `decision`; origin cluster_trial; license lost: retired"
+            "reason=claim_support_withdrawn: composition_verification.input_retired: refused at \
+             stage `revalidate`; claim `decision`; origin cluster_trial; support lost: retired"
         );
         assert_eq!(
             consumed.revalidation().claim("temporal_drift").unwrap().class,

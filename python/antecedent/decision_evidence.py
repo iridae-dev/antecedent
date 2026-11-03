@@ -10,7 +10,7 @@ step from estimate to decision may say:
 * :class:`DerivedQuantity` is a function of those outcomes (a nonlinear margin, say). Its
   inputs are measured components, values bounded by a declared assumption, or declared missing.
   :func:`evaluate` reports a delta-method sampling interval and a separate assumption range;
-  neither inherits a support license or calibration from its components.
+  neither inherits a support or calibration from its components.
 * A :class:`DecisionFrame` classifies the decision as ``robust``, ``assumption_dependent`` or
   ``unresolved`` and names what is unresolved.
 * ``candidates`` rank next evidence under a declared planning model.
@@ -455,7 +455,7 @@ class JointEvidence:
 
         The source records and both policy tables are compiled and retained. Every reachable
         treatment history must have observed support; failed subject deletions withhold joint
-        covariance. No calibration or support license is implied.
+        covariance. No calibration or support is implied.
         """
         payload = {"recipe": dict(recipe), "evidence_id": evidence_id}
         return JointEvidence(
@@ -577,7 +577,7 @@ def decide_with_temporal_bridge(
     """Apply a declared bounded mapping from an excursion or regime to another temporal estimand.
 
     The bridge retains both estimand identities and mapping evidence. Its bounds are assumptions,
-    and they do not license an ongoing policy, fixed schedule or response model automatically.
+    and they do not support an ongoing policy, fixed schedule or response model automatically.
     """
     w = evidence.wire
     request = {

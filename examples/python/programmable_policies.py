@@ -323,9 +323,9 @@ def main():
     ).draws[NAMES.index("price")]
     np.testing.assert_array_equal(floor, np.maximum(10, 0.85 * raw))
     support = policy_support(model, [conditional])
-    assert support.simulation.licensed and support.counterfactual.licensed
-    assert not support.identification.licensed
-    assert support.identification.reason_code == "policy_route_not_licensed"
+    assert support.simulation.supported and support.counterfactual.supported
+    assert not support.identification.supported
+    assert support.identification.reason_code == "policy_route_not_supported"
     circular = assign("price", var("sales"))
     cycle = expect_refusal(
         "policy_dependency_circular",

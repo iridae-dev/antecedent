@@ -223,7 +223,7 @@ fn bayes(builder: StudyBuilder, bayesian: bool) -> StudyBuilder {
 fn run(builder: StudyBuilder) -> antecedent::StudyResult {
     let ctx = ExecutionContext::for_tests(11);
     let study = builder.clone().build().unwrap();
-    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Supported));
     let prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
@@ -399,7 +399,7 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .estimate_retained(&ExecutionContext::for_tests(11))
         .expect_err("a mapped coefficient prior is refused")
         .to_string();
-    assert!(text.contains("a mapped coefficient prior is not licensed"), "{text}");
+    assert!(text.contains("a mapped coefficient prior is not supported"), "{text}");
 }
 
 fn attach(functional: ResponseFunctional) -> ResponseQuery {

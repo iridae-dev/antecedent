@@ -2,7 +2,7 @@
 //! Continuous-time feedback, distinct from static fixed-noise equilibria.
 //! ODEs use adaptive Dormand-Prince 5(4). OU models use a Lyapunov solve and
 //! finite-horizon moment ODEs. Convergence is numerical; a stationary law is
-//! licensed only when a positive-definite Lyapunov witness verifies stability.
+//! supported only when a positive-definite Lyapunov witness verifies stability.
 
 use crate::linear_algebra::equilibrated_general_solve;
 use crate::nonlinear_equilibrium::{

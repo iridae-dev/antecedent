@@ -1,4 +1,4 @@
-//! Coverage of licensed temporal / mixture intervals.
+//! Coverage of supported temporal / mixture intervals.
 //!
 //! Every coverage test scores the interval the result actually reports over
 //! `n_sim()` datasets (default 400) with a two-sided `level ± 3·MCSE` band
@@ -575,7 +575,7 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
 
 // Serially dependent errors (AR(1) in the exogenous confounder and the
 // outcome innovation). The shared circular block is the dependence-honest
-// interval these cells license, so these assert nominal coverage.
+// interval these cells support, so these assert nominal coverage.
 
 macro_rules! frequentist_dbn_ar1 {
     ($name:ident, $label:literal, $query:expr, $truths:path, $rho:expr, $n:expr, $seed:expr) => {

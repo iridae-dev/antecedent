@@ -477,7 +477,7 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
     .unwrap();
     for route in PublishedRoute::ALL {
         let error = derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "cell_not_licensed");
+        assert_eq!(error.reason_code(), "not_supported");
         assert!(error.to_refusal().offending.unwrap().contains("candidate_set_size=3"));
     }
     assert_eq!(
@@ -516,7 +516,7 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
             .unwrap();
     assert_eq!(
         other_level.publish(PublishedRoute::UtilityInterval).unwrap_err().reason_code(),
-        "cell_not_licensed"
+        "not_supported"
     );
     let simultaneous = derive_uncertainty(
         &draws,
@@ -528,7 +528,7 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
     .unwrap();
     assert_eq!(
         simultaneous.publish(PublishedRoute::RankingProbability).unwrap_err().reason_code(),
-        "cell_not_licensed"
+        "not_supported"
     );
     let small = simulate_selection_draws(&design(100), &stream).unwrap();
     let small_derived =
@@ -536,7 +536,7 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
             .unwrap();
     for route in PublishedRoute::ALL {
         let error = small_derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "cell_not_licensed");
+        assert_eq!(error.reason_code(), "not_supported");
         assert!(error.to_refusal().offending.unwrap().contains("mc_budget=100"));
     }
 }
@@ -570,7 +570,7 @@ fn a_derivation_is_refused_publication_at_every_coordinate_while_calibration_is_
         assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
         for route in PublishedRoute::ALL {
             let error = derived.publish(route).unwrap_err();
-            assert_eq!(error.reason_code(), "cell_not_licensed", "{} {budget}", route.as_str());
+            assert_eq!(error.reason_code(), "not_supported", "{} {budget}", route.as_str());
             let offending = error.to_refusal().offending.unwrap();
             assert!(offending.contains("candidate_set_size=2"), "{offending}");
             assert!(offending.contains(budget), "{offending}");

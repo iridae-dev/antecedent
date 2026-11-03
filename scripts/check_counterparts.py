@@ -116,9 +116,9 @@ def problems(rows: list[dict], vocab: dict | None = None, ev: Evidence | None = 
                 continue
             twin = gen.best(static)
             for row in temporal:
-                if row["status"] not in ("licensed", "executing_unlicensed"):
+                if row["status"] not in ("supported", "not_supported"):
                     continue
-                if twin["status"] not in ("licensed", "executing_unlicensed"):
+                if twin["status"] not in ("supported", "not_supported"):
                     continue
                 if (
                     row["uncertainty"] not in gen.UNCERTAINTY_RANK
@@ -171,7 +171,7 @@ def self_test() -> int:
         "route": "r",
         "uncertainty": "analytic",
         "closure": "delivered",
-        "status": "licensed",
+        "status": "supported",
         "reason": "",
         "next_attempt": "",
         "sampling_design": "x",

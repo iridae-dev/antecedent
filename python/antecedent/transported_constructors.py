@@ -869,7 +869,7 @@ def from_surrogate_bridge(
         TransportedResponseRefusal: a selection node into the terminal outcome or a modifier
             (``bridge_assumption_missing``), a diagram between other populations
             (``bridge_binding_mismatch``), a surrogate effect outside the validated range, an
-            unlicensed trial-level fit, and a claim about the validated scope
+            unsupported trial-level fit, and a claim about the validated scope
             (``not_transported``: a native bridged claim).
     """
     from .scientific_bridge import SourceClaim

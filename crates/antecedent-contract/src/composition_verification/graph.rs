@@ -133,7 +133,7 @@ named_variants! {
 pub enum SupportStanding {
     /// Every coordinate the node answers lies inside its support.
     Supported,
-    /// These coordinates lie outside the support. The node is not licensed.
+    /// These coordinates lie outside the support. The node is not supported.
     Unsupported {
         /// Named coordinates (sorted, distinct, non-empty).
         coordinates: Vec<String>,
@@ -151,7 +151,7 @@ pub enum TrustStanding {
     /// The provider's trust no longer holds (replaced, unverified, revoked).
     Withdrawn,
     /// The producer did not state whether trust holds. Unknown standing is not
-    /// a license: the node is withdrawn for provider trust until it is stated.
+    /// support: the node is withdrawn for provider trust until it is stated.
     Undeclared,
 }
 
@@ -209,7 +209,7 @@ pub enum CalibrationDeclaration {
 /// uncertainty guarantee it states.
 ///
 /// A producing route states all three explicitly when it builds a node, so
-/// that reusing a stage artifact never reads as a license by default. A route
+/// that reusing a stage artifact never reads as support by default. A route
 /// that cannot state one uses [`Self::undeclared`], which is refused rather
 /// than assumed fine.
 #[derive(Clone, Debug, Eq, PartialEq)]

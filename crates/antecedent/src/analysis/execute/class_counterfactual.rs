@@ -158,7 +158,7 @@ fn contrast_levels(query: &CounterfactualQuery) -> Result<(VariableId, f64, f64)
         ([], _) => Err(invalid_query("a counterfactual query names no intervention")),
         _ => Err(outside_contract(format!(
             "the query intervenes on {} variables at once ({:?}); the population-level route \
-             decides P(Y_x = y, X = x') by ID*, whose licensed shape observes one treatment per \
+             decides P(Y_x = y, X = x') by ID*, whose supported shape observes one treatment per \
              outcome event, so a joint baseline of simultaneous interventions on an Admg, a Pag \
              or a temporal Admg is refused rather than reduced to one treatment of the set. Next \
              attempt: state each treatment's contrast as its own query, or supply a Dag or a \

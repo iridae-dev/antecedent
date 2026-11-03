@@ -9,7 +9,7 @@ use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
     ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention, StreamDomain,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
+    TEMPORAL_OBSERVATION_UNSUPPORTED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -529,7 +529,7 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
 }
 
 #[test]
-fn compile_refuses_unlicensed_temporal_observation() {
+fn compile_refuses_unsupported_temporal_observation() {
     let pin = fixture();
     let (t, y, _, _, _, _) = generate(&pin);
     let lo = vec![-1.0; t.len()];
@@ -565,7 +565,7 @@ fn compile_refuses_unlicensed_temporal_observation() {
         .unwrap()
         .run(&ctx)
         .unwrap_err();
-    assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {err}");
+    assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED), "stable refuse, got {err}");
 }
 
 /// A lag-two autoregressive outcome would give the unfolded design a lagged outcome

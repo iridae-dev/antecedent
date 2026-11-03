@@ -312,7 +312,7 @@ fn class_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                     let builder = study(&data, structure, &functional, inference, suite)
                         .build()
                         .unwrap_or_else(|e| panic!("{label}: {e}"));
-                    assert_eq!(builder.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(builder.support_status(), Some(CellStatus::Supported), "{label}");
                     let context = ExecutionContext::for_tests(824);
                     let prepared =
                         builder.prepare(&context).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -324,7 +324,7 @@ fn class_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                     let result = prepared
                         .estimate(&data, &context)
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                    assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
+                    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     assert_eq!(
                         result.logical_plan.estimator.as_deref(),
                         Some(expected_estimator(key)),

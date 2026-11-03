@@ -619,7 +619,7 @@ pub fn check_derived_treatment(
 ///
 /// The declaration must be a [`Transformation::JointCell`] of at most 31 binary
 /// components (the fit refuses when the rows cannot populate every joint cell). The check runs
-/// first; its refusals are returned unchanged. The point estimates and aligned scores of the supported cells come back with the plan; no interval is licensed.
+/// first; its refusals are returned unchanged. The point estimates and aligned scores of the supported cells come back with the plan; no interval is supported.
 ///
 /// # Errors
 ///

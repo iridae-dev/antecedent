@@ -100,7 +100,7 @@ impl ExternalMechanismRefusal {
             }
         }
     }
-    /// Stable detail identifier of the refusal, as recorded in the promotion record.
+    /// Stable detail identifier of the refusal, as recorded in the capability record.
     #[must_use]
     pub const fn detail_id(&self) -> &'static str {
         match self.kind {
@@ -223,7 +223,7 @@ pub struct ExternalMechanismSpec {
     pub derivative: DerivativeDeclaration,
     /// Optional global bounds on `|d output / d input_k|` over all of R^k, in input order.
     /// Present bounds are caller declarations; replay verifies they equal the record, not that
-    /// they are true. Absent bounds license no contraction or density.
+    /// they are true. Absent bounds support no contraction or density.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_lipschitz: Option<Vec<f64>>,
 }

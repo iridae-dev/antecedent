@@ -702,7 +702,7 @@ fn state(outcome: &EquilibriumOutcome, variable: usize) -> Option<f64> {
         EquilibriumOutcome::Failed { .. } => None,
     }
 }
-fn licensed_state(outcome: &EquilibriumOutcome, variable: usize) -> Option<f64> {
+fn supported_state(outcome: &EquilibriumOutcome, variable: usize) -> Option<f64> {
     match outcome {
         EquilibriumOutcome::Solved(value) if value.globally_unique && value.existence_certified => {
             value.values.get(variable).copied()
@@ -1422,7 +1422,7 @@ fn parameter_posterior<'a>(
         .iter()
         .map(|draw| {
             draw.get(*noise_row)
-                .map(|value| licensed_state(value, *variable))
+                .map(|value| supported_state(value, *variable))
                 .ok_or_else(selector_mismatch)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -1461,7 +1461,7 @@ fn counterfactual_responses<'a>(
         Functional::Outcome,
         EvidencePort::InterventionalLaw,
     );
-    p.samples = draws.iter().map(|v| licensed_state(v, *variable)).collect();
+    p.samples = draws.iter().map(|v| supported_state(v, *variable)).collect();
     p.axes = vec![Axis::Predictive];
     if joint {
         p.axes.push(Axis::Parameter);
@@ -1491,7 +1491,7 @@ fn bootstrap<'a>(
         .map(|draw| match draw {
             Some(rows) => rows
                 .get(*noise_row)
-                .map(|v| licensed_state(v, *variable))
+                .map(|v| supported_state(v, *variable))
                 .ok_or_else(selector_mismatch),
             None => Ok(None),
         })
@@ -3020,7 +3020,7 @@ fn cyclic_joint_columns(
             let Some(bounds) = &column.mass_bounds else {
                 return Ok(None);
             };
-            // Only an actual posterior of recovered functional draws is licensed
+            // Only an actual posterior of recovered functional draws is supported
             // here. A Gaussian mean with variance in diagnostics is not an outcome draw.
             if !exact_recovery_weights
                 || column.port != "parameter_posterior"

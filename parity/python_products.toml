@@ -823,7 +823,7 @@ reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
 # T1 catalog identify is not an analyze route. Empty-catalog target-only and
 # typed MissingEvidence vs NotCertified live on transport.identify
-# (python/tests/test_transport_catalog.py). The licensed trial-IPW cell above
+# (python/tests/test_transport_catalog.py). The supported trial-IPW cell above
 # stays byte-compatible.
 
 [[route]]
@@ -907,56 +907,56 @@ retains = true
 reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_accepted"
 
-# Permanent refusals: combinations the study builder does not license. Each names its
+# Permanent refusals: combinations the study builder does not support. Each names its
 # reason code and the test that pins it.
 
 [[refusal]]
 kind = "average"
 data = "multi_env"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_average_multi_env_explicit"
 
 [[refusal]]
 kind = "average"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_average_panel_explicit"
 
 [[refusal]]
 kind = "conditional"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_conditional_panel_explicit"
 
 [[refusal]]
 kind = "response_curve"
 data = "multi_env"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_response_curve_multi_env_explicit"
 
 [[refusal]]
 kind = "temporal_mediation"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_temporal_mediation_panel_explicit"
 
 [[refusal]]
 kind = "pulse"
 data = "panel"
 structure = "graph_posterior"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_pulse_panel_graph_posterior"
 
 [[refusal]]
 kind = "pulse"
 data = "multi_env"
 structure = "graph_posterior"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_pulse_multi_env_graph_posterior"
 
 [[parameter]]
@@ -1285,7 +1285,7 @@ reason = ""
 test = "python/tests/test_parameter_bindings.py::test_retain_joint_horizons_reaches_plan"
 
 # Shared Python 2.4 lifecycle and persistence conventions are not additional
-# scientific route licenses. Native family validators retain all authority.
+# scientific route supports. Native family validators retain all authority.
 [[ux_contract]]
 area = "retained_study"
 operations = ["identification", "inspect_plan", "last_result", "reprepare", "result.refute"]

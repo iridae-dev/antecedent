@@ -2,7 +2,7 @@
 
 Review dates: 25–26 October 2026. Integration owner: Charles Hinshaw / root reviewer.
 Scope: TODO.md's Engineering Pass. This is a software architecture and behavior
-review, not a statistical calibration run or a release license.
+review, not a statistical calibration run or release support.
 
 ## Review method and ownership
 
@@ -91,7 +91,7 @@ registry and Python exception definitions, with committed-schema drift checks
 and compiled host-contract consumers. `generate_family_conformance.py`,
 `generate_route_obligations.py` and `generate_acceptance_inventory.py` remain the
 owners of their generated records. Their check modes validate that this pass
-has not changed the route inventory or licensed claims. The shared Rust lexer
+has not changed the route inventory or supported claims. The shared Rust lexer
 continues to distinguish code from comments/literals in gate inspection.
 The retained-route gate's arbitrary 900-character search was a demonstrated
 false negative: removing a genuine late guard added no finding. Balanced body
@@ -162,16 +162,16 @@ separate TODO items; no work in those items is claimed complete here.
   Honoring disabled/bounded caching can increase cold identification work that
   previously used a process memo despite policy. Test timings are software-run
   observations, not reference-host performance claims.
-- GPU promotion, speedups, calibration licenses and final release API acceptance
+- GPU enablement, speedups, calibration supports and final release API acceptance
   are not earned by software regression. Affected calibration/performance work
   belongs to the existing Q08/Q10/K1.5 and N20 measurement phases. Corrected facet
   ownership preserves that obligation; it never turns stale evidence current.
 
-The strict measured-license assertions are retained. The initial commit already
+The strict measured-support assertions are retained. The initial commit already
 shipped zero currently attesting record IDs; the snapshot is byte-identical in
 this pass. Exact records, hashes, failed assertions and Q08/Q09 ownership are
-recorded in [the license disposition](license_disposition.md). This is a
-source-level proof of the initial licensing predicate, not an initial numerical
+recorded in [the support disposition](support_disposition.md). This is a
+source-level proof of the initial support predicate, not an initial numerical
 test run or a waiver of the pending measurements.
 
 ## Remaining dispositions
@@ -205,7 +205,7 @@ attestation refusal with its own grid refusal when both attempts fail. Successfu
 fallback selection and the outer typed refusal are correct; reporting both
 attempts is an open diagnostics improvement owned by the evidence-ledger
 maintainer in the Python API/practitioner pass. This pass retains the established
-fallback order and records both actual causes in the license disposition; it does
+fallback order and records both actual causes in the support disposition; it does
 not describe the final detail as proof that the family grid is absent.
 
 ## Executed validation

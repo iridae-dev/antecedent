@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the licensed rows of the conditional and response cells earned by known-truth tests.
+"""Generate the supported rows of the conditional and response cells earned by known-truth tests.
 
-Each family below names the cells it licenses (a cartesian selector over the support axes), the
+Each family below names the cells it supports (a cartesian selector over the support axes), the
 fixture whose closed-form or enumerated oracle is the truth, the executing test that consumes the
 fixture and builds every cell of the family, and the checked-execution citation. The rows are
-written between the generated markers at the end of parity/support_licensed.toml; the script is
+written between the generated markers at the end of parity/support_cells.toml; the script is
 deterministic and `--check` fails when the file differs from the table.
 
     python3 scripts/generate_earned_response_rows.py          # rewrite the generated block
@@ -21,7 +21,7 @@ from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 BEGIN = "# generated:earned_response_rows:begin"
 END = "# generated:earned_response_rows:end"
 
@@ -107,7 +107,7 @@ FAMILIES: list[dict] = [
             "A ConditionalEffect on a TemporalAdmg reads tabular rows, which carry no time "
             "index, so it is the conditional contrast of the contemporaneous projection of the "
             "template (each variable once, at lag 0, with the template's directed and "
-            "bidirected edges), the same twin the licensed AverageEffect has: IDC at the two "
+            "bidirected edges), the same twin the supported AverageEffect has: IDC at the two "
             "hard-set levels for a latent-confounded projection, the Dag conditional route for "
             "a latent-free one, evaluated by the discrete plug-in or its Dirichlet row "
             "posterior. A template whose variable repeats across lags has no projection and is "
@@ -753,16 +753,16 @@ def splice(text: str, block: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    current = LICENSED.read_text(encoding="utf-8")
+    current = SUPPORTED.read_text(encoding="utf-8")
     updated = splice(current, render_block())
     if argv[:1] == ["--check"]:
         if updated != current:
-            print("parity/support_licensed.toml: generated earned-response block drifted")
+            print("parity/support_cells.toml: generated earned-response block drifted")
             return 1
         print("earned response rows OK")
         return 0
     if updated != current:
-        LICENSED.write_text(updated, encoding="utf-8", newline="\n")
+        SUPPORTED.write_text(updated, encoding="utf-8", newline="\n")
     print(f"wrote {sum(len(f['query']) * len(f['graph_class']) * len(f['structure']) * len(f['inference']) * len(f['validation']) for f in FAMILIES)} rows")
     return 0
 

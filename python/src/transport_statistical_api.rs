@@ -332,7 +332,7 @@ impl PreparedStatisticalStage {
                 })
             }
         } else {
-            let licensed = view.reasoning.uncertainty.is_available();
+            let supported = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
                 antecedent_contract::SlotAvailability::Unavailable { reason } => {
                     Some(reason.as_ref())
@@ -340,9 +340,9 @@ impl PreparedStatisticalStage {
                 _ => None,
             };
             serde_json::json!({
-                "available": licensed,
+                "available": supported,
                 "reason": reason,
-                "summary": if licensed { "percentile_bootstrap" } else { "unavailable" },
+                "summary": if supported { "percentile_bootstrap" } else { "unavailable" },
             })
         };
         let identification_status = view

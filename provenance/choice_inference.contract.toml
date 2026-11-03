@@ -13,7 +13,7 @@ implementation_deviations = [
  "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
  "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
  "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is unmeasured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
- "Every route is point-only with calibration unmeasured; the interval route refuses with cell_not_licensed until a coverage record attests the choice cell. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
+ "Every route is point-only with calibration unmeasured; the interval route refuses with not_supported until a coverage record attests the choice cell. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
  "Stated choices do not identify behavioural or causal outcomes.",
 ]
 upstream_implementations_observed = []
@@ -32,22 +32,22 @@ rationale = "The contract, qualification and routing layers of choice inference:
 no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
 covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
 inline_tests = true
-record_sha256 = "d98d522b35ce6e60617f3085ef51a0861c3c532df550162e7a1a9f055cf5406e"
+record_sha256 = "2df1273147ce4ba96668f4dcc756bf336d21572d74d6735fbc823ce3597a183f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/choice.rs"
-sha256 = "acb5e2492a5ae2fc63f020895b941102206984712105a1b9fb175f9c39120e2b"
+sha256 = "7991e9cf6ec5add935d8ca3711ac355db0df1c02a1de0732981650c94a498588"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/choice_inference.rs"
-sha256 = "1dd9ee961d10953670e73d703ee5e744836228cc14690ced4b2fa6dd19d916c0"
+sha256 = "bba1ed42e18d63b92e42da1cbb1b2df2e87972d5a0c08ece7b49d6a243424098"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
-sha256 = "9294468b459b5a5488db797d73116d19630f15e9aca92eedfee2f64c0aeee061"
+sha256 = "30098b5f59d963f048e430f9a633b099521ecfe5b6d86dcc012d34b8f410f4d3"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -57,14 +57,14 @@ sha256 = "3b663ac4624501c4591dab582a0b51895100fb569ee7499d6b39a33cf2f6584c"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/choice_inference.rs"
-sha256 = "836d33c0c4afef19632afd0010e1de109fb98c05def23221c04cc877797531ae"
+sha256 = "3530c1748f387188cf2df748da5122c2b0c95fde598e3780770ae195bd301ec5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/choice_design.rs"
-sha256 = "fe10192e4f8d036ae0ae558c74a27ca9bb139f360380fc516e4461a1a1933e01"
+sha256 = "ffdf54968eb91ff432c213222bc642cd3efbdb242170b07e637e4183ad1a2803"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
-sha256 = "bc63b5a67ca28f2228737ce4f2c3c28f3e6193167c4753266b30ed005bff0de1"
+sha256 = "6bebb8ec270998c2ae367b09908dcccda64cbd474a9f7fd8f1397d5d461e39c9"

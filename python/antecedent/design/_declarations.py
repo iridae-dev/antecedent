@@ -83,7 +83,7 @@ CALIBRATION: Literal["unmeasured"] = "unmeasured"
 #: Identity of the reported ranking within the result's ``lineage``.
 RESULT_LINK_ID = "design_ranking_result"
 ARTIFACT_KIND = "design_ranking_v1"
-TrustLabel = Literal["native_licensed", "externally_attested", "exact_request_verified"]
+TrustLabel = Literal["native_supported", "externally_attested", "exact_request_verified"]
 UpdateMode = Literal["native_update", "external_posterior", "external_decision_values"]
 Integration = Literal["exact", "monte_carlo", "externally_computed"]
 #: The claim a candidate's value carries: a point value, or a Monte Carlo estimate (no coverage).
@@ -603,8 +603,8 @@ class SignalProvider:
 
     __slots__ = ()
 
-    #: Trust the declaration carries; an external provider is never ``native_licensed``.
-    trust: TrustLabel = "native_licensed"
+    #: Trust the declaration carries; an external provider is never ``native_supported``.
+    trust: TrustLabel = "native_supported"
 
     def _wire(self) -> dict[str, Any]:  # pragma: no cover - abstract
         raise NotImplementedError
@@ -714,7 +714,7 @@ class ExternalSignal(SignalProvider):
 
     @property
     def trust(self) -> TrustLabel:  # type: ignore[override]
-        """Never ``native_licensed``; the supplier's assertion is not verified by Antecedent."""
+        """Never ``native_supported``; the supplier's assertion is not verified by Antecedent."""
         return "externally_attested"
 
     def _wire(self) -> dict[str, Any]:

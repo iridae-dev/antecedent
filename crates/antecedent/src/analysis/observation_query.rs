@@ -340,14 +340,14 @@ impl PosteriorDraws {
 }
 
 /// An interval of redrawn quantities that a currently attesting coverage record
-/// licensed.
+/// supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParameterInterval {
     /// The quantity.
     pub quantity: String,
     /// The composed coordinate the record was matched against.
     pub coordinate_id: String,
-    /// The record that licensed the interval.
+    /// The record that supported the interval.
     pub record_id: String,
     /// The construction the interval was built with.
     pub construction: String,
@@ -435,7 +435,7 @@ impl ObservationClaim {
     /// An interval for any observation-conditioned value.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `observation_query.declared_model_has_no_sampling_interval`.
+    /// Always `not_supported` with `observation_query.declared_model_has_no_sampling_interval`.
     pub fn interval(&self) -> Result<std::convert::Infallible, ObservationQueryRefusal> {
         Err(ObservationQueryRefusal::one(interval_refusal()))
     }
@@ -443,7 +443,7 @@ impl ObservationClaim {
     /// A calibration claim for a posterior or decision probability.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with
+    /// Always `not_supported` with
     /// `observation_query.calibrated_probability_closed`: no measured
     /// whole-method record exists at any query's coordinate.
     pub fn calibrated_probability(
@@ -530,7 +530,7 @@ impl ObservationClaim {
         self.wire.distribution().map_err(artifact_refusal)
     }
 
-    /// The interval of one redrawn quantity, licensed only by a currently
+    /// The interval of one redrawn quantity, supported only by a currently
     /// attesting coverage record the registry holds for exactly this composed
     /// coordinate, construction, nominal level and evidence size. The caller
     /// supplies no record. Without one the interval is closed with the typed

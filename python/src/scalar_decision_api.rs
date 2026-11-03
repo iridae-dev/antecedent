@@ -50,7 +50,7 @@ impl crate::AteAnalysisResult {
                 || authority.has_structural_response
                 || authority
                     .support_status
-                    .is_some_and(|s| s != antecedent::support::CellStatus::Licensed)
+                    .is_some_and(|s| s != antecedent::support::CellStatus::Supported)
             {
                 return Ok(refuse("native_claims.unsupported_estimand"));
             }

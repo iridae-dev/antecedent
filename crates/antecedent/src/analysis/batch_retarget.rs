@@ -98,7 +98,7 @@ impl BatchRetargetError {
 /// refusal names no single change.
 fn remedy_of(detail: &str) -> Option<&'static str> {
     Some(match detail {
-        "batch_retarget.functional_not_licensed" => {
+        "batch_retarget.functional_not_supported" => {
             "retarget the mean functional (an average effect or a joint cell); keep a quantile or \
              exceedance grid on the single-claim retarget"
         }
@@ -130,16 +130,16 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> BatchRetargetErr
     }
 }
 
-fn not_licensed(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
+fn not_supported(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
     BatchRetargetError {
-        code: reason_code!("cell_not_licensed"),
+        code: reason_code!("not_supported"),
         detail,
         message: message.into(),
         subject: None,
     }
 }
 
-fn not_supported(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
+fn route_not_supported_err(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
     BatchRetargetError {
         code: reason_code!("route_not_supported"),
         detail,
@@ -369,7 +369,7 @@ impl From<BatchRetargetError> for MemberFailure {
 fn member_failure(error: &CausalError) -> MemberFailure {
     let carried = error.refusal_fields().map(|fields| Box::new(fields.into_owned()));
     if matches!(error.peeled(), CausalError::Support { .. }) {
-        let mut failure = MemberFailure::from(not_licensed(
+        let mut failure = MemberFailure::from(not_supported(
             "batch_retarget.weighted_overlap_failed",
             error.to_string(),
         ));
@@ -518,12 +518,12 @@ impl BatchRetargetReport {
     ///
     /// # Errors
     ///
-    /// `cell_not_licensed` naming the failed members (`batch_retarget.partial_family`) or
+    /// `not_supported` naming the failed members (`batch_retarget.partial_family`) or
     /// the point-only members (`batch_retarget.point_only_member`).
     pub fn complete_family(&self) -> Result<&FamilyCovariance, BatchRetargetError> {
         let failed = self.failed_members();
         if !failed.is_empty() {
-            return Err(not_licensed(
+            return Err(not_supported(
                 "batch_retarget.partial_family",
                 format!(
                     "the family is partial: {} failed, so the surviving members are not a \
@@ -534,7 +534,7 @@ impl BatchRetargetReport {
         }
         let point_only = self.point_only_members();
         if !point_only.is_empty() {
-            return Err(not_licensed(
+            return Err(not_supported(
                 "batch_retarget.point_only_member",
                 format!(
                     "{} retarget to a point only under their score-table provenance, so the \
@@ -544,7 +544,7 @@ impl BatchRetargetReport {
             ));
         }
         self.covariance.as_ref().ok_or_else(|| {
-            not_supported(
+            route_not_supported_err(
                 "batch_retarget.covariance_unavailable",
                 "the family carries no covariance-bearing member",
             )
@@ -619,8 +619,8 @@ fn evaluate_claim(
 ) -> Result<Evaluated, MemberFailure> {
     let table = table.ok_or_else(|| MemberFailure::from(scores_unavailable(source)))?;
     if table.distinct_threshold_count() > 0 {
-        return Err(MemberFailure::from(not_supported(
-            "batch_retarget.functional_not_licensed",
+        return Err(MemberFailure::from(route_not_supported_err(
+            "batch_retarget.functional_not_supported",
             "a batch retarget covers the mean functional; a quantile or exceedance grid keeps \
              its single-claim retarget",
         )));
@@ -644,16 +644,16 @@ fn evaluate_claim(
     let (value, coefficients) = match query {
         BatchQuery::Average(_) => {
             let contrast = out.contrast.as_ref().ok_or_else(|| {
-                MemberFailure::from(not_supported(
-                    "batch_retarget.functional_not_licensed",
+                MemberFailure::from(route_not_supported_err(
+                    "batch_retarget.functional_not_supported",
                     "the plan's scores carry no single arm contrast",
                 ))
             })?;
             let column =
                 |arm: u32| table.columns.iter().position(|c| c.arm == arm && c.threshold.is_none());
             let (Some(control), Some(active)) = (column(0), column(1)) else {
-                return Err(MemberFailure::from(not_supported(
-                    "batch_retarget.functional_not_licensed",
+                return Err(MemberFailure::from(route_not_supported_err(
+                    "batch_retarget.functional_not_supported",
                     "the plan's scores carry no arm-0 and arm-1 mean columns",
                 )));
             };
@@ -665,8 +665,8 @@ fn evaluate_claim(
         BatchQuery::Response(q) => {
             let arm = super::helpers::requested_joint_arm(q).map_err(|e| member_failure(&e))?;
             let Some(column) = table.columns.iter().position(|c| c.arm == arm) else {
-                return Err(MemberFailure::from(not_supported(
-                    "batch_retarget.functional_not_licensed",
+                return Err(MemberFailure::from(route_not_supported_err(
+                    "batch_retarget.functional_not_supported",
                     "the requested joint cell is not a column of the plan's scores",
                 )));
             };
@@ -683,7 +683,7 @@ fn evaluate_claim(
     let mut diagnostics = Vec::new();
     if withheld {
         diagnostics.push(
-            "the score-table provenance licenses a retargeted point but no covariance".to_string(),
+            "the score-table provenance supports a retargeted point but no covariance".to_string(),
         );
     }
     Ok(Evaluated {
@@ -816,7 +816,7 @@ fn gram(columns: &[&[f64]]) -> Result<JointCovariance, BatchRetargetError> {
         }
     }
     if values.iter().any(|v| !v.is_finite()) {
-        return Err(not_supported(
+        return Err(route_not_supported_err(
             "batch_retarget.covariance_unavailable",
             "the joint score covariance is not finite",
         ));
@@ -837,7 +837,7 @@ fn contrast_outcome(
             .find(|claim| &claim.name == name)
             .and_then(|claim| claim.outcome.as_ref().ok())
             .ok_or_else(|| {
-                MemberFailure::from(not_licensed(
+                MemberFailure::from(not_supported(
                     "batch_retarget.contrast_member_failed",
                     format!("contrast {:?} reads claim {name:?}, which failed", contrast.name),
                 ))
@@ -853,7 +853,7 @@ fn contrast_outcome(
         });
     }
     let covariance = covariance.ok_or_else(|| {
-        MemberFailure::from(not_supported(
+        MemberFailure::from(route_not_supported_err(
             "batch_retarget.covariance_unavailable",
             "no joint covariance for the contrast's claims",
         ))
@@ -868,7 +868,7 @@ fn contrast_outcome(
         }
     }
     if !variance.is_finite() || variance < -1e-12 * absolute {
-        return Err(MemberFailure::from(not_supported(
+        return Err(MemberFailure::from(route_not_supported_err(
             "batch_retarget.covariance_unavailable",
             "the contrast variance is not a finite non-negative number",
         )));
@@ -911,11 +911,14 @@ fn family_covariance(
                     .spec
                     .influence_covariance(&columns, &first.first, first.second.as_deref())
                     .map_err(|e| {
-                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
+                        route_not_supported_err(
+                            "batch_retarget.covariance_unavailable",
+                            e.to_string(),
+                        )
                     })?
             }
             _ => {
-                return Err(not_supported(
+                return Err(route_not_supported_err(
                     "batch_retarget.covariance_unavailable",
                     "the family mixes members with and without declared cluster units",
                 ));
@@ -1060,7 +1063,7 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
     let dim = matrix.dim;
     let se: Vec<f64> = (0..dim).map(|i| matrix.se(i)).collect();
     if dim == 0 || se.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
-        return Err(not_supported(
+        return Err(route_not_supported_err(
             "batch_retarget.covariance_unavailable",
             "a max-t band needs every claim's plug-in standard error positive and finite",
         ));
@@ -1094,7 +1097,7 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
 /// (`batch_retarget.covariance_unavailable`) when `correlation` is not a symmetric positive
 /// semidefinite matrix with a unit diagonal; `cancelled_no_claim`
 /// (`batch_retarget.cancelled`) when the context is cancelled before every draw is made.
-// doc(hidden): public evaluator named by the promotion record; hidden until it is documented.
+// doc(hidden): public evaluator named by the capability record; hidden until it is documented.
 #[doc(hidden)]
 pub fn max_t_critical_value(
     correlation: &JointCovariance,
@@ -1149,7 +1152,7 @@ fn max_t_critical_value_with_df(
                 && (0..dim).all(|j| correlation.get(i, j).abs() <= 1.0 + CORRELATION_SLACK)
         });
     if !well_formed {
-        return Err(not_supported(
+        return Err(route_not_supported_err(
             "batch_retarget.covariance_unavailable",
             "the max-t evaluator needs a finite correlation matrix with a unit diagonal and \
              entries in [-1, 1]",
@@ -1159,7 +1162,7 @@ fn max_t_critical_value_with_df(
     let critical = max_t_critical_with_df_polled(correlation, level, draws, df, &mut rng, &|| {
         ctx.cancellation.is_cancelled()
     })
-    .map_err(|e| not_supported("batch_retarget.covariance_unavailable", e.to_string()))?
+    .map_err(|e| route_not_supported_err("batch_retarget.covariance_unavailable", e.to_string()))?
     .ok_or_else(cancelled)?;
     if !critical.is_finite() {
         return Err(invalid(
@@ -1239,7 +1242,7 @@ impl BatchRetargetReport {
                     .and_then(|claim| claim.outcome.as_ref().ok())
                     .and_then(|point| point.reference_df);
                 if current.is_some_and(|df| df != next) {
-                    Err(not_supported(
+                    Err(route_not_supported_err(
                         "batch_retarget.covariance_unavailable",
                         "one family cannot mix different cluster reference degrees of freedom",
                     ))
@@ -1268,7 +1271,7 @@ impl BatchRetargetReport {
                     .and_then(|c| c.outcome.as_ref().ok())
                     .map(|p| p.value)
                     .ok_or_else(|| {
-                        not_supported(
+                        route_not_supported_err(
                             "batch_retarget.covariance_unavailable",
                             format!("covariance claim {name} has no reported point"),
                         )

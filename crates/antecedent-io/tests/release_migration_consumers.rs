@@ -169,7 +169,7 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
         added.iter().all(|m| m.route == "unlisted"),
         "a method names a route not in the manifest"
     );
-    assert_eq!(narrowed, 0, "current linked method statuses carry their route licence kind");
+    assert_eq!(narrowed, 0, "current linked method statuses carry their route support kind");
     for axis in RouteAxis::ALL {
         assert!(
             occupied.get(&axis).copied().unwrap_or(0) > 0,
@@ -181,7 +181,7 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
 #[test]
 fn a_split_route_keeps_each_estimator_as_its_own_method() {
     let (routes, methods) = routes_and_methods();
-    let route = routes.iter().find(|r| r.id == "licensed.AverageEffect.Dag").unwrap();
+    let route = routes.iter().find(|r| r.id == "supported.AverageEffect.Dag").unwrap();
     let RouteRecordOutcome::Split { methods: assigned, unserved_axes } =
         migrate(route, &methods).unwrap()
     else {
@@ -221,22 +221,22 @@ fn a_frozen_previous_release_route_artifact_is_consumed_by_the_current_reader() 
         .iter()
         .map(|m| (m.id.as_str(), m.result.as_ref().expect("no fixture record is a break")))
         .collect();
-    assert!(matches!(by_id["licensed.AverageEffect.Dag"], RouteRecordOutcome::Split { .. }));
+    assert!(matches!(by_id["supported.AverageEffect.Dag"], RouteRecordOutcome::Split { .. }));
     // No current method carries this historical closed route, so its refusal remains.
     assert_eq!(by_id["closed.AnomalyAttribution.Admg"], &RouteRecordOutcome::RefusalKept);
     let RouteRecordOutcome::Split { methods: response, .. } =
-        by_id["licensed.InterventionResponse.CoDetermined"]
+        by_id["supported.InterventionResponse.CoDetermined"]
     else {
         panic!("the response route splits");
     };
-    // Both current method records carry the licensed status; this is a route-status
+    // Both current method records carry the supported status; this is a route-status
     // comparison, not an assertion that a calibration record attests coverage.
     assert_eq!(response.len(), 2);
-    assert!(response.iter().all(|m| !m.narrowed && m.status == "licensed"));
+    assert!(response.iter().all(|m| !m.narrowed && m.status == "supported"));
     assert!(response.iter().any(|m| m.estimator == "cell.aipw"));
     assert!(response.iter().any(|m| m.estimator == "response.bayesian"));
     let RouteRecordOutcome::Split { methods: temporal, .. } =
-        by_id["licensed.AnomalyAttribution.TemporalDag"]
+        by_id["supported.AnomalyAttribution.TemporalDag"]
     else {
         panic!("temporal attribution splits by realization");
     };
@@ -255,8 +255,8 @@ fn a_frozen_previous_release_route_artifact_is_consumed_by_the_current_reader() 
 fn a_fixture_with_a_removed_route_reports_each_break_beside_the_carried_records() {
     let (_, methods) = routes_and_methods();
     let artifact = br#"{"routes":[
-        {"id":"licensed.AverageEffect.Dag","status":"licensed","design_time_model":"static","inference":"Frequentist"},
-        {"id":"licensed.RemovedQuery.Dag","status":"licensed","design_time_model":"static","inference":"Frequentist"},
+        {"id":"supported.AverageEffect.Dag","status":"supported","design_time_model":"static","inference":"Frequentist"},
+        {"id":"supported.RemovedQuery.Dag","status":"supported","design_time_model":"static","inference":"Frequentist"},
         {"id":"graphless.removed.design","status":"graphless","design_time_model":"static","inference":"unlisted"},
         {"id":"execution.removed.design","status":"execution_only","design_time_model":"static","inference":"unlisted"},
         {"id":"unknown.status.route","status":"withdrawn","design_time_model":"static","inference":"Frequentist"}
@@ -267,7 +267,7 @@ fn a_fixture_with_a_removed_route_reports_each_break_beside_the_carried_records(
     let error = migrated[1].result.clone().unwrap_err();
     assert_eq!(
         error,
-        RouteRecordError::RouteWithoutCurrentMethod { id: "licensed.RemovedQuery.Dag".into() }
+        RouteRecordError::RouteWithoutCurrentMethod { id: "supported.RemovedQuery.Dag".into() }
     );
     assert!(error.to_string().contains("method that replaced it"));
     assert_eq!(

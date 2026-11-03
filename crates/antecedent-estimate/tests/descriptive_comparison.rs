@@ -66,7 +66,7 @@ fn the_gap_is_raw_minus_adjusted_and_carries_no_interval() {
     close(comparison.adjusted.estimate, 3.5, "adjusted");
     // The covariance of the raw and the adjusted estimate is not carried: the gap has a typed
     // reason instead of a standard error, and the adjusted SE is never folded into it.
-    assert_eq!(comparison.gap_interval.code, "cell_not_licensed");
+    assert_eq!(comparison.gap_interval.code, "not_supported");
     assert_eq!(comparison.gap_interval.detail, "descriptive_comparison.gap_interval_unavailable");
 }
 
@@ -345,7 +345,7 @@ fn scale_names_round_trip_and_an_unknown_scale_is_refused() {
 #[test]
 fn an_interval_and_a_column_attribution_are_closed_routes() {
     let (code, message) = refused(refuse_transform_interval());
-    assert_eq!(code, "cell_not_licensed");
+    assert_eq!(code, "not_supported");
     assert!(message.starts_with("descriptive_comparison.interval_withheld"), "{message}");
     let (code, message) = refused(refuse_column_attribution());
     assert_eq!(code, "effect_not_identified");

@@ -31,7 +31,7 @@ The record is retained (``propagation_chain_v1``) and :func:`consume_propagation
 rule again and replays every stage to identical bits. Every rule, number, identity and refusal is
 computed in Rust; this module declares chains and decodes results.
 
-A value under a licensed chain is labelled ``point_only``, its spread ``uncalibrated_spread``,
+A value under a supported chain is labelled ``point_only``, its spread ``uncalibrated_spread``,
 posterior draws ``posterior_propagation`` and an enclosure ``propagation_enclosure``. No label is
 a coverage statement: :meth:`PropagationChain.interval` raises ``uncertainty_representation_insufficient``.
 """
@@ -784,7 +784,7 @@ def propagate(
     ``reading`` is ``point``, ``spread``, ``posterior`` or ``enclosure`` (``interval`` is refused
     until a coverage record is measured). ``construction`` is ``joint_draws`` (the aligned table
     carries whatever dependence the sources have) or ``independent_product`` (the table is the
-    product of independent sources, licensed only for sources that share no factor).
+    product of independent sources, supported only for sources that share no factor).
     """
     execution = resolve_execution(execution)
     record = _declaration(sources, stages, output, reading, construction)

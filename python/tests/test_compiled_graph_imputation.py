@@ -89,12 +89,12 @@ def test_declaration_refuses_missing_domains_and_unbounded_shape():
 
 
 def _calibrated_or_refused(call):
-    # Licensing is a record lookup at measurement: with no covering record the route
+    # Support is a record lookup at measurement: with no covering record the route
     # refuses, and once one exists the same call returns a calibrated result.
     try:
         return call()
     except GraphSelectionImputationRefusal as refused:
-        assert refused.code == "cell_not_licensed"
+        assert refused.code == "not_supported"
         return None
 
 

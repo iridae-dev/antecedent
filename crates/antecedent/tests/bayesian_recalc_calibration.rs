@@ -1,7 +1,7 @@
 //! Actual Gaussian adapter posterior summary precision against independent conjugate algebra.
 //! Balanced binary T, Y=1+2T+N(0,1); known residual variance1, zero prior mean,
 //! independent coefficient variance100. Complete checked fit and native sampling;
-//! summary changes reuse exactly those issued draws. No frequentist interval license.
+//! summary changes reuse exactly those issued draws. No frequentist interval support.
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;

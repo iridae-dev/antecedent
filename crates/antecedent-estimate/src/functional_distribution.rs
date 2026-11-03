@@ -2121,7 +2121,7 @@ impl EmpiricalFactorCache {
         );
         work()
     }
-    /// Retained numeric factor identities; these are not identification licenses.
+    /// Retained numeric factor identities; these are not identification supports.
     pub fn identities(&self) -> Vec<antecedent_core::recalc::StageIdentity> {
         self.state
             .lock()

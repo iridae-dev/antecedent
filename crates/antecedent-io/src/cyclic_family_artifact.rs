@@ -456,7 +456,7 @@ pub enum CyclicFamilyRequest {
     ///
     /// Preparation does not fit, sample, or treat the recovered draws as a new
     /// estimate. Specified models remain model-conditional; compilation grants
-    /// no scientific license. Failed and inadmissible draws stay in the law.
+    /// no scientific support. Failed and inadmissible draws stay in the law.
     RecoveredLinear {
         /// Node ids, strictly increasing. Draw coordinates are positions in this list.
         nodes: Vec<u32>,
@@ -759,7 +759,7 @@ pub enum CyclicFamilyAnswer {
     /// Interventions evaluated from a retained recovered linear law.
     ///
     /// Preparation did not fit this law. Failed and inadmissible draws remain.
-    /// Specified models stay model-conditional; compilation grants no scientific license.
+    /// Specified models stay model-conditional; compilation grants no scientific support.
     RecoveredLinear(RecoveredLinearReport),
     /// Law recovered from clamp experiments, its draw origin, and its keyed worlds.
     ExperimentalRecovery(ExperimentalRecoveryReport),
@@ -804,7 +804,7 @@ mod shared_system_report {
 pub enum RecoveredSolvedBy {
     /// Topological DAG evaluation. The draw was not solved as a cyclic block.
     Acyclic,
-    /// The DAG algorithm refused a directed cycle; the cyclic license compiled the draw.
+    /// The DAG algorithm refused a directed cycle; the cyclic support compiled the draw.
     Cyclic {
         /// Existing next attempt named by the DAG refusal.
         next_attempt: String,

@@ -150,10 +150,10 @@ fn the_posterior_is_the_conjugate_closed_form() {
 #[test]
 fn the_posterior_rule_stops_when_its_threshold_is_met() {
     let spec = AdaptiveResultSpec::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
-    // Decision-theoretic stopping is licensed only for the Thompson cell with
+    // Decision-theoretic stopping is supported only for the Thompson cell with
     // a decision-theoretic rule; the efficacy cell refuses it.
     let refused = compute_adaptive_result(&contract(thompson()), &spec, &ctx()).unwrap_err();
-    assert_eq!(refused.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refused.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     let mut declaration = thompson();
     declaration.cell.stopping = StoppingRuleKind::DecisionTheoretic;
     declaration.stopping_rule = Some(StoppingRuleDeclaration {
@@ -229,10 +229,10 @@ fn a_paradigm_of_another_cell_is_refused_before_any_number() {
         size_weighted: false,
     };
     let error = compute_adaptive_result(&contract(thompson()), &weighting, &ctx()).unwrap_err();
-    assert_eq!(error.code, "cell_not_licensed");
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(error.code, "not_supported");
+    assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     let error = compute_adaptive_result(&contract(weighted()), &posterior(1), &ctx()).unwrap_err();
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     // A look the contract does not have.
     let error = compute_adaptive_result(&contract(thompson()), &posterior(5), &ctx()).unwrap_err();
     assert_eq!(error.detail, "adaptive_inference.input_invalid");
