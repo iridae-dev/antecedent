@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 if TYPE_CHECKING:
+    from ._measured_inference import MeasuredInference
     from .execution import Execution
 
 #: The policy names a route can be asked for.
@@ -481,7 +482,12 @@ class CompiledGraphImputationArtifact:
 
 @dataclass(frozen=True, slots=True)
 class CompiledGraphImputationResult:
-    """Model-conditional diagnostics; no licensed interval or coverage claim is made."""
+    """Model-conditional diagnostics; the mean and SD alone carry no interval or coverage claim.
+
+    :meth:`interval` and :meth:`measured` replay the original source through the measured
+    route, which is licensed only where a current attesting coverage record covers the
+    construction and row count.
+    """
 
     mean: float
     diagnostic_sd: float
@@ -489,12 +495,31 @@ class CompiledGraphImputationResult:
     unidentified_by_table: tuple[float, ...]
     _handle: Any = field(repr=False, compare=False)
 
-    def interval(self) -> None:
-        """Request an interval; currently raises the native unlicensed refusal."""
+    def measured(self) -> MeasuredInference:
+        """The calibrated report of this execution's original source.
+
+        Raises :class:`GraphSelectionImputationRefusal` with ``cell_not_licensed`` unless a
+        current attesting coverage record covers this construction and row count.
+        """
+        from ._measured_inference import MeasuredInference
+
         try:
-            self._handle.interval()
+            native = self._handle.measured_interval()
         except ValueError as error:
             _compiled_refusal(error)
+            raise
+        return MeasuredInference._from_native(native)
+
+    def interval(self) -> MeasuredInference:
+        """The calibrated interval; the same licensed route as :meth:`measured`."""
+        from ._measured_inference import MeasuredInference
+
+        try:
+            native = self._handle.interval()
+        except ValueError as error:
+            _compiled_refusal(error)
+            raise
+        return MeasuredInference._from_native(native)
 
 
 def _compiled_refusal(error: ValueError) -> None:
@@ -518,9 +543,12 @@ def _compiled_result(text: str, handle: Any) -> CompiledGraphImputationResult:
 
 
 class PreparedGraphImputation:
-    """Retained program with explicitly declared treatment-root and direct-edge graph support.
+    """Retained program with an explicitly declared graph support over two to four variables.
 
-    The support is a substantive causal assumption; it is not established by the source data.
+    ``treatment_root_direct_effect`` declares a parentless treatment with a direct arrow to the
+    outcome; ``treatment_direct_effect`` also lets the treatment have parents, so the adjustment
+    set varies between graphs. The support is a substantive causal assumption; it is not
+    established by the source data.
     """
 
     def __init__(
@@ -529,7 +557,7 @@ class PreparedGraphImputation:
         *,
         treatment: str,
         outcome: str,
-        graph_support: Literal["treatment_root_direct_effect"],
+        graph_support: Literal["treatment_root_direct_effect", "treatment_direct_effect"],
         domains: Mapping[str, str],
         imputations: int = 8,
         iterations: int = 10,
@@ -544,7 +572,7 @@ class PreparedGraphImputation:
         if not isinstance(data, Mapping) or not data:
             raise CausalTypeError("data must be a non-empty mapping")
         names = list(data)
-        if not 2 <= len(names) <= 3 or any(not 4 <= len(data[name]) <= 10_000 for name in names):
+        if not 2 <= len(names) <= 4 or any(not 4 <= len(data[name]) <= 10_000 for name in names):
             raise CausalValueError("source shape is outside the bounded candidate")
         if set(domains) != set(names):
             raise CausalValueError("declare one domain for each source column")
@@ -605,22 +633,13 @@ def consume_compiled_graph_imputation(
     try:
         if len(data) > 512 * 1024 or any(len(value) != 32 for value in (program, source, receipt)):
             raise CausalValueError("invalid artifact size or expected identity")
-        text = execution._call(
+        text, handle = execution._call(
             consume, list(data), list(program), list(source), list(receipt), execution.seed
         )
     except ValueError as error:
         _compiled_refusal(error)
         raise
-    # No retained execution handle is manufactured from the wire.
-    return _compiled_result(text, _ConsumedGraphImputation())
-
-
-class _ConsumedGraphImputation:
-    def interval(self) -> None:
-        from ._native import compiled_graph_imputation_interval
-        from ._refusal import raise_refusal
-
-        raise_refusal(compiled_graph_imputation_interval(), GraphSelectionImputationRefusal)
+    return _compiled_result(text, handle)
 
 
 __all__ += [

@@ -179,6 +179,7 @@ pub mod joint_bayesian_transport_artifact;
 pub mod learned_joint_transport_artifact;
 pub mod measured_inference;
 pub mod mixed_source_artifact;
+pub mod mnar_candidate_source;
 pub mod model_bundle;
 pub mod model_codes;
 pub mod mz_transport_artifact;

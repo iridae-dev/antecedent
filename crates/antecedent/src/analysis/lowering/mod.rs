@@ -14,6 +14,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) mod associational;
+pub(crate) mod categorical_posterior_candidate;
 pub(crate) mod chain;
 pub(crate) mod cyclic;
 mod decision;
@@ -21,6 +22,7 @@ mod design_based;
 mod discovery;
 pub(crate) mod graph_imputation;
 mod graph_posterior;
+pub(crate) mod mnar_fixed_shift;
 mod query_digest;
 mod registry;
 pub(crate) mod scan;

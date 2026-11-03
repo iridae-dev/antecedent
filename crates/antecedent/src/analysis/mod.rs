@@ -102,6 +102,8 @@ mod batch_retarget;
 pub mod bayesian_posterior_row;
 mod builder;
 mod candidate_screen_units;
+/// Scientifically closed categorical posterior compiler candidate.
+pub mod categorical_posterior_candidate;
 pub mod categorical_treatment;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
@@ -164,15 +166,9 @@ pub(crate) mod four_way;
 pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
 pub mod graph_imputation;
-#[cfg_attr(
-    not(any(test, feature = "calibration-internal")),
-    allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
-)]
+#[cfg(test)]
 mod graph_imputation_mix;
-#[cfg_attr(
-    not(any(test, feature = "calibration-internal")),
-    allow(dead_code, reason = "candidate receipts are closed outside calibration and tests")
-)]
+#[cfg(test)]
 mod graph_imputation_receipt;
 pub mod horizon_composition;
 mod imputed_graph_selection;
@@ -200,6 +196,7 @@ mod missing_imputation;
 mod missing_imputation_vector;
 pub mod missing_support;
 mod mixed_source;
+pub mod mnar_fixed_shift;
 pub mod mnar_sensitivity;
 pub mod msm_sensitivity;
 pub mod multi_level_treatment;

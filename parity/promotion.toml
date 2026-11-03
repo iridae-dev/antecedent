@@ -19043,7 +19043,8 @@ evidence_family = "Hand-derived shift, binary-tilt and stratified adjusted close
 provider = "Native implementation; no external provider value is consumed and none is trusted."
 estimand = "average treatment effect on the full assigned population re-run by the declared estimator across a bounded grid of an outcome-missingness departure from missing at random, with tipping points of its sign and of declared point-based decisions; interval-derived conclusions are withheld"
 inference_claim = "point_only"
-candidate_coverage_records = ["cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_shift_delta_interval.v2_validation_not_applicable"]
+candidate_coverage_records = ["cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p000_0p125", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p125_0p250", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p250_0p375", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p375_0p500", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p000_0p125", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p125_0p250", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p250_0p375", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p375_0p500", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p000_0p125", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p125_0p250", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p250_0p375", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p375_0p500", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p000_0p125", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p125_0p250", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p250_0p375", "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p375_0p500"]
+candidate_measurement_scope = "Compiled and source-replayed declared treated-shift candidate. A license applies only inside a measured grid cell of shift magnitude (in pooled outcome SDs), largest-arm missingness and row count; executions outside every measured cell are not assessed."
 inference_notes = "Claim policy (calibration is unmeasured): the licensed claim is the assumption range of the effect over the declared departure; it is never a confidence interval and never empirically established. Per-point sampling intervals and interval-derived tipping are withheld until licensed. A fixed-shift delta-method coverage candidate is registered but not measured; composition with the assumption range remains closed."
 owners = ["antecedent-validate", "antecedent", "antecedent-py", "python/antecedent"]
 prerequisite_records = ["sensitivity.marginal_structural_model"]
@@ -19161,19 +19162,26 @@ id = "graph_imputation.compiled_candidate"
 capability = "graph_imputation.compiled_candidate"
 status = "frozen"
 consumer_question = "Can original incomplete observations be imputed, graph-scored and evaluated by retained native graph-specific operations with an independently replayed source identity?"
-theorem = "The bounded candidate enumerates the predeclared treatment-root direct-edge DAG support on two or three variables, combines Gaussian BIC scores with a uniform prior over that support, and mixes the retained per-graph conjugate effects within each completed table. These stages are model-conditional and do not assert one joint posterior or measured interval coverage."
+theorem = "The bounded candidate enumerates the predeclared direct-effect DAG support (treatment root, or treatment with parents) on two to four variables, combines Gaussian BIC scores with a uniform prior over that support, and mixes the retained per-graph conjugate effects within each completed table. These stages are model-conditional and do not assert one joint posterior or measured interval coverage."
 reference = "provenance/graph_imputation.compiled_candidate.toml"
 guarantee = "candidate_only_no_licensed_point_interval_or_decision"
-graph_class = "Only labeled two- or three-variable DAGs with treatment a root and a direct treatment-to-outcome edge; declared before scoring, with graph identity and proofs retained separately."
+graph_class = "Only labeled two- to four-variable DAGs with a direct treatment-to-outcome edge, treatment either a root or allowed parents as declared; declared before scoring, with graph identity and proofs retained separately."
 population_semantics = "Rows from the declared source population, with missing-at-random chained-equation assumptions and declared variable domains."
 evidence_family = "Exact source-bound observations and native retained graph-specific operations only."
 provider = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
 estimand = "Model-conditional binary-treatment mean contrast; no identified population claim is issued."
 inference_claim = "none"
+inference_notes = "The V3 candidate measures coverage averaged over a declared Uniform(-1,1) direct-effect distribution, in randomized and confounded cells on three and four variables; it does not measure pointwise or uniform coverage, does not license inference on its own, and the measured route is licensed only where a current attesting record covers the construction and row count. It remains closed pending independent scientific review and applicable records."
 coverage_records = []
-candidate_coverage_records = ["cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none"]
+candidate_coverage_records = [
+  "cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_uniform_effect_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_confounded_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_confounded_candidate.v2_validation_none",
+]
 owners = ["antecedent-discovery", "antecedent", "antecedent-py", "python/antecedent"]
-identity_inputs = ["source content and schema", "predeclared treatment-root direct-edge graph support", "variable domains, treatment, outcome, model, seeds and bounds", "every graph mask, identification proof and child program", "each completed input, graph weight and child execution"]
+identity_inputs = ["source content and schema", "predeclared direct-effect graph support, treatment-root or treatment-with-parents", "variable domains, treatment, outcome, model, seeds and bounds", "every graph mask, identification proof and child program", "each completed input, graph weight and child execution"]
 wire_changes = ["Bounded original-source artifact with separately retained expected program, source and receipt identities; consumption recompiles and replays."]
 compatibility = "Additive closed candidate; no existing inference family or legacy calibration label is reinterpreted."
 search = true
@@ -19196,11 +19204,104 @@ routes = [
   { name = "antecedent.graph_imputation.decision", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", refusal_test = "crates/antecedent/src/analysis/execute/compile_decision.rs", refusal_assertion = "graph_imputation_candidate_refuses_decision_carriers" },
   { name = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/graph_imputation.rs", refusal_assertion = "retained_execution_replay_and_source_mutation" },
   { name = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_compiled_graph_imputation.py", refusal_assertion = "test_python_interval_request_refuses_before_licensing" },
+  { name = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_compiled_graph_imputation.py", refusal_assertion = "test_interval_is_calibrated_or_refused_where_no_record_covers_the_execution" },
 ]
 fixtures = [
   { id = "graph_imputation.compiled_candidate.enumeration.positive", role = "positive", intent = "Independent labeled DAG counts and mixture-moment identities constrain the bounded native operation.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "exact_dag_enumeration_matches_known_counts_and_rejects_cycles" },
   { id = "graph_imputation.compiled_candidate.replay.artifact", role = "artifact", intent = "Original-source replay refuses altered source or identities.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "retained_execution_replay_and_source_mutation" },
   { id = "graph_imputation.compiled_candidate.scope.negative", role = "negative", intent = "Unsupported dimensions and missing domains refuse.", evidence_test = "python/tests/test_compiled_graph_imputation.py", evidence_assertion = "test_declaration_refuses_missing_domains_and_unbounded_shape" },
   { id = "graph_imputation.compiled_candidate.budget.budget", role = "budget", intent = "The native bounded DAG search returns a SearchReceipt on operation exhaustion.", evidence_test = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", evidence_assertion = "bounded_search_returns_precise_operation_stop_receipt" },
+]
+
+[[record]]
+id = "categorical_treatment.compiled_candidate"
+capability = "categorical_treatment.compiled_candidate"
+status = "frozen"
+consumer_question = "Can a fixed, declared independent-subject categorical posterior candidate retain and replay its compiler-owned source without issuing an unlicensed interval?"
+theorem = "A declared two-level balanced normal-inverse-gamma posterior is compiled and replayed from its original source, retaining its sampling premise and exact program identity; scientific promotion and matching coverage are separate requirements."
+reference = "provenance/categorical_treatment.compiled_candidate.toml"
+guarantee = "candidate_only_no_licensed_point_interval_or_decision"
+graph_class = "No causal graph or identification is claimed."
+population_semantics = "Forty rows, one per distinct subject, under a declared independent-subject and homoskedastic normal model."
+evidence_family = "Original native source and separately retained compiler and execution identities."
+provider = "antecedent::analysis::categorical_posterior_candidate::prepare"
+estimand = "Treated-minus-control conditional regression coefficient under the fixed conjugate model; no causal contrast or licensed interval is claimed."
+inference_claim = "none"
+inference_notes = "The existing categorical prior-predictive calibration candidate measures the same 20/20 model and prior after recompiling and replaying this retained program. Its coverage is prior-predictive, not pointwise or uniform, and no measurement or method review is asserted."
+owners = ["antecedent-estimate", "antecedent", "antecedent-py", "python/antecedent"]
+surface_pyo3 = ["python/src/categorical_posterior_candidate_api.rs"]
+prerequisite_records = ["estimate.categorical_treatment"]
+prerequisite_reason = "The fixed native candidate reuses the existing categorical posterior implementation and its independently checked numerical fixture."
+identity_inputs = ["source snapshot and observed values", "level labels", "row-aligned subject identities", "declared sampling design", "fixed likelihood, prior, contrast and level", "compiled program and candidate execution"]
+wire_changes = ["Bounded original-source encoding and separately held expectation; decoding recompiles and creates no scientific authority."]
+compatibility = "Additive closed candidate; no current license or historical calibration record is reinterpreted."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "compiled_categorical_posterior.source_invalid", when = "The bounded source fails the typed compiler replay contract." },
+  { code = "invalid_argument", detail = "compiled_categorical_posterior.execution_refused", when = "The fixed native posterior cannot execute." },
+  { code = "cancelled_no_claim", detail = "compiled_categorical_posterior.cancelled", when = "Source replay or execution is cancelled." },
+  { code = "execution_resource_limit", detail = "compiled_categorical_posterior.resource_limit", when = "Source replay exceeds its admitted resource budget." },
+  { code = "cell_not_licensed", detail = "compiled_categorical_posterior.method_closed", when = "An interval is requested before independent scientific promotion." },
+  { code = "cell_not_licensed", detail = "compiled_categorical_posterior.coverage_closed", when = "An interval lacks current matching measured evidence after any future method promotion." },
+  { code = "invalid_argument", detail = "compiled_categorical_posterior.candidate", when = "The source, subject design, model or separately retained expectation is invalid or mismatched." },
+]
+routes = [
+  { name = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_categorical_compiled_candidate.py", refusal_assertion = "test_compiled_candidate_replays_source_and_refuses_interval" },
+  { name = "antecedent.categorical_posterior_candidate.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", refusal_assertion = "candidate_compiles_association_without_authority_and_replays_its_source" },
+  { name = "antecedent_io.measured_inference.categorical_candidate.measure_source", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-io/src/measured_inference/categorical_candidate.rs", refusal_assertion = "source_cannot_create_measured_authority_before_scientific_promotion" },
+  { name = "antecedent.categorical_posterior_candidate.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", refusal_assertion = "candidate_compiles_association_without_authority_and_replays_its_source" },
+  { name = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", covers = ["CompiledCategoricalPosteriorCandidateHandle", "export", "inspect", "interval", "measured_interval", "consume"], refusal_test = "python/tests/test_categorical_compiled_candidate.py", refusal_assertion = "test_compiled_candidate_replays_source_and_refuses_interval" },
+]
+fixtures = [
+  { id = "categorical_treatment.compiled_candidate.lowering.positive", role = "positive", intent = "The retained program is an unlicensed association, and its scientific interval refuses.", evidence_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", evidence_assertion = "candidate_compiles_association_without_authority_and_replays_its_source" },
+  { id = "categorical_treatment.compiled_candidate.design.negative", role = "negative", intent = "Duplicate subjects, dependent sampling and a changed prior refuse.", evidence_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", evidence_assertion = "candidate_refuses_duplicate_subjects_dependent_design_and_changed_prior" },
+  { id = "categorical_treatment.compiled_candidate.replay.artifact", role = "artifact", intent = "Original-source recompilation checks separately held expectations and refuses tampering.", evidence_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", evidence_assertion = "source_artifact_recompiles_and_rejects_tampered_source_or_expectation" },
+]
+
+[[record]]
+id = "mnar_fixed_shift.compiled_candidate"
+capability = "mnar_fixed_shift.compiled_candidate"
+status = "frozen"
+consumer_question = "Can a fixed-shift MNAR computation be compiled and replayed from its original source?"
+theorem = "Declared independent randomized arms and a fixed treated-arm missing-pattern shift yield a model-conditional point construction. The declared sampling and missingness assumptions are untested."
+reference = "provenance/mnar_fixed_shift.compiled_candidate.toml"
+guarantee = "compiled_candidate_unlicensed_no_interval_authority"
+graph_class = "Design-based; no graph is inferred from the rows."
+population_semantics = "The caller-declared population and independent randomized-arm sampling premise."
+evidence_family = "A bounded table of observed and missing outcomes with the fixed treated-arm shift."
+provider = "antecedent::analysis::mnar_fixed_shift"
+estimand = "Model-conditional average effect at treated-arm missing-pattern shift one."
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-validate", "antecedent-io", "antecedent", "antecedent-py", "python/antecedent"]
+surface_pyo3 = ["python/src/mnar_fixed_shift_api.rs"]
+identity_inputs = ["population", "variable roles", "declared sampling and missingness assumptions", "source rows", "native operator and point execution"]
+wire_changes = ["A bounded, point-candidate-only source wire; no interval or measured authority is encoded."]
+compatibility = "The point and interval remain closed; this does not alter the existing MNAR point route."
+search = false
+prerequisite_records = ["sensitivity.missing_outcome_departure"]
+prerequisite_reason = "The candidate compiles the existing native missing-outcome shift calculation."
+bounds = { cancellation = true }
+refusals = [
+  { code = "cell_not_licensed", detail = "mnar_fixed_shift.point_not_licensed", when = "The point is requested before the compiled operation is reviewed." },
+  { code = "cell_not_licensed", detail = "mnar_fixed_shift.interval_not_licensed", when = "A measured interval is requested before independent review and applicable coverage." },
+  { code = "invalid_argument", detail = "mnar_fixed_shift.invalid_source", when = "The source or declared design is invalid." },
+  { code = "invalid_argument", detail = "mnar_fixed_shift.preparation", when = "The bounded preparation refuses the declaration." },
+  { code = "execution_cancelled", detail = "mnar_fixed_shift.preparation", when = "Preparation is cancelled." },
+  { code = "execution_resource_limit", detail = "mnar_fixed_shift.preparation", when = "Preparation exceeds the execution budget." },
+  { code = "execution_cancelled", detail = "mnar_fixed_shift.source_admission", when = "Source replay is cancelled." },
+  { code = "execution_resource_limit", detail = "mnar_fixed_shift.source_admission", when = "Source replay exceeds the execution budget." },
+  { code = "execution_cancelled", detail = "mnar_fixed_shift.cancelled", when = "The measurement request is cancelled." },
+  { code = "invalid_argument", detail = "mnar_fixed_shift.lowering", when = "The fixed operation cannot be lowered." },
+]
+routes = [
+  { name = "antecedent_io.measured_inference.mnar_candidate.measure_source", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-io/src/measured_inference/mnar_candidate.rs", refusal_assertion = "source_cannot_create_measured_authority_before_scientific_promotion" },
+  { name = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.estimate", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", refusal_assertion = "fixed_shift_point_is_refused_without_independent_review" },
+  { name = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", refusal_assertion = "fixed_shift_measured_interval_is_refused_without_applicable_evidence" },
+  { name = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", covers = ["NativePreparedMnarFixedShift", "mnar_fixed_shift_prepare", "measured_interval"], refusal_test = "python/tests/test_mnar_fixed_shift.py", refusal_assertion = "test_compiled_fixed_shift_remains_closed_without_broad_calibration" },
+]
+fixtures = [
+  { id = "mnar_fixed_shift.compiled_candidate.point.positive", role = "positive", intent = "The closed native candidate executes the specified conditional point under the retained program in a test context.", evidence_test = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", evidence_assertion = "fixed_shift_executes_model_conditional_point_through_retained_program" },
+  { id = "mnar_fixed_shift.compiled_candidate.interval.negative", role = "negative", intent = "The unmeasured interval refuses and grants no authority.", evidence_test = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", evidence_assertion = "fixed_shift_measured_interval_is_refused_without_applicable_evidence" },
+  { id = "mnar_fixed_shift.compiled_candidate.replay.artifact", role = "artifact", intent = "The consumer reconstructs source and lowered program and reruns the candidate; tampering is refused.", evidence_test = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", evidence_assertion = "fixed_shift_replays_compiled_source_and_withholds_unmeasured_interval" },
 ]

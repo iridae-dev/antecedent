@@ -183,5 +183,6 @@ fn consume_categorical_treatment_artifact(
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_categorical_treatment, m)?)?;
-    m.add_function(wrap_pyfunction!(consume_categorical_treatment_artifact, m)?)
+    m.add_function(wrap_pyfunction!(consume_categorical_treatment_artifact, m)?)?;
+    Ok(())
 }

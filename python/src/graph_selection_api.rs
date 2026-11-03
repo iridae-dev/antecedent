@@ -178,7 +178,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(graph_selection_imputation_run, module)?)?;
     module.add_function(wrap_pyfunction!(graph_selection_imputation_interval, module)?)?;
     module.add_class::<PyCompiledGraphImputation>()?;
-    module.add_function(wrap_pyfunction!(compiled_graph_imputation_interval, module)?)?;
+    module.add_class::<PyConsumedGraphImputation>()?;
     module.add_function(wrap_pyfunction!(consume_compiled_graph_imputation, module)?)?;
     Ok(())
 }
@@ -256,7 +256,7 @@ impl PyCompiledGraphImputation {
         use antecedent::analysis::graph_imputation::{
             CompiledGraphImputation, GraphImputationSpec, GraphImputationSupport,
         };
-        if !(2..=3).contains(&names.len())
+        if !(2..=antecedent_core::graph_imputation_contract::MAX_VARIABLES).contains(&names.len())
             || names.len() != columns.len()
             || names.len() != domains.len()
             || columns.iter().any(|column| !(4..=10_000).contains(&column.len()))
@@ -273,10 +273,12 @@ impl PyCompiledGraphImputation {
         let treatment =
             position(&treatment).ok_or_else(|| compiled_py_error("unknown treatment"))?;
         let outcome = position(&outcome).ok_or_else(|| compiled_py_error("unknown outcome"))?;
-        let support = match graph_support.as_str() {
-            "treatment_root_direct_effect" => GraphImputationSupport::TreatmentRootDirectEffect,
-            _ => return Err(compiled_py_error("unknown graph support")),
-        };
+        let support = GraphImputationSupport::from_label(&graph_support).ok_or_else(|| {
+            compiled_py_error(
+                "unknown graph support; declare `treatment_root_direct_effect` or \
+                 `treatment_direct_effect`",
+            )
+        })?;
         let domains = domains
             .iter()
             .map(|domain| match domain.as_str() {
@@ -304,7 +306,7 @@ impl PyCompiledGraphImputation {
         };
         let ctx = crate::execution_api::context(seed);
         let plan =
-            CompiledGraphImputation::compile(source, spec, &ctx).map_err(compiled_runtime_error)?;
+            CompiledGraphImputation::compile(source, &spec, &ctx).map_err(compiled_runtime_error)?;
         Ok(Self { plan, point: None, ctx })
     }
 
@@ -332,18 +334,41 @@ impl PyCompiledGraphImputation {
         ))
     }
 
-    fn interval(&self) -> PyResult<()> {
+    fn measured_interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
         let point = self
             .point
             .as_ref()
             .ok_or_else(|| compiled_py_error("execute before requesting interval"))?;
-        point.interval().map(|_| ()).map_err(|error| {
-            crate::errors::value_error_of(&refusal(
-                reason_code!("cell_not_licensed"),
-                "graph_imputation.interval_unlicensed",
-                &error.to_string(),
-            ))
-        })
+        measured_of(point)
+    }
+
+    fn interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        self.measured_interval()
+    }
+}
+
+fn measured_of(
+    point: &antecedent::analysis::graph_imputation::GraphImputationPoint,
+) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+    let measured = point.measured().map_err(compiled_runtime_error)?;
+    crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
+}
+
+// The replayed point of a consumed artifact; it retains the original source bytes, so the
+// measured route is available exactly as on the handle that executed.
+#[pyclass(name = "ConsumedGraphImputationHandle", unsendable)]
+struct PyConsumedGraphImputation {
+    point: antecedent::analysis::graph_imputation::GraphImputationPoint,
+}
+
+#[pymethods]
+impl PyConsumedGraphImputation {
+    fn measured_interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        measured_of(&self.point)
+    }
+
+    fn interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        self.measured_interval()
     }
 }
 
@@ -354,7 +379,7 @@ fn consume_compiled_graph_imputation(
     source: Vec<u8>,
     receipt: Vec<u8>,
     seed: u64,
-) -> PyResult<String> {
+) -> PyResult<(String, PyConsumedGraphImputation)> {
     use antecedent::analysis::graph_imputation::{GraphImputationExpectation, consume};
     let digest = |bytes: Vec<u8>| {
         <[u8; 32]>::try_from(bytes)
@@ -367,17 +392,8 @@ fn consume_compiled_graph_imputation(
     };
     let point = consume(&bytes, expected, &crate::execution_api::context(seed))
         .map_err(compiled_runtime_error)?;
-    Ok(json!({"mean": point.mean, "diagnostic_sd": point.diagnostic_sd,
+    let text = json!({"mean": point.mean, "diagnostic_sd": point.diagnostic_sd,
         "receipt": point.receipt.to_vec(), "unidentified_by_table": &point.unidentified_by_table})
-    .to_string())
-}
-
-#[pyfunction]
-fn compiled_graph_imputation_interval() -> String {
-    let error = antecedent::analysis::graph_imputation::GraphImputationError::IntervalUnavailable;
-    refusal(
-        reason_code!("cell_not_licensed"),
-        "graph_imputation.interval_unlicensed",
-        &error.to_string(),
-    )
+    .to_string();
+    Ok((text, PyConsumedGraphImputation { point }))
 }

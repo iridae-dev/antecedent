@@ -1,54 +1,65 @@
-//! Bounded compiled graph-selection imputation point operation.
+//! Bounded compiled graph-selection imputation composite.
 //!
-//! Unlicensed composite: replay and a calibration candidate are wired; no coverage record exists.
-//! No external callback, likelihood or posterior is accepted. An interval must remain closed.
-use std::collections::BTreeMap;
+//! The mixture weights the models of one treatment-to-outcome contrast. Under the root support
+//! the empty adjustment set identifies it in every graph, so the graphs differ only in how the
+//! other variables are modeled. Under the direct-effect support the treatment may have parents,
+//! adjustment sets differ between graphs, and the mixture carries uncertainty about which
+//! variables confound.
+//! The support is further restricted to graphs whose treatment-to-outcome effect has a unique
+//! minimal back-door adjustment set: a graph with several names no single operation. The
+//! identifier's own output decides, through the same derivation the consumer applies, the
+//! mixture weights are over the retained graphs only and the number excluded is sealed.
+//! The compiler prepares every retained graph's own Bayesian g-computation operation and seals
+//! each retained operation into the lowered program. Execution, replay and the measured
+//! interval all run through the single native implementation in the I/O layer, which
+//! re-derives each operation from its graph and refuses unless it equals the compiler's. The
+//! interval is reported only through the measured route, which is calibrated exactly when a
+//! current attesting coverage record covers the execution.
+//! No external callback, likelihood or posterior is accepted.
 use std::sync::Arc;
 
-use antecedent_core::assumption::AssumptionSource;
-use antecedent_core::execution::{RngFactory, mix64};
-use antecedent_core::{
-    AverageEffectQuery, CanonicalEncode, CanonicalWriter, ExecutionContext, VariableId,
+use antecedent_core::graph_imputation_contract::{
+    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES,
 };
-use antecedent_data::{
-    ImputationDomain, ImputationSpec, TableView, TabularData, complete_float_columns,
-};
+use antecedent_core::{AverageEffectQuery, CanonicalWriter, ExecutionContext, VariableId};
+use antecedent_data::{ImputationSpec, TableView, TabularData};
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
-use antecedent_estimate::multiple_imputation::{ImputationColumn, ImputationUnits, Imputer};
+use antecedent_io::IoError;
+use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_io::measured_inference::graph_candidate::{
+    GraphPointReading, replay_point, retained_support,
+};
 
-use super::graph_imputation_mix::{AtomOutcome, AtomOutcomeRecord, mix_completed_table};
-use super::graph_imputation_receipt::{AtomReceipt, AtomStatus, TableReceipt};
+use super::RetainedOperation;
 use super::lowering::graph_imputation::{LoweringInput, RetainedAtomBinding, lower};
 use antecedent_core::search::{SearchBudget, SearchLimits};
-use antecedent_discovery::graph_imputation_enumeration::{
-    BoundedExactDagError, graph_imputation_exact_dags,
-};
 mod wire;
 pub use wire::{GraphImputationArtifact, GraphImputationExpectation, consume};
 
-use super::missing_imputation::stacked_posterior;
 use crate::planner::lowered::LoweredProgram;
 use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study};
+
+pub use antecedent_core::graph_imputation_contract::GraphSupport as GraphImputationSupport;
 
 fn invalid(message: impl std::fmt::Display) -> CausalError {
     CausalError::Compile { message: format!("graph_imputation.candidate_refused: {message}") }
 }
 
-#[cfg_attr(
-    not(any(test, feature = "calibration-internal")),
-    allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
-)]
-fn imputation_admission_refused(
-    error: &antecedent_estimate::multiple_imputation::MultipleImputationError,
-) -> bool {
-    error.detail().rsplit('.').next() == Some("admission_refused")
-}
-
-/// Explicit structural support stated before any data are scored.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GraphImputationSupport {
-    /// Treatment has no parents and a direct arrow to the outcome.
-    TreatmentRootDirectEffect,
+/// A refusal of the native replay, in the engine's own terms. A licensing refusal is the typed
+/// interval refusal, so a caller can tell an uncovered execution from a failed one.
+fn replay_error(error: IoError) -> GraphImputationError {
+    match error {
+        IoError::Refused { code: "cell_not_licensed", .. } => {
+            GraphImputationError::IntervalUnavailable
+        }
+        IoError::Refused { code: "cancelled_no_claim", .. } => {
+            CausalError::Cancelled { stage: "graph imputation replay" }.into()
+        }
+        IoError::Refused { code: "execution_resource_limit", message } => {
+            CausalError::Resource { message }.into()
+        }
+        other => CausalError::from(other).into(),
+    }
 }
 
 /// Native declaration only. Graph score, prior, inference, and mixture construction are fixed.
@@ -73,19 +84,14 @@ pub struct GraphImputationSpec {
 }
 
 /// The native compiler retains all graph atoms and their own proofs before running any imputation.
-#[cfg_attr(
-    not(any(test, feature = "calibration-internal")),
-    allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
-)]
 pub struct CompiledGraphImputation {
     source: TabularData,
     source_digest: [u8; 32],
-    spec: GraphImputationSpec,
-    variables: Arc<[VariableId]>,
-    imputer: Imputer,
     _lease: antecedent_core::execution::AdmissionLease,
+    #[cfg_attr(not(test), allow(dead_code, reason = "inspected by the conformance tests"))]
     atoms: Vec<RetainedAtomBinding>,
     lowered: Arc<LoweredProgram>,
+    source_bytes: Arc<[u8]>,
 }
 
 /// A numerical child failure remains distinct from graph non-identification.
@@ -97,7 +103,7 @@ pub enum GraphImputationError {
     /// No scientific point has been licensed for this candidate.
     #[error("graph_imputation.point_unlicensed: the compiled candidate is not licensed")]
     PointUnavailable,
-    /// No calibrated interval has been licensed for this composite.
+    /// No current attesting coverage record covers this execution's construction and rows.
     #[error("graph_imputation.interval_unlicensed: no calibrated interval is available")]
     IntervalUnavailable,
     /// A graph inside declared support did not have an identified effect proof.
@@ -153,19 +159,47 @@ pub struct GraphImputationPoint {
     source: [u8; 32],
     /// Unidentified graph mass for each completed table.
     pub unidentified_by_table: Vec<f64>,
-    // Never exposed as an interval: retained only for later feature-gated calibration.
-    #[cfg(feature = "calibration-internal")]
-    posterior: antecedent_estimate::bayesian::CausalPosterior,
-    _lease: antecedent_core::execution::AdmissionLease,
+    bytes: Arc<[u8]>,
+    ctx: ExecutionContext,
+    _reading: GraphPointReading,
 }
 
 impl GraphImputationPoint {
-    /// Refuse interval requests until a matching coverage license exists.
+    fn replay(bytes: &[u8], ctx: &ExecutionContext) -> Result<Self, GraphImputationError> {
+        let reading = replay_point(bytes, ctx).map_err(replay_error)?;
+        Ok(Self {
+            mean: reading.mean,
+            diagnostic_sd: reading.diagnostic_sd,
+            receipt: reading.receipt,
+            program: reading.program,
+            source: reading.source,
+            unidentified_by_table: reading.unidentified_by_table.clone(),
+            bytes: Arc::from(bytes),
+            ctx: ctx.clone(),
+            _reading: reading,
+        })
+    }
+
+    /// The measured, calibrated report of this execution's original source. It is issued by the
+    /// same native replay and exists only when a current attesting record covers it.
     ///
     /// # Errors
-    /// Always returns the typed unlicensed-interval refusal.
+    /// [`GraphImputationError::IntervalUnavailable`] when no record covers this construction and
+    /// row count; a typed engine refusal when the replay itself fails.
+    pub fn measured(&self) -> Result<MeasuredInference, GraphImputationError> {
+        antecedent_io::measured_inference::graph_candidate::measure_source(&self.bytes, &self.ctx)
+            .map_err(replay_error)
+    }
+
+    /// The calibrated interval of the measured route.
+    ///
+    /// # Errors
+    /// As [`Self::measured`].
     pub fn interval(&self) -> Result<(f64, f64), GraphImputationError> {
-        Err(GraphImputationError::IntervalUnavailable)
+        let measured = self.measured()?;
+        let scalar =
+            measured.report().scalars.first().ok_or(GraphImputationError::IntervalUnavailable)?;
+        Ok((scalar.lower, scalar.upper))
     }
 }
 
@@ -180,7 +214,7 @@ impl CompiledGraphImputation {
     )]
     pub fn compile(
         source: TabularData,
-        spec: GraphImputationSpec,
+        spec: &GraphImputationSpec,
         ctx: &ExecutionContext,
     ) -> Result<Self, GraphImputationError> {
         if ctx.lowered_dispatch().is_some() {
@@ -195,7 +229,7 @@ impl CompiledGraphImputation {
         }
         let n = source.schema().variables().len();
         let rows = source.row_count();
-        if !(2..=3).contains(&n)
+        if !(2..=MAX_VARIABLES).contains(&n)
             || !(4..=10_000).contains(&rows)
             || spec.domains.len() != n
             || spec.domains.iter().any(|&domain| domain > 1)
@@ -227,7 +261,7 @@ impl CompiledGraphImputation {
             }
             other => CausalError::Resource { message: other.to_string() },
         })?;
-        wire::canonical_source(&source, ctx)?;
+        let columns = wire::canonical_source(&source, ctx)?;
         let mut schema = CanonicalWriter::new("antecedent.graph_imputation.schema.v1");
         schema.word(n as u64);
         for variable in source.schema().variables() {
@@ -240,24 +274,6 @@ impl CompiledGraphImputation {
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| invalid("variable index exceeds platform"))?,
         );
-        let mut columns = Vec::with_capacity(n);
-        let mut domains = Vec::with_capacity(n);
-        for (index, &id) in variables.iter().enumerate() {
-            let variable = source.schema().get(id).map_err(CausalError::from)?;
-            columns.push(ImputationColumn::new(
-                Arc::clone(&variable.name),
-                source.float64_values(id).map_err(CausalError::from)?,
-            ));
-            let domain = match spec.domains[index] {
-                0 => ImputationDomain::Continuous,
-                1 => ImputationDomain::Binary,
-                _ => return Err(invalid("unknown domain").into()),
-            };
-            domains.push((Arc::clone(&variable.name), domain));
-        }
-        let imputer =
-            Imputer::new_with_domains(columns, spec.imputation, ImputationUnits::Rows, &domains)
-                .map_err(|e| CausalError::Estimate(e.into()))?;
         let source_digest =
             source.storage().content_digest_with_context(ctx).map_err(|error| match error {
                 antecedent_core::execution::AdmissionError::Cancelled => {
@@ -269,12 +285,19 @@ impl CompiledGraphImputation {
         let config = BayesianConfig::conjugate()
             .n_draws(spec.posterior_draws as usize)
             .prior_scale(spec.prior_scale);
+        let masks = 1usize << (n * (n - 1));
         let mut budget = SearchBudget::with_memory(
-            SearchLimits { operations: 128, depth: 1 },
+            SearchLimits {
+                operations: masks + antecedent_core::graph_imputation_contract::MAX_ATOMS + 64,
+                depth: 1,
+            },
             25 * 1024 * 1024,
             ctx,
         )
         .map_err(GraphImputationError::SearchStopped)?;
+        // The same derivation the consumer applies decides which supported graphs are retained.
+        let retained = retained_support(n, spec.treatment.raw(), spec.outcome.raw(), spec.support)
+            .map_err(CausalError::from)?;
         let mut atoms = Vec::new();
         for mask in 0..(1u64 << (n * (n - 1))) {
             if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
@@ -290,7 +313,9 @@ impl CompiledGraphImputation {
                 n,
                 spec.treatment.raw() as usize,
                 spec.outcome.raw() as usize,
-            ) {
+                spec.support,
+            ) || !retained.operations.iter().any(|operation| operation.mask == mask)
+            {
                 continue;
             }
             let Ok(graph) = dag_from_adjacency_mask(adjacency, n) else {
@@ -312,6 +337,45 @@ impl CompiledGraphImputation {
             };
             atoms.push(RetainedAtomBinding { mask, prepared });
         }
+        // The consumer re-derives these from each graph; they are the retained operations, not a
+        // restatement of the graph.
+        let mut operations = Vec::with_capacity(atoms.len());
+        for atom in &atoms {
+            let RetainedOperation::BayesianGcomp { operation, .. } =
+                atom.prepared.retained_operation()
+            else {
+                return Err(invalid("atom has no retained Bayesian g-computation operation").into());
+            };
+            operations.push(AtomOperation {
+                mask: atom.mask,
+                status: operation.identification().status,
+                adjustment: operation.estimand().adjustment_set.iter().map(|v| v.raw()).collect(),
+            });
+        }
+        if operations != retained.operations {
+            return Err(invalid(
+                "a prepared child operation differs from the one the consumer derives",
+            )
+            .into());
+        }
+        let parts = GraphImputationParts {
+            names: columns.iter().map(|(name, _)| name.to_string()).collect(),
+            domains: spec.domains.to_vec(),
+            columns: columns.into_iter().map(|(_, values)| values).collect(),
+            treatment: spec.treatment.raw(),
+            outcome: spec.outcome.raw(),
+            support: spec.support,
+            imputations: spec.imputation.imputations,
+            iterations: spec.imputation.iterations,
+            imputation_seed: spec.imputation.seed,
+            posterior_draws: spec.posterior_draws,
+            prior_scale: spec.prior_scale,
+            execution_seed: spec.execution_seed,
+            data_digest: source_digest,
+            atoms: operations,
+            excluded: retained.excluded,
+        };
+        parts.validate().map_err(invalid)?;
         let lowered = lower(
             LoweringInput {
                 source_digest,
@@ -321,6 +385,8 @@ impl CompiledGraphImputation {
                 treatment: spec.treatment,
                 outcome: spec.outcome,
                 support: spec.support,
+                contract: parts.contract_digest(),
+                excluded: u64::from(parts.excluded),
                 imputation: spec.imputation,
                 domains: Arc::clone(&spec.domains),
                 posterior_draws: spec.posterior_draws,
@@ -330,22 +396,25 @@ impl CompiledGraphImputation {
             },
             &mut budget,
         )?;
+        let program = *lowered.identity().as_bytes();
+        let source_bytes: Arc<[u8]> =
+            Arc::from(GraphImputationSource::new(parts, program).map_err(invalid)?.encode());
         Ok(Self {
             source,
             source_digest,
-            spec,
-            variables,
-            imputer,
             _lease: lease,
             atoms,
             lowered: Arc::new(lowered),
+            source_bytes,
         })
     }
 
-    /// The point executor uses only the already retained composite and child programs.
+    /// Execute the retained source and child operations. Each operation is re-derived from its
+    /// graph and must equal the one this compiler sealed; the point is model-conditional.
     ///
     /// # Errors
-    /// Refuses failed atoms, invalid native results, cancellation, or insufficient resources.
+    /// Refuses a changed source, an operation that differs from its graph, failed children,
+    /// cancellation, or insufficient resources.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -353,22 +422,6 @@ impl CompiledGraphImputation {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "graph imputation execute" }.into());
         }
-        Err(GraphImputationError::PointUnavailable)
-    }
-
-    // Internal measurement and conformance only; never promoted to public authority.
-    #[cfg_attr(
-        not(any(test, feature = "calibration-internal")),
-        allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
-    )]
-    #[allow(
-        clippy::too_many_lines,
-        reason = "the composite seals each step and its resource and provenance receipts"
-    )]
-    fn execute_candidate(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<GraphImputationPoint, GraphImputationError> {
         let checked =
             self.source.storage().content_digest_with_context(ctx).map_err(
                 |error| match error {
@@ -381,346 +434,16 @@ impl CompiledGraphImputation {
         if checked != self.source_digest {
             return Err(invalid("source snapshot changed").into());
         }
-        let parent = self.lowered.identity();
-        let scoped = ctx.enter_lowered_dispatch(parent);
-        let quote = u64::from(self.spec.posterior_draws)
-            .checked_mul(u64::from(self.spec.imputation.imputations))
-            .and_then(|n| n.checked_mul(32))
-            .ok_or_else(|| invalid("posterior admission overflow"))?;
-        let lease = scoped.acquire_admission(0, quote).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "graph imputation execution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
-        let mut budget = SearchBudget::with_memory(
-            SearchLimits { operations: 4096, depth: 1 },
-            25 * 1024 * 1024,
-            &scoped,
-        )
-        .map_err(GraphImputationError::SearchStopped)?;
-        let mut completed_posteriors = Vec::new();
-        let mut table_leases = Vec::new();
-        let mut tables = Vec::new();
-        for index in 0..self.spec.imputation.imputations {
-            let completed = self.imputer.impute(index, &scoped).map_err(|e| {
-                if scoped.cancellation.is_cancelled() {
-                    CausalError::Cancelled { stage: "graph imputation" }
-                } else if imputation_admission_refused(&e) {
-                    CausalError::Resource { message: e.to_string() }
-                } else {
-                    CausalError::Estimate(e.into())
-                }
-            })?;
-            let replacements: Vec<_> = self
-                .variables
-                .iter()
-                .zip(completed.columns())
-                .map(|(&id, column)| (id, Arc::clone(column)))
-                .collect();
-            let data =
-                complete_float_columns(&self.source, &replacements).map_err(CausalError::from)?;
-            let completed_digest = data.storage().content_digest_with_context(&scoped).map_err(
-                |error| match error {
-                    antecedent_core::execution::AdmissionError::Cancelled => {
-                        CausalError::Cancelled { stage: "completed input identity" }
-                    }
-                    other => CausalError::Resource { message: other.to_string() },
-                },
-            )?;
-            let graphs = graph_imputation_exact_dags(
-                &data,
-                &self.variables,
-                self.spec.treatment,
-                self.spec.outcome,
-                &mut budget,
-            )
-            .map_err(|error| match error {
-                BoundedExactDagError::Search(receipt) => {
-                    GraphImputationError::SearchStopped(receipt)
-                }
-                BoundedExactDagError::Unscorable { count } => {
-                    GraphImputationError::Unscorable { table: index, count }
-                }
-                BoundedExactDagError::Discovery(error) => CausalError::Discovery(error).into(),
-            })?;
-            let mut weights = BTreeMap::<u64, f64>::new();
-            for (mask, &weight) in graphs.atoms().iter().zip(graphs.weights().iter()) {
-                let mask = mask.to_word().ok_or_else(|| invalid("graph exceeds bounded mask"))?;
-                *weights.entry(mask).or_default() += weight;
-            }
-            let mut outcomes = Vec::new();
-            let mut receipts = Vec::new();
-            for (mask, weight) in weights {
-                if weight == 0.0 {
-                    continue;
-                }
-                let atom = self
-                    .atoms
-                    .iter()
-                    .find(|a| a.mask == mask)
-                    .ok_or_else(|| invalid("discovery returned an uncompiled graph"))?;
-                let child_program = atom
-                    .prepared
-                    .plan()
-                    .lowered()
-                    .ok_or_else(|| invalid("atom program is absent"))?
-                    .identity();
-                let cache = atom
-                    .prepared
-                    .study()
-                    .identification
-                    .as_ref()
-                    .ok_or_else(|| invalid("atom identification is absent"))?;
-                let proof = crate::analysis::identification_seal::seal_cache(cache)?
-                    .ok_or_else(|| invalid("atom identification is unsealable"))?;
-                let static_cache = atom
-                    .prepared
-                    .study()
-                    .static_cache()
-                    .ok_or_else(|| invalid("atom lacks static identification"))?;
-                if !crate::analysis::execute::identification_status_ok_for_case(
-                    static_cache.identification.status,
-                ) {
-                    receipts.push(AtomReceipt {
-                        graph_mask: mask,
-                        program: None,
-                        identification: proof,
-                        weight,
-                        status: AtomStatus::Unidentified,
-                        execution: None,
-                    });
-                    outcomes.push(AtomOutcomeRecord {
-                        graph_mask: mask,
-                        weight,
-                        outcome: AtomOutcome::Unidentified,
-                    });
-                    continue;
-                }
-                let mut child_ctx = scoped.clone();
-                child_ctx.rng = RngFactory::from_seed(mix64(
-                    self.spec.execution_seed ^ (u64::from(index) << 8) ^ mask,
-                ));
-                let child = match atom
-                    .prepared
-                    .execute_compiled_bayesian_atom(&data, parent, &child_ctx)
-                {
-                    Ok(result) => result,
-                    Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
-                        return Err(error.into());
-                    }
-                    Err(_error) if child_ctx.cancellation.is_cancelled() => {
-                        return Err(CausalError::Cancelled { stage: "graph atom execution" }.into());
-                    }
-                    Err(error) => {
-                        outcomes.push(AtomOutcomeRecord {
-                            graph_mask: mask,
-                            weight,
-                            outcome: AtomOutcome::Failed {
-                                reason: error.to_string().chars().take(128).collect(),
-                            },
-                        });
-                        continue;
-                    }
-                };
-                let posterior = child
-                    .posterior
-                    .as_ref()
-                    .ok_or_else(|| invalid("atom returned no effect posterior"))?;
-                if !crate::analysis::execute::identification_status_ok_for_case(
-                    posterior.identification,
-                ) || posterior.unidentified_mass != 0.0
-                    || posterior.unevaluable_mass != 0.0
-                    || posterior.subsampled_out_mass != 0.0
-                {
-                    return Err(invalid(
-                        "child returned unsupported identification or incomplete mass",
-                    )
-                    .into());
-                }
-                let column = posterior
-                    .effect_column()
-                    .ok_or_else(|| invalid("atom returned no effect column"))?;
-                let values = posterior.draws.column(column).map_err(invalid)?;
-                let mut execution =
-                    CanonicalWriter::new("antecedent.graph_imputation.child_execution.v1");
-                execution
-                    .bytes(child_program.as_bytes())
-                    .bytes(&completed_digest)
-                    .word(values.len() as u64);
-                for value in values {
-                    execution.word(value.to_bits());
-                }
-                execution.word(posterior.assumptions.entries.len() as u64);
-                for record in &posterior.assumptions.entries {
-                    record.assumption.encode(&mut execution);
-                    record.scope.encode(&mut execution);
-                    execution.text(record.status.as_str());
-                    match &record.source {
-                        AssumptionSource::UserDeclared => {
-                            execution.word(0);
-                        }
-                        AssumptionSource::AlgorithmDefault { algorithm } => {
-                            execution.word(1).text(algorithm);
-                        }
-                        AssumptionSource::Artifact => {
-                            execution.word(2);
-                        }
-                        AssumptionSource::Derived { from } => {
-                            execution.word(3).text(from);
-                        }
-                    }
-                }
-                receipts.push(AtomReceipt {
-                    graph_mask: mask,
-                    program: Some(*child_program.as_bytes()),
-                    identification: proof,
-                    weight,
-                    status: AtomStatus::Identified,
-                    execution: Some(execution.finish()),
-                });
-                outcomes.push(AtomOutcomeRecord {
-                    graph_mask: mask,
-                    weight,
-                    outcome: AtomOutcome::Identified {
-                        effect_draws: Arc::from(values),
-                        assumptions: posterior.assumptions.clone(),
-                    },
-                });
-            }
-            let mixed = mix_completed_table(&outcomes, &scoped).map_err(|error| match error {
-                super::graph_imputation_mix::MixError::Cancelled => {
-                    CausalError::Cancelled { stage: "graph mixture" }.into()
-                }
-                super::graph_imputation_mix::MixError::Resource(message) => {
-                    CausalError::Resource { message }.into()
-                }
-                super::graph_imputation_mix::MixError::Unavailable {
-                    failed_mass,
-                    skipped_mass,
-                    reasons,
-                } => GraphImputationError::AtomFailures {
-                    table: index,
-                    failed_mass,
-                    skipped_mass,
-                    reasons,
-                },
-                super::graph_imputation_mix::MixError::Invalid(message) => invalid(message).into(),
-                super::graph_imputation_mix::MixError::Estimation(message) => {
-                    invalid(message).into()
-                }
-            })?;
-            if mixed.posterior.unidentified_mass > 0.0 {
-                return Err(GraphImputationError::Unidentified {
-                    table: index,
-                    mass: mixed.posterior.unidentified_mass,
-                });
-            }
-            completed_posteriors.push(mixed.posterior.clone());
-            table_leases.push(mixed);
-            tables.push(TableReceipt { index, completed_input: completed_digest, atoms: receipts });
-        }
-        let receipt = super::graph_imputation_receipt::seal(
-            *parent.as_bytes(),
-            self.source_digest,
-            self.spec.imputation.imputations,
-            &tables,
-        )
-        .map_err(invalid)?;
-        let pooled = stacked_posterior(&completed_posteriors)?;
-        let mean = *pooled.summaries.mean.first().ok_or_else(|| invalid("missing pooled mean"))?;
-        let diagnostic_sd =
-            *pooled.summaries.sd.first().ok_or_else(|| invalid("missing pooled SD"))?;
-        Ok(GraphImputationPoint {
-            mean,
-            diagnostic_sd,
-            receipt: receipt.identity,
-            program: *parent.as_bytes(),
-            source: self.source_digest,
-            unidentified_by_table: receipt.masses.iter().map(|m| m[0]).collect(),
-            #[cfg(feature = "calibration-internal")]
-            posterior: pooled,
-            _lease: lease,
-        })
-    }
-
-    /// Calibration-only candidate, derived solely from this retained execution. This is
-    /// not a public interval or a coverage claim; no record is created here.
-    #[cfg(feature = "calibration-internal")]
-    fn calibration_candidate(
-        &self,
-        point: &GraphImputationPoint,
-        ctx: &ExecutionContext,
-    ) -> Result<(f64, f64, antecedent_core::CalibrationBasis), CausalError> {
+        let point = GraphImputationPoint::replay(&self.source_bytes, ctx)?;
         if point.program != *self.lowered.identity().as_bytes()
             || point.source != self.source_digest
-            || point.unidentified_by_table.iter().any(|&mass| mass != 0.0)
         {
-            return Err(invalid(
-                "calibration candidate requires this producer and fully identified mass",
-            ));
+            return Err(invalid("replay belongs to another retained program or source").into());
         }
-        let column =
-            point.posterior.effect_column().ok_or_else(|| invalid("missing effect draws"))?;
-        let draws = point.posterior.draws.column(column).map_err(invalid)?;
-        let bytes = (draws.len() as u64)
-            .checked_mul(8)
-            .ok_or_else(|| invalid("candidate size overflow"))?;
-        let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "graph imputation calibration candidate" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
-        if draws.len() < 2 || draws.iter().any(|x| !x.is_finite()) {
-            return Err(invalid("candidate draws must be finite"));
-        }
-        let mut sorted = draws.to_vec();
-        sorted.sort_by(f64::total_cmp);
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: "graph imputation calibration candidate" });
-        }
-        // Fixed nearest-rank 95% interval; the harness must measure this exact algorithm.
-        let rank = |numerator: usize| ((sorted.len() * numerator + 999) / 1000).saturating_sub(1);
-        let functional = format!(
-            "graph_imputation.v2:support=treatment_root_direct_effect:t={}:y={}:domains={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:imputation_seed={}:execution_seed={}",
-            self.spec.treatment.raw(),
-            self.spec.outcome.raw(),
-            self.spec.domains,
-            self.spec.imputation.imputations,
-            self.spec.imputation.iterations,
-            self.spec.posterior_draws,
-            self.spec.prior_scale.to_bits(),
-            self.spec.imputation.seed,
-            self.spec.execution_seed
-        );
-        let a = |s: &str| Arc::<str>::from(s);
-        let basis = antecedent_core::CalibrationBasis::new(
-            [
-                a("AverageEffect"),
-                a("Dag"),
-                a("graph_posterior"),
-                a("tabular"),
-                a("GraphImputationCompositeV2"),
-                a("graph_imputation.bic_conjugate"),
-                a("nearest_rank_95"),
-                a(""),
-                a("iid"),
-                a("mar_bic_graph_mixture_conjugate"),
-                Arc::from(functional),
-            ],
-            0.95,
-            a("point"),
-            self.source.row_count() as u64,
-            None,
-            Some(self.spec.posterior_draws * self.spec.imputation.imputations),
-            0.0,
-        )
-        .with_validation("none");
-        Ok((sorted[rank(25)], sorted[rank(975)], basis))
+        Ok(point)
     }
 
-    /// Re-execute from the retained native plan and require the independently held identity.
+    /// Re-execute from the retained source and require the independently held identity.
     ///
     /// # Errors
     /// Refuses any execution failure or identity mismatch.
@@ -735,125 +458,332 @@ impl CompiledGraphImputation {
         }
         Ok(result)
     }
+
+    /// The canonical original-source bytes the replay consumes.
+    #[cfg(feature = "calibration-internal")]
+    fn source_bytes(&self) -> &[u8] {
+        &self.source_bytes
+    }
 }
 
-/// Measure the closed whole-method candidate from an original native source.
+/// Measure the whole-method candidate from an original native source under the fixed-effect
+/// coordinate.
 ///
 /// This feature-gated harness entry is not an interval license or a public claim.
-/// Its bounds and basis are derived from the same retained compiled execution.
+/// Its bounds and basis are derived from the same compiled source the measured route replays.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn graph_imputation_calibration_candidate(
     source: TabularData,
-    spec: GraphImputationSpec,
+    spec: &GraphImputationSpec,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64, antecedent_core::CalibrationBasis), GraphImputationError> {
+    candidate(
+        source,
+        spec,
+        antecedent_io::measured_inference::graph_candidate::CandidateBasis::FixedEffect,
+        ctx,
+    )
+}
+
+/// Measure the prior-predictive candidate the measured route reports.
+///
+/// The harness draws the data-generating process from the family the basis names. The basis
+/// carries the real row count, the variable and graph counts and the declaration, so a record
+/// measured over a grid of those covers executions inside it. It is not public inference
+/// authority and cannot license a claim without independent scientific review.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+pub fn graph_imputation_prior_predictive_calibration_candidate(
+    source: TabularData,
+    spec: &GraphImputationSpec,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64, antecedent_core::CalibrationBasis), GraphImputationError> {
+    candidate(
+        source,
+        spec,
+        antecedent_io::measured_inference::graph_candidate::CandidateBasis::PriorPredictive,
+        ctx,
+    )
+}
+
+#[cfg(feature = "calibration-internal")]
+fn candidate(
+    source: TabularData,
+    spec: &GraphImputationSpec,
+    kind: antecedent_io::measured_inference::graph_candidate::CandidateBasis,
     ctx: &ExecutionContext,
 ) -> Result<(f64, f64, antecedent_core::CalibrationBasis), GraphImputationError> {
     let plan = CompiledGraphImputation::compile(source, spec, ctx)?;
-    let point = plan.execute_candidate(ctx)?;
-    Ok(plan.calibration_candidate(&point, ctx)?)
+    antecedent_io::measured_inference::graph_candidate::calibration_candidate(
+        plan.source_bytes(),
+        kind,
+        ctx,
+    )
+    .map_err(replay_error)
 }
 
 #[cfg(test)]
 mod compiled_tests {
     use super::*;
+    use antecedent_core::graph_imputation_contract::MAX_ATOMS;
+    use antecedent_io::measured_inference::graph_candidate::derive_support;
+
+    // Deterministic data. With `confounded`, the covariate drives treatment and the outcome.
+    fn table(rows: usize, variables: usize, confounded: bool) -> TabularData {
+        let mut state = 41u64;
+        let mut uniform = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 4];
+        for row in 0..rows {
+            let covariate = uniform() * 2.0 - 1.0;
+            let treated = if confounded {
+                f64::from(uniform() < 0.5 + 0.4 * covariate)
+            } else {
+                f64::from(row % 2 == 1)
+            };
+            let outcome = 0.5 * treated
+                + if confounded { 0.9 * covariate } else { 0.2 * covariate }
+                + 0.3 * (uniform() - 0.5);
+            columns[0].push(treated);
+            columns[1].push(if row % 7 == 3 { f64::NAN } else { outcome });
+            columns[2].push(covariate);
+            columns[3].push(uniform());
+        }
+        let names = ["t", "y", "x", "z"];
+        TabularData::from_f64_columns(
+            (0..variables).map(|index| (names[index], columns[index].as_slice())),
+        )
+        .unwrap()
+    }
+
+    fn spec(support: GraphImputationSupport, variables: usize) -> GraphImputationSpec {
+        GraphImputationSpec {
+            treatment: VariableId::from_raw(0),
+            outcome: VariableId::from_raw(1),
+            support,
+            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
+            domains: Arc::from(&[1u8, 0, 0, 0][..variables]),
+            posterior_draws: 100,
+            prior_scale: 1.0,
+            execution_seed: 19,
+        }
+    }
+
+    fn compiled(
+        support: GraphImputationSupport,
+        variables: usize,
+        rows: usize,
+        confounded: bool,
+    ) -> CompiledGraphImputation {
+        let ctx = ExecutionContext::for_tests(19);
+        CompiledGraphImputation::compile(
+            table(rows, variables, confounded),
+            &spec(support, variables),
+            &ctx,
+        )
+        .unwrap()
+    }
 
     #[test]
     fn exact_dag_enumeration_matches_known_counts_and_rejects_cycles() {
-        for (n, expected) in [(2, 3), (3, 25)] {
-            let dags: Vec<_> = (0..(1u64 << (n * (n - 1))))
+        for (n, expected) in [(2, 3), (3, 25), (4, 543)] {
+            let dags = (0..(1u64 << (n * (n - 1))))
                 .filter(|&mask| dag_from_adjacency_mask(AdjacencyMask::from_word(mask), n).is_ok())
-                .collect();
-            assert_eq!(dags.len(), expected);
-            assert!(dags.contains(&0));
-            assert!(dags.len() < (1 << (n * (n - 1))));
+                .count();
+            assert_eq!(dags, expected);
         }
+        assert_eq!(MAX_ATOMS, 543);
     }
 
     #[test]
     fn declared_support_has_exact_expected_graphs() {
-        use antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_mask;
-        for (n, expected) in [(2, 1), (3, 6)] {
-            let masks: Vec<_> = (0..(1u64 << (n * (n - 1))))
-                .filter(|&mask| {
-                    let adjacency = AdjacencyMask::from_word(mask);
-                    graph_imputation_supported_mask(&adjacency, n, 0, 1)
-                        && dag_from_adjacency_mask(adjacency, n).is_ok()
-                })
-                .collect();
-            assert_eq!(masks.len(), expected);
-            assert!(!masks.contains(&0));
-        }
+        use antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_masks;
+        let count = |n, support| graph_imputation_supported_masks(n, 0, 1, support).len();
+        let root = GraphImputationSupport::TreatmentRootDirectEffect;
+        let direct = GraphImputationSupport::TreatmentDirectEffect;
+        assert_eq!([count(2, root), count(3, root), count(4, root)], [1, 6, 100]);
+        assert_eq!([count(2, direct), count(3, direct)], [1, 8]);
+        assert!(!graph_imputation_supported_masks(3, 0, 1, root).contains(&0));
     }
 
     #[test]
     fn supported_three_variable_mixture_runs_from_retained_atoms() {
-        let t = [0., 1., 0., 1., 0., 1., 0., 1., 0., 1., 0., 1.];
-        let x = [-0.6, 0.2, 1.4, -0.4, 0.8, -1.3, 1.7, -0.8, 0.5, 1.1, -0.2, 0.7];
-        let y = [0.2, 1.3, -0.1, 0.8, 0.3, 1.0, f64::NAN, 1.4, -0.3, 0.9, 0.1, 1.1];
-        let source = TabularData::from_f64_columns([
-            ("t", t.as_slice()),
-            ("y", y.as_slice()),
-            ("x", x.as_slice()),
-        ])
-        .unwrap();
-        let spec = GraphImputationSpec {
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
-            support: GraphImputationSupport::TreatmentRootDirectEffect,
-            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
-            domains: Arc::from([1, 0, 0]),
-            posterior_draws: 100,
-            prior_scale: 1.0,
-            execution_seed: 19,
-        };
         let ctx = ExecutionContext::for_tests(19);
-        let plan = CompiledGraphImputation::compile(source, spec, &ctx).unwrap();
+        let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
         assert_eq!(plan.atoms.len(), 6);
-        let result = plan.execute_candidate(&ctx).unwrap();
-        assert!(result.mean.is_finite());
+        let result = plan.execute(&ctx).unwrap();
+        assert!(result.mean.is_finite() && result.diagnostic_sd > 0.0);
         assert!(result.unidentified_by_table.iter().all(|mass| mass.abs() < f64::EPSILON));
     }
 
     #[test]
-    fn retained_execution_replay_and_source_mutation() {
-        let t = [0., 1., 0., 1., 0., 1., 0., 1., 0., 1., 0., 1.];
-        let y = [0.2, 1.3, -0.1, 0.8, 0.3, 1.0, f64::NAN, 1.4, -0.3, 0.9, 0.1, 1.1];
-        let source =
-            TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())]).unwrap();
-        let spec = GraphImputationSpec {
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
-            support: GraphImputationSupport::TreatmentRootDirectEffect,
-            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
-            domains: Arc::from([1, 0]),
-            posterior_draws: 100,
-            prior_scale: 1.0,
-            execution_seed: 19,
-        };
+    fn root_treatment_atoms_identify_the_same_contrast_with_the_empty_adjustment_set() {
+        use super::super::prepared::IdentificationCache;
+        let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
+        assert_eq!(plan.atoms.len(), 6);
+        let masks: std::collections::BTreeSet<u64> = plan.atoms.iter().map(|a| a.mask).collect();
+        assert_eq!(masks.len(), 6, "atoms are six distinct graphs");
+        let mut functionals = Vec::new();
+        for atom in &plan.atoms {
+            let cache = atom.prepared.study().identification.as_ref().unwrap();
+            let IdentificationCache::Static(cache) = cache else {
+                panic!("mask {} is not a static identification", atom.mask);
+            };
+            assert!(
+                cache.estimand.adjustment_set.is_empty(),
+                "a root treatment needs no adjustment, mask {} adds {:?}",
+                atom.mask,
+                cache.estimand.adjustment_set
+            );
+            assert_eq!(
+                cache.identification.status,
+                antecedent_identify::IdentificationStatus::NonparametricallyIdentified,
+                "mask {}",
+                atom.mask
+            );
+            functionals.push(format!("{:?}", cache.estimand.method));
+        }
+        assert!(functionals.windows(2).all(|w| w[0] == w[1]));
+    }
+
+    #[test]
+    fn a_confounded_treatment_gives_atoms_with_different_adjustment_sets() {
+        for variables in [3, 4] {
+            let plan = compiled(GraphImputationSupport::TreatmentDirectEffect, variables, 40, true);
+            let sets: std::collections::BTreeSet<Vec<u32>> = plan
+                .atoms
+                .iter()
+                .map(|atom| {
+                    let RetainedOperation::BayesianGcomp { operation, .. } =
+                        atom.prepared.retained_operation()
+                    else {
+                        panic!("mask {} retains no Bayesian g-computation", atom.mask);
+                    };
+                    operation.estimand().adjustment_set.iter().map(|v| v.raw()).collect()
+                })
+                .collect();
+            assert!(sets.contains(&Vec::new()), "some graph has an unconfounded treatment");
+            assert!(sets.len() > 1, "graph uncertainty must change what is adjusted for: {sets:?}");
+            if variables == 4 {
+                assert!(plan.atoms.len() > 25, "the four-variable cell exceeds the first cell");
+            }
+        }
+    }
+
+    #[test]
+    fn the_consumer_rederives_exactly_the_operations_the_compiler_retained() {
+        for (support, variables, confounded) in [
+            (GraphImputationSupport::TreatmentRootDirectEffect, 3, false),
+            (GraphImputationSupport::TreatmentDirectEffect, 3, true),
+            (GraphImputationSupport::TreatmentDirectEffect, 4, true),
+        ] {
+            let plan = compiled(support, variables, 40, confounded);
+            let source = GraphImputationSource::decode(&plan.source_bytes).unwrap();
+            assert_eq!(source.program(), *plan.lowered.identity().as_bytes());
+            assert_eq!(source.parts().atoms.len(), plan.atoms.len());
+            let derived = derive_support(source.parts()).unwrap();
+            assert_eq!(derived.operations, source.parts().atoms);
+            assert_eq!(derived.excluded, source.parts().excluded);
+        }
+    }
+
+    #[test]
+    fn the_lowered_program_commits_to_the_support_and_its_operations() {
+        let root = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 40, true);
+        let direct = compiled(GraphImputationSupport::TreatmentDirectEffect, 3, 40, true);
+        assert_ne!(root.lowered.identity(), direct.lowered.identity());
+        let again = compiled(GraphImputationSupport::TreatmentDirectEffect, 3, 40, true);
+        assert_eq!(direct.lowered.identity(), again.lowered.identity());
+    }
+
+    #[test]
+    fn a_graph_with_two_minimal_sets_is_excluded_by_compiler_and_consumer_alike() {
+        use antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_masks;
+        let direct = GraphImputationSupport::TreatmentDirectEffect;
+        let plan = compiled(direct, 4, 40, true);
+        let structural = graph_imputation_supported_masks(4, 0, 1, direct);
+        let source = GraphImputationSource::decode(&plan.source_bytes).unwrap();
+        let compiled_masks: Vec<u64> = plan.atoms.iter().map(|atom| atom.mask).collect();
+        assert!(structural.contains(&897) && !compiled_masks.contains(&897));
+        let excluded = source.parts().excluded as usize;
+        assert!(excluded > 0);
+        assert_eq!(compiled_masks.len() + excluded, structural.len());
+        // The consumer derives the identical retained list and count from the graphs.
+        let derived = derive_support(source.parts()).unwrap();
+        let consumer_masks: Vec<u64> = derived.operations.iter().map(|op| op.mask).collect();
+        assert_eq!(consumer_masks, compiled_masks);
+        assert_eq!(derived.excluded, source.parts().excluded);
+        // The sealed contract and program commit to the retained list and the count.
+        let mut other_count = source.parts().clone();
+        other_count.excluded += 1;
+        assert_ne!(other_count.contract_digest(), source.parts().contract_digest());
+        let mut other_list = source.parts().clone();
+        other_list.atoms.pop();
+        assert_ne!(other_list.contract_digest(), source.parts().contract_digest());
+        // Graphs with a unique minimal set exclude nothing.
+        let three = compiled(direct, 3, 40, true);
+        assert_eq!(three.atoms.len(), 8);
+        assert_eq!(GraphImputationSource::decode(&three.source_bytes).unwrap().parts().excluded, 0);
+    }
+
+    #[test]
+    fn four_variable_cell_executes_every_retained_graph() {
         let ctx = ExecutionContext::for_tests(19);
-        let plan = CompiledGraphImputation::compile(source, spec, &ctx).unwrap();
-        assert_eq!(plan.atoms.len(), 1);
-        let point = plan.execute_candidate(&ctx).unwrap();
-        assert!(matches!(point.interval(), Err(GraphImputationError::IntervalUnavailable)));
-        assert!(matches!(plan.execute(&ctx), Err(GraphImputationError::PointUnavailable)));
-        assert!(matches!(
-            plan.replay(point.receipt, &ctx),
-            Err(GraphImputationError::PointUnavailable)
-        ));
+        let plan = compiled(GraphImputationSupport::TreatmentDirectEffect, 4, 40, true);
+        let point = plan.execute(&ctx).unwrap();
+        assert!(point.mean.is_finite());
+        assert_eq!(point.unidentified_by_table.len(), 2);
+    }
+
+    #[test]
+    fn retained_execution_replay_and_source_mutation() {
+        let ctx = ExecutionContext::for_tests(19);
+        let plan = compiled(GraphImputationSupport::TreatmentDirectEffect, 3, 40, true);
+        let point = plan.execute(&ctx).unwrap();
+        assert_eq!(plan.replay(point.receipt, &ctx).unwrap().receipt, point.receipt);
+        assert!(plan.replay([0; 32], &ctx).is_err());
         let artifact = plan.export(&point, &ctx).unwrap();
-        assert_eq!(
-            wire::consume_candidate(artifact.bytes(), artifact.expectation(), &ctx)
-                .unwrap()
-                .receipt,
-            point.receipt
-        );
+        let consumed = consume(artifact.bytes(), artifact.expectation(), &ctx).unwrap();
+        assert_eq!(consumed.receipt, point.receipt);
+        assert_eq!(consumed.mean.to_bits(), point.mean.to_bits());
+        let mut wrong = artifact.expectation();
+        wrong.receipt = [1; 32];
+        assert!(consume(artifact.bytes(), wrong, &ctx).is_err());
         let mut changed = artifact.bytes().to_vec();
         let last = changed.len() - 1;
         changed[last] ^= 1;
-        assert!(wire::consume_candidate(&changed, artifact.expectation(), &ctx).is_err());
+        assert!(consume(&changed, artifact.expectation(), &ctx).is_err());
         let mut changed_support = artifact.bytes().to_vec();
-        let support_offset = b"ANTECEDENT-GRAPH-IMPUTATION\x02".len() + 1 + 4 + 4 + 4;
+        let support_offset = b"ANTECEDENT-GRAPH-CANDIDATE\x01".len() + 1 + 4 + 4 + 4;
         changed_support[support_offset] = 0;
-        assert!(wire::consume_candidate(&changed_support, artifact.expectation(), &ctx).is_err());
+        assert!(consume(&changed_support, artifact.expectation(), &ctx).is_err());
+    }
+
+    #[test]
+    fn a_forged_child_operation_is_refused_at_consumption() {
+        let ctx = ExecutionContext::for_tests(19);
+        let plan = compiled(GraphImputationSupport::TreatmentDirectEffect, 3, 40, true);
+        let point = plan.execute(&ctx).unwrap();
+        let artifact = plan.export(&point, &ctx).unwrap();
+        let source = GraphImputationSource::decode(artifact.bytes()).unwrap();
+        let mut parts = source.parts().clone();
+        let adjusted = parts.atoms.iter().position(|atom| !atom.adjustment.is_empty()).unwrap();
+        parts.atoms[adjusted].adjustment.clear();
+        let forged = GraphImputationSource::new(parts, source.program()).unwrap().encode();
+        let refusal = consume(&forged, artifact.expectation(), &ctx).err().unwrap();
+        assert!(refusal.to_string().contains("retained child operation differs"), "{refusal}");
+    }
+
+    #[test]
+    fn interval_is_refused_outside_every_measured_range() {
+        let ctx = ExecutionContext::for_tests(19);
+        let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
+        let point = plan.execute(&ctx).unwrap();
+        assert!(matches!(point.interval(), Err(GraphImputationError::IntervalUnavailable)));
     }
 }

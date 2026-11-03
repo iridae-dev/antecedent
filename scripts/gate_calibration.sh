@@ -1637,7 +1637,7 @@ run_mnar() {
     cargo test --release -p antecedent --features calibration-internal --test mnar_interval_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
-run_mnar mnar_shift_delta_interval
+run_mnar mnar_compiled_shift_delta_io_interval
 echo "== categorical conjugate posterior candidate =="
 run_categorical_posterior() {
   local filter="$1"
@@ -1735,6 +1735,10 @@ run_graph_imputation_candidate() {
     -- --ignored --exact --nocapture
 }
 run_graph_imputation_candidate graph_imputation_mar_bic_nearest_rank_candidate
+run_graph_imputation_candidate graph_imputation_prior_predictive_uniform_effect_candidate
+run_graph_imputation_candidate graph_imputation_prior_predictive_confounded_candidate
+run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_candidate
+run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_confounded_candidate
 
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"

@@ -3153,6 +3153,12 @@ status = "bound"
 python = "antecedent.missing.CompiledGraphImputationResult.interval"
 
 [[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationPoint::measured"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.CompiledGraphImputationResult.measured"
+
+[[entry]]
 rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
 kind = "type"
 status = "bound"
@@ -3205,4 +3211,100 @@ rust = "antecedent::analysis::graph_imputation::GraphImputationSupport"
 kind = "type"
 status = "bound"
 python = "antecedent.missing.PreparedGraphImputation"
-reason = "The mandatory graph_support keyword explicitly declares treatment-root direct-edge support."
+reason = "The mandatory graph_support keyword explicitly declares either treatment-root direct-effect or treatment direct-effect support."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::graph_imputation_prior_predictive_calibration_candidate"
+kind = "fn"
+status = "internal"
+reason = "Feature-gated prior-predictive calibration harness entry; it issues no public interval authority."
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::prepare"
+kind = "fn"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::consume_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.consume_source"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::export_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.export_source"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate"
+kind = "type"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest"
+kind = "type"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise"
+kind = "type"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt"
+kind = "type"
+status = "bound"
+python = "antecedent.categorical_treatment.CategoricalPosteriorCandidateSource"
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::replay"
+kind = "fn"
+status = "internal"
+reason = "Python recompiles original source through consume_source with a separately retained expectation."
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::replay_calibration_candidate"
+kind = "fn"
+status = "internal"
+reason = "The interval candidate and its execution receipt are compiled only for the explicit calibration harness."
+
+[[entry]]
+rust = "antecedent_io::measured_inference::categorical_candidate::measure_source"
+kind = "fn"
+status = "internal"
+reason = "The fixed IO adapter is internal to the prepared candidate measured interval facade and remains scientifically closed."
+
+[[entry]]
+rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::measured_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.measured_interval"
+
+[[entry]]
+rust = "antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift"
+kind = "type"
+status = "bound"
+python = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift"
+
+[[entry]]
+rust = "antecedent_io::measured_inference::mnar_candidate::measure_source"
+kind = "fn"
+status = "internal"
+reason = "The source-bound measured adapter remains closed until independent method review and applicable coverage."
+
+[[entry]]
+rust = "antecedent_io::measured_inference::graph_candidate::measure_source"
+kind = "fn"
+status = "internal"
+reason = "The fixed IO adapter is internal to the point measured and interval facade and remains scientifically closed."

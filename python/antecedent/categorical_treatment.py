@@ -83,6 +83,7 @@ from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
+    from ._measured_inference import MeasuredInference
 
 __all__ = [
     "CategoricalEffects",
@@ -914,3 +915,136 @@ def consume_categorical_effects(
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalPosteriorCandidateSource:
+    """Original source bytes and a separately retained compiler expectation.
+
+    The source contains the supplied outcomes and subject identities. Neither value
+    is a scientific claim, a calibration record, or measured-inference authority.
+    """
+
+    source: bytes
+    expectation: bytes
+
+
+# Largest canonical candidate source: 4096 rows, 8 declared levels, every text 256 bytes.
+_MAX_CANDIDATE_SOURCE_BYTES = 1_095_964
+
+
+class PreparedCategoricalPosteriorCandidate:
+    """A retained compiler candidate for the bounded conjugate categorical model.
+
+    The treatment has two to eight declared levels, the first of which is the reference
+    of every reported contrast, with 30 to 4096 rows and at least two rows of each level.
+    The sampling design is a caller declaration. The compiler requires one distinct
+    subject per row; it does not infer independence from the observed data. Compiling
+    grants no authority: ``measured_interval`` returns a calibrated credible interval of
+    every level against the reference only when a current coverage record covers the
+    construction, level count and row count, and otherwise refuses.
+    """
+
+    def __init__(
+        self,
+        outcome: Any,
+        levels: Sequence[str],
+        *,
+        declared_levels: Sequence[str],
+        subject_ids: Sequence[str],
+        snapshot: str,
+        sampling_design: str,
+        execution: Execution | None = None,
+    ) -> None:
+        from ._native import CompiledCategoricalPosteriorCandidateHandle
+
+        if sampling_design != "independent_subject_trajectories":
+            raise CausalValueError("declare independent_subject_trajectories explicitly")
+        if not isinstance(snapshot, str) or not snapshot:
+            raise CausalValueError("snapshot must be a nonempty source identity")
+        if (
+            isinstance(levels, str | bytes)
+            or isinstance(subject_ids, str | bytes)
+            or isinstance(declared_levels, str | bytes)
+        ):
+            raise CausalTypeError(
+                "levels and subject_ids must be row-aligned sequences and declared_levels a sequence"
+            )
+        if (
+            any(not isinstance(value, str) for value in levels)
+            or any(not isinstance(value, str) for value in subject_ids)
+            or any(not isinstance(value, str) for value in declared_levels)
+        ):
+            raise CausalTypeError("levels, declared levels and subject identities must be strings")
+        self._execution = resolve_execution(execution)
+        self._handle = self._execution._call(
+            CompiledCategoricalPosteriorCandidateHandle,
+            _column(outcome, "outcome").tolist(),
+            list(levels),
+            list(declared_levels),
+            list(subject_ids),
+            snapshot,
+            sampling_design,
+            self._execution.seed,
+        )
+
+    def inspect(self) -> dict[str, Any]:
+        """Inspect the actual retained program and source identities."""
+        route, licensed, source, program = self._execution._call(self._handle.inspect)
+        return {
+            "route": route,
+            "licensed": licensed,
+            "source": bytes(source),
+            "program": bytes(program),
+        }
+
+    def export_source(self) -> CategoricalPosteriorCandidateSource:
+        """Export original source and retain its expected compiler identity separately."""
+        source, expectation = self._execution._call(self._handle.export)
+        return CategoricalPosteriorCandidateSource(bytes(source), bytes(expectation))
+
+    @classmethod
+    def consume_source(
+        cls,
+        source: bytes,
+        *,
+        expected: bytes,
+        execution: Execution | None = None,
+    ) -> PreparedCategoricalPosteriorCandidate:
+        """Recompile original source against an independently held expectation."""
+        from ._native import CompiledCategoricalPosteriorCandidateHandle
+
+        if not isinstance(source, bytes) or not isinstance(expected, bytes):
+            raise CausalTypeError("source and expected must be bytes")
+        if len(source) > _MAX_CANDIDATE_SOURCE_BYTES or len(expected) != 65:
+            raise CausalValueError("invalid candidate source or expectation size")
+        result = cls.__new__(cls)
+        result._execution = resolve_execution(execution)
+        result._handle = result._execution._call(
+            CompiledCategoricalPosteriorCandidateHandle.consume,
+            list(source),
+            list(expected),
+            result._execution.seed,
+        )
+        return result
+
+    def measured_interval(self) -> MeasuredInference:
+        """Replay the retained source for a calibrated credible interval per level.
+
+        Refuses with ``cell_not_licensed`` unless a current attesting coverage record
+        covers this construction, the declared level count and the row count.
+        """
+        from ._measured_inference import MeasuredInference
+
+        native = self._execution._call(self._handle.measured_interval, self._execution.seed)
+        return MeasuredInference._from_native(native)
+
+    def interval(self) -> MeasuredInference:
+        """The calibrated interval; the same licensed route as ``measured_interval``."""
+        from ._measured_inference import MeasuredInference
+
+        native = self._execution._call(self._handle.interval, self._execution.seed)
+        return MeasuredInference._from_native(native)
+
+
+__all__ += ["CategoricalPosteriorCandidateSource", "PreparedCategoricalPosteriorCandidate"]

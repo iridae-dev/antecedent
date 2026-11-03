@@ -307,9 +307,9 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
                 UncertaintyReading::Posterior
             }
             Realization::Envelope(_) => UncertaintyReading::Envelope,
-            Realization::GraphImputationV1 | Realization::ExactPoint { .. } => {
-                UncertaintyReading::None
-            }
+            Realization::GraphImputationV1
+            | Realization::CategoricalPosteriorCandidateV1
+            | Realization::ExactPoint { .. } => UncertaintyReading::None,
         },
         kind: status.map(claim_kind),
     };

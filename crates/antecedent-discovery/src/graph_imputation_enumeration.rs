@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
+use antecedent_core::graph_imputation_contract::{GraphSupport, MAX_VARIABLES};
 use antecedent_data::TabularData;
 use antecedent_prob::kish_ess;
 use antecedent_state::GraphScoreFamily;
@@ -33,25 +34,57 @@ pub enum BoundedExactDagError {
     Discovery(#[from] DiscoveryError),
 }
 
-/// Fixed, predeclared support: treatment is a root and has a direct edge to outcome.
-/// This states a structural assumption; it is not learned from the scored observations.
+/// Predeclared structural support: the treatment-to-outcome edge is required, and a root
+/// treatment may additionally be demanded. This states an assumption; it is not learned from
+/// the scored observations.
 #[must_use]
 pub fn graph_imputation_supported_mask(
     mask: &AdjacencyMask,
     n: usize,
     treatment: usize,
     outcome: usize,
+    support: GraphSupport,
 ) -> bool {
-    (2..=3).contains(&n)
+    (2..=MAX_VARIABLES).contains(&n)
         && treatment < n
         && outcome < n
         && treatment != outcome
         && mask.has_edge(n, treatment, outcome)
-        && (0..n).all(|parent| parent == treatment || !mask.has_edge(n, parent, treatment))
+        && match support {
+            GraphSupport::TreatmentRootDirectEffect => {
+                (0..n).all(|parent| parent == treatment || !mask.has_edge(n, parent, treatment))
+            }
+            GraphSupport::TreatmentDirectEffect => true,
+        }
 }
 
-/// Enumerate and score the predeclared treatment-root, direct-edge support using
-/// a caller-owned shared search budget. No MCMC fallback is permitted.
+/// Every DAG mask inside the declared support, in increasing mask order. Compiler and consumer
+/// both enumerate through this, so they agree on the atoms without exchanging a list.
+#[must_use]
+pub fn graph_imputation_supported_masks(
+    n: usize,
+    treatment: usize,
+    outcome: usize,
+    support: GraphSupport,
+) -> Vec<u64> {
+    use crate::adjacency_mask::dag_from_adjacency_mask;
+    if !(2..=MAX_VARIABLES).contains(&n) {
+        return Vec::new();
+    }
+    (0..1u64 << (n * (n - 1)))
+        .filter(|&word| {
+            let mask = AdjacencyMask::from_word(word);
+            graph_imputation_supported_mask(&mask, n, treatment, outcome, support)
+                && dag_from_adjacency_mask(&mask, n).is_ok()
+        })
+        .collect()
+}
+
+/// Enumerate and score the predeclared direct-edge support using a caller-owned shared
+/// search budget. No MCMC fallback is permitted.
+///
+/// `retained` lists, in increasing order, the masks of the declared support that the support
+/// rule kept. Only those graphs are scored, so the weights are over the retained graphs alone.
 ///
 /// # Errors
 /// Returns a complete stop receipt or a native scoring refusal.
@@ -60,18 +93,20 @@ pub fn graph_imputation_exact_dags(
     variables: &[VariableId],
     treatment: VariableId,
     outcome: VariableId,
+    support: GraphSupport,
+    retained: &[u64],
     budget: &mut antecedent_core::search::SearchBudget<'_>,
 ) -> Result<GraphPosterior, BoundedExactDagError> {
     use crate::adjacency_mask::dag_from_adjacency_mask;
     let n = variables.len();
-    if !(2..=3).contains(&n)
+    if !(2..=MAX_VARIABLES).contains(&n)
         || treatment == outcome
         || treatment.raw() as usize >= n
         || outcome.raw() as usize >= n
         || variables.iter().enumerate().any(|(index, id)| id.raw() as usize != index)
     {
         return Err(
-            DiscoveryError::unsupported("bounded graph imputation requires 2-3 variables").into()
+            DiscoveryError::unsupported("bounded graph imputation requires 2-4 variables").into()
         );
     }
     let score_data = tabular_score_data(data, variables)?;
@@ -92,12 +127,16 @@ pub fn graph_imputation_exact_dags(
                 vec![format!("masks:{mask}..{end}")],
             )));
         }
+        if retained.binary_search(&mask).is_err() {
+            continue;
+        }
         let mask = AdjacencyMask::from_word(mask);
         if !graph_imputation_supported_mask(
             &mask,
             n,
             treatment.raw() as usize,
             outcome.raw() as usize,
+            support,
         ) || dag_from_adjacency_mask(&mask, n).is_err()
         {
             continue;
@@ -149,16 +188,77 @@ mod graph_imputation_budget_tests {
     use antecedent_core::search::{SearchBudget, SearchLimits, SearchStop};
 
     #[test]
-    fn support_requires_the_edge_and_forbids_every_treatment_parent() {
+    fn root_support_requires_the_edge_and_forbids_every_treatment_parent() {
+        let root = GraphSupport::TreatmentRootDirectEffect;
         let mut mask = AdjacencyMask::from_word(0);
-        assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1));
+        assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1, root));
         mask.set_edge(3, 0, 1, true);
-        assert!(graph_imputation_supported_mask(&mask, 3, 0, 1));
+        assert!(graph_imputation_supported_mask(&mask, 3, 0, 1, root));
         mask.set_edge(3, 2, 0, true);
-        assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1));
+        assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1, root));
         mask.set_edge(3, 2, 0, false);
         mask.set_edge(3, 1, 2, true);
-        assert!(graph_imputation_supported_mask(&mask, 3, 0, 1));
+        assert!(graph_imputation_supported_mask(&mask, 3, 0, 1, root));
+    }
+
+    #[test]
+    fn direct_support_allows_treatment_parents_but_still_requires_the_edge() {
+        let direct = GraphSupport::TreatmentDirectEffect;
+        let mut mask = AdjacencyMask::from_word(0);
+        mask.set_edge(3, 2, 0, true);
+        assert!(!graph_imputation_supported_mask(&mask, 3, 0, 1, direct));
+        mask.set_edge(3, 0, 1, true);
+        assert!(graph_imputation_supported_mask(&mask, 3, 0, 1, direct));
+    }
+
+    #[test]
+    fn supported_graph_counts_are_the_labeled_dags_containing_the_edge() {
+        let counts = |n, support| graph_imputation_supported_masks(n, 0, 1, support).len();
+        // Root treatment: the DAGs on the remaining nodes, each optionally fed by treatment.
+        assert_eq!(counts(2, GraphSupport::TreatmentRootDirectEffect), 1);
+        assert_eq!(counts(3, GraphSupport::TreatmentRootDirectEffect), 6);
+        assert_eq!(counts(4, GraphSupport::TreatmentRootDirectEffect), 100);
+        assert_eq!(counts(2, GraphSupport::TreatmentDirectEffect), 1);
+        assert_eq!(counts(3, GraphSupport::TreatmentDirectEffect), 8);
+        assert!(counts(4, GraphSupport::TreatmentDirectEffect) <= 543);
+        assert!(
+            graph_imputation_supported_masks(5, 0, 1, GraphSupport::TreatmentDirectEffect)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn only_retained_graphs_are_scored_and_weighted() {
+        let t = [0., 1., 0., 1., 0., 1.];
+        let y = [0.1, 1.1, -0.2, 0.8, 0.3, 1.4];
+        let x = [0.5, -0.3, 0.9, 0.1, -0.7, 0.2];
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(8);
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let direct = GraphSupport::TreatmentDirectEffect;
+        let all = graph_imputation_supported_masks(3, 0, 1, direct);
+        let retained = &all[..all.len() - 1];
+        let mut budget =
+            SearchBudget::new(SearchLimits { operations: 1000, depth: 1 }, &ctx).unwrap();
+        let posterior = graph_imputation_exact_dags(
+            &data,
+            &variables,
+            variables[0],
+            variables[1],
+            direct,
+            retained,
+            &mut budget,
+        )
+        .unwrap();
+        let scored: Vec<u64> =
+            posterior.atoms().iter().map(|mask| mask.to_word().unwrap()).collect();
+        assert_eq!(scored, retained);
+        assert!((posterior.weights().iter().sum::<f64>() - 1.0).abs() < 1e-12);
     }
 
     #[test]
@@ -169,8 +269,10 @@ mod graph_imputation_budget_tests {
             TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())]).unwrap();
         let ctx = ExecutionContext::for_tests(8);
         let mut budget = SearchBudget::new(SearchLimits { operations: 4, depth: 1 }, &ctx).unwrap();
+        let retained =
+            graph_imputation_supported_masks(2, 0, 1, GraphSupport::TreatmentRootDirectEffect);
         assert!(matches!(graph_imputation_exact_dags(&data,
-            &[VariableId::from_raw(0), VariableId::from_raw(1)], VariableId::from_raw(0), VariableId::from_raw(1), &mut budget),
+            &[VariableId::from_raw(0), VariableId::from_raw(1)], VariableId::from_raw(0), VariableId::from_raw(1), GraphSupport::TreatmentRootDirectEffect, &retained, &mut budget),
             Err(BoundedExactDagError::Unscorable { count }) if count > 0));
     }
 
@@ -187,6 +289,8 @@ mod graph_imputation_budget_tests {
             &[VariableId::from_raw(0), VariableId::from_raw(1)],
             VariableId::from_raw(0),
             VariableId::from_raw(1),
+            GraphSupport::TreatmentRootDirectEffect,
+            &graph_imputation_supported_masks(2, 0, 1, GraphSupport::TreatmentRootDirectEffect),
             &mut budget,
         )
         .unwrap_err();

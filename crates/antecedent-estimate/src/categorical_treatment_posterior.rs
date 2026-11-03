@@ -283,47 +283,90 @@ pub fn posterior_categorical_treatment(
     posterior_categorical_from_summary(&summary, spec, prior, credible_level)
 }
 
-/// Compute a fixed two-arm prior-predictive candidate and its native calibration basis.
-/// This internal operation grants no licensed interval or coverage claim.
+/// The declared design of the bounded candidate: unordered levels, the first of which is the
+/// reference, every level with at least the candidate's fewest rows, and no further contrast.
+#[doc(hidden)]
+#[must_use]
+pub fn categorical_candidate_spec(declared_levels: &[String]) -> CategoricalTreatmentSpec {
+    CategoricalTreatmentSpec {
+        declared_levels: declared_levels.to_vec(),
+        scale: crate::categorical_treatment::LevelScale::Unordered,
+        reference: declared_levels.first().cloned().unwrap_or_default(),
+        min_level_rows: antecedent_core::categorical_candidate_contract::MIN_LEVEL_ROWS,
+        pairwise: vec![],
+        monotonicity: None,
+        covariance: crate::vector_treatment::VectorCovariance::ModelBased,
+    }
+}
+
+/// The fixed normal-inverse-gamma prior of the bounded candidate.
+#[doc(hidden)]
+#[must_use]
+pub const fn categorical_candidate_prior() -> CategoricalPosteriorPrior {
+    CategoricalPosteriorPrior {
+        level_precision: antecedent_core::categorical_candidate_contract::LEVEL_PRECISION,
+        nuisance_precision: antecedent_core::categorical_candidate_contract::NUISANCE_PRECISION,
+        variance_shape: antecedent_core::categorical_candidate_contract::VARIANCE_SHAPE,
+        variance_scale: antecedent_core::categorical_candidate_contract::VARIANCE_SCALE,
+    }
+}
+
+/// One credible interval per non-reference level, named for its contrast.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+pub type ContrastIntervals = Vec<(String, [f64; 2])>;
+
+/// Compute the prior-predictive candidate of every level contrast against the first declared
+/// level, with its native calibration basis. This internal operation grants no licensed
+/// interval or coverage claim.
 ///
 /// # Errors
-/// Refuses rows outside the fixed balanced design or invalid posterior input.
+/// Refuses rows or levels outside the candidate's bounds, and invalid posterior input.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn categorical_prior_predictive_calibration_candidate(
     input: &CategoricalTreatmentInput,
-) -> Result<([f64; 2], antecedent_core::CalibrationBasis), EstimationError> {
-    if input.outcome.len() != 40
-        || input.levels.len() != 40
+    declared_levels: &[String],
+) -> Result<(ContrastIntervals, antecedent_core::CalibrationBasis), EstimationError> {
+    use antecedent_core::categorical_candidate_contract::{
+        CREDIBLE_LEVEL, MAX_LEVELS, MAX_ROWS, MIN_LEVELS, MIN_ROWS,
+    };
+    let rows = input.outcome.len();
+    if !(MIN_ROWS..=MAX_ROWS).contains(&rows)
+        || input.levels.len() != rows
+        || !(MIN_LEVELS..=MAX_LEVELS).contains(&declared_levels.len())
         || !input.adjustment.is_empty()
-        || input.levels.iter().filter(|level| level.as_str() == "control").count() != 20
-        || input.levels.iter().filter(|level| level.as_str() == "treated").count() != 20
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
             "categorical_treatment_posterior.calibration_design",
-            "the candidate requires 20 control and 20 treated rows and no adjustment",
+            "the candidate requires bounded rows, bounded levels and no adjustment",
         ));
     }
-    let spec = CategoricalTreatmentSpec {
-        declared_levels: vec!["control".into(), "treated".into()],
-        scale: crate::categorical_treatment::LevelScale::Unordered,
-        reference: "control".into(),
-        min_level_rows: 2,
-        pairwise: vec![],
-        monotonicity: None,
-        covariance: crate::vector_treatment::VectorCovariance::ModelBased,
-    };
-    let prior = CategoricalPosteriorPrior {
-        level_precision: 1.0,
-        nuisance_precision: 0.5,
-        variance_shape: 2.0,
-        variance_scale: 1.0,
-    };
-    let posterior = posterior_categorical_treatment(input, &spec, &prior, 0.95)?;
-    let interval = posterior.level_contrasts[0].interval;
+    let posterior = posterior_categorical_treatment(
+        input,
+        &categorical_candidate_spec(declared_levels),
+        &categorical_candidate_prior(),
+        CREDIBLE_LEVEL,
+    )?;
+    let intervals = posterior.level_contrasts.iter().map(|c| (c.to.clone(), c.interval)).collect();
+    let basis = categorical_prior_predictive_calibration_basis(rows, declared_levels.len());
+    Ok((intervals, basis))
+}
+
+/// Derive only the metadata of a bounded categorical candidate execution over `rows` rows and
+/// `levels` declared levels. The level count is part of the construction key because the
+/// measured record is per level count; the row count is the scope a record covers and is never
+/// extrapolated. This value does not authenticate source, promote a method or create measured
+/// authority.
+#[doc(hidden)]
+#[must_use]
+pub fn categorical_prior_predictive_calibration_basis(
+    rows: usize,
+    levels: usize,
+) -> antecedent_core::CalibrationBasis {
     let a = |s: &str| std::sync::Arc::<str>::from(s);
-    let basis = antecedent_core::CalibrationBasis::new(
+    antecedent_core::CalibrationBasis::new(
         [
             a("CategoricalTreatmentContrast"),
             a("NotApplicable"),
@@ -334,18 +377,17 @@ pub fn categorical_prior_predictive_calibration_candidate(
             a("posterior_quantile"),
             a("posterior_student_t"),
             a("independent_rows"),
-            a("conjugate_normal_inverse_gamma"),
-            a("treated_minus_control"),
+            a("nig_lp1_np0_5_shape2_scale1"),
+            a(&format!("level_contrast_prior_predictive_k{levels}_v1")),
         ],
-        0.95,
+        antecedent_core::categorical_candidate_contract::CREDIBLE_LEVEL,
         a("model_conditional"),
-        40,
+        u64::try_from(rows).unwrap_or(u64::MAX),
         None,
         None,
         0.0,
     )
-    .with_validation("not_applicable");
-    Ok((interval, basis))
+    .with_validation("not_applicable")
 }
 
 fn check_level(credible_level: f64) -> Result<(), EstimationError> {

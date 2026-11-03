@@ -6,14 +6,18 @@ copied_comments = false
 copied_tests = false
 papers = []
 implementation_deviations = [
-  "Fixed composition of native chained-equation imputation, Gaussian BIC graph scoring and conjugate g-computation, restricted in advance to DAGs where treatment is a root with a direct edge to outcome. No single joint Bayesian posterior is claimed.",
-  "The graph mixture and nearest-rank interval candidate are unlicensed. Independent scientific review and whole-procedure measurement remain pending; no review or calibration record is asserted.",
+  "Fixed composition of native chained-equation imputation, Gaussian BIC graph scoring and conjugate g-computation, restricted in advance to DAGs on at most four variables with a direct treatment-to-outcome edge, with a root treatment or with treatment parents, and keeping only graphs whose treatment-to-outcome effect has a unique minimal back-door adjustment set (excluded graphs are counted and sealed). No single joint Bayesian posterior is claimed.",
+  "The consumer re-derives each atom's identification and adjustment set from its graph and compares it with the compiler's retained operation. It carries, and does not recompute, the compiler's lowered program identity.",
+  "The V3 prior-predictive candidate draws one treatment effect from Uniform(-1,1) per independently generated dataset; its reported coverage is averaged under that declared distribution, not uniform or pointwise.",
+  "The measured route is calibrated only where a current attesting coverage record covers the reported construction and row count. Independent scientific review and whole-procedure measurement remain pending; no review or calibration record is asserted.",
 ]
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/src/analysis/graph_imputation.rs",
   "crates/antecedent/src/analysis/graph_imputation_mix.rs",
   "crates/antecedent-discovery/src/graph_imputation_enumeration.rs",
+  "crates/antecedent-core/src/graph_imputation_contract.rs",
+  "crates/antecedent-io/src/measured_inference/graph_candidate.rs",
   "python/tests/test_compiled_graph_imputation.py",
   "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
 ]

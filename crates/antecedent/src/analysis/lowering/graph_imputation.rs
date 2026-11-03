@@ -5,11 +5,13 @@
 use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
+use antecedent_core::graph_imputation_contract::{GraphSupport, MAX_VARIABLES};
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, PhysicalEffect, PhysicalOperator, VariableId,
 };
 use antecedent_data::{ImputationModel, ImputationSpec, MissingnessAssumption};
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
+use antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_masks;
 
 use crate::analysis::{PreparedStudy, RetainedOperation};
 use crate::error::CausalError;
@@ -22,7 +24,7 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
 use crate::{BayesianConfig, InferenceMode, RefuteSuite};
 
-const TAG: &str = "antecedent.graph_imputation.declaration.v2";
+const TAG: &str = "antecedent.graph_imputation.declaration.v3";
 const CELL: &str = "graph_imputation.exact_bic_average_effect";
 const DESIGN: &str = "row imputation and native graph-weighted effects";
 
@@ -42,7 +44,12 @@ pub(crate) struct LoweringInput {
     pub(crate) variables: Arc<[VariableId]>,
     pub(crate) treatment: VariableId,
     pub(crate) outcome: VariableId,
-    pub(crate) support: super::super::graph_imputation::GraphImputationSupport,
+    pub(crate) support: GraphSupport,
+    /// Identity of the declaration and of every retained child operation, as a consumer
+    /// re-derives it. The program commits to it.
+    pub(crate) contract: [u8; 32],
+    /// Structurally supported graphs the support rule excluded; the retained atoms are the rest.
+    pub(crate) excluded: u64,
     pub(crate) imputation: ImputationSpec,
     /// Domain tags in the searched variable order (0 continuous, 1 binary).
     pub(crate) domains: Arc<[u8]>,
@@ -79,7 +86,7 @@ pub(crate) fn lower(
     budget: &mut antecedent_core::search::SearchBudget<'_>,
 ) -> Result<LoweredProgram, super::super::graph_imputation::GraphImputationError> {
     let n = input.variables.len();
-    if !(2..=3).contains(&n)
+    if !(2..=MAX_VARIABLES).contains(&n)
         || input.rows < 4
         || input.rows > 10_000
         || input.treatment == input.outcome
@@ -104,34 +111,31 @@ pub(crate) fn lower(
             return Err(refuse("variables must use dense table order").into());
         }
     }
-    let mut expected = Vec::new();
-    let end = 1u64 << (n * (n - 1));
-    for mask in 0..end {
+    let expected = graph_imputation_supported_masks(
+        n,
+        input.treatment.raw() as usize,
+        input.outcome.raw() as usize,
+        input.support,
+    );
+    for done in 0..expected.len() {
         if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
             return Err(super::super::graph_imputation::GraphImputationError::SearchStopped(
                 budget.receipt(
                     stop,
-                    vec![format!("verified:0..{mask}")],
-                    vec![format!("remaining:{mask}..{end}")],
+                    vec![format!("verified:0..{done}")],
+                    vec![format!("remaining:{done}..{}", expected.len())],
                 ),
             ));
         }
-        let adjacency = AdjacencyMask::from_word(mask);
-        if antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_mask(
-            &adjacency,
-            n,
-            input.treatment.raw() as usize,
-            input.outcome.raw() as usize,
-        ) && dag_from_adjacency_mask(adjacency, n).is_ok()
-        {
-            expected.push(mask);
-        }
     }
-    if input.atoms.len() != expected.len()
-        || input.atoms.iter().zip(&expected).any(|(atom, mask)| atom.mask != *mask)
+    // The retained atoms are an increasing subset of the structural support, and the graphs the
+    // support rule dropped are counted, so no supported graph is lost without account.
+    let mut remaining = expected.iter();
+    if input.atoms.iter().any(|atom| !remaining.any(|mask| *mask == atom.mask))
+        || (input.atoms.len() as u64).checked_add(input.excluded) != Some(expected.len() as u64)
     {
         return Err(refuse(
-            "every bounded DAG needs its exact ordered proof and checked atom binding",
+            "every retained DAG needs its exact ordered proof and checked atom binding",
         )
         .into());
     }
@@ -185,14 +189,16 @@ pub(crate) fn lower(
     }
 
     let mut declaration = CanonicalWriter::new(TAG);
-    match input.support {
-        super::super::graph_imputation::GraphImputationSupport::TreatmentRootDirectEffect => {
-            declaration.text("treatment_root_direct_effect.v1");
-        }
-    }
+    declaration.text(match input.support {
+        GraphSupport::TreatmentRootDirectEffect => "treatment_root_direct_effect.v1",
+        GraphSupport::TreatmentDirectEffect => "treatment_direct_effect.v1",
+    });
     declaration
+        .text(antecedent_core::graph_imputation_contract::SUPPORT_RULE)
+        .word(input.excluded)
         .bytes(&input.source_digest)
         .bytes(&input.schema_digest)
+        .bytes(&input.contract)
         .word(input.rows)
         .word(n as u64)
         .word(u64::from(input.treatment.raw()))

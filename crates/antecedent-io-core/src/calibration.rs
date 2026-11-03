@@ -956,6 +956,32 @@ mod tests {
     }
 
     #[test]
+    fn prior_predictive_graph_scope_never_borrows_fixed_effect_record() {
+        let mut record = RECORDS[0];
+        record.id = "test.graph_imputation.v2_validation_none";
+        record.validation_schema = 2;
+        record.validation = "none";
+        record.structure = "graph_posterior";
+        record.inference = "GraphImputationCompositeV2";
+        record.functional = "graph_imputation.v2:synthetic";
+        let mut key = key_from(&record);
+        assert!(key.same_construction(&record));
+        key.inference = "GraphImputationCompositeV3".to_owned();
+        key.functional =
+            "prior_predictive.v1:beta_uniform_minus1_plus1:graph_imputation.v2:synthetic"
+                .to_owned();
+        assert!(!key.same_construction(&record));
+        record.inference = "GraphImputationCompositeV3";
+        record.functional =
+            "prior_predictive.v1:beta_uniform_minus1_plus1:graph_imputation.v2:synthetic";
+        assert!(key.same_construction(&record));
+        key.functional =
+            "prior_predictive.v1:beta_uniform_minus2_plus2:graph_imputation.v2:synthetic"
+                .to_owned();
+        assert!(!key.same_construction(&record));
+    }
+
+    #[test]
     fn construction_index_matches_a_linear_scan() {
         let mut positive_modes = std::collections::BTreeSet::new();
         for record in &RECORDS {

@@ -898,6 +898,80 @@ impl GraphImputationLoweredParts {
     }
 }
 
+/// The six layers of a bounded categorical posterior candidate.
+pub(crate) struct CategoricalPosteriorLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl CategoricalPosteriorLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::CategoricalPosteriorCandidate;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
+/// The six layers of a bounded fixed-shift MNAR candidate.
+pub(crate) struct MnarFixedShiftLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl MnarFixedShiftLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::MnarFixedShift;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
 /// `Study::compile`, a cyclic family that prepares through its own entry, a
 /// standalone experiment plan, or a propagation chain.
@@ -913,6 +987,10 @@ pub(crate) enum ProgramCell {
     PropagationChain(&'static str),
     /// A bounded graph-selection imputation composite.
     GraphImputation,
+    /// A scientifically closed categorical posterior candidate.
+    CategoricalPosteriorCandidate,
+    /// A fixed declared MNAR operation.
+    MnarFixedShift,
 }
 
 impl ProgramCell {
@@ -924,6 +1002,8 @@ impl ProgramCell {
             Self::Planning(_) => "ExperimentPlanning",
             Self::PropagationChain(_) => "PropagationChain",
             Self::GraphImputation => "GraphImputation",
+            Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
+            Self::MnarFixedShift => "MnarFixedShift",
         }
     }
 }
@@ -974,7 +1054,9 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::Planning(_)
             | ProgramCell::PropagationChain(_)
-            | ProgramCell::GraphImputation => None,
+            | ProgramCell::GraphImputation
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift => None,
         }
     }
 
@@ -986,7 +1068,9 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::CyclicFamily(_)
             | ProgramCell::PropagationChain(_)
-            | ProgramCell::GraphImputation => None,
+            | ProgramCell::GraphImputation
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift => None,
         }
     }
 
@@ -998,7 +1082,9 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::CyclicFamily(_)
             | ProgramCell::Planning(_)
-            | ProgramCell::GraphImputation => None,
+            | ProgramCell::GraphImputation
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift => None,
         }
     }
 

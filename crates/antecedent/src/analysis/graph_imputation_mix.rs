@@ -39,6 +39,7 @@ pub(crate) struct AtomOutcomeRecord {
 
 /// A bounded refusal retains both numerical-failure and skipped masses, with original reasons.
 #[derive(Debug)]
+#[allow(dead_code, reason = "reasons are asserted through Debug by the mixing oracle tests")]
 pub(crate) enum MixError {
     Invalid(&'static str),
     Unavailable { failed_mass: f64, skipped_mass: f64, reasons: Vec<(u64, String)> },

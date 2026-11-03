@@ -281,6 +281,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::GeneralizedBayes(_) => "generalized_bayes",
         Realization::Envelope(_) => "envelope",
         Realization::GraphImputationV1 => "graph_imputation_v1",
+        Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
         Realization::ExactPoint { .. } => "exact_point",
     }
 }
@@ -293,7 +294,9 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
             EvidencePort::ParameterPosterior
         }
         Realization::Envelope(_) => EvidencePort::IdentifiedSet,
-        Realization::ExactPoint { .. } | Realization::GraphImputationV1 => EvidencePort::Mean,
+        Realization::ExactPoint { .. }
+        | Realization::GraphImputationV1
+        | Realization::CategoricalPosteriorCandidateV1 => EvidencePort::Mean,
     }
 }
 
@@ -322,6 +325,14 @@ pub(crate) fn require_carrier(
 ) -> Result<(), DecisionCarrierError> {
     let demanded = program.carrier();
     let name = realization_name(realization);
+    if matches!(realization, Realization::CategoricalPosteriorCandidateV1) {
+        return Err(DecisionCarrierError::contract(
+            "the categorical posterior candidate does not license a decision carrier",
+            demanded,
+            name,
+            DISTRIBUTIONAL_CARRIER,
+        ));
+    }
     if matches!(realization, Realization::GraphImputationV1) {
         return Err(DecisionCarrierError::contract(
             "the graph-imputation realization does not license a decision carrier",

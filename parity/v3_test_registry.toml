@@ -21817,3 +21817,66 @@ crate = "antecedent-discovery"
 cargo_target = "lib"
 path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "categorical-posterior-candidate-compiled"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "categorical-posterior-candidate-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_categorical_compiled_candidate.py"
+gates = ["inventory"]
+
+[[test]]
+id = "categorical-candidate-shared-compiler-contract"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/categorical_candidate_contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "categorical-candidate-measured-source-closed"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/measured_inference/categorical_candidate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mnar-fixed-shift-source-unit"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/mnar_fixed_shift.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mnar-fixed-shift-replay-unit"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/mnar_candidate_source.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mnar-fixed-shift-compiled-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/mnar_fixed_shift.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mnar-fixed-shift-python-facade"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_mnar_fixed_shift.py"
+gates = ["inventory"]
+
+[[test]]
+id = "mnar-candidate-measured-source-closed"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/measured_inference/mnar_candidate.rs"
+gates = ["inventory", "named"]

@@ -40,6 +40,8 @@ pub enum Realization {
     Envelope(PartialIdentificationEnvelope),
     /// The fixed, bounded graph-selection and row-imputation realization.
     GraphImputationV1,
+    /// Fixed, scientifically closed categorical posterior candidate.
+    CategoricalPosteriorCandidateV1,
     /// Exact evaluation of an identified functional, with no sampling law.
     ExactPoint {
         /// Name of the evaluator.
@@ -64,6 +66,9 @@ impl Realization {
             }
             Self::GraphImputationV1 => {
                 writer.text("graph_imputation_v1");
+            }
+            Self::CategoricalPosteriorCandidateV1 => {
+                writer.text("categorical_posterior_candidate_v1");
             }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);

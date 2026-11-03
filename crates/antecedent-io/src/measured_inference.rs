@@ -18,9 +18,13 @@ pub const MAX_MEASURED_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCALARS: usize = 32;
 const FEATURE: &str = "measured_inference_v1";
 pub(crate) mod adaptive_interval;
+/// Fixed, scientifically closed categorical candidate source replay.
+pub mod categorical_candidate;
 pub(crate) mod choice_interval;
 pub mod cohort_interval;
 pub mod count_fitted_interval;
+pub mod graph_candidate;
+pub mod mnar_candidate;
 pub(crate) mod nested;
 pub(crate) mod recovery_temporal;
 pub mod split_effect;
@@ -154,6 +158,9 @@ impl MeasuredInference {
             "count_fitted_interval" => count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured(bytes, expected),
             "adaptive_interval" => crate::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
             "choice_interval" => crate::choice_inference_result_artifact::ChoiceInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
+            "graph_imputation_interval" => graph_candidate::consume_measured(bytes, expected, ctx),
+            "mnar_fixed_shift_interval" => mnar_candidate::consume_measured(bytes, expected, ctx),
+            "categorical_prior_predictive_interval" => categorical_candidate::consume_measured(bytes, expected, ctx),
             "sampled_counterfactual_transport" => crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured(bytes, expected, crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits::default(), ctx),
             "split_effect" => crate::measured_inference::split_effect::consume_measured(bytes, expected, ctx),
             "split_parent_set_effect" => crate::measured_inference::split_parent_set_effect::consume_measured(bytes, expected, ctx),
@@ -265,7 +272,7 @@ pub fn build_report(
             ));
         }
         let basis = basis_wire(&execution.basis);
-        let slot = crate::calibration::calibration_slot(&basis);
+        let slot = slot_for(&basis);
         if slot.status != "calibrated" || slot.record_id.is_none() || slot.calibration_sha.is_none()
         {
             return Err(refusal(
@@ -330,6 +337,33 @@ pub fn encode_report(source: &[u8], report: &MeasuredInferenceReport) -> Result<
         ));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_RECORDS: std::cell::RefCell<Option<Vec<antecedent_io_core::coverage_records_data::CoverageRecord>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Run `f` with `records` as the only coverage evidence, so tests exercise the
+/// licensed path without a measured record in the shipped table.
+#[cfg(test)]
+pub(crate) fn with_test_records<R>(
+    records: Vec<antecedent_io_core::coverage_records_data::CoverageRecord>,
+    f: impl FnOnce() -> R,
+) -> R {
+    TEST_RECORDS.with(|cell| *cell.borrow_mut() = Some(records));
+    let out = f();
+    TEST_RECORDS.with(|cell| *cell.borrow_mut() = None);
+    out
+}
+
+fn slot_for(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
+    #[cfg(test)]
+    if let Some(records) = TEST_RECORDS.with(|cell| cell.borrow().clone()) {
+        return crate::calibration::calibration_slot_in(basis, &records);
+    }
+    crate::calibration::calibration_slot(basis)
 }
 
 /// Crate-owned adapters derive these inputs from actual successful fit/replay.

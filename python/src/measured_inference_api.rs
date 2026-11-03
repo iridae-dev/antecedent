@@ -130,6 +130,44 @@ impl NativeMeasuredInference {
                     let wire = antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
+                "categorical_prior_predictive_interval" => {
+                    let source = antecedent_core::categorical_candidate_contract::CategoricalCandidateSource::decode(bytes).map_err(crate::value_err)?;
+                    serde_json::to_string(&serde_json::json!({
+                        "snapshot": source.snapshot(),
+                        "outcome": source.outcomes(),
+                        "levels": source.levels(),
+                        "subject_ids": source.subject_ids(),
+                        "sampling_design": "independent_subject_trajectories",
+                    }))
+                    .map_err(crate::py_msg)
+                }
+                "mnar_fixed_shift_interval" => {
+                    let ctx = antecedent_core::ExecutionContext::production_default(0);
+                    let decoded = antecedent_io::mnar_candidate_source::decode_source(bytes, &ctx)
+                        .map_err(crate::transport_common::error)?;
+                    let source = decoded.source();
+                    let rows: Vec<_> = source
+                        .rows()
+                        .iter()
+                        .map(|row| {
+                            serde_json::json!({
+                                "subject_id": row.subject_id,
+                                "treated": row.treated,
+                                "outcome": row.outcome,
+                            })
+                        })
+                        .collect();
+                    serde_json::to_string(&serde_json::json!({
+                        "population": source.population(),
+                        "treatment": source.treatment(),
+                        "outcome": source.outcome(),
+                        "sampling_premise": "independent_randomized_arms",
+                        "missingness": "declared_treated_shift",
+                        "treated_shift": source.treated_shift(),
+                        "rows": rows,
+                    }))
+                    .map_err(crate::py_msg)
+                }
                 "split_effect" => {
                     let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource =
                         antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;

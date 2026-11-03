@@ -195,6 +195,10 @@ macro_rules! route_lowerings {
             PropagationChain(&'static str),
             /// A graph-selection imputation composite.
             GraphImputation,
+            /// A scientifically closed categorical posterior candidate.
+            CategoricalPosteriorCandidate,
+            /// A bounded fixed-shift MNAR operation.
+            MnarFixedShift,
         }
 
         impl PlanRoute {
@@ -209,6 +213,8 @@ macro_rules! route_lowerings {
                     Self::Planning(_) => "ExperimentPlanning",
                     Self::PropagationChain(_) => "PropagationChain",
                     Self::GraphImputation => "GraphImputation",
+                    Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
+                    Self::MnarFixedShift => "MnarFixedShift",
                 }
             }
 
@@ -226,6 +232,8 @@ macro_rules! route_lowerings {
                     Self::Planning(_) => RouteFamily::Planning,
                     Self::PropagationChain(_) => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
+                    Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
+                    Self::MnarFixedShift => RouteFamily::DesignBased,
                 }
             }
         }

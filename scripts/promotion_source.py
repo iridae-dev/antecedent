@@ -1143,6 +1143,8 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "cohort_interval",
         "count_fitted_interval",
         "choice_interval",
+        "categorical_prior_predictive_interval",
+        "mnar_fixed_shift_interval",
         "sampled_counterfactual_transport",
         "split_effect",
         "split_parent_set_effect",

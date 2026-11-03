@@ -12999,3 +12999,58 @@ stage = "evaluate"
 status = "closed"
 reason_code = "decision_contract_unsatisfied"
 notes = "The unlicensed graph-imputation realization offers no licensed decision carrier."
+
+[[routes]]
+route = "antecedent.categorical_posterior_candidate.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Independent scientific promotion and applicable measured coverage are separate prerequisites."
+
+[[routes]]
+route = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Python presents the native compiler's closed candidate; source decoding grants no authority."
+
+[[routes]]
+route = "antecedent_io.measured_inference.categorical_candidate.measure_source"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The exact shared compiler/source contract replays, but independent scientific promotion and matching prior-predictive coverage are separate prerequisites."
+
+[[routes]]
+route = "antecedent.categorical_posterior_candidate.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The facade delegates to the source-bound measured adapter and its independent promotion gate."
+
+[[routes]]
+route = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Licensed only when a current attesting coverage record covers the exact interval, shift band, missingness band and row count; without one the measured adapter refuses."
+
+[[routes]]
+route = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The facade delegates to the source-bound measured adapter; licensing comes from the matching coverage record."
+
+[[routes]]
+route = "antecedent_io.measured_inference.mnar_candidate.measure_source"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The source-bound adapter requires independent promotion and applicable coverage; no raw candidate interval is exposed."

@@ -92,6 +92,8 @@ pub enum RouteFamily {
     PropagationChain,
     /// Graph selection repeated on each completed imputation table.
     GraphImputation,
+    /// Scientifically closed categorical posterior candidate.
+    CategoricalPosteriorCandidate,
     /// A noncausal association of the observed data: a conditional law, regression
     /// coefficients, an association measure or a scored predictive model.
     Associational,
@@ -113,6 +115,7 @@ impl RouteFamily {
             Self::Planning => "planning",
             Self::PropagationChain => "propagation_chain",
             Self::GraphImputation => "graph_imputation",
+            Self::CategoricalPosteriorCandidate => "categorical_posterior_candidate",
             Self::Associational => "associational",
         }
     }
@@ -1692,6 +1695,7 @@ impl PlanView {
             | RouteFamily::Planning
             | RouteFamily::PropagationChain
             | RouteFamily::GraphImputation
+            | RouteFamily::CategoricalPosteriorCandidate
             | RouteFamily::Associational => None,
         };
         let scientific = program.scientific();
@@ -1982,6 +1986,8 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::Planning(design) => PlanRoute::Planning(design),
         ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
+        ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
+        ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
     }
 }
 
@@ -2038,6 +2044,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::GeneralizedBayes(_) => "generalized_bayes",
         Realization::Envelope(_) => "envelope",
         Realization::GraphImputationV1 => "graph_imputation_v1",
+        Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
         Realization::ExactPoint { .. } => "exact_point",
     }
 }

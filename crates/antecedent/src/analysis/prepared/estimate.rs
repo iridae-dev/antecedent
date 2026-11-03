@@ -133,10 +133,7 @@ impl PreparedStudy {
     /// identity; arbitrary routes or calls outside that dispatch are refused.
     /// The child execution retains its own proof and incomplete-data binding is
     /// left for the enclosing operation to seal.
-    #[cfg_attr(
-        not(any(test, feature = "calibration-internal")),
-        allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
-    )]
+    #[cfg(test)]
     pub(crate) fn execute_compiled_bayesian_atom(
         &self,
         data: &TabularData,
