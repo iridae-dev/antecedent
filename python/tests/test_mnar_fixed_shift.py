@@ -39,10 +39,11 @@ def test_interval_is_released_only_under_a_covering_record() -> None:
         assert scalar.level == 0.95
 
 
-@pytest.mark.parametrize("shift", [-1.5, 0.0, 0.8, 1.9])
+@pytest.mark.parametrize("shift", [-50.0, -1.5, 0.0, 0.8, 1.9, 40.0])
 def test_declared_shifts_and_unbalanced_arms_prepare(shift: float) -> None:
     assert _prepare(shift) is not None
     assert _prepare(shift, control=(15, 9), treated=(120, 80)) is not None
+    assert _prepare(shift, control=(30, 6), treated=(40, 5)) is not None
 
 
 @pytest.mark.parametrize("shift", [float("nan"), float("inf")])
@@ -61,11 +62,8 @@ def test_boolean_shift_is_not_a_number() -> None:
 @pytest.mark.parametrize(
     ("design", "shift", "detail"),
     [
-        ({}, 50.0, "invalid_shift"),
-        ({"control": (20, 16), "treated": (20, 15)}, 0.0, "row_count_out_of_bounds"),
-        ({"control": (14, 12), "treated": (60, 50)}, 0.0, "arm_too_small"),
         ({"control": (30, 1), "treated": (40, 28)}, 0.0, "insufficient_observations"),
-        ({"control": (30, 10), "treated": (40, 28)}, 0.0, "excess_missingness"),
+        ({"control": (30, 0), "treated": (40, 28)}, 0.0, "insufficient_observations"),
     ],
 )
 def test_source_violations_are_refused_with_specific_details(

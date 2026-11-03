@@ -1,4 +1,4 @@
-//! Bounded native source for the declared-shift MNAR calibration candidate.
+//! Native source for the declared-shift MNAR calibration candidate.
 //!
 //! This is a declaration and a reproducible program fingerprint, not a causal proof,
 //! interval result, coverage record, or authority to publish an interval. A consumer
@@ -13,28 +13,10 @@ use crate::operator::{
     OperatorRole,
 };
 
-/// Fewest source rows accepted; below this no delta-method interval is calibrated.
-pub const MIN_ROWS: usize = 50;
-/// Most source rows accepted by the bounded candidate.
-pub const MAX_ROWS: usize = 10_000;
-/// Fewest assigned rows in either arm, so unbalanced allocations stay inside the
-/// measured design.
-pub const MIN_ARM_ROWS: usize = 15;
-/// Largest share of an arm's rows whose outcome may be missing.
-pub const MAX_MISSING_FRACTION: f64 = 0.5;
-/// Largest declared treated-arm shift magnitude, in units of the pooled
-/// within-arm standard deviation of the observed outcomes.
-pub const MAX_SHIFT_SD: f64 = 2.0;
 /// Width of one declared-shift band of the calibration scope, in standard deviations.
 pub const SHIFT_BAND_WIDTH: f64 = 0.5;
-/// Number of declared-shift bands covering `[0, MAX_SHIFT_SD]`.
-pub const SHIFT_BANDS: usize = 4;
 /// Width of one missingness band of the calibration scope.
 pub const MISSING_BAND_WIDTH: f64 = 0.125;
-/// Number of missingness bands covering `[0, MAX_MISSING_FRACTION]`.
-pub const MISSING_BANDS: usize = 4;
-/// Largest observed outcome magnitude.
-const MAX_OUTCOME: f64 = 1.0e6;
 
 /// A single assigned arm and an outcome which may be unobserved.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,29 +53,20 @@ pub enum SourceError {
     /// Population or variable roles are absent or ambiguous.
     #[error("population must be 1 to 256 bytes and treatment and outcome must be distinct")]
     InvalidDeclaration,
-    /// The row count is outside the admitted range.
-    #[error("rows must number between 50 and 10000")]
-    RowCountOutOfBounds,
     /// Subject identity occurs more than once in the source.
     #[error("subject identities must be distinct across rows")]
     DuplicateSubject,
-    /// A retained value is non-finite or exceeds the numeric bound.
-    #[error("observed outcome is outside the numeric bound")]
+    /// A retained value is non-finite, or its squares overflow the scale estimate.
+    #[error("observed outcome must be finite with a finite scale")]
     InvalidOutcome,
-    /// One arm has fewer assigned rows than the measured design admits.
-    #[error("each arm must have at least 15 assigned rows")]
-    ArmTooSmall,
-    /// One arm contains fewer than two observed outcomes.
+    /// One arm contains fewer than two observed outcomes, so it has no sample variance.
     #[error("each arm must contain at least two observed outcomes")]
     InsufficientObservations,
-    /// One arm is missing a larger share of outcomes than the admitted cap.
-    #[error("no arm may have more than half of its outcomes missing")]
-    ExcessMissingness,
     /// Every observed outcome in each arm is identical, so the scale is zero.
     #[error("observed outcomes must vary within at least one arm")]
     ConstantOutcome,
-    /// The declared shift is non-finite or exceeds the cap in standard deviations.
-    #[error("treated shift must be finite and at most two pooled standard deviations")]
+    /// The declared shift is not a finite number.
+    #[error("treated shift must be finite")]
     InvalidShift,
 }
 
@@ -103,12 +76,9 @@ impl SourceError {
     pub const fn detail(self) -> &'static str {
         match self {
             Self::InvalidDeclaration => "invalid_declaration",
-            Self::RowCountOutOfBounds => "row_count_out_of_bounds",
             Self::DuplicateSubject => "duplicate_subject",
             Self::InvalidOutcome => "invalid_outcome",
-            Self::ArmTooSmall => "arm_too_small",
             Self::InsufficientObservations => "insufficient_observations",
-            Self::ExcessMissingness => "excess_missingness",
             Self::ConstantOutcome => "constant_outcome",
             Self::InvalidShift => "invalid_shift",
         }
@@ -118,15 +88,10 @@ impl SourceError {
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "the value is finite and non-negative, and the index is clamped to the last band"
+    reason = "the value is finite and non-negative; a saturating index is its own band"
 )]
-fn band(value: f64, width: f64, bands: usize) -> usize {
-    ((value / width) as usize).min(bands - 1)
-}
-
-#[allow(clippy::cast_precision_loss, reason = "row counts are at most MAX_ROWS")]
-fn exceeds_missing_cap(assigned: usize, observed: usize) -> bool {
-    (assigned - observed) as f64 > MAX_MISSING_FRACTION * assigned as f64
+fn band(value: f64, width: f64) -> usize {
+    (value / width) as usize
 }
 
 fn band_text(lower: f64, upper: f64, places: usize) -> String {
@@ -136,7 +101,7 @@ fn band_text(lower: f64, upper: f64, places: usize) -> String {
 /// The calibration-scope label of one declared-shift band and one missingness band.
 /// Records are measured, and bound at run time, per such cell.
 #[must_use]
-#[allow(clippy::cast_precision_loss, reason = "band indices are at most four")]
+#[allow(clippy::cast_precision_loss, reason = "band indices are small counts")]
 pub fn scope_functional(shift_band: usize, missing_band: usize) -> String {
     let shift = shift_band as f64 * SHIFT_BAND_WIDTH;
     let missing = missing_band as f64 * MISSING_BAND_WIDTH;
@@ -159,10 +124,8 @@ impl FixedShiftSource {
     /// Coverage has not been established.
     ///
     /// # Errors
-    /// The source has invalid identities or shift, a row count outside
-    /// `MIN_ROWS..=MAX_ROWS`, an invalid observed outcome, an arm below `MIN_ARM_ROWS`
-    /// rows or two observed outcomes, more than `MAX_MISSING_FRACTION` of an arm
-    /// missing, or no variation in the observed outcomes.
+    /// The source has invalid identities or shift, an invalid observed outcome, an arm
+    /// with fewer than two observed outcomes, or no variation in the observed outcomes.
     pub fn new(
         population: String,
         treatment: u32,
@@ -174,36 +137,25 @@ impl FixedShiftSource {
         if population.is_empty() || population.len() > 256 || treatment == outcome {
             return Err(SourceError::InvalidDeclaration);
         }
-        if !(MIN_ROWS..=MAX_ROWS).contains(&rows.len()) {
-            return Err(SourceError::RowCountOutOfBounds);
-        }
         if !treated_shift.is_finite() {
             return Err(SourceError::InvalidShift);
         }
         let mut observed = [0usize; 2];
-        let mut assigned = [0usize; 2];
         let mut subjects = std::collections::HashSet::with_capacity(rows.len());
         for row in &rows {
             if !subjects.insert(row.subject_id) {
                 return Err(SourceError::DuplicateSubject);
             }
             let arm = usize::from(row.treated);
-            assigned[arm] += 1;
             if let Some(value) = row.outcome {
-                if !value.is_finite() || value.abs() > MAX_OUTCOME {
+                if !value.is_finite() {
                     return Err(SourceError::InvalidOutcome);
                 }
                 observed[arm] += 1;
             }
         }
-        if assigned.iter().any(|count| *count < MIN_ARM_ROWS) {
-            return Err(SourceError::ArmTooSmall);
-        }
         if observed.iter().any(|count| *count < 2) {
             return Err(SourceError::InsufficientObservations);
-        }
-        if (0..2).any(|arm| exceeds_missing_cap(assigned[arm], observed[arm])) {
-            return Err(SourceError::ExcessMissingness);
         }
         let source = Self {
             population,
@@ -216,11 +168,11 @@ impl FixedShiftSource {
             rows,
         };
         let scale = source.pooled_outcome_sd();
+        if !scale.is_finite() {
+            return Err(SourceError::InvalidOutcome);
+        }
         if scale <= 0.0 {
             return Err(SourceError::ConstantOutcome);
-        }
-        if treated_shift.abs() > MAX_SHIFT_SD * scale {
-            return Err(SourceError::InvalidShift);
         }
         Ok(source)
     }
@@ -243,7 +195,7 @@ impl FixedShiftSource {
                 .filter(|row| row.treated == treated)
                 .filter_map(|row| row.outcome)
                 .collect();
-            #[allow(clippy::cast_precision_loss, reason = "counts are at most MAX_ROWS")]
+            #[allow(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
             let count = values.len() as f64;
             let mean = values.iter().sum::<f64>() / count;
             sum_squares += values.iter().map(|v| (v - mean).powi(2)).sum::<f64>();
@@ -254,7 +206,7 @@ impl FixedShiftSource {
 
     /// Largest share of an arm's assigned rows whose outcome is missing.
     #[must_use]
-    #[allow(clippy::cast_precision_loss, reason = "counts are at most MAX_ROWS")]
+    #[allow(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
     pub fn max_missing_fraction(&self) -> f64 {
         [false, true]
             .into_iter()
@@ -271,12 +223,8 @@ impl FixedShiftSource {
     #[must_use]
     pub fn scope_functional(&self) -> String {
         scope_functional(
-            band(
-                self.treated_shift.abs() / self.pooled_outcome_sd(),
-                SHIFT_BAND_WIDTH,
-                SHIFT_BANDS,
-            ),
-            band(self.max_missing_fraction(), MISSING_BAND_WIDTH, MISSING_BANDS),
+            band(self.treated_shift.abs() / self.pooled_outcome_sd(), SHIFT_BAND_WIDTH),
+            band(self.max_missing_fraction(), MISSING_BAND_WIDTH),
         )
     }
 
@@ -598,12 +546,12 @@ mod tests {
         let mut nan = ok();
         nan[0].outcome = Some(f64::NAN);
         assert_eq!(build(0.0, nan).unwrap_err(), SourceError::InvalidOutcome);
-        let mut huge = ok();
-        huge[0].outcome = Some(2.0e6);
-        assert_eq!(build(0.0, huge).unwrap_err(), SourceError::InvalidOutcome);
         assert_eq!(build(f64::NAN, ok()).unwrap_err(), SourceError::InvalidShift);
         assert_eq!(build(f64::INFINITY, ok()).unwrap_err(), SourceError::InvalidShift);
-        assert_eq!(build(1.0e3, ok()).unwrap_err(), SourceError::InvalidShift);
+        assert!(build(1.0e3, ok()).is_ok());
+        let mut overflow = ok();
+        overflow[0].outcome = Some(1.0e200);
+        assert_eq!(build(0.0, overflow).unwrap_err(), SourceError::InvalidOutcome);
         assert_eq!(
             build(0.0, rows((30, 0), (40, 28))).unwrap_err(),
             SourceError::InsufficientObservations
@@ -612,10 +560,7 @@ mod tests {
             build(0.0, rows((30, 1), (40, 28))).unwrap_err(),
             SourceError::InsufficientObservations
         );
-        assert_eq!(
-            build(0.0, rows((30, 14), (40, 28))).unwrap_err(),
-            SourceError::ExcessMissingness
-        );
+        assert!(build(0.0, rows((30, 14), (40, 28))).is_ok());
         let constant: Vec<SourceRow> = ok()
             .into_iter()
             .map(|row| SourceRow { outcome: row.outcome.map(|_| 3.0), ..row })
@@ -642,42 +587,19 @@ mod tests {
     }
 
     #[test]
-    fn row_and_arm_size_boundaries_are_exact() {
-        assert!(build(0.0, rows((25, 20), (25, 20))).is_ok());
+    fn only_the_estimator_minimums_bound_the_source() {
+        assert!(build(0.0, rows((2, 2), (2, 2))).is_ok());
         assert_eq!(
-            build(0.0, rows((24, 20), (25, 20))).unwrap_err(),
-            SourceError::RowCountOutOfBounds
+            build(0.0, rows((2, 2), (2, 1))).unwrap_err(),
+            SourceError::InsufficientObservations
         );
-        assert!(build(0.0, rows((35, 28), (15, 12))).is_ok());
-        assert_eq!(build(0.0, rows((36, 28), (14, 12))).unwrap_err(), SourceError::ArmTooSmall);
-        assert!(build(0.0, rows((MAX_ROWS / 2, 4000), (MAX_ROWS / 2, 4000))).is_ok());
-        assert_eq!(
-            build(0.0, rows((MAX_ROWS / 2 + 1, 4000), (MAX_ROWS / 2, 4000))).unwrap_err(),
-            SourceError::RowCountOutOfBounds
-        );
-    }
-
-    #[test]
-    fn missingness_boundary_and_unbalanced_arms_are_admitted() {
-        assert!(build(0.0, rows((30, 15), (40, 20))).is_ok());
-        assert_eq!(
-            build(0.0, rows((30, 15), (40, 19))).unwrap_err(),
-            SourceError::ExcessMissingness
-        );
-        assert!(build(0.0, rows((30, 30), (40, 40))).is_ok());
         assert!(build(0.0, rows((15, 15), (200, 150))).is_ok());
-    }
-
-    #[test]
-    fn shift_cap_is_in_pooled_standard_deviations() {
+        assert!(build(0.0, rows((100, 2), (100, 2))).is_ok());
+        assert!(build(0.0, rows((20_000, 15_000), (20_000, 15_000))).is_ok());
         let data = rows((30, 24), (40, 28));
         let scale = build(0.0, data.clone()).unwrap().pooled_outcome_sd();
-        assert!(build(MAX_SHIFT_SD * scale, data.clone()).is_ok());
-        assert!(build(-MAX_SHIFT_SD * scale, data.clone()).is_ok());
-        assert_eq!(
-            build(MAX_SHIFT_SD * scale * 1.0001, data).unwrap_err(),
-            SourceError::InvalidShift
-        );
+        assert!(build(5.0 * scale, data.clone()).is_ok());
+        assert!(build(-50.0 * scale, data).is_ok());
     }
 
     fn at_sd(multiple: f64, rows: Vec<SourceRow>) -> FixedShiftSource {
@@ -691,7 +613,9 @@ mod tests {
         let low = at_sd(0.0, rows((30, 30), (40, 40)));
         assert_eq!(low.scope_functional(), scope_functional(0, 0));
         let high = at_sd(-1.9, rows((30, 15), (40, 20)));
-        assert_eq!(high.scope_functional(), scope_functional(3, 3));
+        assert_eq!(high.scope_functional(), scope_functional(3, 4));
+        let beyond = at_sd(6.0, rows((30, 9), (40, 28)));
+        assert_eq!(beyond.scope_functional(), scope_functional(12, 5));
         assert!((high.max_missing_fraction() - 0.5).abs() < 1e-12);
         let middle = at_sd(0.75, rows((30, 24), (40, 28)));
         assert_eq!(middle.scope_functional(), scope_functional(1, 2));

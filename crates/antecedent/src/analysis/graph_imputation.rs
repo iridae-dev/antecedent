@@ -19,7 +19,8 @@
 use std::sync::Arc;
 
 use antecedent_core::graph_imputation_contract::{
-    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES,
+    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
+    MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
 };
 use antecedent_core::{AverageEffectQuery, CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_data::{ImputationSpec, TableView, TabularData};
@@ -230,16 +231,16 @@ impl CompiledGraphImputation {
         let n = source.schema().variables().len();
         let rows = source.row_count();
         if !(2..=MAX_VARIABLES).contains(&n)
-            || !(4..=10_000).contains(&rows)
+            || rows < MIN_ROWS
             || spec.domains.len() != n
             || spec.domains.iter().any(|&domain| domain > 1)
             || spec.treatment == spec.outcome
             || spec.treatment.raw() as usize >= n
             || spec.outcome.raw() as usize >= n
             || spec.domains.get(spec.treatment.raw() as usize) != Some(&1)
-            || !(2..=64).contains(&spec.imputation.imputations)
-            || !(1..=64).contains(&spec.imputation.iterations)
-            || !(100..=4096).contains(&spec.posterior_draws)
+            || spec.imputation.imputations < MIN_IMPUTATIONS
+            || spec.imputation.iterations < MIN_ITERATIONS
+            || spec.posterior_draws < MIN_POSTERIOR_DRAWS
             || !spec.prior_scale.is_finite()
             || spec.prior_scale <= 0.0
             || source.storage().analysis_mask().is_some()
@@ -250,11 +251,7 @@ impl CompiledGraphImputation {
             )
             .into());
         }
-        let quote = (rows as u64)
-            .checked_mul(n as u64)
-            .and_then(|v| v.checked_mul(64))
-            .and_then(|v| v.checked_add(25 * 1_048_576))
-            .ok_or_else(|| invalid("plan admission overflow"))?;
+        let quote = admission_bytes(rows, n);
         let lease = ctx.acquire_admission(0, quote).map_err(|error| match error {
             antecedent_core::execution::AdmissionError::Cancelled => {
                 CausalError::Cancelled { stage: "graph imputation compile" }
@@ -286,9 +283,10 @@ impl CompiledGraphImputation {
             .n_draws(spec.posterior_draws as usize)
             .prior_scale(spec.prior_scale);
         let masks = 1usize << (n * (n - 1));
+        let most_atoms = usize::try_from(labeled_dag_count(n)).unwrap_or(usize::MAX);
         let mut budget = SearchBudget::with_memory(
             SearchLimits {
-                operations: masks + antecedent_core::graph_imputation_contract::MAX_ATOMS + 64,
+                operations: masks.saturating_add(most_atoms).saturating_add(64),
                 depth: 1,
             },
             25 * 1024 * 1024,
@@ -526,7 +524,7 @@ fn candidate(
 #[cfg(test)]
 mod compiled_tests {
     use super::*;
-    use antecedent_core::graph_imputation_contract::MAX_ATOMS;
+    use antecedent_core::graph_imputation_contract::labeled_dag_count;
     use antecedent_io::measured_inference::graph_candidate::derive_support;
 
     // Deterministic data. With `confounded`, the covariate drives treatment and the outcome.
@@ -597,7 +595,8 @@ mod compiled_tests {
                 .count();
             assert_eq!(dags, expected);
         }
-        assert_eq!(MAX_ATOMS, 543);
+        assert_eq!(labeled_dag_count(4), 543);
+        assert_eq!(labeled_dag_count(5), 29_281);
     }
 
     #[test]

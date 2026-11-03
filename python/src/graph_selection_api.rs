@@ -259,9 +259,11 @@ impl PyCompiledGraphImputation {
         if !(2..=antecedent_core::graph_imputation_contract::MAX_VARIABLES).contains(&names.len())
             || names.len() != columns.len()
             || names.len() != domains.len()
-            || columns.iter().any(|column| !(4..=10_000).contains(&column.len()))
+            || columns
+                .iter()
+                .any(|column| column.len() < antecedent_core::graph_imputation_contract::MIN_ROWS)
         {
-            return Err(compiled_py_error("column shape is outside the bounded candidate"));
+            return Err(compiled_py_error("column shape is not a supported declaration"));
         }
         let position = |name: &str| {
             names
@@ -305,8 +307,8 @@ impl PyCompiledGraphImputation {
             execution_seed: seed,
         };
         let ctx = crate::execution_api::context(seed);
-        let plan =
-            CompiledGraphImputation::compile(source, &spec, &ctx).map_err(compiled_runtime_error)?;
+        let plan = CompiledGraphImputation::compile(source, &spec, &ctx)
+            .map_err(compiled_runtime_error)?;
         Ok(Self { plan, point: None, ctx })
     }
 
@@ -334,7 +336,9 @@ impl PyCompiledGraphImputation {
         ))
     }
 
-    fn measured_interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+    fn measured_interval(
+        &self,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
         let point = self
             .point
             .as_ref()
@@ -363,7 +367,9 @@ struct PyConsumedGraphImputation {
 
 #[pymethods]
 impl PyConsumedGraphImputation {
-    fn measured_interval(&self) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+    fn measured_interval(
+        &self,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
         measured_of(&self.point)
     }
 

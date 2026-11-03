@@ -76,16 +76,6 @@ fn mnar_fixed_shift_prepare(
             )),
         ));
     }
-    if treatment.len() > antecedent_core::mnar_fixed_shift::MAX_ROWS {
-        return Ok((
-            None,
-            Some(refusal_json(
-                reason_code!("invalid_argument"),
-                "mnar_fixed_shift.row_count_out_of_bounds",
-                "rows must number between 50 and 10000",
-            )),
-        ));
-    }
     let mut rows = Vec::with_capacity(treatment.len());
     for ((subject_id, assignment), outcome) in subject_ids.into_iter().zip(treatment).zip(outcome) {
         let treated = if assignment == 1.0 {

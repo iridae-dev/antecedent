@@ -7,7 +7,7 @@ use crate::IoError;
 use antecedent_core::{
     ExecutionContext,
     mnar_fixed_shift::{
-        FixedShiftProgram, FixedShiftSource, MAX_ROWS, SamplingPremise, SourceError, SourceRow,
+        FixedShiftProgram, FixedShiftSource, SamplingPremise, SourceError, SourceRow,
     },
 };
 
@@ -17,7 +17,6 @@ const MAX_POPULATION_BYTES: usize = 256;
 const HEADER_BYTES: usize = 4 + 4 + 4 + 8 + 4;
 // Subject, treatment flag, outcome flag and outcome bits.
 const ROW_BYTES: usize = 8 + 1 + 1 + 8;
-const MAX_BYTES: usize = MAGIC.len() + HEADER_BYTES + MAX_POPULATION_BYTES + MAX_ROWS * ROW_BYTES;
 
 fn invalid(message: &str) -> IoError {
     IoError::Refused {
@@ -107,7 +106,7 @@ impl ReconstructedMnarSource {
 /// Encode a validated source and return separately retainable identities.
 ///
 /// # Errors
-/// The source is too large, or the context refuses admission or cancellation.
+/// The context refuses admission for the encoded size, or cancels.
 pub fn encode(
     source: &FixedShiftSource,
     ctx: &ExecutionContext,
@@ -122,9 +121,6 @@ pub fn encode(
             source.rows().len().checked_mul(ROW_BYTES).and_then(|rows| n.checked_add(rows))
         })
         .ok_or_else(|| invalid("source size overflow"))?;
-    if len > MAX_BYTES {
-        return Err(invalid("source exceeds byte limit"));
-    }
     let lease = ctx.acquire_admission(0, len as u64).map_err(|e| admission_error(ctx, e))?;
     let mut out = Vec::with_capacity(len);
     out.extend_from_slice(MAGIC);
@@ -186,8 +182,8 @@ pub fn decode_source(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<ReconstructedMnarSource, IoError> {
-    if bytes.len() > MAX_BYTES || !bytes.starts_with(MAGIC) {
-        return Err(invalid("invalid source header or size"));
+    if !bytes.starts_with(MAGIC) {
+        return Err(invalid("invalid source header"));
     }
     let lease = ctx
         .acquire_admission(0, (bytes.len() as u64).saturating_mul(4))
@@ -216,7 +212,6 @@ pub fn decode_source(
     pos = shift_end;
     let count = read_word(bytes, &mut pos)? as usize;
     if count == 0
-        || count > MAX_ROWS
         || count.checked_mul(ROW_BYTES).and_then(|n| pos.checked_add(n)) != Some(bytes.len())
     {
         return Err(invalid("row count or encoded length"));
@@ -325,24 +320,27 @@ mod tests {
     }
 
     #[test]
-    fn encoded_length_is_exact_and_the_bound_admits_the_largest_source() {
+    fn encoded_length_is_exact_and_follows_the_declared_row_count() {
         let ctx = ExecutionContext::for_tests(73);
         let small = encode(&source(0.0), &ctx).unwrap();
         assert_eq!(
             small.bytes().len(),
             MAGIC.len() + HEADER_BYTES + "population".len() + 70 * ROW_BYTES
         );
-        let largest = FixedShiftSource::new(
+        let large = FixedShiftSource::new(
             "p".repeat(MAX_POPULATION_BYTES),
             0,
             1,
             SamplingPremise::IndependentRandomizedArms,
             0.0,
-            rows((MAX_ROWS / 2, 4000), (MAX_ROWS / 2, 4000)),
+            rows((12_000, 4000), (12_000, 4000)),
         )
         .unwrap();
-        let encoded = encode(&largest, &ctx).unwrap();
-        assert_eq!(encoded.bytes().len(), MAX_BYTES);
+        let encoded = encode(&large, &ctx).unwrap();
+        assert_eq!(
+            encoded.bytes().len(),
+            MAGIC.len() + HEADER_BYTES + MAX_POPULATION_BYTES + 24_000 * ROW_BYTES
+        );
         assert!(decode_source(encoded.bytes(), &ctx).is_ok());
     }
 
@@ -355,10 +353,6 @@ mod tests {
         };
         let encoded = encode(&source(0.0), &ctx).unwrap();
         let header = MAGIC.len() + 4 + "population".len();
-        // Shift beyond two pooled standard deviations.
-        let mut far = encoded.bytes().to_vec();
-        far[header + 8..header + 16].copy_from_slice(&1.0e3_f64.to_bits().to_le_bytes());
-        assert!(refusal(&far).starts_with("mnar_fixed_shift.invalid_shift:"));
         let mut nan = encoded.bytes().to_vec();
         nan[header + 8..header + 16].copy_from_slice(&f64::NAN.to_bits().to_le_bytes());
         assert!(refusal(&nan).starts_with("mnar_fixed_shift.invalid_shift:"));
@@ -369,19 +363,9 @@ mod tests {
         let copy = duplicate[first..first + 8].to_vec();
         duplicate[second..second + 8].copy_from_slice(&copy);
         assert!(refusal(&duplicate).starts_with("mnar_fixed_shift.duplicate_subject:"));
-        // Too few rows, with a consistent count and length.
-        let few = FixedShiftSource::new(
-            "population".into(),
-            0,
-            1,
-            SamplingPremise::IndependentRandomizedArms,
-            0.0,
-            rows((25, 20), (25, 20)),
-        )
-        .unwrap();
-        let mut bytes = encode(&few, &ctx).unwrap().bytes().to_vec();
-        bytes.truncate(bytes.len() - ROW_BYTES);
-        bytes[header + 16..header + 20].copy_from_slice(&49u32.to_le_bytes());
-        assert!(refusal(&bytes).starts_with("mnar_fixed_shift.row_count_out_of_bounds:"));
+        // A count that disagrees with the encoded length.
+        let mut short = encoded.bytes().to_vec();
+        short[header + 16..header + 20].copy_from_slice(&69u32.to_le_bytes());
+        assert!(refusal(&short).starts_with("mnar_fixed_shift.invalid_source:"));
     }
 }

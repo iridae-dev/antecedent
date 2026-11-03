@@ -107,7 +107,7 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<CandidateReadi
 
 /// Reconstruct the shared compiler contract and execute the exact bounded source.
 ///
-/// The cell has 2 to 8 declared levels, 30 to 4096 rows, at least two rows of every level,
+/// The cell has at least two declared levels, at least two rows of every level,
 /// distinct declared independent subjects, the fixed normal-inverse-gamma prior and a 0.95
 /// equal-tailed Student-t interval for every level against the first declared level. Its
 /// candidate study is prior-predictive; no causal or pointwise frequentist coverage claim

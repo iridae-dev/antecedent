@@ -22,7 +22,7 @@ use antecedent::analysis::categorical_posterior_candidate::{
     replay_calibration_candidate,
 };
 use antecedent_core::categorical_candidate_contract::{
-    CREDIBLE_LEVEL, LEVEL_PRECISION, MAX_LEVELS, MIN_LEVEL_ROWS, MIN_LEVELS, NUISANCE_PRECISION,
+    CREDIBLE_LEVEL, LEVEL_PRECISION, MIN_LEVEL_ROWS, MIN_LEVELS, NUISANCE_PRECISION,
     VARIANCE_SCALE, VARIANCE_SHAPE,
 };
 use antecedent_core::{CalibrationBasis, ExecutionContext, sampling_design::SamplingDesign};
@@ -38,9 +38,11 @@ use calibration::{
 /// Base row count; the run's grid point halves or doubles it.
 const BASE_ROWS: usize = 128;
 /// Row multipliers cycled across replicates. Together with the grid point they span 64 to
-/// 4096 rows, inside the candidate's bounds.
+/// 4096 rows, the row counts a record covers.
 const ROW_FACTORS: [usize; 3] = [1, 4, 16];
 const IMBALANCES: usize = 3;
+/// Most level counts measured; a record covers only the level counts it measured.
+const MAX_LEVELS: usize = 8;
 
 /// Arm sizes: every level keeps the candidate's minimum and the remaining rows follow the
 /// imbalance profile, which is balanced, halves per level, or leaves the minimum to every

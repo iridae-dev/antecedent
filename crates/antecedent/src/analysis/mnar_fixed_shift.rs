@@ -524,20 +524,20 @@ mod tests {
     }
 
     #[test]
-    fn a_source_below_the_row_bound_is_refused_with_a_typed_error() {
+    fn a_source_without_two_observed_outcomes_per_arm_is_refused_with_a_typed_error() {
         let ctx = ExecutionContext::for_tests(15);
         assert!(Study::prepare_mnar_fixed_shift(source(), &ctx).is_ok());
-        let few = FixedShiftSource::new(
+        let sparse = FixedShiftSource::new(
             "p".into(),
             0,
             1,
             SamplingPremise::IndependentRandomizedArms,
             0.0,
-            rows((20, 16), (20, 16))[..39].to_vec(),
+            rows((20, 1), (20, 16)),
         );
         assert_eq!(
-            few.unwrap_err(),
-            antecedent_core::mnar_fixed_shift::SourceError::RowCountOutOfBounds
+            sparse.unwrap_err(),
+            antecedent_core::mnar_fixed_shift::SourceError::InsufficientObservations
         );
     }
 

@@ -56,13 +56,14 @@ def prepare_fixed_shift(
 
     ``design`` must be ``independent_randomized_arms``. ``treated_shift`` is the
     declared mean difference, in outcome units, between the treated arm's missing and
-    observed outcomes; the control arm's is zero. It must be finite and at most two
-    pooled within-arm standard deviations of the observed outcomes in magnitude.
+    observed outcomes; the control arm's is zero. It must be finite; it is not capped,
+    and a coverage record licenses only the shift bands it measured.
     Neither the design nor the shift follows from observed rows.
     Subject IDs must be distinct across both arms and aligned with the rows; this
-    cannot establish independence or randomization. The source needs 50 to 10000
-    rows, at least 15 assigned and two observed outcomes per arm, no more than half
-    of either arm missing, and varying observed outcomes. Arms may be unbalanced.
+    cannot establish independence or randomization. The source needs at least
+    two observed outcomes per arm and varying observed outcomes; its size is limited
+    only by the execution's resource limits. Arms may be unbalanced and any share of
+    either arm may be missing.
     No outcome or observation probability need be known.
     """
     from . import _native

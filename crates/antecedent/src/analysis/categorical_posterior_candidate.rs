@@ -9,7 +9,7 @@ use std::sync::Arc;
 use antecedent_core::CanonicalWriter;
 use antecedent_core::ExecutionContext;
 use antecedent_core::categorical_candidate_contract::{
-    CREDIBLE_LEVEL, CategoricalCandidateSource, LEVEL_PRECISION, MAX_ROWS, MIN_LEVEL_ROWS,
+    CREDIBLE_LEVEL, CategoricalCandidateSource, LEVEL_PRECISION, MIN_LEVEL_ROWS,
     NUISANCE_PRECISION, VARIANCE_SCALE, VARIANCE_SHAPE, admission_bytes,
 };
 use antecedent_core::sampling_design::SamplingDesign;
@@ -108,12 +108,13 @@ fn invalid(message: &str) -> CausalError {
 
 /// Compile the bounded normal-inverse-gamma candidate without fitting it.
 ///
-/// The declared levels (the first is the reference) number two to eight, every level has at
-/// least two rows, and 30 to 4096 rows each carry a distinct subject.
+/// The declared levels (the first is the reference) number at least two, every level has at
+/// least two rows, and each row carries a distinct subject. The row and level counts are
+/// bounded only by the execution's resource limits.
 ///
 /// # Errors
-/// Rejects another sampling design, repeated subjects, unsupported levels/prior, rows or levels
-/// outside the bounds, or resource limits.
+/// Rejects another sampling design, repeated subjects, unsupported levels/prior, or
+/// resource limits.
 pub fn prepare(
     request: CategoricalPosteriorCandidateRequest,
     ctx: &ExecutionContext,
@@ -123,9 +124,6 @@ pub fn prepare(
     let sampling = &request.sampling;
     let equal = |a: f64, b: f64| a.to_bits() == b.to_bits();
     if sampling.design != SamplingDesign::IndependentSubjectTrajectories
-        || data.outcome.len() > MAX_ROWS
-        || data.levels.len() > MAX_ROWS
-        || sampling.subject_ids.len() > MAX_ROWS
         || !data.adjustment.is_empty()
         || data.spec.declared_levels.first() != Some(&data.spec.reference)
         || data.spec.scale != LevelScaleWire::Unordered
@@ -242,15 +240,12 @@ impl PreparedCategoricalPosteriorCandidate {
 /// No source bytes or caller-provided expectation can create measured authority.
 ///
 /// # Errors
-/// A malformed, oversized or changed source; an unsupported receipt; or an admission failure.
+/// A malformed or changed source; an unsupported receipt; or an admission failure.
 pub fn consume_source(
     bytes: &[u8],
     expected: CategoricalPosteriorCompileReceipt,
     ctx: &ExecutionContext,
 ) -> Result<PreparedCategoricalPosteriorCandidate, CausalError> {
-    if bytes.len() > antecedent_core::categorical_candidate_contract::MAX_SOURCE_BYTES {
-        return Err(invalid("candidate source exceeds its byte bound"));
-    }
     let source = CategoricalCandidateSource::decode(bytes).map_err(invalid)?;
     let lease = ctx
         .acquire_admission(0, admission_bytes(source.rows(), source.declared_levels().len()))
@@ -598,10 +593,11 @@ mod tests {
         let mut pairwise = request();
         pairwise.data.spec.pairwise = vec![("level-0".into(), "level-1".into())];
         assert!(refused(pairwise));
-        // Row bounds and level bounds.
-        assert!(refused(shaped(&[14, 15])));
-        assert!(refused(shaped(&[4_095, 2])));
-        assert!(refused(shaped(&[4; 9])));
+        // Only the estimator's minimums refuse: two levels, two rows of each.
+        assert!(!refused(shaped(&[14, 15])));
+        assert!(!refused(shaped(&[4_095, 2])));
+        assert!(!refused(shaped(&[4; 9])));
+        assert!(refused(shaped(&[1, 29])));
         assert!(refused(shaped(&[30])));
     }
 

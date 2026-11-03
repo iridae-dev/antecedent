@@ -328,19 +328,16 @@ pub fn categorical_prior_predictive_calibration_candidate(
     input: &CategoricalTreatmentInput,
     declared_levels: &[String],
 ) -> Result<(ContrastIntervals, antecedent_core::CalibrationBasis), EstimationError> {
-    use antecedent_core::categorical_candidate_contract::{
-        CREDIBLE_LEVEL, MAX_LEVELS, MAX_ROWS, MIN_LEVELS, MIN_ROWS,
-    };
+    use antecedent_core::categorical_candidate_contract::{CREDIBLE_LEVEL, MIN_LEVELS};
     let rows = input.outcome.len();
-    if !(MIN_ROWS..=MAX_ROWS).contains(&rows)
-        || input.levels.len() != rows
-        || !(MIN_LEVELS..=MAX_LEVELS).contains(&declared_levels.len())
+    if input.levels.len() != rows
+        || declared_levels.len() < MIN_LEVELS
         || !input.adjustment.is_empty()
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
             "categorical_treatment_posterior.calibration_design",
-            "the candidate requires bounded rows, bounded levels and no adjustment",
+            "the candidate requires aligned rows, at least two levels and no adjustment",
         ));
     }
     let posterior = posterior_categorical_treatment(
@@ -354,7 +351,7 @@ pub fn categorical_prior_predictive_calibration_candidate(
     Ok((intervals, basis))
 }
 
-/// Derive only the metadata of a bounded categorical candidate execution over `rows` rows and
+/// Derive only the metadata of a categorical candidate execution over `rows` rows and
 /// `levels` declared levels. The level count is part of the construction key because the
 /// measured record is per level count; the row count is the scope a record covers and is never
 /// extrapolated. This value does not authenticate source, promote a method or create measured

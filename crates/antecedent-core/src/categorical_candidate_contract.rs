@@ -1,4 +1,4 @@
-//! Shared compiler and source-replay contract for one bounded categorical candidate.
+//! Shared compiler and source-replay contract for one categorical candidate.
 //!
 //! This module validates declarations and derives identities only. It performs no inference,
 //! proves no independence or causal claim, and constructs no measured authority. The caller
@@ -9,27 +9,15 @@ use std::collections::BTreeSet;
 use crate::identity::{CanonicalWriter, SemanticDigest};
 use crate::sampling_design::SamplingDesign;
 
-const MAGIC: &[u8] = b"ACPC\x02";
+const MAGIC: &[u8] = b"ACPC\x03";
 /// Fewest declared treatment levels.
 pub const MIN_LEVELS: usize = 2;
-/// Most declared treatment levels; the level index is one byte on the wire.
-pub const MAX_LEVELS: usize = 8;
-/// Fewest rows the conjugate posterior is admitted on.
-pub const MIN_ROWS: usize = 30;
-/// Most rows: one row per declared subject, bounded by the source byte cap below.
-pub const MAX_ROWS: usize = 4_096;
 /// Fewest rows of every declared level; a level with fewer has no estimable mean.
 pub const MIN_LEVEL_ROWS: usize = 2;
-/// Longest snapshot, level label or subject identity, in bytes.
-pub const MAX_TEXT_BYTES: usize = 256;
-/// Exact public byte bound for the original-source representation: the largest admitted
-/// design with every text at its longest.
-pub const MAX_SOURCE_BYTES: usize = MAGIC.len()
-    + (2 + MAX_TEXT_BYTES)
-    + 1
-    + MAX_LEVELS * (2 + MAX_TEXT_BYTES)
-    + 4
-    + MAX_ROWS * (8 + 1 + 2 + MAX_TEXT_BYTES);
+/// Longest snapshot, level label or subject identity, in bytes: the wire length is two bytes.
+pub const MAX_TEXT_BYTES: usize = u16::MAX as usize;
+/// Bytes of one encoded row beyond its text: outcome, level index and subject length.
+const ROW_FIXED_BYTES: usize = 8 + 2 + 2;
 /// Fixed prior precision of each level coefficient.
 pub const LEVEL_PRECISION: f64 = 1.0;
 /// Fixed prior precision of the intercept.
@@ -69,8 +57,8 @@ impl CategoricalCandidateSource {
     ///
     /// # Errors
     /// A row is nonfinite, IDs repeat, source strings are invalid, the design is not
-    /// independent-subject, the row or level counts leave their bounds, a row names an
-    /// undeclared level or a declared level has too few rows.
+    /// independent-subject, the arrays are misaligned, fewer than two levels are declared, a
+    /// row names an undeclared level or a declared level has too few rows.
     pub fn new(
         outcomes: Vec<f64>,
         levels: Vec<String>,
@@ -83,17 +71,15 @@ impl CategoricalCandidateSource {
         if design != SamplingDesign::IndependentSubjectTrajectories {
             return Err("categorical candidate requires independent subject trajectories");
         }
-        if !(MIN_ROWS..=MAX_ROWS).contains(&rows)
-            || levels.len() != rows
-            || subject_ids.len() != rows
-        {
-            return Err("categorical candidate row count is outside its bounds or misaligned");
+        if levels.len() != rows || subject_ids.len() != rows {
+            return Err("categorical candidate row arrays are misaligned");
         }
         if outcomes.iter().any(|value| !value.is_finite()) {
             return Err("categorical candidate outcome is not finite");
         }
         let valid_text = |text: &String| !text.is_empty() && text.len() <= MAX_TEXT_BYTES;
-        if !(MIN_LEVELS..=MAX_LEVELS).contains(&declared_levels.len())
+        if declared_levels.len() < MIN_LEVELS
+            || declared_levels.len() > usize::from(u16::MAX)
             || !declared_levels.iter().all(valid_text)
             || declared_levels.iter().collect::<BTreeSet<_>>().len() != declared_levels.len()
         {
@@ -205,14 +191,16 @@ impl CategoricalCandidateSource {
         self.program
     }
 
-    /// Canonical bounded source bytes; these are data and carry no scientific authority.
+    /// Canonical source bytes; these are data and carry no scientific authority.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(MAX_SOURCE_BYTES.min(64 + self.rows() * 32));
+        let mut bytes = Vec::with_capacity(64 + self.rows() * (ROW_FIXED_BYTES + 16));
         bytes.extend_from_slice(MAGIC);
         put_text(&mut bytes, &self.snapshot);
-        // Validated at construction: at most MAX_LEVELS declared levels and MAX_ROWS rows.
-        bytes.push(u8::try_from(self.declared_levels.len()).unwrap_or(u8::MAX));
+        // Validated at construction: at most `u16::MAX` declared levels.
+        bytes.extend_from_slice(
+            &u16::try_from(self.declared_levels.len()).unwrap_or(u16::MAX).to_le_bytes(),
+        );
         for level in &self.declared_levels {
             put_text(&mut bytes, level);
         }
@@ -222,7 +210,12 @@ impl CategoricalCandidateSource {
         }
         for level in &self.levels {
             let index = self.declared_levels.iter().position(|declared| declared == level);
-            bytes.push(index.and_then(|index| u8::try_from(index).ok()).unwrap_or(u8::MAX));
+            bytes.extend_from_slice(
+                &index
+                    .and_then(|index| u16::try_from(index).ok())
+                    .unwrap_or(u16::MAX)
+                    .to_le_bytes(),
+            );
         }
         for subject in &self.subject_ids {
             put_text(&mut bytes, subject);
@@ -235,26 +228,29 @@ impl CategoricalCandidateSource {
     /// # Errors
     /// Invalid, oversized, truncated, noncanonical, unsupported or scientifically out-of-scope source.
     pub fn decode(bytes: &[u8]) -> Result<Self, &'static str> {
-        if bytes.len() > MAX_SOURCE_BYTES {
-            return Err("categorical candidate source exceeds its byte bound");
-        }
         let mut reader = Reader { bytes, offset: 0 };
         if reader.take(MAGIC.len())? != MAGIC {
             return Err("unsupported categorical candidate source version");
         }
         let snapshot = reader.text()?;
-        let level_count = usize::from(reader.take(1)?[0]);
-        if !(MIN_LEVELS..=MAX_LEVELS).contains(&level_count) {
-            return Err("categorical candidate level count is outside its bounds");
+        let raw: [u8; 2] = reader.take(2)?.try_into().map_err(|_| "invalid level count")?;
+        let level_count = usize::from(u16::from_le_bytes(raw));
+        if level_count < MIN_LEVELS {
+            return Err("categorical candidate declares fewer than two levels");
         }
-        let mut declared_levels = Vec::with_capacity(level_count);
+        let mut declared_levels = Vec::new();
         for _ in 0..level_count {
             declared_levels.push(reader.text()?);
         }
         let raw: [u8; 4] = reader.take(4)?.try_into().map_err(|_| "invalid row count")?;
         let rows = usize::try_from(u32::from_le_bytes(raw)).map_err(|_| "invalid row count")?;
-        if !(MIN_ROWS..=MAX_ROWS).contains(&rows) {
-            return Err("categorical candidate row count is outside its bounds");
+        // Every row carries at least its fixed bytes, so the declared count must fit the
+        // remaining input before anything is allocated from it.
+        if rows
+            .checked_mul(ROW_FIXED_BYTES)
+            .is_none_or(|needed| needed > bytes.len() - reader.offset)
+        {
+            return Err("categorical candidate row count exceeds the encoded length");
         }
         let mut outcomes = Vec::with_capacity(rows);
         for _ in 0..rows {
@@ -262,9 +258,10 @@ impl CategoricalCandidateSource {
             outcomes.push(f64::from_bits(u64::from_le_bytes(raw)));
         }
         let mut levels = Vec::with_capacity(rows);
-        for &index in reader.take(rows)? {
+        for _ in 0..rows {
+            let raw: [u8; 2] = reader.take(2)?.try_into().map_err(|_| "invalid level index")?;
             let level = declared_levels
-                .get(usize::from(index))
+                .get(usize::from(u16::from_le_bytes(raw)))
                 .ok_or("invalid categorical candidate level")?;
             levels.push(level.clone());
         }
@@ -438,55 +435,28 @@ mod tests {
             vec![2, 2, 26],
             vec![4, 4, 4, 4, 4, 4, 4, 4],
             vec![3, 2, 5, 40, 2, 7, 9, 2],
-            vec![MAX_ROWS - 2, 2],
+            vec![5_000, 2],
+            vec![2; 40],
         ] {
             let original = build(&counts, SamplingDesign::IndependentSubjectTrajectories).unwrap();
             assert_eq!(original.declared_levels().len(), counts.len());
             assert_eq!(original.rows(), counts.iter().sum::<usize>());
             let encoded = original.encode();
-            assert!(encoded.len() <= MAX_SOURCE_BYTES);
             let replayed = CategoricalCandidateSource::decode(&encoded).unwrap();
             assert_eq!(replayed.encode(), encoded);
             assert_eq!(original.program_identity(), replayed.program_identity());
             identities.insert(original.program_identity().to_hex());
         }
-        assert_eq!(identities.len(), 6);
-    }
-
-    #[test]
-    fn the_source_byte_cap_holds_the_largest_admitted_design() {
-        let (declared, levels) = {
-            let declared: Vec<String> =
-                (0..MAX_LEVELS).map(|i| format!("{i}{}", "l".repeat(MAX_TEXT_BYTES - 1))).collect();
-            let rows = (0..MAX_ROWS).map(|i| declared[i % MAX_LEVELS].clone()).collect();
-            (declared, rows)
-        };
-        let widest = CategoricalCandidateSource::new(
-            vec![1.5; MAX_ROWS],
-            levels,
-            declared,
-            (0..MAX_ROWS).map(|i| format!("{i:0>MAX_TEXT_BYTES$}")).collect(),
-            "s".repeat(MAX_TEXT_BYTES),
-            SamplingDesign::IndependentSubjectTrajectories,
-        )
-        .unwrap();
-        assert_eq!(widest.encode().len(), MAX_SOURCE_BYTES);
-        assert!(CategoricalCandidateSource::decode(&widest.encode()).is_ok());
-        let mut over = widest.encode();
-        over.push(0);
-        assert!(CategoricalCandidateSource::decode(&over).is_err());
+        assert_eq!(identities.len(), 7);
     }
 
     #[test]
     fn each_violation_is_refused() {
         let design = SamplingDesign::IndependentSubjectTrajectories;
-        // Row bounds: one below the minimum, one above the maximum.
-        assert!(build(&[14, 15], design).is_err());
-        assert!(build(&[MAX_ROWS - 1, 2], design).is_err());
-        // A level with too few rows, and level-count bounds.
+        // A level with too few rows, and fewer than two levels.
         assert!(build(&[29, 1], design).is_err());
         assert!(build(&[30], design).is_err());
-        assert!(build(&[4; 9], design).is_err());
+        assert!(build(&[2, 2], design).is_ok());
         // A dependent design.
         assert!(build(&[20, 20], SamplingDesign::DependentTimeSeries).is_err());
         let original = source();
@@ -544,7 +514,8 @@ mod tests {
         for cut in [0, 4, 5, 10, encoded.len() / 2, encoded.len() - 1] {
             assert!(CategoricalCandidateSource::decode(&encoded[..cut]).is_err());
         }
-        // Level count of one and nine; a row count below its minimum; an out-of-range level index.
+        // Level count of one and an undeclared third level; a row count its bytes cannot hold; an
+        // out-of-range level index.
         for (offset, value) in [(5 + 2 + "source-a".len(), 1_u8), (5 + 2 + "source-a".len(), 9)] {
             let mut bytes = encoded.clone();
             bytes[offset] = value;
@@ -554,7 +525,7 @@ mod tests {
         let last = bytes.len() - 1;
         bytes[last] ^= 0x80;
         assert!(CategoricalCandidateSource::decode(&bytes).is_err());
-        let rows_offset = 5 + 2 + "source-a".len() + 1 + 2 * (2 + "level-0".len());
+        let rows_offset = 5 + 2 + "source-a".len() + 2 + 2 * (2 + "level-0".len());
         let mut bytes = encoded.clone();
         bytes[rows_offset] = 1;
         assert!(CategoricalCandidateSource::decode(&bytes).is_err());

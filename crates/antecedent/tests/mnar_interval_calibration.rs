@@ -27,18 +27,24 @@ use antecedent::Study;
 use antecedent::analysis::mnar_fixed_shift::consume_source;
 use antecedent_core::ExecutionContext;
 use antecedent_core::mnar_fixed_shift::{
-    FixedShiftSource, MAX_MISSING_FRACTION, MIN_ARM_ROWS, MISSING_BAND_WIDTH, MISSING_BANDS,
-    SHIFT_BAND_WIDTH, SHIFT_BANDS, SamplingPremise, SourceRow, scope_functional,
+    FixedShiftSource, MISSING_BAND_WIDTH, SHIFT_BAND_WIDTH, SamplingPremise, SourceRow,
+    scope_functional,
 };
 use calibration::{
     CoverageTally, RecordKey, SampleGrid, grid_seed, map_replicates, n_sim, stream_seed, uniform,
 };
 
-// 50, 1000 and 10000 rows: the smallest and largest admitted sizes bound the
-// measured range, since a record covers only the row counts it measured.
+// 50, 1000 and 10000 rows bound the measured range, since a record covers only the row
+// counts it measured; a run outside every record refuses as unlicensed.
 const SIZES: SampleGrid = SampleGrid { name: "mnar_scope", factors: [(1, 20), (1, 1), (10, 1)] };
 const BASE_ROWS: usize = 1000;
 const ATTEMPTS: u64 = 200;
+/// Fewest assigned rows per arm a drawn design keeps, so every arm has observed outcomes.
+const MIN_ARM_ROWS: usize = 15;
+/// Declared-shift bands measured: `[0, 2)` pooled standard deviations.
+const SHIFT_BANDS: usize = 4;
+/// Missingness bands measured: `[0, 0.5)` of an arm.
+const MISSING_BANDS: usize = 4;
 
 struct Sample {
     interval: (f64, f64),
@@ -64,7 +70,7 @@ fn draw(
         let magnitude = (shift_band as f64 + u()) * SHIFT_BAND_WIDTH;
         let shift = if u() < 0.5 { -magnitude } else { magnitude };
         let lower = missing_band as f64 * MISSING_BAND_WIDTH;
-        let heaviest = (lower + u() * MISSING_BAND_WIDTH).min(MAX_MISSING_FRACTION);
+        let heaviest = lower + u() * MISSING_BAND_WIDTH;
         let other = heaviest * u();
         let (control_missing, treated_missing) =
             if u() < 0.5 { (heaviest, other) } else { (other, heaviest) };

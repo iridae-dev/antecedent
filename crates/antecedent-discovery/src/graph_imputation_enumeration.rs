@@ -106,7 +106,7 @@ pub fn graph_imputation_exact_dags(
         || variables.iter().enumerate().any(|(index, id)| id.raw() as usize != index)
     {
         return Err(
-            DiscoveryError::unsupported("bounded graph imputation requires 2-4 variables").into()
+            DiscoveryError::unsupported("graph imputation requires 2 to 8 variables").into()
         );
     }
     let score_data = tabular_score_data(data, variables)?;
@@ -221,8 +221,10 @@ mod graph_imputation_budget_tests {
         assert_eq!(counts(2, GraphSupport::TreatmentDirectEffect), 1);
         assert_eq!(counts(3, GraphSupport::TreatmentDirectEffect), 8);
         assert!(counts(4, GraphSupport::TreatmentDirectEffect) <= 543);
+        assert!(counts(5, GraphSupport::TreatmentDirectEffect) <= 29_281);
+        assert!(counts(5, GraphSupport::TreatmentDirectEffect) > 543);
         assert!(
-            graph_imputation_supported_masks(5, 0, 1, GraphSupport::TreatmentDirectEffect)
+            graph_imputation_supported_masks(9, 0, 1, GraphSupport::TreatmentDirectEffect)
                 .is_empty()
         );
     }

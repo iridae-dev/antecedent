@@ -929,15 +929,13 @@ class CategoricalPosteriorCandidateSource:
     expectation: bytes
 
 
-# Largest canonical candidate source: 4096 rows, 8 declared levels, every text 256 bytes.
-_MAX_CANDIDATE_SOURCE_BYTES = 1_095_964
-
 
 class PreparedCategoricalPosteriorCandidate:
-    """A retained compiler candidate for the bounded conjugate categorical model.
+    """A retained compiler candidate for the conjugate categorical model.
 
-    The treatment has two to eight declared levels, the first of which is the reference
-    of every reported contrast, with 30 to 4096 rows and at least two rows of each level.
+    The treatment has at least two declared levels, the first of which is the reference
+    of every reported contrast, and at least two rows of each level. Sizes are limited
+    only by the execution's resource limits.
     The sampling design is a caller declaration. The compiler requires one distinct
     subject per row; it does not infer independence from the observed data. Compiling
     grants no authority: ``measured_interval`` returns a calibrated credible interval of
@@ -1016,7 +1014,7 @@ class PreparedCategoricalPosteriorCandidate:
 
         if not isinstance(source, bytes) or not isinstance(expected, bytes):
             raise CausalTypeError("source and expected must be bytes")
-        if len(source) > _MAX_CANDIDATE_SOURCE_BYTES or len(expected) != 65:
+        if len(expected) != 65:
             raise CausalValueError("invalid candidate source or expectation size")
         result = cls.__new__(cls)
         result._execution = resolve_execution(execution)

@@ -196,6 +196,7 @@ struct Reconstructed {
     query: AverageEffectQuery,
     atoms: Vec<DerivedAtom>,
     _lease: AdmissionLease,
+    _graph_lease: AdmissionLease,
 }
 
 fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, IoError> {
@@ -205,6 +206,12 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
     let source = GraphImputationSource::decode(bytes).map_err(invalid)?;
     let parts = source.parts();
     let n = parts.names.len();
+    let graph_lease = ctx
+        .acquire_admission(
+            0,
+            antecedent_core::graph_imputation_contract::admission_bytes(parts.rows(), n),
+        )
+        .map_err(admission)?;
     let table = TabularData::from_f64_columns(
         parts
             .names
@@ -265,7 +272,16 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
             "the excluded graph count differs from the one the support rule derives",
         ));
     }
-    Ok(Reconstructed { source, table, variables, imputer, query, atoms, _lease: lease })
+    Ok(Reconstructed {
+        source,
+        table,
+        variables,
+        imputer,
+        query,
+        atoms,
+        _lease: lease,
+        _graph_lease: graph_lease,
+    })
 }
 
 struct Execution {

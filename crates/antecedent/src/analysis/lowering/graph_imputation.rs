@@ -5,7 +5,9 @@
 use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
-use antecedent_core::graph_imputation_contract::{GraphSupport, MAX_VARIABLES};
+use antecedent_core::graph_imputation_contract::{
+    GraphSupport, MAX_VARIABLES, MIN_IMPUTATIONS, MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS,
+};
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, PhysicalEffect, PhysicalOperator, VariableId,
 };
@@ -87,8 +89,7 @@ pub(crate) fn lower(
 ) -> Result<LoweredProgram, super::super::graph_imputation::GraphImputationError> {
     let n = input.variables.len();
     if !(2..=MAX_VARIABLES).contains(&n)
-        || input.rows < 4
-        || input.rows > 10_000
+        || input.rows < MIN_ROWS as u64
         || input.treatment == input.outcome
         || !input.variables.contains(&input.treatment)
         || !input.variables.contains(&input.outcome)
@@ -97,10 +98,10 @@ pub(crate) fn lower(
         || input.domains.get(input.treatment.raw() as usize) != Some(&1)
         || input.imputation.model != ImputationModel::ChainedEquations
         || input.imputation.assumption != MissingnessAssumption::MissingAtRandom
-        || !(2..=64).contains(&input.imputation.imputations)
-        || !(1..=64).contains(&input.imputation.iterations)
+        || input.imputation.imputations < MIN_IMPUTATIONS
+        || input.imputation.iterations < MIN_ITERATIONS
         || input.imputation.bootstrap_replicates != 0
-        || !(100..=4096).contains(&input.posterior_draws)
+        || input.posterior_draws < MIN_POSTERIOR_DRAWS
         || !input.prior_scale.is_finite()
         || input.prior_scale <= 0.0
     {

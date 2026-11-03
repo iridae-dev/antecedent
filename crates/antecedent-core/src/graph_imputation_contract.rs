@@ -19,19 +19,55 @@ use crate::identity::CanonicalWriter;
 
 /// Rule that restricts the structural support to graphs naming a single operation.
 pub const SUPPORT_RULE: &str = "unique_minimal_backdoor_adjustment_set";
-/// Variable count above which the exact graph enumeration is not attempted.
-pub const MAX_VARIABLES: usize = 4;
-/// Fewest rows of a replayable source.
-pub const MIN_ROWS: usize = 4;
-/// Most rows of a replayable source.
-pub const MAX_ROWS: usize = 10_000;
-/// Longest variable name.
-pub const MAX_NAME_BYTES: usize = 256;
-/// Most graph atoms: the labeled DAGs on four nodes.
-pub const MAX_ATOMS: usize = 543;
-/// Exact public byte bound of the encoded source.
-pub const MAX_SOURCE_BYTES: usize =
-    4096 + MAX_VARIABLES * (MAX_ROWS * 8 + MAX_NAME_BYTES + 16) + MAX_ATOMS * 64;
+/// Most variables whose graphs one adjacency word can name: it holds `n * (n - 1)` edge bits,
+/// so `n` is at most eight. Whether a larger count fits the resource limits is decided by
+/// [`admission_bytes`], not by a constant.
+pub const MAX_VARIABLES: usize = 8;
+/// Fewest rows: a sample variance needs two.
+pub const MIN_ROWS: usize = 2;
+/// Fewest imputations: between-imputation variance needs two.
+pub const MIN_IMPUTATIONS: u32 = 2;
+/// Fewest chained-equation sweeps.
+pub const MIN_ITERATIONS: u32 = 1;
+/// Fewest posterior draws: a 95% equal-tailed nearest-rank interval needs `1 / 0.025`.
+pub const MIN_POSTERIOR_DRAWS: u32 = 40;
+/// Longest variable name, in bytes: the wire length is two bytes.
+pub const MAX_NAME_BYTES: usize = u16::MAX as usize;
+/// Bytes of one encoded atom with no adjustment variables.
+const ATOM_FIXED_BYTES: usize = 8 + 1 + 1;
+
+/// Number of labeled DAGs on `n` nodes (Robinson's recurrence), saturating. This is the most
+/// atoms an exhaustive enumeration over `n` variables can retain.
+#[must_use]
+pub fn labeled_dag_count(n: usize) -> u64 {
+    let mut counts = vec![1_u64];
+    for m in 1..=n {
+        let mut total = 0_u64;
+        let mut choose = 1_u64;
+        for k in 1..=m {
+            choose = choose.saturating_mul((m - k + 1) as u64) / k as u64;
+            let term = choose.saturating_mul(counts[m - k]).saturating_mul(
+                1_u64
+                    .checked_shl(u32::try_from(k * (m - k)).unwrap_or(u32::MAX))
+                    .unwrap_or(u64::MAX),
+            );
+            total =
+                if k % 2 == 1 { total.saturating_add(term) } else { total.saturating_sub(term) };
+        }
+        counts.push(total);
+    }
+    counts[n]
+}
+
+/// Bytes admitted for one execution: the table, the imputed copies of it and one retained
+/// operation per atom the enumeration can produce. The graph count grows super-exponentially,
+/// so this quote, against the execution's limit, is what bounds the variable count.
+#[must_use]
+pub fn admission_bytes(rows: usize, variables: usize) -> u64 {
+    let table = (rows as u64).saturating_mul(variables as u64).saturating_mul(64);
+    let atoms = labeled_dag_count(variables).saturating_mul(64 + variables as u64 * 4);
+    26_214_400_u64.saturating_add(table).saturating_add(atoms)
+}
 
 const MAGIC: &[u8] = b"ANTECEDENT-GRAPH-CANDIDATE\x01";
 
@@ -162,7 +198,7 @@ impl GraphImputationParts {
         if !(2..=MAX_VARIABLES).contains(&n)
             || self.domains.len() != n
             || self.columns.len() != n
-            || !(MIN_ROWS..=MAX_ROWS).contains(&rows)
+            || rows < MIN_ROWS
             || self.columns.iter().any(|column| column.len() != rows)
             || self.columns.iter().flatten().any(|value| value.is_infinite())
             || self.domains.iter().any(|&domain| domain > 1)
@@ -176,9 +212,9 @@ impl GraphImputationParts {
             || outcome >= n
             || treatment == outcome
             || self.domains[treatment] != 1
-            || !(2..=64).contains(&self.imputations)
-            || !(1..=64).contains(&self.iterations)
-            || !(100..=4096).contains(&self.posterior_draws)
+            || self.imputations < MIN_IMPUTATIONS
+            || self.iterations < MIN_ITERATIONS
+            || self.posterior_draws < MIN_POSTERIOR_DRAWS
             || !self.prior_scale.is_finite()
             || self.prior_scale <= 0.0
         {
@@ -186,10 +222,11 @@ impl GraphImputationParts {
         }
         let edge_bits = n * (n - 1);
         let mut previous = None;
-        if self.atoms.is_empty() || self.atoms.len() > MAX_ATOMS {
+        let most_atoms = labeled_dag_count(n);
+        if self.atoms.is_empty() || self.atoms.len() as u64 > most_atoms {
             return Err("graph imputation atom count lies outside the bounded cell");
         }
-        if self.excluded as usize > MAX_ATOMS {
+        if u64::from(self.excluded) > most_atoms {
             return Err("graph imputation excluded graph count lies outside the bounded cell");
         }
         for atom in &self.atoms {
@@ -332,14 +369,23 @@ impl GraphImputationSource {
     /// # Errors
     /// Invalid, oversized, truncated, noncanonical or out-of-scope source.
     pub fn decode(bytes: &[u8]) -> Result<Self, &'static str> {
-        if bytes.len() > MAX_SOURCE_BYTES || !bytes.starts_with(MAGIC) {
-            return Err("invalid graph imputation source header or size");
+        if !bytes.starts_with(MAGIC) {
+            return Err("invalid graph imputation source header");
         }
         let mut reader = Reader { bytes, offset: MAGIC.len() };
         let n = usize::from(reader.byte()?);
         let rows = reader.u32()? as usize;
-        if !(2..=MAX_VARIABLES).contains(&n) || !(MIN_ROWS..=MAX_ROWS).contains(&rows) {
-            return Err("graph imputation source shape lies outside the bounded cell");
+        if !(2..=MAX_VARIABLES).contains(&n) || rows < MIN_ROWS {
+            return Err("graph imputation source shape is not a supported declaration");
+        }
+        // Every column holds eight bytes per row, so a declared count the input cannot hold
+        // is refused before anything is allocated from it.
+        if rows
+            .checked_mul(n)
+            .and_then(|cells| cells.checked_mul(8))
+            .is_none_or(|needed| needed > bytes.len())
+        {
+            return Err("graph imputation row count exceeds the encoded length");
         }
         let treatment = reader.u32()?;
         let outcome = reader.u32()?;
@@ -355,8 +401,11 @@ impl GraphImputationSource {
         let program = reader.digest()?;
         let excluded = reader.u32()?;
         let atom_count = reader.u32()? as usize;
-        if atom_count == 0 || atom_count > MAX_ATOMS {
-            return Err("graph imputation atom count lies outside the bounded cell");
+        if atom_count == 0
+            || atom_count as u64 > labeled_dag_count(n)
+            || atom_count.checked_mul(ATOM_FIXED_BYTES).is_none_or(|needed| needed > bytes.len())
+        {
+            return Err("graph imputation atom count is not a supported declaration");
         }
         let mut atoms = Vec::with_capacity(atom_count);
         for _ in 0..atom_count {
@@ -372,34 +421,7 @@ impl GraphImputationSource {
             }
             atoms.push(AtomOperation { mask, status, adjustment });
         }
-        let mut names = Vec::with_capacity(n);
-        let mut domains = Vec::with_capacity(n);
-        for _ in 0..n {
-            domains.push(reader.byte()?);
-            let length = usize::from(reader.u16()?);
-            if length == 0 || length > MAX_NAME_BYTES {
-                return Err("graph imputation variable name length is invalid");
-            }
-            names.push(
-                std::str::from_utf8(reader.take(length)?)
-                    .map_err(|_| "graph imputation variable name is not UTF-8")?
-                    .to_owned(),
-            );
-        }
-        let column_bytes = rows.checked_mul(8).ok_or("graph imputation column size overflow")?;
-        let mut columns = Vec::with_capacity(n);
-        for _ in 0..n {
-            let raw = reader.take(column_bytes)?;
-            columns.push(
-                raw.chunks_exact(8)
-                    .map(|chunk| {
-                        let mut word = [0u8; 8];
-                        word.copy_from_slice(chunk);
-                        f64::from_bits(u64::from_le_bytes(word))
-                    })
-                    .collect(),
-            );
-        }
+        let (names, domains, columns) = reader.table(n, rows)?;
         if reader.offset != bytes.len() {
             return Err("trailing graph imputation source bytes");
         }
@@ -430,6 +452,8 @@ impl GraphImputationSource {
     }
 }
 
+type TableParts = (Vec<String>, Vec<u8>, Vec<Vec<f64>>);
+
 struct Reader<'a> {
     bytes: &'a [u8],
     offset: usize,
@@ -444,6 +468,39 @@ impl<'a> Reader<'a> {
     }
     fn byte(&mut self) -> Result<u8, &'static str> {
         Ok(self.take(1)?[0])
+    }
+    /// Variable names, domains and columns of a declared shape.
+    fn table(&mut self, n: usize, rows: usize) -> Result<TableParts, &'static str> {
+        let reader = self;
+        let mut names = Vec::with_capacity(n);
+        let mut domains = Vec::with_capacity(n);
+        for _ in 0..n {
+            domains.push(reader.byte()?);
+            let length = usize::from(reader.u16()?);
+            if length == 0 || length > MAX_NAME_BYTES {
+                return Err("graph imputation variable name length is invalid");
+            }
+            names.push(
+                std::str::from_utf8(reader.take(length)?)
+                    .map_err(|_| "graph imputation variable name is not UTF-8")?
+                    .to_owned(),
+            );
+        }
+        let column_bytes = rows.checked_mul(8).ok_or("graph imputation column size overflow")?;
+        let mut columns = Vec::with_capacity(n);
+        for _ in 0..n {
+            let raw = reader.take(column_bytes)?;
+            columns.push(
+                raw.chunks_exact(8)
+                    .map(|chunk| {
+                        let mut word = [0u8; 8];
+                        word.copy_from_slice(chunk);
+                        f64::from_bits(u64::from_le_bytes(word))
+                    })
+                    .collect(),
+            );
+        }
+        Ok((names, domains, columns))
     }
     fn u16(&mut self) -> Result<u16, &'static str> {
         Ok(u16::from_le_bytes(self.take(2)?.try_into().map_err(|_| "invalid u16")?))
