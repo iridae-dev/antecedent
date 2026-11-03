@@ -1,0 +1,33 @@
+feature_id = "estimate.local_polynomial_ratio"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = [
+ "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio.rs",
+ "crates/antecedent-estimate/src/local_polynomial_ratio.rs",
+]
+
+papers = [
+ { title = "Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs", doi = "10.3982/ECTA11757", sections = ["local polynomial estimation of the jump (and of derivative discontinuities) with bias correction by a higher-order local polynomial, and the variance of the bias-corrected estimator"] },
+ { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["fuzzy design: ratio of the outcome jump to the treatment-probability jump at the cutoff"] },
+ { title = "Inference on Causal Effects in a Generalized Regression Kink Design", doi = "10.3982/ECTA11224", sections = ["regression kink: ratio of the outcome slope change to the treatment slope change at the kink point"] },
+]
+
+implementation_deviations = [
+ "The bandwidth is fixed by the caller and used for both the estimation and the bias-correction fit (the pilot bandwidth equals the estimation bandwidth); no data-driven bandwidth selection and no separate bias bandwidth. The kernel is triangular.",
+ "Fuzzy jump: the estimation order is quadratic and the pilot cubic; the bias-corrected one-sided intercept is the quadratic intercept minus the projection of the omitted cubic term times the cubic coefficient, which equals the intercept of the cubic fit on that side. Regression kink: the one-sided slopes come from a local quartic fit, the slope change is divided by the bandwidth.",
+ "The variance is the HC0 sandwich of the pilot fit, which carries the covariance of the estimated bias term, combined across the two sides, the outcome and the treatment equation; the ratio variance is the delta method with the HC0 outcome-treatment covariance. The finite-sample HC1-HC3 and nearest-neighbour variance choices of the cited work are not implemented.",
+ "A weak first stage (the corrected treatment discontinuity or kink within 1.96 HC0 standard errors of zero) is refused; the normal interval is not a weak-instrument-robust set. The 0.975 normal interval and the retained support gate are repository support policy established by the coverage simulations, not a result of the cited papers.",
+ "Continuity of conditional means (fuzzy jump) or of the derivative of the running-variable trend (kink) and monotone compliance are declared assumptions, not tested.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/graphless_local_polynomial_ratio_known_truth.rs (exact polynomial truth with planted jump and kink, and a minimal Gauss-Jordan WLS/HC0/delta-method reimplementation compared to the library)",
+ "crates/antecedent/tests/local_polynomial_ratio_route.rs",
+ "crates/antecedent-estimate/tests/local_polynomial_ratio_calibration.rs (repeated-sampling coverage: calibration evidence, not an independent check)",
+]

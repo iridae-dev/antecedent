@@ -107,6 +107,20 @@ def test_problems(path: str, name: str) -> list[str]:
     return _TEST_CACHE[key]
 
 
+_SIMULATIONS: set[tuple[str, str]] | None = None
+
+
+def calibration_simulations() -> set[tuple[str, str]]:
+    """Registered repeated-sampling calibration checks (parity/v3_test_registry.toml)."""
+    global _SIMULATIONS
+    if _SIMULATIONS is None:
+        _SIMULATIONS = {
+            (r["evidence_test"], r["evidence_assertion"])
+            for r in test_evidence.registered_calibration_simulations()
+        }
+    return _SIMULATIONS
+
+
 class Provenance:
     """Which provenance record an implementation id resolves to."""
 
@@ -160,6 +174,10 @@ def check_cell(cell: dict, prov: Provenance) -> Unit:
     if not (test and name):
         unit.problems.append("no independent check: no evidence_test/evidence_assertion")
     else:
+        if (test, name) in calibration_simulations():
+            unit.problems.append(
+                f"no independent check: {test}::{name} is a calibration simulation, not an independent check"
+            )
         for why in test_problems(test, name):
             unit.problems.append(f"no independent check: {test}::{name}: {why}")
     return unit
@@ -206,13 +224,20 @@ def check_graphless(row: dict, prov: Provenance, manifest: dict) -> Unit:
             unit.problems.append(
                 f"no provenance: no provenance record names {', '.join(dict.fromkeys(modules))}"
             )
-    ref = row.get("known_truth_test")
+    # The independent check is `independent_check`; a row that names none falls back to its
+    # `known_truth_test`. A registered calibration simulation never satisfies the rule.
+    ref = row.get("independent_check") or row.get("known_truth_test")
+    field_name = "independent_check" if row.get("independent_check") else "known_truth_test"
     if not isinstance(ref, str) or "::" not in ref:
-        unit.problems.append("no independent check: no known_truth_test")
+        unit.problems.append("no independent check: no independent_check or known_truth_test")
     else:
         path, name = ref.split("::", 1)
+        if (path, name) in calibration_simulations():
+            unit.problems.append(
+                f"no independent check: {field_name} {ref} is a calibration simulation, not an independent check"
+            )
         for why in test_problems(path, name):
-            unit.problems.append(f"no independent check: known_truth_test {ref}: {why}")
+            unit.problems.append(f"no independent check: {field_name} {ref}: {why}")
     return unit
 
 
@@ -262,6 +287,9 @@ def independent_fixtures(record: dict) -> tuple[list[dict], list[str]]:
         test, name = fx.get("evidence_test"), fx.get("evidence_assertion")
         if not (test and name):
             notes.append(f"{fx['id']}: no cited test")
+            continue
+        if (test, name) in calibration_simulations():
+            notes.append(f"{fx['id']}: {test}::{name} is a calibration simulation")
             continue
         why = test_problems(test, name)
         if why:

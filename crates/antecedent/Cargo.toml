@@ -1269,3 +1269,7 @@ path = "tests/data_diagnostics.rs"
 [[test]]
 name = "checked_claim_synthesis"
 path = "tests/checked_claim_synthesis.rs"
+
+[[test]]
+name = "graphless_did_known_truth"
+path = "tests/graphless_did_known_truth.rs"
