@@ -22557,3 +22557,17 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_route_behaviour.py"
 gates = ["inventory"]
+
+[[test]]
+id = "antecedent-estimate-gam-derivative-band-construction"
+crate = "antecedent-estimate"
+cargo_target = "gam_derivative_band_construction"
+path = "crates/antecedent-estimate/tests/gam_derivative_band_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scripts-test-gate-python-bindings-use-facade"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_python_bindings_use_facade.py"
+gates = ["inventory"]
