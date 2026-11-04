@@ -54,7 +54,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs",
-          "sha256": "81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7"
+          "sha256": "dc408f58a6e3ef70a30c976787598d224cb729996c29c534c15aceb92fb27875",
+          "items": [
+            "fn summary",
+            "fn rank_rhat_and_compatible_ess_cases_match_pinned_arviz_chains",
+            "fn full_pair_diagnostics_match_the_high_precision_primary_equations"
+          ]
         }
       ],
       "fixture_payload_sha256": "8748eac55d36502d0b86b73d74bf2361ae3cd25f5bb2eb9930bf720061e2562a"

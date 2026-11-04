@@ -50,7 +50,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/dml.rs",
-          "sha256": "848bd2ab896b12c5ae668d2c6fdb2ba2cc8150756d9b59c950149d8fc6ae4a91"
+          "sha256": "1333a36d7f505ceb002013ebc2368071bef6779dca0fd58f7005c4f983881330",
+          "items": [
+            "fn learner_ate_known_truth_point_conformance",
+            "fn learner_ate_known_truth_coverage"
+          ]
         }
       ],
       "fixture_payload_sha256": "fbb555c43ac37e88957d3c68cd0fec40d40e23285929253aae59d2557b2eeb43"

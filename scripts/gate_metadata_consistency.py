@@ -46,14 +46,14 @@ import set_version  # noqa: E402
 fail.extend(set_version.release_snippet_problems(root, version))
 
 # .zenodo.json is what Zenodo actually ingests (it ignores CITATION.cff when
-# present); CITATION.cff carries the CFF-schema-valid support list for GitHub's
+# present); CITATION.cff carries the CFF-schema-valid license list for GitHub's
 # citation widget and cffconvert. Zenodo rejects both the list form and the
 # SPDX OR-expression (zenodo/zenodo#2515), so removing either file — or letting
 # their shared facts drift — re-breaks a release consumer.
 zenodo_path = Path(".zenodo.json")
 if not zenodo_path.is_file():
     fail.append(
-        ".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose support list it rejects"
+        ".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose license list it rejects"
     )
 else:
     try:
@@ -63,10 +63,10 @@ else:
     else:
         if zenodo.get("upload_type") != "software":
             fail.append('.zenodo.json upload_type must be "software"')
-        if not zenodo.get("support"):
-            fail.append(".zenodo.json has no support (Zenodo would guess from the repo)")
-        elif zenodo["support"] != zenodo["support"].lower():
-            fail.append(f".zenodo.json support {zenodo['support']!r} must be a lowercase Zenodo id")
+        if not zenodo.get("license"):
+            fail.append(".zenodo.json has no license (Zenodo would guess from the repo)")
+        elif zenodo["license"] != zenodo["license"].lower():
+            fail.append(f".zenodo.json license {zenodo['license']!r} must be a lowercase Zenodo id")
         fail.extend(author_orcid_problems(citation, zenodo.get("creators")))
 
 # Live generated supported-cell markers belong only on the active documentation

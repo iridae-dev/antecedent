@@ -973,6 +973,19 @@
     "url": "https://api.crossref.org/works/10.1093/biomet/70.3.659",
     "year": 1983
   },
+  "10.1093/biomet/73.1.13": {
+    "authors": [
+      "KUNG-YEE LIANG",
+      "SCOTT L. ZEGER"
+    ],
+    "doi": "10.1093/biomet/73.1.13",
+    "response_sha256": "54346a557705ec3ab5ce66f98ba0ec7bcbc73e5f8656c63ea816d1aeba0b805e",
+    "titles": [
+      "Longitudinal data analysis using generalized linear models"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/73.1.13",
+    "year": 1986
+  },
   "10.1093/biomet/74.4.883": {
     "authors": [
       "WEI-YANN TSAI",
@@ -1534,6 +1547,20 @@
     ],
     "url": "https://api.crossref.org/works/10.1145/368996.369025",
     "year": 1962
+  },
+  "10.1162/003355304772839588": {
+    "authors": [
+      "M. Bertrand",
+      "E. Duflo",
+      "S. Mullainathan"
+    ],
+    "doi": "10.1162/003355304772839588",
+    "response_sha256": "4a2ebaed5afafdf6c7e2bf723a783dc991e57ff14ec87dc9ce9ac6fbb5274d70",
+    "titles": [
+      "How Much Should We Trust Differences-In-Differences Estimates?"
+    ],
+    "url": "https://api.crossref.org/works/10.1162/003355304772839588",
+    "year": 2004
   },
   "10.1162/rest_a_00552": {
     "authors": [
@@ -2691,6 +2718,20 @@
     ],
     "url": "https://api.crossref.org/works/10.3982/ecta11224",
     "year": 2015
+  },
+  "10.3982/ecta11757": {
+    "authors": [
+      "Sebastian Calonico",
+      "Matias D. Cattaneo",
+      "Rocio Titiunik"
+    ],
+    "doi": "10.3982/ecta11757",
+    "response_sha256": "39ad52d59776fb3fb594b4ec05a29365511b7466e2d0986605835d3f040e5a40",
+    "titles": [
+      "Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs"
+    ],
+    "url": "https://api.crossref.org/works/10.3982/ecta11757",
+    "year": 2014
   },
   "10.3982/ecta15732": {
     "authors": [
